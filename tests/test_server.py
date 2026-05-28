@@ -269,7 +269,22 @@ def test_doctor_flags_mixed_embedding_model_ids(tmp_path: Path, capsys: pytest.C
     assert "Mixed embedding model IDs detected" in stdout
 
 
-def test_doctor_fix_reembeds_mixed_embedding_model_ids(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_doctor_fix_reembeds_mixed_embedding_model_ids(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Isolate Path.home() / %APPDATA% so doctor's MCP-config-discovery section sees
+    # only the stub config we plant below, not whatever exists on the CI runner.
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
+    monkeypatch.setenv("APPDATA", str(fake_home / "AppData"))
+    claude_cfg = fake_home / ".config" / "claude" / "claude_desktop_config.json"
+    claude_cfg.parent.mkdir(parents=True)
+    claude_cfg.write_text(json.dumps({"mcpServers": {"waggle": {"command": "waggle-mcp"}}}))
+
     db_path = tmp_path / "server-memory.db"
     graph = MemoryGraph(db_path, FakeEmbeddingModel())
     graph.observe_conversation(

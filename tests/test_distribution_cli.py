@@ -35,6 +35,7 @@ def test_parser_exposes_graph_studio_aliases(command_name: str) -> None:
 
 def test_write_codex_config_uses_packaged_stdio_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
 
     config_path = _write_codex(str(tmp_path / "memory.db"), "/tmp/fake-python")
     contents = config_path.read_text()
@@ -60,6 +61,7 @@ def test_json_client_writers_use_packaged_stdio_command(
     relative_path: str,
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     monkeypatch.setattr("waggle.server.sys.platform", "linux")
 
     config_path = writer(str(tmp_path / "memory.db"), "/tmp/fake-python")
