@@ -5479,7 +5479,9 @@ def _write_codex(db_path: str, python_exe: str) -> Path:
     pattern = re.compile(r"(?ms)^\[mcp_servers\.waggle\]\n.*?(?=^\[(?!mcp_servers\.waggle(?:\.env)?\])[^\n]+\]\n|\Z)")
     replacement = toml_block.rstrip() + "\n"
     if pattern.search(existing):
-        updated = pattern.sub(replacement, existing, count=1)
+        # Pass replacement via a lambda so re.sub does not interpret backslash
+        # sequences (\U, \1, \g<…>) inside Windows paths like C:\Users\....
+        updated = pattern.sub(lambda _m: replacement, existing, count=1)
     else:
         separator = "\n\n" if existing.strip() else ""
         updated = existing.rstrip() + separator + replacement
