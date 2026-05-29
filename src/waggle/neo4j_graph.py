@@ -1860,6 +1860,7 @@ class Neo4jMemoryGraph:
                 total_nodes_in_graph=len(nodes_by_id),
             )
 
+
 def update_node(
     self,
     *,
@@ -1915,9 +1916,7 @@ def update_node(
 
         embedding = None
         if content is not None:
-            embedding = self.embedding_model.embed(
-                updated_node.content
-            ).astype(np.float32).tolist()
+            embedding = self.embedding_model.embed(updated_node.content).astype(np.float32).tolist()
 
         session.run(
             """
@@ -1947,9 +1946,7 @@ def update_node(
             session_id=updated_node.session_id,
             valid_from=updated_node.valid_from.isoformat() if updated_node.valid_from else None,
             valid_to=updated_node.valid_to.isoformat() if updated_node.valid_to else None,
-            evidence_records=[
-                record.model_dump() for record in updated_node.evidence_records
-            ],
+            evidence_records=[record.model_dump() for record in updated_node.evidence_records],
             updated_at=updated_node.updated_at.isoformat(),
             embedding=embedding,
         ).consume()
