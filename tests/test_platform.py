@@ -102,7 +102,7 @@ def test_api_key_record_tracks_prefix_and_last_used(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
 
     created = graph.create_api_key("tenant-http", "http-test", created_by="ops@example.com")
-    assert created.record.prefix.startswith("sk_live_")
+    assert created.record.prefix.startswith("sk_test_")
     assert created.record.created_by == "ops@example.com"
 
     authenticated = graph.authenticate_api_key(created.raw_api_key)

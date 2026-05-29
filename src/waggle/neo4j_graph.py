@@ -236,6 +236,7 @@ class Neo4jMemoryGraph:
         dedup_similarity_threshold: float = 0.97,
         dedup_same_label_threshold: float = 0.9,
         export_dir: str | Path | None = None,
+        api_key_environment: str = "test",
         _driver: Any | None = None,
         _owns_driver: bool = True,
     ) -> None:
@@ -258,6 +259,7 @@ class Neo4jMemoryGraph:
         self.dedup_similarity_threshold = dedup_similarity_threshold
         self.dedup_same_label_threshold = dedup_same_label_threshold
         self.export_dir = Path(export_dir).expanduser() if export_dir is not None else Path.cwd() / "exports"
+        self.api_key_environment = api_key_environment
         self._lock = threading.RLock()
         self._initialize_database()
 
@@ -373,6 +375,7 @@ class Neo4jMemoryGraph:
             dedup_similarity_threshold=self.dedup_similarity_threshold,
             dedup_same_label_threshold=self.dedup_same_label_threshold,
             export_dir=self.export_dir,
+            api_key_environment=self.api_key_environment,
             _driver=self._driver,
             _owns_driver=False,
         )
@@ -621,7 +624,7 @@ class Neo4jMemoryGraph:
         scopes: list[str] | None = None,
     ) -> ApiKeyCreateResult:
         tenant = self.ensure_tenant(tenant_id)
-        raw_api_key = generate_api_key()
+        raw_api_key = generate_api_key(self.api_key_environment)
         record = ApiKeyRecord(
             api_key_id=str(uuid4()),
             tenant_id=tenant.tenant_id,

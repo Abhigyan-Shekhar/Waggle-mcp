@@ -57,6 +57,7 @@ WAGGLE_BACKEND=neo4j
 WAGGLE_HTTP_HOST=0.0.0.0
 WAGGLE_HTTP_PORT=8080
 WAGGLE_DEFAULT_TENANT_ID=workspace-default
+WAGGLE_API_KEY_ENVIRONMENT=live
 WAGGLE_LOG_LEVEL=INFO
 WAGGLE_RATE_LIMIT_RPM=120
 WAGGLE_WRITE_RATE_LIMIT_RPM=60
@@ -151,6 +152,8 @@ Operational notes:
 ## API keys
 
 Today, remote access relies on Waggle API keys and tenant isolation.
+
+Set `WAGGLE_API_KEY_ENVIRONMENT=live` before issuing production keys so generated keys use the `sk_live_` prefix. Local and default installs use the non-production `sk_test_` prefix unless this variable is explicitly set to `live`.
 
 Recommended operational flow:
 

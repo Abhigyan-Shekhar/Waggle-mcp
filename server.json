@@ -45,6 +45,13 @@
           "default": "local-default"
         },
         {
+          "name": "WAGGLE_API_KEY_ENVIRONMENT",
+          "description": "Generated API key prefix environment: test/local for non-production or live for production.",
+          "isRequired": false,
+          "format": "string",
+          "default": "test"
+        },
+        {
           "name": "WAGGLE_MODEL",
           "description": "Sentence-transformers model used for local embeddings.",
           "isRequired": false,

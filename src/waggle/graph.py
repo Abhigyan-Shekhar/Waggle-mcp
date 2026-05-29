@@ -822,6 +822,7 @@ class MemoryGraph:
         tiered_retrieval_top_k_windows: int = 3,
         hybrid_retrieval_config: HybridRetrievalConfig | None = None,
         export_dir: str | Path | None = None,
+        api_key_environment: str = "test",
     ) -> None:
         self.db_path = Path(db_path).expanduser()
         self.embedding_model = embedding_model
@@ -836,6 +837,7 @@ class MemoryGraph:
             recency_half_life_days=recency_half_life_days
         )
         self.export_dir = Path(export_dir).expanduser() if export_dir is not None else self.db_path.parent / "exports"
+        self.api_key_environment = api_key_environment
         # Change 5: reader-writer lock — concurrent reads, exclusive writes.
         # All existing `with self._lock` sites acquire the write (exclusive) lock.
         # Read-only paths can be migrated to `with self._lock.read()` to allow
@@ -942,6 +944,7 @@ class MemoryGraph:
         clone.tiered_retrieval_top_k_windows = self.tiered_retrieval_top_k_windows
         clone.hybrid_retrieval_config = self.hybrid_retrieval_config
         clone.export_dir = self.export_dir
+        clone.api_key_environment = self.api_key_environment
         clone._lock = self._lock
         clone.ensure_tenant(clone.tenant_id)
         return clone
@@ -1085,7 +1088,7 @@ class MemoryGraph:
         scopes: list[str] | None = None,
     ) -> ApiKeyCreateResult:
         tenant = self.ensure_tenant(tenant_id)
-        raw_api_key = generate_api_key()
+        raw_api_key = generate_api_key(self.api_key_environment)
         record = ApiKeyRecord(
             api_key_id=str(uuid4()),
             tenant_id=tenant.tenant_id,

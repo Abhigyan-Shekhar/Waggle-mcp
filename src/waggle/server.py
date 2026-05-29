@@ -493,6 +493,7 @@ def _build_backend(config: AppConfig) -> Any:
             tiered_retrieval_top_k_windows=config.tiered_retrieval_top_k_windows,
             hybrid_retrieval_config=config.hybrid_retrieval_config(),
             export_dir=config.export_dir,
+            api_key_environment=config.api_key_environment,
         )
     from waggle.neo4j_graph import Neo4jMemoryGraph
 
@@ -504,6 +505,7 @@ def _build_backend(config: AppConfig) -> Any:
         embedding_model=embedding_model,
         tenant_id=config.default_tenant_id,
         export_dir=config.export_dir,
+        api_key_environment=config.api_key_environment,
     )
 
 

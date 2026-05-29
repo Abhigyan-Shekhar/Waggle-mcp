@@ -14,6 +14,8 @@ services:
         value: 0.0.0.0
       - key: WAGGLE_DEFAULT_TENANT_ID
         value: local-default
+      - key: WAGGLE_API_KEY_ENVIRONMENT
+        value: live
       - key: WAGGLE_LOG_LEVEL
         value: INFO
       # Set these in the Render dashboard (or as Blueprint secrets) to point at your Neo4j instance.

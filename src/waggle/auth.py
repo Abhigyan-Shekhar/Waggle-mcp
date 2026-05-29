@@ -21,10 +21,22 @@ def verify_api_key(raw_api_key: str, expected_hash: str) -> bool:
     return hmac.compare_digest(candidate, expected_hash)
 
 
-def generate_api_key() -> str:
+VALID_API_KEY_ENVIRONMENTS = {"live", "test", "local"}
+
+
+def normalize_api_key_environment(environment: str) -> str:
+    normalized = environment.strip().lower()
+    if normalized not in VALID_API_KEY_ENVIRONMENTS:
+        allowed = ", ".join(sorted(VALID_API_KEY_ENVIRONMENTS))
+        raise ValueError(f"Unsupported API key environment: {environment!r}. Valid values: {allowed}.")
+    return normalized
+
+
+def generate_api_key(environment: str = "test") -> str:
+    normalized_environment = normalize_api_key_environment(environment)
     visible = secrets.token_hex(4)
     secret = secrets.token_urlsafe(24)
-    return f"sk_live_{visible}.{secret}"
+    return f"sk_{normalized_environment}_{visible}.{secret}"
 
 
 def api_key_prefix(raw_api_key: str) -> str:

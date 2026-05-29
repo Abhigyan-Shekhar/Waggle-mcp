@@ -513,7 +513,7 @@ def test_create_and_list_api_keys_cli_redacts_hash(tmp_path: Path, capsys: pytes
     create_payload = json.loads(capsys.readouterr().out)
 
     assert exit_code == 0
-    assert create_payload["prefix"].startswith("sk_live_")
+    assert create_payload["prefix"].startswith("sk_test_")
     assert create_payload["created_by"] == "ops@example.com"
     assert create_payload["scopes"] == ["graph:read", "graph:write", "admin:read", "admin:write"]
     assert "raw_api_key" in create_payload
@@ -529,6 +529,25 @@ def test_create_and_list_api_keys_cli_redacts_hash(tmp_path: Path, capsys: pytes
     assert listed[0]["expires_at"] is not None
     assert listed[0]["scopes"] == ["graph:read", "graph:write", "admin:read", "admin:write"]
     assert "key_hash" not in listed[0]
+
+
+def test_create_api_key_cli_uses_configured_live_prefix(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    app = make_app(tmp_path)
+    app.config.api_key_environment = "live"
+
+    create_args = SimpleNamespace(
+        command="create-api-key",
+        tenant_id="workspace-a",
+        name="prod-agent",
+        expires_in_days=30,
+        created_by="ops@example.com",
+    )
+    exit_code = _run_admin_command(app.config, create_args)
+    create_payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert create_payload["prefix"].startswith("sk_live_")
+    assert create_payload["raw_api_key"].startswith(create_payload["prefix"])
 
 
 def test_retention_admin_commands_update_and_prune(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

@@ -80,6 +80,7 @@ class AppConfig:
     hybrid_rerank_top_k_in: int = 20
     hybrid_rerank_top_k_out: int = 5
     startup_mode: str = STARTUP_MODE_NORMAL  # fast | normal | strict
+    api_key_environment: str = "test"  # test | local | live; controls generated API key prefix
     # Canonicalization-at-write dedup threshold.
     # Nodes with cosine similarity >= this value (and matching node_type + scope)
     # are merged at write time instead of creating a duplicate.
@@ -123,6 +124,7 @@ class AppConfig:
             retention_days=int(os.environ.get("WAGGLE_RETENTION_DAYS", "90")),
             retention_prune_interval_hours=int(os.environ.get("WAGGLE_RETENTION_PRUNE_INTERVAL_HOURS", "24")),
             startup_mode=os.environ.get("WAGGLE_STARTUP_MODE", STARTUP_MODE_NORMAL).strip().lower(),
+            api_key_environment=os.environ.get("WAGGLE_API_KEY_ENVIRONMENT", "test").strip().lower(),
             tiered_retrieval=os.environ.get("WAGGLE_TIERED_RETRIEVAL", "false").strip().lower() == "true",
             tiered_retrieval_top_k_windows=int(os.environ.get("WAGGLE_TIERED_TOP_K_WINDOWS", "3")),
             dedup_threshold=float(os.environ.get("WAGGLE_DEDUP_THRESHOLD", "0.88")),
@@ -148,6 +150,10 @@ class AppConfig:
         if self.startup_mode not in {STARTUP_MODE_FAST, STARTUP_MODE_NORMAL, STARTUP_MODE_STRICT}:
             raise ValidationFailure(
                 f"Unsupported WAGGLE_STARTUP_MODE: {self.startup_mode!r}. Valid values: fast, normal, strict."
+            )
+        if self.api_key_environment not in {"test", "local", "live"}:
+            raise ValidationFailure(
+                f"Unsupported WAGGLE_API_KEY_ENVIRONMENT: {self.api_key_environment!r}. Valid values: test, local, live."
             )
         if self.dedup_threshold < 0.85:
             raise ValidationFailure("WAGGLE_DEDUP_THRESHOLD must be >= 0.85 to avoid false-positive merges.")
