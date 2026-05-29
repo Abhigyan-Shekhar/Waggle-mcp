@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: vscode-publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   publish-vscode:
     runs-on: ubuntu-latest
@@ -43,10 +47,14 @@ jobs:
           path: apps/vscode-extension/*.vsix
 
       - name: Publish to Marketplace
-        if: ${{ secrets.VSCE_PAT != '' }}
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: npx @vscode/vsce publish
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "::notice::VSCE_PAT not set; skipping marketplace publish."
+            exit 0
+          fi
+          npx @vscode/vsce publish
 
       - name: Upload VSIX to GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
