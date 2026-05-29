@@ -310,10 +310,17 @@ def test_doctor_fix_reembeds_mixed_embedding_model_ids(tmp_path: Path, capsys: p
         neo4j_database="",
     )
 
-    exit_code = _run_doctor(config, fix=True)
+    _run_doctor(config, fix=True)
     stdout = capsys.readouterr().out
 
-    assert exit_code == 0
+    # NOTE: we intentionally don't assert on _run_doctor's exit code here.
+    # The doctor reports many orthogonal environment checks (MCP client config
+    # files, embedding model cache, Windows stdout encoding, ...) and exits 1 if
+    # ANY of them surface an issue. On a clean CI runner section [1] always
+    # appends "No MCP client config file contains a 'waggle' server entry",
+    # so the exit code is always 1 regardless of whether the fix path worked.
+    # The assertions below cover what this test actually means to verify:
+    # that fix=True re-embedded the stale rows and the store is now consistent.
     assert "Re-embedded stale rows" in stdout
     repaired = graph.get_embedding_store_health()
     assert repaired["mixed_models"] is False
