@@ -147,7 +147,7 @@ def make_transcript_payload(
 
 
 class TestBuildExtractiveBlocks:
-    def test_simple_user_assistant(self) -> None:
+    def test_build_extractive_blocks_preserves_user_assistant_order(self) -> None:
         msgs = [
             TranscriptMessage(role="user", content="hello"),
             TranscriptMessage(role="assistant", content="world"),
@@ -254,7 +254,7 @@ class TestIngestTranscriptHandoffBackend:
         assert result.export_skipped is True
         assert result.export_skipped_reason == "no_messages"
 
-    def test_simple_user_assistant_turn(self, tmp_path: Path) -> None:
+    def test_ingest_transcript_handoff_processes_single_user_assistant_turn(self, tmp_path: Path) -> None:
         graph = make_graph(tmp_path)
         payload = TranscriptIngestionInput(
             session_id="s1",
