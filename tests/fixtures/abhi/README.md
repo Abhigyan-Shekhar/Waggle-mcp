@@ -77,3 +77,15 @@ It is only used to regenerate the committed fixture files when the format change
   - `abhi_to_snapshot()` without flags → raises `DanglingEdgeError`
   - `abhi_to_snapshot(allow_dangling=True)` → succeeds, drops the dangling edge
   - `abhi_to_snapshot(force=True)` → succeeds, drops the dangling edge
+
+---
+
+### Secret-scan transcript cases
+
+These JSON fixtures are used by the server export tests to exercise the
+transcript secret scan without committing real credentials:
+
+- `secret-scan-refusal.json` contains an obvious fake token shape that should
+  trigger a refusal unless `--force` is set.
+- `secret-scan-safe.json` contains nearby wording such as "password policy"
+  and "API key rotation plan" that should remain exportable.

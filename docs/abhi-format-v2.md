@@ -178,6 +178,19 @@ Optional session or context-window metadata:
 - If `--verify-signature` is requested, fail closed on missing or invalid signatures.
 - If `embedding_model_id` mismatches the active store, prompt or offer re-embedding instead of silently mixing models.
 
+## Export Safety
+
+Waggle's server and CLI wrappers run a conservative transcript secret scan before
+exporting `.abhi` artifacts. The scan is intentionally biased toward refusal so
+obvious credential or token shapes do not leave the machine by accident.
+
+- If the scan finds likely secrets, export is refused by default.
+- `--force` exists for maintainers who have reviewed the exact scope and
+  confirmed the match is a false positive, synthetic fixture data, or otherwise
+  safe to export.
+- Avoid `--force` on live customer data. Redact the transcript or narrow the
+  export scope first when there is any doubt.
+
 ## Determinism
 
 The stable, portable surface is:

@@ -29,6 +29,8 @@ from waggle.server import (
     _write_other,
 )
 
+ABHI_FIXTURES = Path(__file__).parent / "fixtures" / "abhi"
+
 
 class FakeEmbeddingModel:
     model_name = "fake-model"
@@ -81,6 +83,17 @@ def make_app(tmp_path: Path) -> WaggleServer:
         neo4j_database="",
     )
     return WaggleServer(graph=graph, config=config)
+
+
+def _seed_transcript_fixture(app: WaggleServer, fixture_name: str) -> None:
+    payload = json.loads((ABHI_FIXTURES / fixture_name).read_text(encoding="utf-8"))
+    app.graph.observe_conversation(
+        user_message=payload["user_message"],
+        assistant_response=payload["assistant_response"],
+        project=payload.get("project", ""),
+        session_id=payload.get("session_id", ""),
+        agent_id=payload.get("agent_id", ""),
+    )
 
 
 def write_waggle_codex_config(home: Path, db_path: Path) -> None:
@@ -895,12 +908,7 @@ def test_export_validate_inspect_and_import_abhi_tools(tmp_path: Path) -> None:
 
 def test_export_abhi_tool_refuses_likely_secrets_without_force(tmp_path: Path) -> None:
     app = make_app(tmp_path)
-    app.graph.observe_conversation(
-        user_message="My token is sk-abcdefghijklmnopqrstuvwxyz123456.",
-        assistant_response="I will not repeat the token.",
-        session_id="secret-session",
-        project="security",
-    )
+    _seed_transcript_fixture(app, "secret-scan-refusal.json")
 
     refused = app.handle_tool_call(
         "export_abhi",
@@ -915,6 +923,19 @@ def test_export_abhi_tool_refuses_likely_secrets_without_force(tmp_path: Path) -
     assert "appear to contain secrets" in refused.content[0].text
     assert forced.isError is False
     assert Path(forced.structuredContent["output_path"]).exists()
+
+
+def test_export_abhi_tool_allows_false_positive_adjacent_text_without_force(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+    _seed_transcript_fixture(app, "secret-scan-safe.json")
+
+    exported = app.handle_tool_call(
+        "export_abhi",
+        {"output_path": str(tmp_path / "safe.abhi"), "project": "security"},
+    )
+
+    assert exported.isError is False
+    assert Path(exported.structuredContent["output_path"]).exists()
 
 
 def test_diff_and_merge_abhi_tools(tmp_path: Path) -> None:
