@@ -2254,3 +2254,54 @@ def test_abhi_json_file_raises_validation_failure(tmp_path: Path) -> None:
     json_file.write_text('{"graph": {}}', encoding="utf-8")
     with pytest.raises(VF, match=r"not a valid \.abhi file"):
         load_abhi_document(json_file)
+
+
+def test_connection_pool_reuses_connections_with_pragmas(tmp_path: Path) -> None:
+    """Verify that pooled connections are reused and PRAGMAs persist across checkouts.
+
+    This test validates that:
+    1. Connections are acquired from the pool (or created if empty).
+    2. When returned to the pool, they are reused on the next checkout.
+    3. The same connection object is reused (not recreated).
+    4. PRAGMAs are set only at creation time and remain in effect across checkouts.
+    """
+    graph = make_graph(tmp_path)
+
+    # First checkout: acquire a connection from the pool
+    connection1_id: int | None = None
+    with graph._connect() as conn1:
+        connection1_id = id(conn1)
+        # Verify PRAGMAs are in effect at creation time
+        journal_mode = conn1.execute("PRAGMA journal_mode").fetchone()[0]
+        assert journal_mode.upper() == "WAL", f"Expected WAL mode, got {journal_mode}"
+        # Verify other important PRAGMAs
+        foreign_keys = conn1.execute("PRAGMA foreign_keys").fetchone()[0]
+        assert foreign_keys == 1, "Expected foreign_keys to be ON (1)"
+
+    # Second checkout: should reuse the same connection
+    connection2_id: int | None = None
+    with graph._connect() as conn2:
+        connection2_id = id(conn2)
+        # Verify it's the same connection object (reused from pool, not recreated)
+        assert connection1_id == connection2_id, (
+            f"Connection was not reused from pool: first={connection1_id}, second={connection2_id}"
+        )
+        # Verify PRAGMAs are still in effect after reuse
+        journal_mode = conn2.execute("PRAGMA journal_mode").fetchone()[0]
+        assert journal_mode.upper() == "WAL", (
+            f"PRAGMA journal_mode lost after pool reuse: expected WAL, got {journal_mode}"
+        )
+        # Verify other PRAGMAs persist
+        foreign_keys = conn2.execute("PRAGMA foreign_keys").fetchone()[0]
+        assert foreign_keys == 1, f"PRAGMA foreign_keys lost after pool reuse: expected 1, got {foreign_keys}"
+
+    # Third checkout: same connection reused again
+    connection3_id: int | None = None
+    with graph._connect() as conn3:
+        connection3_id = id(conn3)
+        assert connection1_id == connection3_id, (
+            f"Third checkout should reuse same connection: first={connection1_id}, third={connection3_id}"
+        )
+        # Final validation: PRAGMAs still in effect
+        journal_mode = conn3.execute("PRAGMA journal_mode").fetchone()[0]
+        assert journal_mode.upper() == "WAL"

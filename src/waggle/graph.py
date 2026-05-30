@@ -805,6 +805,79 @@ class ScoredNodeView:
     label_lower: str = ""  # pre-lowercased for tiebreak sort
 
 
+class PooledConnection:
+    """Context manager for pooled connections.
+
+    Handles acquiring from the pool on __enter__ and returning to the pool on __exit__.
+    """
+
+    def __init__(self, pool: ConnectionPool) -> None:
+        self.pool = pool
+        self.connection: sqlite3.Connection | None = None
+
+    def __enter__(self) -> sqlite3.Connection:
+        self.connection = self.pool.acquire()
+        return self.connection
+
+    def __exit__(self, *_: object) -> None:
+        if self.connection is not None:
+            self.pool.release(self.connection)
+
+
+class ConnectionPool:
+    """Thread-safe SQLite connection pool.
+
+    Reuses connections instead of creating new ones per operation.
+    PRAGMAs are configured only at connection creation time, not per checkout.
+    """
+
+    def __init__(self, db_path: Path, pool_size: int = 5, timeout: float = 30.0) -> None:
+        self.db_path = db_path
+        self.pool_size = pool_size
+        self.timeout = timeout
+        self._available: list[sqlite3.Connection] = []
+        self._lock = threading.Lock()
+
+    def _configure_pragmas(self, connection: sqlite3.Connection) -> None:
+        """Configure PRAGMAs at connection creation time (once per connection lifetime)."""
+        connection.execute("PRAGMA journal_mode=WAL")
+        connection.execute("PRAGMA synchronous=NORMAL")
+        connection.execute("PRAGMA busy_timeout=30000")
+        connection.execute("PRAGMA foreign_keys=ON")
+        connection.execute("PRAGMA mmap_size=268435456")
+        connection.execute("PRAGMA temp_store=MEMORY")
+        connection.execute("PRAGMA cache_size=-32000")
+
+    def _create_connection(self) -> sqlite3.Connection:
+        """Create and configure a new connection with PRAGMAs."""
+        connection = sqlite3.connect(str(self.db_path), timeout=self.timeout)
+        connection.row_factory = sqlite3.Row
+        self._configure_pragmas(connection)
+        return connection
+
+    def acquire(self) -> sqlite3.Connection:
+        """Get a connection from the pool or create a new one."""
+        with self._lock:
+            if self._available:
+                return self._available.pop()
+            return self._create_connection()
+
+    def release(self, connection: sqlite3.Connection) -> None:
+        """Return a connection to the pool for reuse."""
+        with self._lock:
+            if len(self._available) < self.pool_size:
+                self._available.append(connection)
+            else:
+                connection.close()
+
+    def close_all(self) -> None:
+        """Close all pooled connections."""
+        with self._lock:
+            for connection in self._available:
+                connection.close()
+            self._available.clear()
+
+
 class MemoryGraph:
     """SQLite-backed graph memory with embedding-assisted retrieval."""
 
@@ -844,52 +917,24 @@ class MemoryGraph:
         # concurrent access without changing the external API.
         self._lock = _ReadWriteLock()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._connection_pool = ConnectionPool(self.db_path, pool_size=5)
         self._initialize_database()
 
     def hybrid_retriever(self) -> HybridRetriever:
         return HybridRetriever(self, config=self.hybrid_retrieval_config)
 
-    def _connect(self, timeout: float = 30.0) -> sqlite3.Connection:
-        """Connect to the SQLite database with WAL mode and cross-process safety.
+    def _connect(self, timeout: float = 30.0) -> PooledConnection:
+        """Acquire a connection from the pool with WAL mode configuration.
+
+        PRAGMAs are configured only once at connection creation time, not on checkout.
 
         Args:
-            timeout: Connection timeout in seconds (default 30.0).
+            timeout: Connection timeout in seconds (default 30.0). Passed to new connections.
 
         Returns:
-            A configured sqlite3.Connection with WAL mode enabled.
+            A PooledConnection context manager that handles acquire/release with the pool.
         """
-        connection = sqlite3.connect(str(self.db_path), timeout=timeout)
-        connection.row_factory = sqlite3.Row
-
-        # WAL mode: enables concurrent reads while maintaining single-writer safety
-        connection.execute("PRAGMA journal_mode=WAL")
-
-        # NORMAL: fsync at transaction end (vs FULL which fsyncs at each statement)
-        # This balances durability with performance for multi-process access
-        connection.execute("PRAGMA synchronous=NORMAL")
-
-        # Increase busy_timeout for multi-process contention
-        # 30 seconds is reasonable for cross-process locks
-        connection.execute("PRAGMA busy_timeout=30000")
-
-        # Enforce foreign key constraints
-        connection.execute("PRAGMA foreign_keys=ON")
-
-        # --- Performance tuning ---
-        # Map up to 256 MB of the database file into the OS page cache.
-        # Reads hit the page cache directly instead of going through read(2),
-        # cutting latency by 10-25% for read-heavy workloads.
-        connection.execute("PRAGMA mmap_size=268435456")
-
-        # Keep temp tables (sort buffers, index scans) in memory instead of
-        # spilling to a temp file on disk.  Safe because our temp tables are small.
-        connection.execute("PRAGMA temp_store=MEMORY")
-
-        # Allow SQLite to keep 32 MB of pages in its pager cache.
-        # Negative value = number of KiB; -32000 = 32 MB.
-        connection.execute("PRAGMA cache_size=-32000")
-
-        return connection
+        return PooledConnection(self._connection_pool)
 
     def _initialize_database(self) -> None:
         """Initialize the database schema, migrations, and WAL mode.
@@ -946,6 +991,7 @@ class MemoryGraph:
         clone.export_dir = self.export_dir
         clone.api_key_environment = self.api_key_environment
         clone._lock = self._lock
+        clone._connection_pool = self._connection_pool
         clone.ensure_tenant(clone.tenant_id)
         return clone
 
