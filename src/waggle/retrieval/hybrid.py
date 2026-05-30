@@ -239,9 +239,7 @@ class HybridRetriever:
         now = datetime.now(UTC)
 
         transcript_vector_ranked = (
-            self._rank_turn_pairs(query_embedding, turn_pairs)[:20]
-            if "vector_transcript" in selected_layers
-            else []
+            self._rank_turn_pairs(query_embedding, turn_pairs)[:20] if "vector_transcript" in selected_layers else []
         )
         node_vector_ranked = (
             []
