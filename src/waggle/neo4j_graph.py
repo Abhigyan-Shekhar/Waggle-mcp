@@ -1946,9 +1946,7 @@ def update_node(
             session_id=updated_node.session_id,
             valid_from=updated_node.valid_from.isoformat() if updated_node.valid_from else None,
             valid_to=updated_node.valid_to.isoformat() if updated_node.valid_to else None,
-            evidence_records=_encode_evidence_records(
-               updated_node.evidence_records
-            ),
+            evidence_records=_encode_evidence_records(updated_node.evidence_records),
             updated_at=updated_node.updated_at.isoformat(),
             embedding=embedding,
         ).consume()
