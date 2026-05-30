@@ -575,6 +575,7 @@ class TestEdgeQualityReport:
     def test_malformed_or_non_dict_edge_metadata_logs_warning(self, caplog) -> None:
         """Edges with malformed or non-dict metadata JSON should log a warning and be treated as having no confidence."""
         import uuid
+
         from waggle.models import utc_now
 
         now = utc_now().isoformat()
