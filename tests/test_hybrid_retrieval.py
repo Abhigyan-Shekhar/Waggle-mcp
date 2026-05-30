@@ -462,14 +462,6 @@ def test_debug_retrieval_layers_filter_affects_fusion(tmp_path: Path) -> None:
             turn_pair_id="tp-filter",
         )
 
-    full = graph.hybrid_retriever().retrieve_debug(
-        query="fusion test",
-        project="alpha",
-        agent_id="codex",
-        session_id="",
-        top_k=5,
-        mode="hybrid",
-    )
     partial = graph.hybrid_retriever().retrieve_debug(
         query="fusion test",
         project="alpha",
