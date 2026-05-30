@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from waggle.config import AppConfig
 from waggle.graph import MemoryGraph
@@ -363,6 +364,129 @@ def test_layer_scores_backward_compatible():
     candidate.layer_scores["bm25"] = 0.6
     assert "vector_transcript" in candidate.layer_scores
     assert "bm25" in candidate.layer_scores
+
+
+def test_debug_retrieval_layers_default_returns_all(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    with graph._lock, graph._connect() as connection:
+        observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-layers",
+            observed_at=observed_at,
+            turn_index=0,
+            role="user",
+            transcript_text="the default layers should include everything",
+            turn_pair_id="tp-layers-default",
+        )
+
+    debug = graph.hybrid_retriever().retrieve_debug(
+        query="default layers",
+        project="alpha",
+        agent_id="codex",
+        session_id="",
+        top_k=5,
+        mode="hybrid",
+    )
+    assert set(debug["layers"].keys()) == {"vector_transcript", "vector_node", "lexical", "graph_expansion"}
+
+
+def test_debug_retrieval_single_layer_select(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    with graph._lock, graph._connect() as connection:
+        observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-single",
+            observed_at=observed_at,
+            turn_index=0,
+            role="user",
+            transcript_text="single layer selection test",
+            turn_pair_id="tp-single",
+        )
+
+    lex_debug = graph.hybrid_retriever().retrieve_debug(
+        query="single layer",
+        project="alpha",
+        agent_id="codex",
+        session_id="",
+        top_k=5,
+        mode="hybrid",
+        layers=["lexical"],
+    )
+    assert set(lex_debug["layers"].keys()) == {"lexical"}
+
+    vt_debug = graph.hybrid_retriever().retrieve_debug(
+        query="single layer",
+        project="alpha",
+        agent_id="codex",
+        session_id="",
+        top_k=5,
+        mode="hybrid",
+        layers=["vector_transcript"],
+    )
+    assert set(vt_debug["layers"].keys()) == {"vector_transcript"}
+
+
+def test_debug_retrieval_invalid_layer_name(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    with pytest.raises(ValueError, match="Invalid layer"):
+        graph.hybrid_retriever().retrieve_debug(
+            query="invalid",
+            project="",
+            agent_id="",
+            session_id="",
+            top_k=5,
+            mode="hybrid",
+            layers=["not_a_valid_layer"],
+        )
+
+
+def test_debug_retrieval_layers_filter_affects_fusion(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    with graph._lock, graph._connect() as connection:
+        observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-filter",
+            observed_at=observed_at,
+            turn_index=0,
+            role="user",
+            transcript_text="fusion should only reflect selected layers",
+            turn_pair_id="tp-filter",
+        )
+
+    full = graph.hybrid_retriever().retrieve_debug(
+        query="fusion test",
+        project="alpha",
+        agent_id="codex",
+        session_id="",
+        top_k=5,
+        mode="hybrid",
+    )
+    partial = graph.hybrid_retriever().retrieve_debug(
+        query="fusion test",
+        project="alpha",
+        agent_id="codex",
+        session_id="",
+        top_k=5,
+        mode="hybrid",
+        layers=["vector_transcript"],
+    )
+
+    assert "vector_node" not in partial["layers"]
+    assert "lexical" not in partial["layers"]
+    assert "graph_expansion" not in partial["layers"]
+    for hit in partial["fused_top20"]:
+        assert "vector_node" not in hit.get("layer_scores", {})
+        assert "bm25" not in hit.get("layer_scores", {})
+        assert "graph_expansion" not in hit.get("layer_scores", {})
 
 
 def test_score_explanation_includes_recency_contribution():

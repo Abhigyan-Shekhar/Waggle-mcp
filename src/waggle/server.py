@@ -798,6 +798,14 @@ class WaggleServer:
                             "default": "hybrid",
                             "description": "Which retrieval stack to diagnose.",
                         },
+                        "layers": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": ["vector_transcript", "vector_node", "lexical", "graph_expansion"],
+                            },
+                            "description": "Optional subset of retrieval layers to compute. Default: all layers.",
+                        },
                         **_scope_properties(),
                     },
                     required=["query"],
@@ -1879,6 +1887,7 @@ class WaggleServer:
                         self._subgraph_payload(subgraph),
                     )
                 elif name == "debug_retrieval":
+                    layers_arg = arguments.get("layers")
                     debug = graph.debug_retrieval(
                         query=arguments["query"],
                         max_nodes=int(arguments.get("max_nodes", 10)),
@@ -1887,6 +1896,7 @@ class WaggleServer:
                         project=arguments.get("project", ""),
                         session_id=arguments.get("session_id", ""),
                         retrieval_mode=arguments.get("retrieval_mode", "hybrid"),
+                        layers=layers_arg,
                     )
                     result = self._tool_result(
                         json.dumps(debug, indent=2),

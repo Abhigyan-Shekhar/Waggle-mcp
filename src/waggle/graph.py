@@ -3393,6 +3393,7 @@ class MemoryGraph:
         max_nodes: int = 10,
         max_depth: int = 2,
         retrieval_mode: str = "graph",
+        layers: list[str] | None = None,
     ) -> dict[str, Any]:
         query_text = query.strip()
         if not query_text:
@@ -3413,6 +3414,7 @@ class MemoryGraph:
                 session_id=session_id,
                 top_k=max_nodes,
                 mode=normalized_mode,
+                layers=layers,
             )
             return {
                 "query": query_text,

@@ -17,6 +17,8 @@ from waggle.rlm import run_gemini_one_shot, run_groq_one_shot, run_ollama_one_sh
 
 RRF_K = 60.0
 
+VALID_LAYERS = frozenset({"vector_transcript", "vector_node", "lexical", "graph_expansion"})
+
 HYBRID_RERANKER_PROMPT = """You are reranking memory retrieval candidates for a conversational memory system.
 
 You will receive:
@@ -215,32 +217,52 @@ class HybridRetriever:
         top_k: int = 5,
         *,
         mode: str = "hybrid",
+        layers: list[str] | None = None,
     ) -> dict[str, Any]:
         normalized_mode = mode.strip().lower()
         if normalized_mode not in {"hybrid", "verbatim"}:
             raise ValueError("HybridRetriever mode must be 'hybrid' or 'verbatim'.")
 
+        if layers is not None:
+            invalid = set(layers) - VALID_LAYERS
+            if invalid:
+                raise ValueError(
+                    f"Invalid layer(s): {sorted(invalid)}. "
+                    "Valid layers: vector_transcript, vector_node, lexical, graph_expansion"
+                )
+            selected_layers = set(layers)
+        else:
+            selected_layers = VALID_LAYERS
+
         turn_pairs = self._load_turn_pairs(project=project, agent_id=agent_id, session_id=session_id)
         query_embedding = self.graph.embedding_model.embed(self.graph._expand_query_aliases(query))
         now = datetime.now(UTC)
 
-        transcript_vector_ranked = self._rank_turn_pairs(query_embedding, turn_pairs)[:20]
+        transcript_vector_ranked = (
+            self._rank_turn_pairs(query_embedding, turn_pairs)[:20]
+            if "vector_transcript" in selected_layers
+            else []
+        )
         node_vector_ranked = (
             []
-            if normalized_mode == "verbatim"
+            if normalized_mode == "verbatim" or "vector_node" not in selected_layers
             else self._rank_nodes(query_embedding, project=project, agent_id=agent_id, session_id=session_id)[:20]
         )
-        lexical_ranked = self._rank_lexical(
-            query=query,
-            turn_pairs=turn_pairs,
-            project=project,
-            agent_id=agent_id,
-            session_id=session_id,
-            include_nodes=normalized_mode != "verbatim",
-        )[:20]
+        lexical_ranked = (
+            self._rank_lexical(
+                query=query,
+                turn_pairs=turn_pairs,
+                project=project,
+                agent_id=agent_id,
+                session_id=session_id,
+                include_nodes=normalized_mode != "verbatim",
+            )[:20]
+            if "lexical" in selected_layers
+            else []
+        )
         graph_expanded_ranked = (
             []
-            if normalized_mode == "verbatim"
+            if normalized_mode == "verbatim" or "graph_expansion" not in selected_layers
             else self._expand_graph_candidates(
                 node_vector_ranked, turn_pairs_by_id={pair.turn_pair_id: pair for pair in turn_pairs}
             )[:20]
@@ -274,10 +296,14 @@ class HybridRetriever:
         return {
             "hits": hits,
             "layers": {
-                "vector_transcript": self._summarize_layer(transcript_vector_ranked),
-                "vector_node": self._summarize_layer(node_vector_ranked),
-                "lexical": self._summarize_layer(lexical_ranked),
-                "graph_expansion": self._summarize_layer(graph_expanded_ranked),
+                name: self._summarize_layer(ranked)
+                for name, ranked in [
+                    ("vector_transcript", transcript_vector_ranked),
+                    ("vector_node", node_vector_ranked),
+                    ("lexical", lexical_ranked),
+                    ("graph_expansion", graph_expanded_ranked),
+                ]
+                if name in selected_layers
             },
             "fused_top20": [
                 {
