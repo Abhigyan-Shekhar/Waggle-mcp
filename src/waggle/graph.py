@@ -809,6 +809,7 @@ class PooledConnection:
     """Context manager for pooled connections.
 
     Handles acquiring from the pool on __enter__ and returning to the pool on __exit__.
+    Also supports direct usage with delegation to the underlying connection.
     """
 
     def __init__(self, pool: ConnectionPool) -> None:
@@ -822,6 +823,26 @@ class PooledConnection:
     def __exit__(self, *_: object) -> None:
         if self.connection is not None:
             self.pool.release(self.connection)
+
+    def _get_connection(self) -> sqlite3.Connection:
+        """Lazily acquire connection from pool if not already acquired."""
+        if self.connection is None:
+            self.connection = self.pool.acquire()
+        return self.connection
+
+    def execute(self, *args: object, **kwargs: object) -> sqlite3.Cursor:
+        """Delegate execute to the underlying connection."""
+        return self._get_connection().execute(*args, **kwargs)
+
+    def commit(self) -> None:
+        """Delegate commit to the underlying connection."""
+        return self._get_connection().commit()
+
+    def close(self) -> None:
+        """Release connection back to pool."""
+        if self.connection is not None:
+            self.pool.release(self.connection)
+            self.connection = None
 
 
 class ConnectionPool:
