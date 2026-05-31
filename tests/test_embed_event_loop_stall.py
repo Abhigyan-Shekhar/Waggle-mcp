@@ -1,13 +1,13 @@
 """Measure event-loop stall caused by synchronous ``embed()`` calls.
 
-Part of the *async embedding* work (sub-issue 2 of 2). 
+Part of the *async embedding* work (sub-issue 2 of 2).
 
 We claim that calling ``EmbeddingModel.embed`` synchronously inside an async request handler blocks the event loop, starving lightweight requests (health checks, ``get_stats``).
 This module quantifies that stall so the problem is visible and so the thread-pool-executor fix can be shown to help.
 
 How it works
 ------------
-A "heartbeat" coroutine ticks every ``HEARTBEAT_INTERVAL`` seconds and records the largest gap between successive ticks. 
+A "heartbeat" coroutine ticks every ``HEARTBEAT_INTERVAL`` seconds and records the largest gap between successive ticks.
 Each tick stands in for a lightweight request: the gap is how long such a request would have waited to be serviced.
 While the heartbeat runs we drive one embed-heavy ``add_node`` through two code paths:
 
