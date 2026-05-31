@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ast
+import inspect
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,6 +10,7 @@ import numpy as np
 import pytest
 
 import waggle
+import waggle.server as server_module
 from waggle.config import AppConfig
 from waggle.graph import MemoryGraph
 from waggle.models import NodeType, RelationType
@@ -254,6 +257,18 @@ def test_parser_accepts_graph_editor_commands() -> None:
     assert pull_args.file_ref == "file123"
     assert share_args.command == "share"
     assert share_args.file_ref == "file123"
+
+
+def test_run_doctor_has_single_invocation_site() -> None:
+    tree = ast.parse(inspect.getsource(server_module))
+
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "_run_doctor"
+    ]
+
+    assert len(calls) == 1
 
 
 def test_doctor_flags_mixed_embedding_model_ids(

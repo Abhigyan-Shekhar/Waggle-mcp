@@ -191,6 +191,8 @@ export function App() {
   const [transcriptRecords, setTranscriptRecords] = useState(boot.sampleMode ? SAMPLE_TRANSCRIPTS : []);
   const [filters, setFilters] = useState({ search: "", tags: [], sessions: [], sources: [], agents: [], projects: [], dateRange: "all" });
   const [transcriptSearch, setTranscriptSearch] = useState("");
+  const [transcriptOffset, setTranscriptOffset] = useState(0);
+  const [transcriptTotalCount, setTranscriptTotalCount] = useState(0);
   const [transcriptHits, setTranscriptHits] = useState([]);
   const [retrievalQuery, setRetrievalQuery] = useState("how do transcript provenance and derived nodes interact?");
   const [retrievalResult, setRetrievalResult] = useState(boot.sampleMode ? SAMPLE_RETRIEVAL : null);
@@ -246,6 +248,8 @@ export function App() {
     ]);
     setSnapshot(graphData);
     setTranscriptRecords(transcriptData.records || []);
+    setTranscriptOffset(transcriptData.pagination?.offset ?? 0);
+    setTranscriptTotalCount(transcriptData.pagination?.total_count ?? 0);
     setSelectedNodeId("");
     setSelectedEdgeId("");
     setHoverNodeId("");
@@ -719,6 +723,21 @@ export function App() {
     setTranscriptHits(payload.hits || []);
   };
 
+  const loadMoreTranscripts = async () => {
+    const nextOffset = transcriptRecords.length;
+    const query = new URLSearchParams({
+      ...scope,
+      limit: "200",
+      offset: String(nextOffset),
+    });
+    const payload = await apiRequest(`/api/graph/transcripts?${query.toString()}`);
+    if (payload.records?.length) {
+      setTranscriptRecords((prev) => [...prev, ...payload.records]);
+      setTranscriptOffset(nextOffset);
+      setTranscriptTotalCount(payload.pagination?.total_count ?? 0);
+    }
+  };
+
   const runRetrievalDebug = async () => {
     if (boot.sampleMode) {
       setRetrievalResult(SAMPLE_RETRIEVAL);
@@ -1051,6 +1070,17 @@ export function App() {
                     );
                   })}
                 </div>
+                {!transcriptSearch.trim() && transcriptTotalCount > transcriptRecords.length ? (
+                  <div className="flex justify-center pt-2 pb-4">
+                    <button
+                      className="rounded-xl border border-white/10 px-4 py-2 text-sm text-graph-muted hover:text-white"
+                      onClick={() => loadMoreTranscripts().catch((error) => setToast(error.message))}
+                      type="button"
+                    >
+                      Load more ({transcriptRecords.length} of {transcriptTotalCount})
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : null}

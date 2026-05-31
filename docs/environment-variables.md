@@ -21,6 +21,17 @@ Boolean values are enabled only when set to the lowercase string `true`. Integer
 |----------|---------|------|--------------|---------|
 | `WAGGLE_DB_PATH` | `~/.waggle/waggle.db` (or the Codex Waggle DB path discovered from `~/.codex/config.toml`) | path string | `WAGGLE_BACKEND=sqlite`. Expanded with `~` support. | `/var/lib/waggle/waggle.db` |
 
+## Database Path Resolution
+
+When using the SQLite backend, Waggle determines the database path in the following order:
+
+1. `WAGGLE_DB_PATH` if it is explicitly set.
+2. `mcp_servers.waggle.env.WAGGLE_DB_PATH` from `~/.codex/config.toml` (only when `WAGGLE_DB_PATH` is not set).
+3. The default path: `~/.waggle/waggle.db`.
+
+The `~` character is expanded to the current user's home directory.
+To force Waggle to use a specific database location, set `WAGGLE_DB_PATH` explicitly.
+
 ## HTTP service
 
 | Variable | Default | Type | Applies when | Example |

@@ -365,6 +365,44 @@ def test_layer_scores_backward_compatible():
     assert "bm25" in candidate.layer_scores
 
 
+def test_list_transcript_records_pagination(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    with graph._lock, graph._connect() as connection:
+        observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+        for index in range(5):
+            graph._store_transcript_record(
+                connection,
+                agent_id="codex",
+                project="alpha",
+                session_id="sess-page",
+                observed_at=observed_at,
+                turn_index=index,
+                role="user",
+                transcript_text=f"record {index}",
+                turn_pair_id="tp-page",
+            )
+
+    all_records = graph.list_transcript_records(project="alpha")
+    assert len(all_records) == 5
+    assert all_records[0].transcript_text == "record 0"
+    assert all_records[4].transcript_text == "record 4"
+
+    first_page = graph.list_transcript_records(project="alpha", limit=2, offset=0)
+    assert len(first_page) == 2
+    assert [r.transcript_text for r in first_page] == ["record 0", "record 1"]
+
+    second_page = graph.list_transcript_records(project="alpha", limit=2, offset=2)
+    assert len(second_page) == 2
+    assert [r.transcript_text for r in second_page] == ["record 2", "record 3"]
+
+    third_page = graph.list_transcript_records(project="alpha", limit=2, offset=4)
+    assert len(third_page) == 1
+    assert [r.transcript_text for r in third_page] == ["record 4"]
+
+    total = graph.count_transcript_records(project="alpha")
+    assert total == 5
+
+
 def test_score_explanation_includes_recency_contribution():
     candidate = CandidateMemory(
         candidate_id="test-4",

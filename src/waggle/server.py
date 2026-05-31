@@ -3114,6 +3114,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
     async def graph_transcripts(request: Request) -> Response:
         scope = _scope_from_request(request)
         limit = int(request.query_params.get("limit", "200") or "200")
+        offset = int(request.query_params.get("offset", "0") or "0")
         query_text = request.query_params.get("query", "").strip()
         graph, _ = _require_http_scope(request, "graph:read")
         if query_text and hasattr(graph, "search_transcript_records"):
@@ -3134,18 +3135,24 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             )
         if not hasattr(graph, "list_transcript_records"):
             raise ValidationFailure("Transcript listing is not available in this backend.")
-        records = graph.list_transcript_records(limit=limit, **scope)
+        records = graph.list_transcript_records(limit=limit, offset=offset, **scope)
+        total_count = graph.count_transcript_records(**scope)
         _emit_http_audit(
             request,
             event_type="record.read",
             resource_type="transcript_records",
             action="read",
-            metadata={"mode": "chronological", "limit": limit},
+            metadata={"mode": "chronological", "limit": limit, "offset": offset},
         )
         return JSONResponse(
             {
                 "mode": "chronological",
                 "records": [record.model_dump(mode="json") for record in records],
+                "pagination": {
+                    "offset": offset,
+                    "limit": limit,
+                    "total_count": total_count,
+                },
             }
         )
 
@@ -4533,6 +4540,8 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
     }
     if args.command in _CLI_COMMAND_ALIASES:
         args.command = _CLI_COMMAND_ALIASES[args.command]
+    if args.command == "doctor":
+        return _run_doctor_command(config, args)
     backend = _build_backend(config)
     if args.command == "create-tenant":
         tenant = backend.ensure_tenant(args.tenant_id, args.name)
@@ -4971,18 +4980,21 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
     if args.command == "features":
         print(_FEATURES_GUIDE)
         return 0
-    if args.command == "doctor":
-        return _run_doctor(
-            config,
-            fix=bool(getattr(args, "fix", False)),
-            json_output=bool(getattr(args, "json_output", False)),
-        )
     raise ValidationFailure(f"Unknown command: {args.command}")
 
 
 # ---------------------------------------------------------------------------
 # doctor command
 # ---------------------------------------------------------------------------
+
+
+def _run_doctor_command(config: AppConfig, args: argparse.Namespace) -> int:
+    return _run_doctor(
+        config,
+        fix=bool(getattr(args, "fix", False)),
+        json_output=bool(getattr(args, "json_output", False)),
+    )
+
 
 _KNOWN_CONFIG_PATHS: list[tuple[str, str]] = [
     # (label, path_template)
@@ -6051,7 +6063,7 @@ def _run_setup(args: argparse.Namespace) -> int:
         doctor_config = AppConfig.from_env()
         doctor_config.db_path = db_path
         doctor_config.model_name = args.model
-        doctor_exit = _run_doctor(doctor_config)
+        doctor_exit = _run_doctor_command(doctor_config, args)
         if doctor_exit:
             print(_c(_CYAN, "Setup completed; doctor reported follow-up warnings above."))
         return 0
@@ -6173,13 +6185,7 @@ def main() -> None:
     if command == "doctor":
         # Doctor only needs the config — not a live backend connection.
         config = AppConfig.from_env()
-        sys.exit(
-            _run_doctor(
-                config,
-                fix=bool(getattr(args, "fix", False)),
-                json_output=bool(getattr(args, "json_output", False)),
-            )
-        )
+        sys.exit(_run_admin_command(config, args))
 
     config = AppConfig.from_env()
     if command == "serve" and getattr(args, "transport", None):

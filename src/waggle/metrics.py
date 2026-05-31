@@ -47,5 +47,13 @@ class MetricsRegistry:
     def _format_labels(labels: tuple[tuple[str, str], ...]) -> str:
         if not labels:
             return ""
-        pairs = ",".join(f'{key}="{value}"' for key, value in labels)
+
+        # Keys are internal metric names and are assumed to be valid.
+        escaped_pairs = []
+
+        for key, value in labels:
+            escaped_value = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+            escaped_pairs.append(f'{key}="{escaped_value}"')
+
+        pairs = ",".join(escaped_pairs)
         return "{" + pairs + "}"
