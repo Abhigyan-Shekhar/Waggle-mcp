@@ -7372,6 +7372,7 @@ class MemoryGraph:
         project: str = "",
         session_id: str = "",
         limit: int = 200,
+        offset: int = 0,
     ) -> list[TranscriptRecord]:
         filters = ["tenant_id = ?"]
         params: list[Any] = [self.tenant_id]
@@ -7392,11 +7393,40 @@ class MemoryGraph:
                 FROM transcript_records
                 WHERE {" AND ".join(filters)}
                 ORDER BY observed_at ASC, turn_index ASC
-                LIMIT ?
+                LIMIT ? OFFSET ?
                 """,
-                (*params, max(1, int(limit))),
+                (*params, max(1, int(limit)), max(0, int(offset))),
             ).fetchall()
         return [self._row_to_transcript_record(row) for row in rows]
+
+    def count_transcript_records(
+        self,
+        *,
+        agent_id: str = "",
+        project: str = "",
+        session_id: str = "",
+    ) -> int:
+        filters = ["tenant_id = ?"]
+        params: list[Any] = [self.tenant_id]
+        if project.strip():
+            filters.append("project = ?")
+            params.append(project.strip())
+        if session_id.strip():
+            filters.append("session_id = ?")
+            params.append(session_id.strip())
+        elif agent_id.strip():
+            filters.append("agent_id = ?")
+            params.append(agent_id.strip())
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                f"""
+                SELECT COUNT(*) AS cnt
+                FROM transcript_records
+                WHERE {" AND ".join(filters)}
+                """,
+                tuple(params),
+            ).fetchone()
+        return int(row["cnt"] or 0)
 
     def search_transcript_records(
         self,

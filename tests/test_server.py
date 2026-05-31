@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ast
+import inspect
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,6 +10,7 @@ import numpy as np
 import pytest
 
 import waggle
+import waggle.server as server_module
 from waggle.config import AppConfig
 from waggle.graph import MemoryGraph
 from waggle.models import NodeType, RelationType
@@ -254,6 +257,18 @@ def test_parser_accepts_graph_editor_commands() -> None:
     assert pull_args.file_ref == "file123"
     assert share_args.command == "share"
     assert share_args.file_ref == "file123"
+
+
+def test_run_doctor_has_single_invocation_site() -> None:
+    tree = ast.parse(inspect.getsource(server_module))
+
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "_run_doctor"
+    ]
+
+    assert len(calls) == 1
 
 
 def test_doctor_flags_mixed_embedding_model_ids(
@@ -1848,6 +1863,42 @@ def test_write_codex_config_updates_existing_file_without_duplicates(
     assert f'WAGGLE_DB_PATH = "{tmp_path / "memory.db"}"' in contents
     assert "/old/python" not in contents
     assert "/old/memory.db" not in contents
+
+
+def test_validate_startup_warns_for_live_default_tenant(tmp_path, caplog):
+    app = make_app(tmp_path)
+
+    app.config.api_key_environment = "live"
+    app.config.default_tenant_id = "local-default"
+
+    with caplog.at_level("WARNING"):
+        app.validate_startup()
+
+    assert "WAGGLE_API_KEY_ENVIRONMENT is set to 'live'" in caplog.text
+
+
+def test_validate_startup_does_not_warn_for_custom_tenant(tmp_path, caplog):
+    app = make_app(tmp_path)
+
+    app.config.api_key_environment = "live"
+    app.config.default_tenant_id = "workspace-prod"
+
+    with caplog.at_level("WARNING"):
+        app.validate_startup()
+
+    assert "WAGGLE_API_KEY_ENVIRONMENT is set to 'live'" not in caplog.text
+
+
+def test_validate_startup_does_not_warn_for_test_environment(tmp_path, caplog):
+    app = make_app(tmp_path)
+
+    app.config.api_key_environment = "test"
+    app.config.default_tenant_id = "local-default"
+
+    with caplog.at_level("WARNING"):
+        app.validate_startup()
+
+    assert "WAGGLE_API_KEY_ENVIRONMENT is set to 'live'" not in caplog.text
 
 
 def test_write_codex_agents_creates_managed_block(tmp_path: Path) -> None:

@@ -155,6 +155,21 @@ Today, remote access relies on Waggle API keys and tenant isolation.
 
 Set `WAGGLE_API_KEY_ENVIRONMENT=live` before issuing production keys so generated keys use the `sk_live_` prefix. Local and default installs use the non-production `sk_test_` prefix unless this variable is explicitly set to `live`.
 
+## Migration
+
+Starting with the release that merged PR #88, the default API key prefix changed from `sk_live_` to `sk_test_`.
+
+Existing API keys are unaffected by this change. Authentication uses the stored key hash rather than the key prefix, so previously generated `sk_live_` keys continue to work after upgrading.
+
+To continue generating `sk_live_` keys in production, set:
+
+`WAGGLE_API_KEY_ENVIRONMENT=live`
+
+The provided production deployment configurations (`docker-compose.prod.yml`, `deploy/kubernetes/configmap.yaml`, and `render.yaml`) already set this value.
+
+No action is required for local or development environments. The default `sk_test_` prefix is intentional for test and local deployments.
+
+
 Recommended operational flow:
 
 1. Create a tenant:
