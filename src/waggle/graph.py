@@ -823,6 +823,7 @@ class PooledConnection:
     def __exit__(self, *_: object) -> None:
         if self.connection is not None:
             self.pool.release(self.connection)
+            self.connection = None
 
     def _get_connection(self) -> sqlite3.Connection:
         """Lazily acquire connection from pool if not already acquired."""
