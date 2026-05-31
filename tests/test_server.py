@@ -1865,6 +1865,42 @@ def test_write_codex_config_updates_existing_file_without_duplicates(
     assert "/old/memory.db" not in contents
 
 
+def test_validate_startup_warns_for_live_default_tenant(tmp_path, caplog):
+    app = make_app(tmp_path)
+
+    app.config.api_key_environment = "live"
+    app.config.default_tenant_id = "local-default"
+
+    with caplog.at_level("WARNING"):
+        app.validate_startup()
+
+    assert "WAGGLE_API_KEY_ENVIRONMENT is set to 'live'" in caplog.text
+
+
+def test_validate_startup_does_not_warn_for_custom_tenant(tmp_path, caplog):
+    app = make_app(tmp_path)
+
+    app.config.api_key_environment = "live"
+    app.config.default_tenant_id = "workspace-prod"
+
+    with caplog.at_level("WARNING"):
+        app.validate_startup()
+
+    assert "WAGGLE_API_KEY_ENVIRONMENT is set to 'live'" not in caplog.text
+
+
+def test_validate_startup_does_not_warn_for_test_environment(tmp_path, caplog):
+    app = make_app(tmp_path)
+
+    app.config.api_key_environment = "test"
+    app.config.default_tenant_id = "local-default"
+
+    with caplog.at_level("WARNING"):
+        app.validate_startup()
+
+    assert "WAGGLE_API_KEY_ENVIRONMENT is set to 'live'" not in caplog.text
+
+
 def test_write_codex_agents_creates_managed_block(tmp_path: Path) -> None:
     agents_path = _write_codex_agents(tmp_path)
     contents = agents_path.read_text()
