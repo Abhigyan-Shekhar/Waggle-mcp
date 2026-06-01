@@ -2986,10 +2986,13 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     def _require_http_scope(
         request: Request, required_scope: str, *, tenant_override: str = ""
-    ) -> tuple[Any, Any | None]:
+    ) -> tuple[Any, Any]:
         graph, principal = _graph_from_request(request, tenant_override=tenant_override)
-        if principal is not None:
-            principal.require_scope(required_scope)
+        if principal is None:
+            raise AuthenticationError(
+                "API key required. Provide an X-API-Key header with a valid API key.",
+            )
+        principal.require_scope(required_scope)
         return graph, principal
 
     def _build_scoped_abhi(graph: Any, scope: dict[str, str]) -> tuple[dict[str, Any], dict[str, Any]]:
