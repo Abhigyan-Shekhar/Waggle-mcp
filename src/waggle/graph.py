@@ -6976,6 +6976,10 @@ class MemoryGraph:
             aliases_added=new_aliases,
         )
 
+    def _dedup_candidate_prefix(self, label: str, prefix_len: int = 5) -> str:
+        normalized = re.sub(r"[^a-zA-Z0-9]+", " ", label.strip().lower())
+        return normalized[:prefix_len]
+
     def dedup_candidates(
         self,
         scope: dict[str, str] | None = None,
@@ -7012,31 +7016,46 @@ class MemoryGraph:
             ).fetchall()
 
         total = len(rows)
+
+        # Group rows by node_type + label prefix so we only compare candidates
+        # whose labels share the first few alphanumeric characters.  This prunes
+        # the vast majority of non-duplicate pairs (different facts, different
+        # entities, etc.) before the O(N²) cosine-similarity loop.
+        buckets: dict[str, list[tuple[int, NodeType, Any, str]]] = {}
+        for idx, row in enumerate(rows):
+            ntype = NodeType(row["node_type"])
+            label = str(row.get("label", "") or "")
+            prefix = self._dedup_candidate_prefix(label)
+            key = f"{ntype.value}::{prefix}"
+            buckets.setdefault(key, []).append(
+                (idx, ntype, row["embedding"], label)
+            )
+
         pairs: list[DedupCandidatePair] = []
 
-        for i in range(total):
-            emb_i = self.embedding_model.from_bytes(rows[i]["embedding"])
-            type_i = NodeType(rows[i]["node_type"])
-            for j in range(i + 1, total):
-                type_j = NodeType(rows[j]["node_type"])
-                if not compatible_node_types(type_i, type_j):
-                    continue
-                emb_j = self.embedding_model.from_bytes(rows[j]["embedding"])
-                sim = self.embedding_model.cosine_similarity(emb_i, emb_j)
-                # Report pairs above threshold but below the auto-merge threshold
-                auto_threshold = type_aware_dedup_threshold(type_i, default=self.dedup_similarity_threshold)
-                if threshold <= sim < auto_threshold:
-                    pairs.append(
-                        DedupCandidatePair(
-                            node_id_a=rows[i]["id"],
-                            node_id_b=rows[j]["id"],
-                            label_a=rows[i]["label"],
-                            label_b=rows[j]["label"],
-                            similarity=round(sim, 4),
+        for candidates in buckets.values():
+            count = len(candidates)
+            for i in range(count):
+                idx_i, type_i, emb_bytes_i, label_i = candidates[i]
+                emb_i = self.embedding_model.from_bytes(emb_bytes_i)
+                for j in range(i + 1, count):
+                    idx_j, type_j, emb_bytes_j, label_j = candidates[j]
+                    if not compatible_node_types(type_i, type_j):
+                        continue
+                    emb_j = self.embedding_model.from_bytes(emb_bytes_j)
+                    sim = self.embedding_model.cosine_similarity(emb_i, emb_j)
+                    auto_threshold = type_aware_dedup_threshold(type_i, default=self.dedup_similarity_threshold)
+                    if threshold <= sim < auto_threshold:
+                        pairs.append(
+                            DedupCandidatePair(
+                                node_id_a=rows[idx_i]["id"],
+                                node_id_b=rows[idx_j]["id"],
+                                label_a=label_i,
+                                label_b=label_j,
+                                similarity=round(sim, 4),
+                            )
                         )
-                    )
 
-        # Sort by descending similarity so the most likely duplicates appear first
         pairs.sort(key=lambda p: p.similarity, reverse=True)
         return DedupCandidatesResult(
             pairs=pairs,
