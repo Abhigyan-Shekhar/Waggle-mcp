@@ -309,7 +309,20 @@ def _require_drive_sync() -> None:
     )
 
 
-def _scan_export_transcripts_for_secrets(
+def _scan_text_for_secrets(text: str) -> list[tuple[str, str, str]]:
+    """Return (pattern_label, secret, preview) for every pattern that matches *text*."""
+    results: list[tuple[str, str, str]] = []
+    for label, pattern in _EXPORT_SECRET_PATTERNS:
+        match = pattern.search(text)
+        if match is None:
+            continue
+        secret = match.group(0)
+        preview = text.replace(secret, "[REDACTED]")
+        results.append((label, secret, preview))
+    return results
+
+
+def _scan_export_for_secrets(
     backend: MemoryGraph,
     *,
     project: str = "",
@@ -319,41 +332,63 @@ def _scan_export_transcripts_for_secrets(
     since_date: str = "",
     max_findings: int = 10,
 ) -> list[dict[str, Any]]:
-    snapshot = backend.get_graph_snapshot()
-    document = build_abhi_document(
-        snapshot,
-        scope=scope,
+    snapshot = backend.get_graph_snapshot(
         project=project,
         agent_id=agent_id,
         session_id=session_id,
-        since_date=since_date,
-        include_embeddings=False,
-        encrypted=False,
+    )
+    # get_graph_snapshot does not include transcripts, so fetch them separately
+    transcripts = backend.list_transcript_records(
+        project=project,
+        agent_id=agent_id,
+        session_id=session_id,
     )
     findings: list[dict[str, Any]] = []
-    for row in document.get("transcripts", []):
-        text = str(row.get("transcript_text", ""))
+
+    # -- Scan node labels, content, source_prompt, and serialised metadata -----
+    for node in snapshot.get("nodes", []):
+        fields_to_check: list[tuple[str, str]] = [
+            ("label", str(node.get("label", "") or "")),
+            ("content", str(node.get("content", "") or "")),
+            ("source_prompt", str(node.get("source_prompt", "") or "")),
+        ]
+        meta = node.get("metadata", {})
+        if isinstance(meta, dict):
+            fields_to_check.append(("metadata", json.dumps(meta, default=str)))
+        elif isinstance(meta, str):
+            fields_to_check.append(("metadata", meta))
+        for field_name, field_text in fields_to_check:
+            if not field_text.strip():
+                continue
+            for label, secret, preview in _scan_text_for_secrets(field_text):
+                findings.append({
+                    "pattern": label,
+                    "source": f"node.{field_name}",
+                    "node_id": str(node.get("id", "")),
+                    "preview": preview[:180],
+                })
+                if len(findings) >= max_findings:
+                    return findings
+
+    # -- Scan transcript text ---------------------------------------------------
+    for record in transcripts:
+        text = str(record.transcript_text or "")
         if not text.strip():
             continue
-        for label, pattern in _EXPORT_SECRET_PATTERNS:
-            match = pattern.search(text)
-            if match is None:
-                continue
-            secret = match.group(0)
-            preview = text.replace(secret, "[REDACTED]")
-            findings.append(
-                {
-                    "pattern": label,
-                    "transcript_id": str(row.get("id", "")),
-                    "session_id": str(row.get("session_id", "")),
-                    "turn_index": int(row.get("turn_index", 0) or 0),
-                    "role": str(row.get("role", "")),
-                    "preview": preview[:180],
-                }
-            )
+        for label, secret, preview in _scan_text_for_secrets(text):
+            findings.append({
+                "pattern": label,
+                "source": "transcript",
+                "transcript_id": str(record.id),
+                "session_id": str(record.session_id or ""),
+                "turn_index": int(record.turn_index or 0),
+                "role": str(record.role or ""),
+                "preview": preview[:180],
+            })
             break
         if len(findings) >= max_findings:
             break
+
     return findings
 
 
@@ -367,7 +402,7 @@ def _assert_export_safe(
     scope: str = "all",
     since_date: str = "",
 ) -> None:
-    findings = _scan_export_transcripts_for_secrets(
+    findings = _scan_export_for_secrets(
         backend,
         project=project,
         agent_id=agent_id,
@@ -376,13 +411,13 @@ def _assert_export_safe(
         since_date=since_date,
     )
     if findings and not force:
-        summary = "; ".join(
-            f"{item['pattern']} in {item['role']} turn {item['turn_index']} of session {item['session_id'] or 'default'}"
+        detail = "; ".join(
+            f"{item['pattern']} in {item['source']} ({item.get('node_id', item.get('transcript_id', '?'))})"
             for item in findings[:3]
         )
         raise ValidationFailure(
-            "Export refused because transcript_records appear to contain secrets. "
-            f"Run again with --force only after redacting or confirming the export scope is safe. Findings: {summary}."
+            "Export refused because the graph data appears to contain secrets. "
+            f"Run again with --force only after redacting or confirming the export scope is safe. Findings: {detail}."
         )
 
 
@@ -2109,6 +2144,13 @@ class WaggleServer:
                             },
                         )
                     elif commit_format == "bundle":
+                        _assert_export_safe(
+                            graph,
+                            force=bool(arguments.get("force", False)),
+                            project=arguments.get("project", ""),
+                            agent_id=arguments.get("agent_id", ""),
+                            session_id=arguments.get("session_id", ""),
+                        )
                         exported = graph.export_context_bundle(
                             mode=arguments.get("mode", "prime"),
                             query=arguments.get("query", ""),
@@ -3542,7 +3584,15 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
     async def graph_export(request: Request) -> Response:
         scope = _scope_from_request(request)
         export_format = request.query_params.get("format", "abhi").strip().lower()
+        force = request.query_params.get("force", "").strip().lower() in ("1", "true", "yes")
         graph = app_server.graph
+        _assert_export_safe(
+            graph,
+            force=force,
+            project=scope.get("project", ""),
+            agent_id=scope.get("agent_id", ""),
+            session_id=scope.get("session_id", ""),
+        )
         if export_format == "abhi":
             exported = graph.export_abhi(**scope)
             content = Path(exported.output_path).read_bytes()
@@ -4942,6 +4992,13 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         print(json.dumps(shared.model_dump(mode="json"), indent=2))
         return 0
     if args.command == "export-context-bundle":
+        _assert_export_safe(
+            backend,
+            force=bool(getattr(args, "force", False)),
+            project=getattr(args, "project", ""),
+            agent_id=getattr(args, "agent_id", ""),
+            session_id=getattr(args, "session_id", ""),
+        )
         exported = backend.export_context_bundle(
             mode=args.mode,
             query=args.query,
@@ -4961,6 +5018,13 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         print(json.dumps(exported.model_dump(mode="json"), indent=2))
         return 0
     if args.command == "export-markdown-vault":
+        _assert_export_safe(
+            backend,
+            force=bool(getattr(args, "force", False)),
+            project=getattr(args, "project", ""),
+            agent_id=getattr(args, "agent_id", ""),
+            session_id=getattr(args, "session_id", ""),
+        )
         exported = backend.export_markdown_vault(
             root_path=args.root_path,
             project=getattr(args, "project", ""),
