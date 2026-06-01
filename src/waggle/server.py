@@ -137,6 +137,9 @@ WRITE_HEAVY_TOOLS = {
     "store_edge",
     "decompose_and_store",
     "observe_conversation",
+    "clear_session",
+    "clear_project",
+    "clear_all",
     # git-vocabulary names (canonical)
     "pull",
     "merge",
@@ -1032,6 +1035,11 @@ class WaggleServer:
                             "default": False,
                             "description": "Must be true to perform the destructive clear operation.",
                         },
+                        "dry_run": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "Preview the clear operation without deleting data.",
+                        },
                     },
                     required=["session_id"],
                 ),
@@ -1050,6 +1058,11 @@ class WaggleServer:
                             "default": False,
                             "description": "Must be true to perform the destructive clear operation.",
                         },
+                        "dry_run": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "Preview the clear operation without deleting data.",
+                        },
                     },
                     required=["project"],
                 ),
@@ -1066,6 +1079,11 @@ class WaggleServer:
                             "type": "boolean",
                             "default": False,
                             "description": "Must be true to perform the destructive clear operation.",
+                        },
+                        "dry_run": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "Preview the clear operation without deleting data.",
                         },
                     }
                 ),
@@ -1985,26 +2003,38 @@ class WaggleServer:
                         {"id": node.id, "label": node.label, "tenant_id": node.tenant_id},
                     )
                 elif name == "clear_session":
-                    self._require_clear_confirmation(arguments, "clear_session")
-                    cleared = graph.clear_session(session_id=arguments["session_id"])
+                    dry_run = bool(arguments.get("dry_run", False))
+                    if not dry_run:
+                        self._require_clear_confirmation(arguments, "clear_session")
+                    cleared = graph.clear_session(session_id=arguments["session_id"], dry_run=dry_run)
+                    prefix = "[Preview] Would clear" if dry_run else "Cleared"
+                    verb = "Would delete" if dry_run else "Deleted"
                     result = self._tool_result(
-                        f"Cleared session '{cleared.session_id}'. Deleted {cleared.deleted_nodes} node(s), "
+                        f"{prefix} session '{cleared.session_id}'. {verb} {cleared.deleted_nodes} node(s), "
                         f"{cleared.deleted_edges} edge(s), and {cleared.deleted_transcripts} transcript record(s).",
                         self._clear_scope_payload(cleared),
                     )
                 elif name == "clear_project":
-                    self._require_clear_confirmation(arguments, "clear_project")
-                    cleared = graph.clear_project(project=arguments["project"])
+                    dry_run = bool(arguments.get("dry_run", False))
+                    if not dry_run:
+                        self._require_clear_confirmation(arguments, "clear_project")
+                    cleared = graph.clear_project(project=arguments["project"], dry_run=dry_run)
+                    prefix = "[Preview] Would clear" if dry_run else "Cleared"
+                    verb = "Would delete" if dry_run else "Deleted"
                     result = self._tool_result(
-                        f"Cleared project '{cleared.project}'. Deleted {cleared.deleted_nodes} node(s), "
+                        f"{prefix} project '{cleared.project}'. {verb} {cleared.deleted_nodes} node(s), "
                         f"{cleared.deleted_edges} edge(s), and {cleared.deleted_transcripts} transcript record(s).",
                         self._clear_scope_payload(cleared),
                     )
                 elif name == "clear_all":
-                    self._require_clear_confirmation(arguments, "clear_all")
-                    cleared = graph.clear_all()
+                    dry_run = bool(arguments.get("dry_run", False))
+                    if not dry_run:
+                        self._require_clear_confirmation(arguments, "clear_all")
+                    cleared = graph.clear_all(dry_run=dry_run)
+                    prefix = "[Preview] Would clear" if dry_run else "Cleared"
+                    verb = "Would delete" if dry_run else "Deleted"
                     result = self._tool_result(
-                        f"Cleared all graph memory data for tenant '{graph.tenant_id}'. Deleted {cleared.deleted_nodes} node(s), "
+                        f"{prefix} all graph memory data for tenant '{graph.tenant_id}'. {verb} {cleared.deleted_nodes} node(s), "
                         f"{cleared.deleted_edges} edge(s), and {cleared.deleted_transcripts} transcript record(s).",
                         self._clear_scope_payload(cleared),
                     )
@@ -4184,6 +4214,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     clear_session.add_argument("--session-id", required=True)
     clear_session.add_argument("--yes", action="store_true", help="Confirm the destructive clear operation.")
+    clear_session.add_argument(
+        "--dry-run", action="store_true", help="Preview the clear operation without deleting data."
+    )
 
     clear_project = subparsers.add_parser(
         "clear-project",
@@ -4191,12 +4224,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     clear_project.add_argument("--project", required=True)
     clear_project.add_argument("--yes", action="store_true", help="Confirm the destructive clear operation.")
+    clear_project.add_argument(
+        "--dry-run", action="store_true", help="Preview the clear operation without deleting data."
+    )
 
     clear_all = subparsers.add_parser(
         "clear-all",
         help="Delete all graph memory data for the current tenant.",
     )
     clear_all.add_argument("--yes", action="store_true", help="Confirm the destructive clear operation.")
+    clear_all.add_argument("--dry-run", action="store_true", help="Preview the clear operation without deleting data.")
 
     import_abhi = subparsers.add_parser(
         "import",
@@ -4507,6 +4544,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     doctor.add_argument(
         "--json",
+        "--as-json",
         dest="json_output",
         action="store_true",
         help="Print a machine-readable JSON report instead of the human-readable doctor output.",
@@ -4766,21 +4804,24 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2))
         return 0
     if args.command == "clear-session":
-        if not bool(getattr(args, "yes", False)):
+        dry_run = bool(getattr(args, "dry_run", False))
+        if not dry_run and not bool(getattr(args, "yes", False)):
             raise ValidationFailure("clear-session is destructive and requires --yes.")
-        cleared = backend.clear_session(session_id=args.session_id)
+        cleared = backend.clear_session(session_id=args.session_id, dry_run=dry_run)
         print(json.dumps(cleared.model_dump(mode="json"), indent=2))
         return 0
     if args.command == "clear-project":
-        if not bool(getattr(args, "yes", False)):
+        dry_run = bool(getattr(args, "dry_run", False))
+        if not dry_run and not bool(getattr(args, "yes", False)):
             raise ValidationFailure("clear-project is destructive and requires --yes.")
-        cleared = backend.clear_project(project=args.project)
+        cleared = backend.clear_project(project=args.project, dry_run=dry_run)
         print(json.dumps(cleared.model_dump(mode="json"), indent=2))
         return 0
     if args.command == "clear-all":
-        if not bool(getattr(args, "yes", False)):
+        dry_run = bool(getattr(args, "dry_run", False))
+        if not dry_run and not bool(getattr(args, "yes", False)):
             raise ValidationFailure("clear-all is destructive and requires --yes.")
-        cleared = backend.clear_all()
+        cleared = backend.clear_all(dry_run=dry_run)
         print(json.dumps(cleared.model_dump(mode="json"), indent=2))
         return 0
     if args.command == "import":
@@ -4986,6 +5027,8 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
     if args.command == "features":
         print(_FEATURES_GUIDE)
         return 0
+    if args.command == "doctor":
+        return _run_doctor_command(config, args)
     raise ValidationFailure(f"Unknown command: {args.command}")
 
 
@@ -5059,10 +5102,14 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     # ── 1. Config file locations ─────────────────────────────────────────────
     emit(_c(_BOLD, "\n[1] MCP client config files"))
     waggle_found_in: list[str] = []
+    config_files_data = []
     for label, template in _KNOWN_CONFIG_PATHS:
         raw = template.replace("%APPDATA%", os.environ.get("APPDATA", "")).replace("%USERPROFILE%", str(Path.home()))
         path = Path(raw).expanduser()
-        if path.exists():
+        exists = path.exists()
+        has_waggle = False
+        parsed = False
+        if exists:
             try:
                 raw_text = path.read_text(encoding="utf-8", errors="replace")
                 if path.suffix == ".toml":
@@ -5071,6 +5118,7 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
                     data = json.loads(raw_text)
                     servers = data.get("mcpServers", data.get("tools", {}) if isinstance(data, dict) else {})
                     has_waggle = isinstance(servers, dict) and "waggle" in servers
+                parsed = True
                 if has_waggle:
                     waggle_found_in.append(label)
                     ok(f"{label}\n     {path}  [waggle entry found]")
@@ -5089,6 +5137,20 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
         ):
             emit(f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [not found]")
 
+        is_plausible = (
+            exists
+            or (
+                sys.platform == "darwin"
+                and ("macOS" in label or "Cursor" in label or "Antigravity" in label or "Codex" in label)
+            )
+            or (sys.platform == "win32" and "Windows" in label)
+            or (sys.platform.startswith("linux") and ("Linux" in label or "Cursor" in label))
+        )
+        if exists or is_plausible:
+            config_files_data.append(
+                {"label": label, "path": str(path), "exists": exists, "has_waggle": has_waggle, "parsed": parsed}
+            )
+
     if not waggle_found_in:
         issues.append(
             "No MCP client config file contains a 'waggle' server entry. "
@@ -5101,10 +5163,12 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     emit(_c(_BOLD, "\n[2] Database path"))
     db_path = Path(config.db_path)
     db_dir = db_path.parent
-    if db_path.exists():
+    db_exists = db_path.exists()
+    db_dir_exists = db_dir.exists()
+    if db_exists:
         ok(f"DB file exists: {db_path}")
         ok_items.append("DB file found")
-    elif db_dir.exists():
+    elif db_dir_exists:
         ok(f"DB directory exists (file will be created on first run): {db_path}")
         ok_items.append("DB directory writable")
     else:
@@ -5114,6 +5178,8 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     # ── 3. Embedding model ───────────────────────────────────────────────────
     emit(_c(_BOLD, "\n[3] Embedding model"))
     model_name = config.model_name
+    is_deterministic = model_name.strip().lower() in {"fake", "fake-model", "deterministic", "offline-demo"}
+    is_cached = False
     hf_home = (
         os.environ.get("HF_HOME")
         or os.environ.get("SENTENCE_TRANSFORMERS_HOME")
@@ -5121,7 +5187,7 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     )
     st_cache = Path(os.environ.get("SENTENCE_TRANSFORMERS_HOME", Path(hf_home) / "hub"))
 
-    if model_name.strip().lower() in {"fake", "fake-model", "deterministic", "offline-demo"}:
+    if is_deterministic:
         ok(f"Model: {model_name!r}  (deterministic — no download, always offline-safe)")
         ok_items.append("Deterministic model — no download needed")
     else:
@@ -5132,8 +5198,8 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
             st_cache / safe_name,
             Path(hf_home) / "hub" / f"models--{safe_name.replace('_', '--', 1)}",
         ]
-        cached = any(p.exists() for p in possible_dirs)
-        if cached:
+        is_cached = any(p.exists() for p in possible_dirs)
+        if is_cached:
             ok(f"Model: {model_name!r}  (cached locally — fast startup)")
             ok_items.append("Embedding model cached")
         else:
@@ -5149,8 +5215,11 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
                 "Set WAGGLE_MODEL=deterministic for offline-safe mode."
             )
 
+    embedding_model_data = {"model_name": model_name, "cached": is_cached, "deterministic": is_deterministic}
+
     # ── 4. WAGGLE_STARTUP_MODE ───────────────────────────────────────────────
     emit(_c(_BOLD, "\n[4] Embedding store"))
+    embedding_store_data = None
     try:
         graph = _default_graph(config)
         if isinstance(graph, MemoryGraph):
@@ -5176,6 +5245,15 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
             else:
                 ok("Store model IDs are consistent.")
                 ok_items.append("Embedding store model IDs consistent")
+
+            embedding_store_data = {
+                "current_model_id": store_health["current_model_id"],
+                "transcript_model_counts": transcript_models,
+                "node_model_counts": node_models,
+                "transcript_stale_rows": store_health["transcript_stale_rows"],
+                "node_stale_rows": store_health["node_stale_rows"],
+                "mixed_models": store_health["mixed_models"],
+            }
     except Exception as exc:
         message = f"Embedding store check failed: {type(exc).__name__}: {exc}"
         issues.append(message)
@@ -5195,11 +5273,12 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
         ok_items.append("Startup mode: normal")
 
     # ── 6. Windows stdout encoding ───────────────────────────────────────────
+    stdout_encoding_data = None
     if sys.platform == "win32":
         emit(_c(_BOLD, "\n[6] Windows stdout encoding"))
-        enc = getattr(sys.stdout, "encoding", None) or "unknown"
-        normalized_encoding = enc.lower().replace("-", "").replace("_", "")
-        if normalized_encoding in ("utf8", "cp65001"):
+        enc = getattr(sys.stdout, "encoding", "unknown")
+        is_utf8 = enc.lower().replace("-", "") in ("utf8", "utf8")
+        if is_utf8:
             ok(f"stdout encoding: {enc}")
             ok_items.append("Windows stdout is UTF-8")
         else:
@@ -5210,6 +5289,7 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
                 "      import sys; sys.stdout.reconfigure(encoding='utf-8')"
             )
             issues.append(f"Windows stdout encoding is {enc!r} — set PYTHONUTF8=1 or use python -X utf8.")
+        stdout_encoding_data = {"encoding": enc, "is_utf8": is_utf8}
 
     # ── 7. Known gotchas ─────────────────────────────────────────────────────
     emit(_c(_BOLD, "\n[7] Known API gotchas"))
@@ -5218,21 +5298,24 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     # ── Summary ──────────────────────────────────────────────────────────────
     if json_output:
         status = "issues_found" if issues else "warnings" if warnings else "ok"
-        print(
-            json.dumps(
-                {
-                    "schema_version": 1,
-                    "platform": sys.platform,
-                    "status": status,
-                    "issues": issues,
-                    "warnings": warnings,
-                    "successful_checks": ok_items,
-                    "fix_requested": bool(fix),
-                },
-                indent=2,
-                sort_keys=True,
-            )
-        )
+        result = {
+            "schema_version": 1,
+            "platform": sys.platform,
+            "status": status,
+            "issues": issues,
+            "warnings": warnings,
+            "successful_checks": ok_items,
+            "fix_requested": bool(fix),
+            # Detailed audit trail fields:
+            "ok": not issues,
+            "config_files": config_files_data,
+            "database": {"path": str(db_path), "exists": db_exists, "parent_exists": db_dir_exists},
+            "embedding_model": embedding_model_data,
+            "embedding_store": embedding_store_data,
+            "startup_mode": config.startup_mode,
+            "stdout_encoding": stdout_encoding_data,
+        }
+        print(json.dumps(result, indent=2, sort_keys=True))
         return 1 if issues else 0
 
     print(_c(_BOLD, "─" * 50))
@@ -5582,7 +5665,7 @@ def _write_codex(db_path: str, python_exe: str) -> Path:
     pattern = re.compile(r"(?ms)^\[mcp_servers\.waggle\]\n.*?(?=^\[(?!mcp_servers\.waggle(?:\.env)?\])[^\n]+\]\n|\Z)")
     replacement = toml_block.rstrip() + "\n"
     if pattern.search(existing):
-        updated = pattern.sub(replacement, existing, count=1)
+        updated = pattern.sub(lambda m: replacement, existing, count=1)
     else:
         separator = "\n\n" if existing.strip() else ""
         updated = existing.rstrip() + separator + replacement

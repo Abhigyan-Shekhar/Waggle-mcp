@@ -4,6 +4,15 @@ title: "[docs] "
 labels:
   - documentation
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Before you submit:
+        - install Waggle from PyPI: https://pypi.org/project/waggle-mcp/
+        - install the VS Code extension: https://marketplace.visualstudio.com/items?itemName=Abhigyan-Shekhar.waggle-memory
+        - attach a screenshot of the confusing, missing, or outdated docs state
+
+        Issues without a screenshot will not be considered.
   - type: textarea
     id: gap
     attributes:
@@ -21,5 +30,13 @@ body:
     attributes:
       label: Proposed improvement
       description: What should the docs say or show instead?
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Attach or paste a screenshot that shows the docs problem. Issues without a screenshot will not be considered.
+      placeholder: Paste the screenshot link or drag the screenshot into the issue body.
     validations:
       required: true

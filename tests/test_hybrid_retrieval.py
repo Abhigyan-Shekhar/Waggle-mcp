@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -418,3 +418,108 @@ def test_score_explanation_includes_recency_contribution():
     }
     assert candidate.score_explanation["recency"] > 0
     assert "final_score" in candidate.score_explanation
+
+
+def test_regression_lexical_match_ranks_expected_first(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    with graph._lock, graph._connect() as connection:
+        observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-reg",
+            observed_at=observed_at,
+            turn_index=0,
+            role="user",
+            transcript_text="The deployment uses the jade-phoenix protocol for secure handoff.",
+            turn_pair_id="tp-reg",
+        )
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-reg",
+            observed_at=observed_at,
+            turn_index=1,
+            role="assistant",
+            transcript_text="I have recorded the jade-phoenix protocol as the deployment standard.",
+            turn_pair_id="tp-reg",
+        )
+
+    debug = graph.hybrid_retriever().retrieve_debug(
+        query="jade-phoenix deployment protocol",
+        project="alpha",
+        agent_id="codex",
+        session_id="",
+        top_k=5,
+        mode="hybrid",
+    )
+    lexical_layer = debug["layers"].get("lexical", [])
+    assert lexical_layer, "Lexical layer should return results for jade-phoenix query."
+    top_lexical_id = lexical_layer[0]["candidate_id"]
+    assert "tp-reg" in top_lexical_id, f"Expected lexical top hit to reference tp-reg, got {top_lexical_id}"
+
+
+def test_regression_graph_neighborhood_includes_connected_nodes(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    with graph._lock, graph._connect() as connection:
+        observed_at = datetime.now(UTC) - timedelta(days=7)
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-graph-reg",
+            observed_at=observed_at,
+            turn_index=0,
+            role="user",
+            transcript_text="The root cause is a misconfigured load balancer.",
+            turn_pair_id="tp-graph-reg",
+        )
+        node_a = graph.add_node(
+            label="Load balancer config",
+            content="The load balancer forwards traffic to backend services.",
+            node_type=NodeType.FACT,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-graph-reg",
+            source_turn_pair_id="tp-graph-reg",
+            connection=connection,
+        ).node
+        node_b = graph.add_node(
+            label="Backend service health",
+            content="Backend service health checks are failing intermittently.",
+            node_type=NodeType.FACT,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-graph-reg",
+            source_turn_pair_id="tp-graph-reg",
+            connection=connection,
+        ).node
+        graph.add_edge(
+            source_id=node_a.id,
+            target_id=node_b.id,
+            relationship=RelationType.DERIVED_FROM,
+            connection=connection,
+        )
+
+    debug = graph.hybrid_retriever().retrieve_debug(
+        query="load balancer root cause",
+        project="alpha",
+        agent_id="codex",
+        session_id="",
+        top_k=5,
+        mode="hybrid",
+    )
+    graph_expansion_layer = debug["layers"].get("graph_expansion", [])
+    vector_node_ids = {
+        entry["node_ids"][0] for entry in debug["layers"].get("vector_node", []) if entry.get("node_ids")
+    }
+    assert graph_expansion_layer, "Graph expansion layer should return results."
+    assert node_a.id in vector_node_ids, (
+        f"Expected node_a ({node_a.id}) to appear in vector_node seeds, got {vector_node_ids}"
+    )
+    all_node_ids = set()
+    for entry in graph_expansion_layer:
+        all_node_ids.update(entry.get("node_ids", []))
+    assert node_b.id in all_node_ids, f"Expected node_b ({node_b.id}) to appear in graph expansion, got {all_node_ids}"

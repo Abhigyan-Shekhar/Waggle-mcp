@@ -8,6 +8,13 @@ body:
     attributes:
       value: |
         Thanks for filing a bug. Please include enough detail for someone new to the codebase to reproduce it.
+        
+        Before you submit:
+        - install Waggle from PyPI: https://pypi.org/project/waggle-mcp/
+        - install the VS Code extension: https://marketplace.visualstudio.com/items?itemName=Abhigyan-Shekhar.waggle-memory
+        - attach a screenshot of the issue
+        
+        Issues without a screenshot will not be considered.
   - type: textarea
     id: summary
     attributes:
@@ -78,7 +85,15 @@ body:
       placeholder: |
         PowerShell 7.4, execution policy RemoteSigned, Windows Terminal
   - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Attach or paste a screenshot that shows the issue. Issues without a screenshot will not be considered.
+      placeholder: Paste the screenshot link or drag the screenshot into the issue body.
+    validations:
+      required: true
+  - type: textarea
     id: logs
     attributes:
-      label: Logs or screenshots
-      description: Paste the relevant output from `waggle-mcp doctor`, stack traces, or screenshots.
+      label: Logs
+      description: Paste the relevant output from `waggle-mcp doctor` or stack traces.

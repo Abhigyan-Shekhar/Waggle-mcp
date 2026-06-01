@@ -3,12 +3,14 @@ from __future__ import annotations
 import math
 import sqlite3
 import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
 
 from waggle.graph import MemoryGraph, recency_weight, score_node
 from waggle.models import NodeType, RelationType
+from waggle.retrieval.hybrid import HybridRetrievalConfig, HybridRetriever
 
 
 class ConstantEmbeddingModel:
@@ -128,3 +130,52 @@ def test_superseded_nodes_rank_below_current_version(tmp_path: Path) -> None:
 
     assert ranked[old_node.id].metadata["superseded_by"] == new_node.id
     assert ranked[new_node.id].final_score > ranked[old_node.id].final_score
+
+
+def test_regression_recency_ranks_recent_transcript_higher(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    now = datetime.now(UTC)
+    recent_time = now - timedelta(days=1)
+    old_time = now - timedelta(days=90)
+    with graph._lock, graph._connect() as connection:
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-recency",
+            observed_at=old_time,
+            turn_index=0,
+            role="user",
+            transcript_text="The deployment protocol is jade-phoenix.",
+            turn_pair_id="tp-recency-old",
+        )
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-recency",
+            observed_at=recent_time,
+            turn_index=1,
+            role="user",
+            transcript_text="The deployment protocol is jade-phoenix.",
+            turn_pair_id="tp-recency-new",
+        )
+
+    retriever = HybridRetriever(
+        graph,
+        config=HybridRetrievalConfig(rerank_enabled=False, recency_half_life_days=30.0),
+    )
+    debug = retriever.retrieve_debug(
+        query="jade-phoenix deployment protocol",
+        project="alpha",
+        agent_id="codex",
+        session_id="",
+        top_k=5,
+        mode="hybrid",
+    )
+    hit_ids = [hit.turn_pair_id for hit in debug["hits"]]
+    new_pos = hit_ids.index("tp-recency-new") if "tp-recency-new" in hit_ids else len(hit_ids)
+    old_pos = hit_ids.index("tp-recency-old") if "tp-recency-old" in hit_ids else len(hit_ids)
+    assert new_pos < old_pos, (
+        f"Expected recent tp-recency-new before old tp-recency-old, got positions {new_pos} vs {old_pos}"
+    )

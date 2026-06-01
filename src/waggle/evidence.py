@@ -57,8 +57,9 @@ def build_observation_evidence(
     turn_index: int,
     observed_at: datetime,
     session_id: str = "",
+    search_start: int = 0,
 ) -> EvidenceRecord:
-    start = transcript.find(source_text)
+    start = transcript.find(source_text, search_start)
     if start < 0:
         start = None
         end = None
