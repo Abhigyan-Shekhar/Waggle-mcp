@@ -3331,7 +3331,6 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             "session_id": str(payload.get("session_id", "")).strip(),
         }
         graph, _ = _require_http_scope(request, "graph:write")
-        current = graph.get_graph_snapshot(**scope)
         desired_nodes = {
             str(node.get("id", "")).strip(): node
             for node in payload.get("nodes", [])
@@ -3342,86 +3341,14 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             for edge in payload.get("edges", [])
             if str(edge.get("id", "")).strip()
         }
-        current_nodes = {
-            str(node.get("id", "")).strip(): node
-            for node in current.get("nodes", [])
-            if str(node.get("id", "")).strip()
-        }
-        current_edges = {
-            str(edge.get("id", "")).strip(): edge
-            for edge in current.get("edges", [])
-            if str(edge.get("id", "")).strip()
-        }
-
-        for edge_id in list(current_edges):
-            if edge_id not in desired_edges:
-                graph.delete_edge(edge_id=edge_id)
-
-        for node_id in list(current_nodes):
-            if node_id not in desired_nodes:
-                graph.delete_node(node_id=node_id)
-
-        for node_id, node_payload in desired_nodes.items():
-            tags = [str(tag).strip() for tag in node_payload.get("tags", []) if str(tag).strip()]
-            if node_id in current_nodes:
-                graph.update_node(
-                    node_id=node_id,
-                    label=node_payload.get("label"),
-                    content=node_payload.get("content"),
-                    tags=tags,
-                )
-                continue
-            graph.add_node(
-                node_id=node_id,
-                label=str(node_payload.get("label", "")).strip(),
-                content=str(node_payload.get("content", "")).strip(),
-                node_type=NodeType(str(node_payload.get("node_type", "note")).strip() or "note"),
-                tags=tags,
-                agent_id=str(node_payload.get("agent_id", scope["agent_id"])).strip(),
-                project=str(node_payload.get("project", scope["project"])).strip(),
-                session_id=str(node_payload.get("session_id", scope["session_id"])).strip(),
-            )
-
-        for edge_id, edge_payload in desired_edges.items():
-            if edge_id in current_edges:
-                graph.update_edge(
-                    edge_id=edge_id,
-                    source_id=str(edge_payload.get("source_id", "")).strip() or None,
-                    target_id=str(edge_payload.get("target_id", "")).strip() or None,
-                    relationship=str(edge_payload.get("relationship", "")).strip() or None,
-                    weight=float(edge_payload["weight"])
-                    if "weight" in edge_payload and edge_payload.get("weight") is not None
-                    else None,
-                )
-                continue
-            graph.add_edge(
-                edge_id=edge_id,
-                source_id=str(edge_payload.get("source_id", "")).strip(),
-                target_id=str(edge_payload.get("target_id", "")).strip(),
-                relationship=str(edge_payload.get("relationship", "")).strip(),
-                weight=float(edge_payload.get("weight", 1.0)),
-            )
-
         ui = payload.get("ui", {}) or {}
-        saved = graph.save_ui_state(
-            project=scope["project"],
-            agent_id=scope["agent_id"],
-            session_id=scope["session_id"],
-            positions=ui.get("positions"),
-            zoom=float(ui["zoom"]) if "zoom" in ui and ui.get("zoom") is not None else None,
-            viewport=ui.get("viewport"),
-            groups=ui.get("groups"),
-            collapsed_groups=ui.get("collapsed_groups"),
-            selected_nodes=ui.get("selected_nodes"),
+        result = graph.restore_graph(
+            desired_nodes=desired_nodes,
+            desired_edges=desired_edges,
+            ui=ui,
+            **scope,
         )
-        restored = graph.get_graph_snapshot(**scope)
-        return JSONResponse(
-            {
-                "nodes": restored.get("nodes", []),
-                "edges": restored.get("edges", []),
-                "ui": saved,
-            }
-        )
+        return JSONResponse(result)
 
     async def graph_create_node(request: Request) -> Response:
         payload = await request.json()

@@ -1031,6 +1031,7 @@ class MemoryGraph:
         groups: list[dict[str, Any]] | None = None,
         collapsed_groups: list[str] | None = None,
         selected_nodes: list[str] | None = None,
+        connection: sqlite3.Connection | None = None,
     ) -> dict[str, Any]:
         normalized_project, normalized_agent, normalized_session = self._normalize_ui_scope(
             project=project, agent_id=agent_id, session_id=session_id
@@ -1048,7 +1049,7 @@ class MemoryGraph:
             "collapsed_groups": collapsed_groups if collapsed_groups is not None else current["collapsed_groups"],
             "selected_nodes": selected_nodes if selected_nodes is not None else current["selected_nodes"],
         }
-        with self._lock, self._connect() as connection:
+        if connection is not None:
             connection.execute(
                 """
                 INSERT INTO graph_ui_state (
@@ -1080,6 +1081,39 @@ class MemoryGraph:
                     utc_now().isoformat(),
                 ),
             )
+        else:
+            with self._lock, self._connect() as active_connection:
+                active_connection.execute(
+                    """
+                    INSERT INTO graph_ui_state (
+                        tenant_id, agent_id, project, session_id,
+                        positions, zoom, viewport, groups_json, collapsed_groups, selected_nodes, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(tenant_id, agent_id, project, session_id)
+                    DO UPDATE SET
+                        positions = excluded.positions,
+                        zoom = excluded.zoom,
+                        viewport = excluded.viewport,
+                        groups_json = excluded.groups_json,
+                        collapsed_groups = excluded.collapsed_groups,
+                        selected_nodes = excluded.selected_nodes,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        self.tenant_id,
+                        normalized_agent,
+                        normalized_project,
+                        normalized_session,
+                        json.dumps(merged["positions"], sort_keys=True),
+                        merged["zoom"],
+                        json.dumps(merged["viewport"], sort_keys=True),
+                        json.dumps(merged["groups"], sort_keys=True),
+                        json.dumps(merged["collapsed_groups"], sort_keys=True),
+                        json.dumps(merged["selected_nodes"], sort_keys=True),
+                        utc_now().isoformat(),
+                    ),
+                )
         return merged
 
     def create_api_key(
@@ -4281,6 +4315,188 @@ class MemoryGraph:
                 connection=connection,
             )
             return node
+
+    def restore_graph(
+        self,
+        *,
+        desired_nodes: dict[str, dict[str, Any]],
+        desired_edges: dict[str, dict[str, Any]],
+        ui: dict[str, Any] | None = None,
+        project: str = "",
+        agent_id: str = "",
+        session_id: str = "",
+    ) -> dict[str, Any]:
+        """Atomically replace the graph scope with a new snapshot.
+
+        Desired nodes/edges are validated for internal consistency first.
+        The entire mutation is wrapped in a single transaction so a failure
+        in any step rolls back all prior changes.
+        """
+        scope_str = f"project={project!r}, agent_id={agent_id!r}, session_id={session_id!r}"
+
+        # -- validate internal consistency before any mutation ---------------
+        desired_node_ids = set(desired_nodes)
+        for eid, edge in desired_edges.items():
+            src = str(edge.get("source_id", "")).strip()
+            tgt = str(edge.get("target_id", "")).strip()
+            if src and src not in desired_node_ids:
+                raise ValueError(f"Edge {eid} references unknown source node {src} in scope {scope_str}.")
+            if tgt and tgt not in desired_node_ids:
+                raise ValueError(f"Edge {eid} references unknown target node {tgt} in scope {scope_str}.")
+
+        with self._lock, self._connect() as connection:
+            try:
+                connection.execute("BEGIN IMMEDIATE")
+
+                # 1. Load current state within this connection
+                current = self._build_backup_snapshot(connection)
+                current_nodes = {
+                    str(n["id"]).strip(): n
+                    for n in current.get("nodes", [])
+                    if str(n.get("id", "")).strip()
+                    and (
+                        not project or n.get("project", "") == project
+                    )
+                    and (
+                        not agent_id or n.get("agent_id", "") == agent_id
+                    )
+                    and (
+                        not session_id or n.get("session_id", "") == session_id
+                    )
+                }
+                current_edge_ids = {
+                    str(e["id"]).strip()
+                    for e in current.get("edges", [])
+                    if str(e.get("id", "")).strip()
+                }
+
+                # 2. Delete edges no longer desired
+                for eid in current_edge_ids:
+                    if eid not in desired_edges:
+                        connection.execute(
+                            "DELETE FROM edges WHERE id = ? AND tenant_id = ?",
+                            (eid, self.tenant_id),
+                        )
+
+                # 3. Delete nodes no longer desired
+                for nid in list(current_nodes):
+                    if nid not in desired_nodes:
+                        connection.execute(
+                            "DELETE FROM nodes WHERE id = ? AND tenant_id = ?",
+                            (nid, self.tenant_id),
+                        )
+
+                # 4. Upsert nodes
+                for nid, node_payload in desired_nodes.items():
+                    tags = [str(t).strip() for t in node_payload.get("tags", []) if str(t).strip()]
+                    if nid in current_nodes:
+                        updates: list[str] = []
+                        params: list[Any] = []
+                        for field in ("label", "content", "agent_id", "project", "session_id"):
+                            val = node_payload.get(field)
+                            if val is not None:
+                                updates.append(f"{field} = ?")
+                                params.append(str(val).strip() if isinstance(val, str) else val)
+                        if node_payload.get("node_type"):
+                            updates.append("node_type = ?")
+                            params.append(str(node_payload["node_type"]).strip())
+                        if tags:
+                            updates.append("tags = ?")
+                            params.append(json.dumps(tags))
+                        if node_payload.get("metadata"):
+                            updates.append("metadata = ?")
+                            params.append(json.dumps(node_payload["metadata"]) if isinstance(node_payload["metadata"], dict) else str(node_payload["metadata"]))
+                        if updates:
+                            params.append(nid)
+                            params.append(self.tenant_id)
+                            connection.execute(
+                                f"UPDATE nodes SET {', '.join(updates)} WHERE id = ? AND tenant_id = ?",
+                                tuple(params),
+                            )
+                    else:
+                        node_type_val = str(node_payload.get("node_type", "note")).strip() or "note"
+                        connection.execute(
+                            """
+                            INSERT OR IGNORE INTO nodes
+                                (id, tenant_id, agent_id, project, session_id, label, content, node_type, tags, metadata)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                nid,
+                                self.tenant_id,
+                                str(node_payload.get("agent_id", agent_id)).strip(),
+                                str(node_payload.get("project", project)).strip(),
+                                str(node_payload.get("session_id", session_id)).strip(),
+                                str(node_payload.get("label", "")).strip(),
+                                str(node_payload.get("content", "")).strip(),
+                                node_type_val,
+                                json.dumps(tags),
+                                json.dumps(node_payload.get("metadata", {})),
+                            ),
+                        )
+
+                # 5. Upsert edges
+                for eid, edge_payload in desired_edges.items():
+                    src = str(edge_payload.get("source_id", "")).strip()
+                    tgt = str(edge_payload.get("target_id", "")).strip()
+                    rel = str(edge_payload.get("relationship", "")).strip()
+                    w = edge_payload.get("weight")
+                    weight_val = float(w) if w is not None else 1.0
+                    if eid in current_edge_ids:
+                        connection.execute(
+                            """
+                            UPDATE edges
+                            SET source_id = ?, target_id = ?, relationship = ?, weight = ?
+                            WHERE id = ? AND tenant_id = ?
+                            """,
+                            (src, tgt, rel, weight_val, eid, self.tenant_id),
+                        )
+                    else:
+                        connection.execute(
+                            """
+                            INSERT OR IGNORE INTO edges
+                                (id, tenant_id, source_id, target_id, relationship, weight, metadata, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                eid,
+                                self.tenant_id,
+                                src,
+                                tgt,
+                                rel,
+                                weight_val,
+                                json.dumps(edge_payload.get("metadata", {})),
+                                utc_now().isoformat(),
+                            ),
+                        )
+
+                # 6. Save UI state
+                ui_payload = ui or {}
+                self.save_ui_state(
+                    project=project,
+                    agent_id=agent_id,
+                    session_id=session_id,
+                    positions=ui_payload.get("positions"),
+                    zoom=float(ui_payload["zoom"]) if "zoom" in ui_payload and ui_payload.get("zoom") is not None else None,
+                    viewport=ui_payload.get("viewport"),
+                    groups=ui_payload.get("groups"),
+                    collapsed_groups=ui_payload.get("collapsed_groups"),
+                    selected_nodes=ui_payload.get("selected_nodes"),
+                    connection=connection,
+                )
+
+                connection.execute("COMMIT")
+            except BaseException:
+                connection.execute("ROLLBACK")
+                raise
+
+        restored = self.get_graph_snapshot(project=project, agent_id=agent_id, session_id=session_id)
+        ui_state = self.get_ui_state(project=project, agent_id=agent_id, session_id=session_id)
+        return {
+            "nodes": restored.get("nodes", []),
+            "edges": restored.get("edges", []),
+            "ui": ui_state,
+        }
 
     def clear_session(self, *, session_id: str) -> ClearScopeResult:
         normalized_session = session_id.strip()
