@@ -5071,31 +5071,42 @@ class MemoryGraph:
             )
         else:
             with self._lock, self._connect() as connection:
+                node_filters = ["tenant_id = ?"]
+                node_params: list[Any] = [self.tenant_id]
+                if project.strip():
+                    node_filters.append("project = ?")
+                    node_params.append(project.strip())
+                if session_id.strip():
+                    node_filters.append("session_id = ?")
+                    node_params.append(session_id.strip())
+                elif agent_id.strip():
+                    node_filters.append("agent_id = ?")
+                    node_params.append(agent_id.strip())
                 node_rows = connection.execute(
-                    """
+                    f"""
                     SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata,
                            evidence_records, valid_from, valid_to, created_at, updated_at, access_count, tenant_id
                     FROM nodes
-                    WHERE tenant_id = ?
+                    WHERE {" AND ".join(node_filters)}
                     ORDER BY updated_at DESC, created_at DESC
                     """,
-                    (self.tenant_id,),
+                    tuple(node_params),
                 ).fetchall()
+                edge_filters = ["tenant_id = ?"]
+                edge_params: list[Any] = [self.tenant_id]
+                if project.strip():
+                    edge_filters.append("project = ?")
+                    edge_params.append(project.strip())
                 edge_rows = connection.execute(
-                    """
+                    f"""
                     SELECT id, source_id, target_id, relationship, weight, metadata, created_at
                     FROM edges
-                    WHERE tenant_id = ?
+                    WHERE {" AND ".join(edge_filters)}
                     ORDER BY created_at ASC
                     """,
-                    (self.tenant_id,),
+                    tuple(edge_params),
                 ).fetchall()
-            selected_nodes = [
-                node
-                for row in node_rows
-                for node in [self._row_to_node(row)]
-                if _scope_matches(node, agent_id=agent_id, project=project, session_id=session_id)
-            ]
+            selected_nodes = [self._row_to_node(row) for row in node_rows]
             selected_edges = [self._row_to_edge(row) for row in edge_rows] if include_edges else []
             if include_edges:
                 selected_ids = {node.id for node in selected_nodes}
@@ -5154,31 +5165,42 @@ class MemoryGraph:
         root = Path(root_path).expanduser()
         root.mkdir(parents=True, exist_ok=True)
         with self._lock, self._connect() as connection:
+            node_filters = ["tenant_id = ?"]
+            node_params: list[Any] = [self.tenant_id]
+            if project.strip():
+                node_filters.append("project = ?")
+                node_params.append(project.strip())
+            if session_id.strip():
+                node_filters.append("session_id = ?")
+                node_params.append(session_id.strip())
+            elif agent_id.strip():
+                node_filters.append("agent_id = ?")
+                node_params.append(agent_id.strip())
             node_rows = connection.execute(
-                """
+                f"""
                 SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata,
                        evidence_records, valid_from, valid_to, created_at, updated_at, access_count, tenant_id
                 FROM nodes
-                WHERE tenant_id = ?
+                WHERE {" AND ".join(node_filters)}
                 ORDER BY updated_at DESC, created_at DESC
                 """,
-                (self.tenant_id,),
+                tuple(node_params),
             ).fetchall()
+            edge_filters = ["tenant_id = ?"]
+            edge_params: list[Any] = [self.tenant_id]
+            if project.strip():
+                edge_filters.append("project = ?")
+                edge_params.append(project.strip())
             edge_rows = connection.execute(
-                """
+                f"""
                 SELECT id, source_id, target_id, relationship, weight, metadata, created_at, tenant_id
                 FROM edges
-                WHERE tenant_id = ?
+                WHERE {" AND ".join(edge_filters)}
                 ORDER BY created_at ASC
                 """,
-                (self.tenant_id,),
+                tuple(edge_params),
             ).fetchall()
-        selected_nodes = [
-            node
-            for row in node_rows
-            for node in [self._row_to_node(row)]
-            if _scope_matches(node, agent_id=agent_id, project=project, session_id=session_id)
-        ]
+        selected_nodes = [self._row_to_node(row) for row in node_rows]
         selected_ids = {node.id for node in selected_nodes}
         selected_edges = [
             self._row_to_edge(row)
