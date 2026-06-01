@@ -94,3 +94,27 @@ jobs:
         run: |
           pip install twine
           twine check dist/*
+
+  # ── VS Code extension ────────────────────────────────────────────────────
+  vscode-extension:
+    name: VS Code extension validation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/vscode-extension
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/vscode-extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile extension
+        run: npm run compile

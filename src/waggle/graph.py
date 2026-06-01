@@ -910,10 +910,14 @@ class MemoryGraph:
             try:
                 journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
                 if journal_mode.upper() != "WAL":
-                    LOGGER.info(f"Migrating database {self.db_path} from {journal_mode} to WAL mode")
+                    LOGGER.info(
+                        "Migrating database %s from %s to WAL mode",
+                        self.db_path,
+                        journal_mode,
+                    )
                     connection.execute("PRAGMA journal_mode=WAL")
             except Exception as e:
-                LOGGER.warning(f"Could not verify journal mode: {e}")
+                LOGGER.warning("Could not verify journal mode: %s", e)
 
             # Initialize schema
             connection.executescript(SCHEMA_SQL)
@@ -5637,7 +5641,21 @@ class MemoryGraph:
         """
         result = ObservationResult()
         stored_candidate_records: list[tuple[Node, list[str]]] = []
-        for candidate in candidates:
+        _candidate_texts = [str(c["content"]) for c in candidates]
+        _batch_embeddings: np.ndarray | None = None
+        if _candidate_texts:
+            try:
+                _batch_embeddings = self.embedding_model.embed_batch(_candidate_texts)
+                if _batch_embeddings is not None and len(_batch_embeddings) != len(_candidate_texts):
+                    raise ValueError(
+                        f"embed_batch returned {len(_batch_embeddings)} vectors, expected {len(_candidate_texts)}"
+                    )
+            except (AttributeError, NotImplementedError):
+                # embed_batch is not available on this model backend (e.g. a test
+                # stub).  Fall back gracefully: add_node will call embed() itself.
+                _batch_embeddings = None
+
+        for _idx, candidate in enumerate(candidates):
             candidate_tags = list(candidate.get("tags", []))
             speaker_tag = next((tag for tag in candidate_tags if str(tag).startswith("speaker:")), "")
             speaker = speaker_tag.split(":", 1)[1] if ":" in speaker_tag else "user"
@@ -5649,6 +5667,11 @@ class MemoryGraph:
                 turn_index=turn_index,
                 observed_at=observed_at,
                 session_id=session_id,
+            )
+            # Pass the pre-computed vector when available; otherwise let add_node
+            # fall back to its own embed() call (preserves backward-compatibility).
+            _precomputed: np.ndarray | None = (
+                _batch_embeddings[_idx] if _batch_embeddings is not None and _idx < len(_batch_embeddings) else None
             )
             store_result = self.add_node(
                 label=str(candidate["label"]),
@@ -5662,6 +5685,7 @@ class MemoryGraph:
                 session_id=session_id,
                 evidence_records=[evidence],
                 valid_from=observed_at,
+                embedding=_precomputed,
                 connection=connection,
             )
             result.stored_nodes.append(store_result.node)
@@ -5852,9 +5876,12 @@ class MemoryGraph:
                 except Exception as verbatim_err:
                     # Verbatim persistence is mandatory. If it fails, the entire call fails.
                     connection.rollback()
-                    logger.exception(f"Failed to persist verbatim turn {turn_pair_id}: {verbatim_err}")
+                    logger.exception(
+                        "Failed to persist verbatim turn %s: %s",
+                        turn_pair_id,
+                        verbatim_err,
+                    )
                     raise
-
                 # ===== STEP 2: RUN EXTRACTION IN TRY/EXCEPT (NON-BLOCKING) =====
                 extraction_candidates = []
                 try:
@@ -5863,7 +5890,11 @@ class MemoryGraph:
                         assistant_response=assistant_response,
                     )
                 except Exception as extraction_err:
-                    logger.exception(f"Extraction failed for turn {turn_pair_id}: {extraction_err}")
+                    logger.exception(
+                        "Extraction failed for turn %s: %s",
+                        turn_pair_id,
+                        extraction_err,
+                    )
                     result.extraction_errors.append(
                         f"Extraction exception: {type(extraction_err).__name__}: {extraction_err!s}"
                     )
@@ -5898,7 +5929,11 @@ class MemoryGraph:
                             candidates_result.conflicts
                         )  # conflicts are one type of inferred relation
                     except Exception as candidate_err:
-                        logger.exception(f"Candidate application failed for turn {turn_pair_id}: {candidate_err}")
+                        logger.exception(
+                            "Candidate application failed for turn %s: %s",
+                            turn_pair_id,
+                            candidate_err,
+                        )
                         result.extraction_errors.append(
                             f"Candidate storage exception: {type(candidate_err).__name__}: {candidate_err!s}"
                         )
@@ -5912,17 +5947,24 @@ class MemoryGraph:
                     self._update_window_node_count(connection, window_id)
                     self._mark_window_embedding_stale(connection, window_id)
                 except Exception as window_err:
-                    logger.warning(f"Window context update failed for turn {turn_pair_id}: {window_err}")
+                    logger.warning(
+                        "Window context update failed for turn %s: %s",
+                        turn_pair_id,
+                        window_err,
+                    )
                     result.extraction_errors.append(f"Window context error: {window_err!s}")
                     window_id = ""
                     repo_id = ""
-
             # Derive edges outside the transaction lock
             if window_id and repo_id:
                 try:
                     self.derive_context_window_edges(window_id, repo_id)
                 except Exception as edge_err:
-                    logger.warning(f"Context window edge derivation failed for turn {turn_pair_id}: {edge_err}")
+                    logger.warning(
+                        "Context window edge derivation failed for turn %s: %s",
+                        turn_pair_id,
+                        edge_err,
+                    )
                     result.extraction_errors.append(f"Edge derivation error: {edge_err!s}")
 
         return result
