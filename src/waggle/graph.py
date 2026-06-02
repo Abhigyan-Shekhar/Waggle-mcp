@@ -4354,20 +4354,12 @@ class MemoryGraph:
                     str(n["id"]).strip(): n
                     for n in current.get("nodes", [])
                     if str(n.get("id", "")).strip()
-                    and (
-                        not project or n.get("project", "") == project
-                    )
-                    and (
-                        not agent_id or n.get("agent_id", "") == agent_id
-                    )
-                    and (
-                        not session_id or n.get("session_id", "") == session_id
-                    )
+                    and (not project or n.get("project", "") == project)
+                    and (not agent_id or n.get("agent_id", "") == agent_id)
+                    and (not session_id or n.get("session_id", "") == session_id)
                 }
                 current_edge_ids = {
-                    str(e["id"]).strip()
-                    for e in current.get("edges", [])
-                    if str(e.get("id", "")).strip()
+                    str(e["id"]).strip() for e in current.get("edges", []) if str(e.get("id", "")).strip()
                 }
 
                 # 2. Delete edges no longer desired
@@ -4405,7 +4397,11 @@ class MemoryGraph:
                             params.append(json.dumps(tags))
                         if node_payload.get("metadata"):
                             updates.append("metadata = ?")
-                            params.append(json.dumps(node_payload["metadata"]) if isinstance(node_payload["metadata"], dict) else str(node_payload["metadata"]))
+                            params.append(
+                                json.dumps(node_payload["metadata"])
+                                if isinstance(node_payload["metadata"], dict)
+                                else str(node_payload["metadata"])
+                            )
                         if updates:
                             params.append(nid)
                             params.append(self.tenant_id)
@@ -4477,7 +4473,9 @@ class MemoryGraph:
                     agent_id=agent_id,
                     session_id=session_id,
                     positions=ui_payload.get("positions"),
-                    zoom=float(ui_payload["zoom"]) if "zoom" in ui_payload and ui_payload.get("zoom") is not None else None,
+                    zoom=float(ui_payload["zoom"])
+                    if "zoom" in ui_payload and ui_payload.get("zoom") is not None
+                    else None,
                     viewport=ui_payload.get("viewport"),
                     groups=ui_payload.get("groups"),
                     collapsed_groups=ui_payload.get("collapsed_groups"),
