@@ -361,12 +361,14 @@ def _scan_export_for_secrets(
             if not field_text.strip():
                 continue
             for label, secret, preview in _scan_text_for_secrets(field_text):
-                findings.append({
-                    "pattern": label,
-                    "source": f"node.{field_name}",
-                    "node_id": str(node.get("id", "")),
-                    "preview": preview[:180],
-                })
+                findings.append(
+                    {
+                        "pattern": label,
+                        "source": f"node.{field_name}",
+                        "node_id": str(node.get("id", "")),
+                        "preview": preview[:180],
+                    }
+                )
                 if len(findings) >= max_findings:
                     return findings
 
@@ -376,15 +378,17 @@ def _scan_export_for_secrets(
         if not text.strip():
             continue
         for label, secret, preview in _scan_text_for_secrets(text):
-            findings.append({
-                "pattern": label,
-                "source": "transcript",
-                "transcript_id": str(record.id),
-                "session_id": str(record.session_id or ""),
-                "turn_index": int(record.turn_index or 0),
-                "role": str(record.role or ""),
-                "preview": preview[:180],
-            })
+            findings.append(
+                {
+                    "pattern": label,
+                    "source": "transcript",
+                    "transcript_id": str(record.id),
+                    "session_id": str(record.session_id or ""),
+                    "turn_index": int(record.turn_index or 0),
+                    "role": str(record.role or ""),
+                    "preview": preview[:180],
+                }
+            )
             break
         if len(findings) >= max_findings:
             break
