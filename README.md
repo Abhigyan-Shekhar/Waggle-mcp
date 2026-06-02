@@ -17,6 +17,7 @@
   <img src="https://img.shields.io/badge/MCP-compatible-brightgreen" alt="MCP compatible"/>
   <img src="https://img.shields.io/badge/license-Apache--2.0-black" alt="Apache-2.0"/>
   <img src="https://img.shields.io/badge/embeddings-local%2C%20no%20API%20key-orange" alt="Local embeddings"/>
+[![SafeSkill 50/100](https://img.shields.io/badge/SafeSkill-50%2F100_Use%20with%20Caution-orange)](https://safeskill.dev/scan/abhigyan-shekhar-waggle-mcp)
 </p>
 
 ---
