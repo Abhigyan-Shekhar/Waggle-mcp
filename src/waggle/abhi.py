@@ -512,7 +512,9 @@ def build_abhi_document(
                 "Use --include-deps or remove --strict-export."
             )
         if include_deps:
-            logger.info("Walking dangling edge targets to include referenced nodes (not yet implemented, continuing)")
+            # TODO(Vijitha14): implement dangling-edge walker to include referenced
+            # # nodes outside the current export scope.
+            pass
         else:
             logger.warning(
                 "Export contains %d dangling edge(s): %s",
