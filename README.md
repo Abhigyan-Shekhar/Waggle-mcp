@@ -49,6 +49,18 @@ waggle-mcp setup --yes
 # Verify everything is healthy
 waggle-mcp doctor
 ```
+---
+
+## Quickstart
+
+[![waggle-mcp quickstart](assets/quickstart.gif)](https://asciinema.org/a/waggle-mcp-quickstart)
+
+> `pip install waggle-mcp` → `waggle-mcp --help` → store a memory → retrieve it. Under 30 seconds.
+
+---
+
+## Core
+```
 
 *(No `pipx`? Run `brew install pipx && pipx ensurepath` first.)*
 
