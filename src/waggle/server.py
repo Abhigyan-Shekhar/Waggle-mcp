@@ -337,11 +337,13 @@ def _scan_export_for_secrets(
         agent_id=agent_id,
         session_id=session_id,
     )
-    # get_graph_snapshot does not include transcripts, so fetch them separately
+    # get_graph_snapshot does not include transcripts, so fetch them separately.
+    # Use a large limit so we don't truncate the scan to the default 200 rows.
     transcripts = backend.list_transcript_records(
         project=project,
         agent_id=agent_id,
         session_id=session_id,
+        limit=100000,
     )
     findings: list[dict[str, Any]] = []
 
