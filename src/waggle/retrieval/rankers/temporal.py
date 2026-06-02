@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal, TypeVar
 
 from waggle.retrieval.scorers.topic_relevance import TopicScore, score_topic_relevance

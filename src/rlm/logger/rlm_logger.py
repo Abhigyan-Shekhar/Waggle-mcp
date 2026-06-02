@@ -8,7 +8,7 @@ RLMChatCompletion.metadata. Optionally writes the same data to JSON-lines files.
 import json
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from rlm.core.types import RLMIteration, RLMMetadata
 
