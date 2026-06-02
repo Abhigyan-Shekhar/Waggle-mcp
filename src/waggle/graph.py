@@ -7027,9 +7027,7 @@ class MemoryGraph:
             label = str(row.get("label", "") or "")
             prefix = self._dedup_candidate_prefix(label)
             key = f"{ntype.value}::{prefix}"
-            buckets.setdefault(key, []).append(
-                (idx, ntype, row["embedding"], label)
-            )
+            buckets.setdefault(key, []).append((idx, ntype, row["embedding"], label))
 
         pairs: list[DedupCandidatePair] = []
 
