@@ -128,7 +128,7 @@ class TestJsonLogFormatter:
 
         # Should be able to parse as ISO format
         try:
-            from datetime import datetime
+            from datetime import datetime, timezone
 
             datetime.fromisoformat(data["timestamp"])
         except ValueError:
