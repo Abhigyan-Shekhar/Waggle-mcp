@@ -28,13 +28,20 @@ class RateLimiter:
         limit = self.write_requests_per_minute if is_write else self.requests_per_minute
         bucket = self._write_windows if is_write else self._request_windows
         now = time.monotonic()
+
         async with self._lock:
             window = bucket[key]
+
             while window and now - window[0] > 60.0:
                 window.popleft()
+
+            if not window and key in bucket:
+                del bucket[key]
+
             if len(window) >= limit:
                 raise RateLimitExceededError()
-            window.append(now)
+
+            bucket[key].append(now)
 
     @asynccontextmanager
     async def concurrency_slot(self, key: str):
@@ -47,3 +54,5 @@ class RateLimiter:
         finally:
             async with self._lock:
                 self._concurrent[key] = max(self._concurrent[key] - 1, 0)
+                if self._concurrent[key] == 0:
+                    del self._concurrent[key]

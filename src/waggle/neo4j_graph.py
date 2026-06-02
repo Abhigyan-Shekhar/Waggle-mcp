@@ -342,6 +342,18 @@ class Neo4jMemoryGraph:
             ).consume()
             session.run(
                 """
+                CREATE INDEX waggle_transcript_tenant_project IF NOT EXISTS
+                FOR (t:MemoryTranscript) ON (t.tenant_id, t.project)
+                """
+            ).consume()
+            session.run(
+                """
+                CREATE INDEX waggle_transcript_tenant_agent IF NOT EXISTS
+                FOR (t:MemoryTranscript) ON (t.tenant_id, t.agent_id)
+                """
+            ).consume()
+            session.run(
+                """
                 CREATE INDEX waggle_api_key_hash IF NOT EXISTS
                 FOR (a:GraphApiKey) ON (a.key_hash)
                 """
@@ -1878,7 +1890,6 @@ def update_node(
     valid_to: datetime | None = None,
     evidence_records: list[EvidenceRecord] | None = None,
 ) -> Node:
-
     if (
         content is None
         and label is None

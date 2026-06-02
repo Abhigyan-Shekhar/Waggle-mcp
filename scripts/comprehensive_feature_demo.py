@@ -86,15 +86,35 @@ async def run_demo() -> tuple[list[dict[str, Any]], str]:
     logs: list[dict[str, Any]] = []
 
     # CLI features guide (outside MCP tool call)
-    cli = subprocess.run(
-        [sys.executable, "-m", "waggle.server", "features"],
-        cwd=str(ROOT),
-        env=build_env(DB_PATH),
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    features_output = (cli.stdout or "") + ("\n" + cli.stderr if cli.stderr else "")
+    try:
+        cli = subprocess.run(
+            [sys.executable, "-m", "waggle.server", "features"],
+            cwd=str(ROOT),
+            env=build_env(DB_PATH),
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        features_output = (
+        (cli.stdout or "")
+        + ("\n" + cli.stderr if cli.stderr else "")
+        )
+
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+        "waggle.server features command timed out after 30 seconds.\n"
+        f"Stdout:\n{exc.stdout or ''}\n"
+        f"Stderr:\n{exc.stderr or ''}"
+    ) from exc
+
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+        "waggle.server features command failed.\n"
+        f"Return code: {exc.returncode}\n"
+        f"Stdout:\n{exc.stdout or ''}\n"
+        f"Stderr:\n{exc.stderr or ''}"
+    ) from exc
 
     server_params = StdioServerParameters(
         command=sys.executable,
