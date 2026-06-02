@@ -427,6 +427,8 @@ def test_http_graph_editor_routes_and_crud(tmp_path: Path) -> None:
         text="Stored transcript provenance as memory.",
     )
     app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    created = graph.create_api_key("tenant-http", "graph-editor-test")
+    headers = {"X-API-Key": created.raw_api_key}
     app = create_http_application(app_server, app_server.config)
 
     with TestClient(app) as client:
@@ -449,15 +451,16 @@ def test_http_graph_editor_routes_and_crud(tmp_path: Path) -> None:
                 "node_type": "note",
                 "project": "studio",
             },
+            headers=headers,
         )
         assert created_node.status_code == 200
         node_id = created_node.json()["id"]
 
-        snapshot = client.get("/api/graph", params={"project": "studio"})
+        snapshot = client.get("/api/graph", params={"project": "studio"}, headers=headers)
         assert snapshot.status_code == 200
         assert len(snapshot.json()["nodes"]) == 1
 
-        abhi_preview = client.get("/api/graph/abhi", params={"project": "studio"})
+        abhi_preview = client.get("/api/graph/abhi", params={"project": "studio"}, headers=headers)
         assert abhi_preview.status_code == 200
         assert "schema" in abhi_preview.json()
         assert abhi_preview.json()["validation"]["valid"] is True
@@ -471,6 +474,7 @@ def test_http_graph_editor_routes_and_crud(tmp_path: Path) -> None:
                 "viewport": {"center_x": 140, "center_y": 280},
                 "selected_nodes": [node_id],
             },
+            headers=headers,
         )
         assert saved_ui.status_code == 200
         assert saved_ui.json()["positions"][node_id] == {"x": 140, "y": 280}
@@ -492,6 +496,7 @@ def test_http_graph_editor_routes_and_crud(tmp_path: Path) -> None:
                 "edges": [],
                 "ui": {"positions": {node_id: {"x": 220, "y": 120}}, "selected_nodes": [node_id]},
             },
+            headers=headers,
         )
         assert restored.status_code == 200
         assert restored.json()["nodes"][0]["label"] == "HTTP Node Restored"
@@ -499,6 +504,7 @@ def test_http_graph_editor_routes_and_crud(tmp_path: Path) -> None:
         updated_node = client.patch(
             f"/api/graph/nodes/{node_id}",
             json={"label": "HTTP Node Updated", "content": "Edited in browser."},
+            headers=headers,
         )
         assert updated_node.status_code == 200
         assert updated_node.json()["label"] == "HTTP Node Updated"
@@ -511,6 +517,7 @@ def test_http_graph_editor_routes_and_crud(tmp_path: Path) -> None:
                 "node_type": "note",
                 "project": "studio",
             },
+            headers=headers,
         )
         second_id = second_node.json()["id"]
 
@@ -522,6 +529,7 @@ def test_http_graph_editor_routes_and_crud(tmp_path: Path) -> None:
                 "relationship": "relates_to",
                 "weight": 1.0,
             },
+            headers=headers,
         )
         assert created_edge.status_code == 200
         edge_id = created_edge.json()["id"]
@@ -534,6 +542,7 @@ def test_http_graph_editor_routes_and_crud(tmp_path: Path) -> None:
                 "relationship": "depends_on",
                 "weight": 0.5,
             },
+            headers=headers,
         )
         assert updated_edge.status_code == 200
         assert updated_edge.json()["relationship"] == "depends_on"
@@ -541,30 +550,34 @@ def test_http_graph_editor_routes_and_crud(tmp_path: Path) -> None:
         query_result = client.post(
             "/api/graph/query",
             json={"project": "studio", "query": "FIND nodes WHERE type='note' AND content CONTAINS 'browser'"},
+            headers=headers,
         )
         assert query_result.status_code == 200
         assert len(query_result.json()["nodes"]) == 1
 
-        transcripts = client.get("/api/graph/transcripts", params={"project": "studio"})
+        transcripts = client.get("/api/graph/transcripts", params={"project": "studio"}, headers=headers)
         assert transcripts.status_code == 200
         assert transcripts.json()["records"]
 
-        transcript_search = client.get("/api/graph/transcripts", params={"project": "studio", "query": "provenance"})
+        transcript_search = client.get(
+            "/api/graph/transcripts", params={"project": "studio", "query": "provenance"}, headers=headers
+        )
         assert transcript_search.status_code == 200
         assert transcript_search.json()["hits"]
 
         retrieval_debug = client.post(
             "/api/graph/retrieval-debug",
             json={"project": "studio", "query": "browser provenance", "max_nodes": 4, "max_depth": 1},
+            headers=headers,
         )
         assert retrieval_debug.status_code == 200
         assert "fusion_hits" in retrieval_debug.json()
 
-        diff_result = client.get("/api/graph/diff", params={"since": "24h"})
+        diff_result = client.get("/api/graph/diff", params={"since": "24h"}, headers=headers)
         assert diff_result.status_code == 200
         assert len(diff_result.json()["added_nodes"]) >= 2
 
-        exported_abhi = client.get("/api/graph/export", params={"format": "abhi", "project": "studio"})
+        exported_abhi = client.get("/api/graph/export", params={"format": "abhi", "project": "studio"}, headers=headers)
         assert exported_abhi.status_code == 200
         assert exported_abhi.content.startswith(b"WGL\x01")
         assert exported_abhi.headers["content-disposition"] == 'attachment; filename="waggle-memory.abhi"'
@@ -573,6 +586,7 @@ def test_http_graph_editor_routes_and_crud(tmp_path: Path) -> None:
         import_preview = client.post(
             "/api/graph/abhi/preview-import",
             json={"format": "abhi", "content_base64": exported_abhi_b64},
+            headers=headers,
         )
         assert import_preview.status_code == 200
         assert import_preview.json()["validation"]["valid"] is True
@@ -581,14 +595,15 @@ def test_http_graph_editor_routes_and_crud(tmp_path: Path) -> None:
         abhi_diff = client.post(
             "/api/graph/abhi/diff",
             json={"content_a_base64": exported_abhi_b64, "content_b_base64": exported_abhi_b64},
+            headers=headers,
         )
         assert abhi_diff.status_code == 200
         assert "diff" in abhi_diff.json()
 
-        deleted_edge = client.delete(f"/api/graph/edges/{edge_id}")
+        deleted_edge = client.delete(f"/api/graph/edges/{edge_id}", headers=headers)
         assert deleted_edge.status_code == 200
 
-        deleted_node = client.delete(f"/api/graph/nodes/{second_id}")
+        deleted_node = client.delete(f"/api/graph/nodes/{second_id}", headers=headers)
         assert deleted_node.status_code == 200
 
     audit_events = graph.list_audit_events(limit=50)
@@ -603,6 +618,8 @@ def test_http_graph_editor_routes_and_crud(tmp_path: Path) -> None:
 def test_http_admin_retention_and_audit_endpoints(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
     app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path, backend="sqlite", transport="http"))
+    created = graph.create_api_key("tenant-http", "admin-test", scopes=["admin:read", "admin:write"])
+    headers = {"X-API-Key": created.raw_api_key}
     app = create_http_application(app_server, app_server.config)
 
     with TestClient(app) as client:
@@ -614,24 +631,31 @@ def test_http_admin_retention_and_audit_endpoints(tmp_path: Path) -> None:
                 "retention_days": 90,
                 "prune_interval_hours": 24,
             },
+            headers=headers,
         )
         assert update.status_code == 200
         assert update.json()["enabled"] is True
 
-        status = client.get("/api/admin/retention", params={"tenant_id": "workspace-a"})
+        status = client.get("/api/admin/retention", params={"tenant_id": "workspace-a"}, headers=headers)
         assert status.status_code == 200
         assert status.json()["retention_days"] == 90
 
-        prune = client.post("/api/admin/retention/prune", json={"tenant_id": "workspace-a", "batch_size": 1000})
+        prune = client.post(
+            "/api/admin/retention/prune", json={"tenant_id": "workspace-a", "batch_size": 1000}, headers=headers
+        )
         assert prune.status_code == 200
         assert prune.json()["status"] in {"completed", "skipped"}
 
-        runs = client.get("/api/admin/retention/runs", params={"tenant_id": "workspace-a", "limit": 10})
+        runs = client.get(
+            "/api/admin/retention/runs", params={"tenant_id": "workspace-a", "limit": 10}, headers=headers
+        )
         assert runs.status_code == 200
         assert runs.json()
 
         audit = client.get(
-            "/api/admin/audit-events", params={"tenant_id": "workspace-a", "type": "retention.policy.updated"}
+            "/api/admin/audit-events",
+            params={"tenant_id": "workspace-a", "type": "retention.policy.updated"},
+            headers=headers,
         )
         assert audit.status_code == 200
         assert audit.json()[0]["event_type"] == "retention.policy.updated"
