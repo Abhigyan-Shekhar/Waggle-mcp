@@ -74,4 +74,4 @@ def principal_from_record(record: ApiKeyRecord | None, raw_api_key: str) -> Auth
 
 
 def iso_now() -> str:
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(UTC).isoformat()
