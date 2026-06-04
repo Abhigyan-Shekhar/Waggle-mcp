@@ -6281,7 +6281,7 @@ def main() -> None:
         config.transport = str(args.transport).strip().lower()
         config.validate()
     log_stream = sys.stderr if config.transport == "stdio" else sys.stdout
-    configure_logging(config.log_level, stream=log_stream)
+    configure_logging(config.log_level, stream=log_stream, log_format=config.log_format)
     LOGGER.info("waggle_startup")
     if command in {"edit-graph", "view-graph", "ui", "graph-studio", "open-studio"}:
         try:
