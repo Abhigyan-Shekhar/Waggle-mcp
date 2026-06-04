@@ -48,6 +48,10 @@ class EmbeddingModel:
 
     _DETERMINISTIC_MODELS = {"fake", "fake-model", "deterministic", "offline-demo"}
 
+    _GLOBAL_EMBED_CACHE: OrderedDict[tuple[str, str], bytes] = OrderedDict()
+    _GLOBAL_EMBED_CACHE_MAXSIZE = 512
+    _GLOBAL_EMBED_CACHE_LOCK = threading.Lock()
+
     def __init__(self, model_name: str = "all-MiniLM-L6-v2") -> None:
         self.model_name = model_name
         self._model: Any | None = None
@@ -64,8 +68,6 @@ class EmbeddingModel:
         # Keyed by normalised text; value is a pre-computed bytes blob so we
         # can return a fresh np.frombuffer view on each hit without re-encoding.
         # 512 entries x 384 dims x 4 bytes ~= 750 KB -- negligible overhead.
-        self._embed_cache: OrderedDict[str, bytes] = OrderedDict()
-        self._embed_cache_maxsize: int = 512
 
     # ------------------------------------------------------------------
     # Public API: background warmup
@@ -169,11 +171,13 @@ class EmbeddingModel:
         if not normalized:
             raise ValueError("Cannot embed empty text.")
 
+        cache_key = (self.model_name, normalized)
+
         # Fast path: return cached embedding (copy so callers can mutate freely)
-        with self._lock:
-            if normalized in self._embed_cache:
-                self._embed_cache.move_to_end(normalized)
-                return np.frombuffer(self._embed_cache[normalized], dtype=np.float32).copy()
+        with EmbeddingModel._GLOBAL_EMBED_CACHE_LOCK:
+            if cache_key in EmbeddingModel._GLOBAL_EMBED_CACHE:
+                EmbeddingModel._GLOBAL_EMBED_CACHE.move_to_end(cache_key)
+                return np.frombuffer(EmbeddingModel._GLOBAL_EMBED_CACHE[cache_key], dtype=np.float32).copy()
 
         if self.uses_deterministic_mode:
             # Canonical deterministic path — always safe to cache.
@@ -201,14 +205,14 @@ class EmbeddingModel:
         # Store in cache only when the result is canonical (not a transient fallback)
         if should_cache:
             blob = result.tobytes()
-            with self._lock:
-                if normalized in self._embed_cache:
-                    # Already written by a concurrent caller — just refresh LRU order
-                    self._embed_cache.move_to_end(normalized)
+            with EmbeddingModel._GLOBAL_EMBED_CACHE_LOCK:
+                if cache_key in EmbeddingModel._GLOBAL_EMBED_CACHE:
+                    EmbeddingModel._GLOBAL_EMBED_CACHE.move_to_end(cache_key)
                 else:
-                    if len(self._embed_cache) >= self._embed_cache_maxsize:
-                        self._embed_cache.popitem(last=False)
-                    self._embed_cache[normalized] = blob
+                    if len(EmbeddingModel._GLOBAL_EMBED_CACHE) >= EmbeddingModel._GLOBAL_EMBED_CACHE_MAXSIZE:
+                        EmbeddingModel._GLOBAL_EMBED_CACHE.popitem(last=False)
+
+                EmbeddingModel._GLOBAL_EMBED_CACHE[cache_key] = blob
         return result
 
     def embed_batch(self, texts: list[str], *, wait_timeout: float = 30.0) -> np.ndarray:
