@@ -441,16 +441,16 @@ def run_waggle_rlm(
         matches = _query_waggle(query, top_k)
         compact_lines = [f"{match['id']} | {match['label']}" for match in matches]
         if compact_lines:
-            logger.info("\n".join(compact_lines))
+            logger.debug("\n".join(compact_lines))
         return matches
 
     def gather_waggle_context(query: str, top_k: int = 3) -> str:
         matches = _query_waggle(query, top_k)
         evidence_bundle = _format_matches(matches)
         if evidence_bundle:
-            logger.info(evidence_bundle)
+            logger.debug(evidence_bundle)
         else:
-            logger.info("")
+            logger.debug("")
         if not matches:
             return ""
         return evidence_bundle
@@ -458,12 +458,12 @@ def run_waggle_rlm(
     def extract_waggle_records(query: str, top_k: int = 3) -> list[dict[str, str]]:
         matches = _query_waggle(query, top_k)
         records = _structured_match_records(matches)
-        logger.info(json.dumps(records, indent=2))
+        logger.debug(json.dumps(records, indent=2))
         return records
 
     def classify_waggle_records(query: str, top_k: int = 3) -> list[dict[str, str]]:
         records = extract_waggle_records(query, top_k=top_k)
-        logger.info(json.dumps(records, indent=2))
+        logger.debug(json.dumps(records, indent=2))
         return records
 
     def index_waggle_fields(query: str, field_name: str, top_k: int = 3) -> dict[str, list[str]]:
@@ -478,7 +478,7 @@ def run_waggle_rlm(
             bucket = index.setdefault(field_value, [])
             if text_value and text_value not in bucket:
                 bucket.append(text_value)
-        logger.info(json.dumps(index, indent=2))
+        logger.debug(json.dumps(index, indent=2))
         return index
 
     def pair_users_by_label(query: str, labels: list[str], top_k: int = 8) -> list[tuple[str, str]]:
@@ -488,7 +488,7 @@ def run_waggle_rlm(
         # Scan the full session-scoped context so each user's qualifying records
         # can contribute before we build the pair clique deterministically.
         records = _structured_match_records(_session_matches())
-        logger.info(json.dumps(records, indent=2))
+        logger.debug(json.dumps(records, indent=2))
         users: set[str] = set()
         for record in records:
             label = record.get("label", "").strip().lower()
@@ -501,13 +501,13 @@ def run_waggle_rlm(
         for index, first_user in enumerate(ordered_users):
             for second_user in ordered_users[index + 1 :]:
                 pairs.append((first_user, second_user))
-        logger.info(json.dumps(pairs, indent=2))
+        logger.debug(json.dumps(pairs, indent=2))
         return pairs
 
     def answer_pair_users_by_label(query: str, labels: list[str], top_k: int = 8) -> str:
         pairs = pair_users_by_label(query, labels=labels, top_k=top_k)
         formatted = "\n".join(f"({left}, {right})" for left, right in pairs)
-        logger.info(formatted)
+        logger.debug(formatted)
         return formatted
 
     def answer_with_waggle(
@@ -528,13 +528,13 @@ def run_waggle_rlm(
             evidence_bundle or "(no evidence found)",
         ]
         packet = "\n".join(packet_lines).strip()
-        logger.info(packet)
+        logger.debug(packet)
         return packet
 
     def read_node(node_id: str) -> str:
         node = graph.get_node(str(node_id))
         visited_node_ids.add(node.id)
-        logger.info(node.content)
+        logger.debug(node.content)
         return node.content
 
     logger = RLMLogger()
