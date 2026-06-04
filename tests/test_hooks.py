@@ -594,10 +594,12 @@ def test_install_claude_hooks_idempotent(tmp_path: Path) -> None:
     """Installing hooks twice should not duplicate entries."""
     try:
         from waggle.server import _install_claude_hooks
-    except Exception:
+    except (ImportError, ModuleNotFoundError):
         import pytest
 
         pytest.skip("Requires mcp package; skipping in this environment")
+    except Exception:
+        raise
 
     hook_dir = ROOT / "src" / "waggle" / "hooks" / "claude_code"
     settings_path = tmp_path / "settings.json"
@@ -621,10 +623,12 @@ def test_uninstall_hooks_removes_block(tmp_path: Path) -> None:
     """uninstall-hooks removes waggle entries cleanly."""
     try:
         from waggle.server import _install_claude_hooks, _uninstall_claude_hooks
-    except Exception:
+    except (ImportError, ModuleNotFoundError):
         import pytest
 
         pytest.skip("Requires mcp package; skipping in this environment")
+    except Exception:
+        raise
 
     hook_dir = ROOT / "src" / "waggle" / "hooks" / "claude_code"
     settings_path = tmp_path / "settings.json"
@@ -647,10 +651,12 @@ def test_uninstall_hooks_idempotent(tmp_path: Path) -> None:
     """uninstall-hooks is idempotent — second call returns None."""
     try:
         from waggle.server import _install_claude_hooks, _uninstall_claude_hooks
-    except Exception:
+    except (ImportError, ModuleNotFoundError):
         import pytest
 
         pytest.skip("Requires mcp package; skipping in this environment")
+    except Exception:
+        raise
 
     hook_dir = ROOT / "src" / "waggle" / "hooks" / "claude_code"
     settings_path = tmp_path / "settings.json"
@@ -668,10 +674,12 @@ def test_setup_writes_managed_block(tmp_path: Path) -> None:
     """waggle-mcp setup --yes writes the hooks block to Claude Code settings."""
     try:
         from waggle.server import _install_claude_hooks
-    except Exception:
+    except (ImportError, ModuleNotFoundError):
         import pytest
 
         pytest.skip("Requires mcp package; skipping in this environment")
+    except Exception:
+        raise
 
     hook_dir = ROOT / "src" / "waggle" / "hooks" / "claude_code"
     settings_path = tmp_path / "settings.json"

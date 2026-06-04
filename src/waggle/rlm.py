@@ -537,7 +537,7 @@ def run_waggle_rlm(
         logger.debug(node.content)
         return node.content
 
-    logger = RLMLogger()
+    rlm_logger = RLMLogger()
     with _patched_get_client(mock_response_fn):
         rlm = RLM(
             backend=backend,
@@ -547,7 +547,7 @@ def run_waggle_rlm(
             max_depth=max_depth,
             max_iterations=max_iterations,
             custom_system_prompt=system_prompt,
-            logger=logger,
+            logger=rlm_logger,
             custom_tools={
                 "answer_with_waggle": {
                     "tool": answer_with_waggle,
