@@ -53,7 +53,7 @@ def _timeout_handler(signum: int, frame: Any) -> None:
 
 def _silent_exit() -> None:
     """Exit 0 with empty output — never block the user."""
-    logger.info(json.dumps({}))
+    print(json.dumps({}))  # CLI output, intentionally bypasses logger
     sys.exit(0)
 
 
@@ -190,16 +190,17 @@ def main() -> None:
             context_text = load_from_db(include_query_fallback=True)
 
         if context_text:
-            logger.info(
+            print(
                 json.dumps(
                     {
                         "type": "system_reminder",
                         "content": f"[Waggle memory context]\n{context_text}",
                     }
-                )
-            )
+                ),
+                flush=True,
+            )  # CLI output, intentionally bypasses logger
         else:
-            logger.info(json.dumps({}))
+            print(json.dumps({}))  # CLI output, intentionally bypasses logger
 
     except (TimeoutError, Exception):
         _silent_exit()

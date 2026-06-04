@@ -153,7 +153,7 @@ def test_pre_response_empty_stdin(capsys: pytest.CaptureFixture, caplog: pytest.
     assert mock_exit.called or caplog.records
 
 
-def test_pre_response_with_prompt(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+def test_pre_response_with_prompt(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     """pre_response returns JSON output for a valid prompt."""
     mod = _load_hook_module("pre_response_prompt", "pre_response.py")
 
@@ -173,13 +173,11 @@ def test_pre_response_with_prompt(tmp_path: Path, caplog: pytest.LogCaptureFixtu
         ),
         contextlib.suppress(SystemExit),
     ):
-        with caplog.at_level(logging.INFO):
-            mod.main()
+        mod.main()
 
-    # Should have logged at least one JSON line
-    assert caplog.records, "pre_response logged nothing"
-    # Last log message should be valid JSON
-    last = caplog.records[-1].message
+    captured = capsys.readouterr().out.strip().splitlines()
+    assert captured, "pre_response printed nothing"
+    last = captured[-1]
     parsed = json.loads(last)
     assert isinstance(parsed, dict)
 
@@ -359,7 +357,7 @@ def test_post_response_ingests_durable_turns(tmp_path: Path, caplog: pytest.LogC
         assert json.loads(caplog.records[-1].message) == {}
 
 
-def test_pre_response_restores_checkpoint_when_db_scope_is_empty(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+def test_pre_response_restores_checkpoint_when_db_scope_is_empty(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     """pre_response falls back to a session checkpoint only after scoped DB recall is empty."""
     mod = _load_hook_module("pre_response_restore", "pre_response.py")
 
@@ -409,8 +407,7 @@ def test_pre_response_restores_checkpoint_when_db_scope_is_empty(tmp_path: Path,
         ),
         contextlib.suppress(SystemExit),
     ):
-        with caplog.at_level(logging.INFO):
-            mod.main()
+        mod.main()
 
     import_mock.assert_called_once()
     _, import_kwargs = import_mock.call_args
@@ -418,8 +415,10 @@ def test_pre_response_restores_checkpoint_when_db_scope_is_empty(tmp_path: Path,
     assert import_kwargs["merge_strategy"] == "skip-existing"
     assert prime_mock.call_count == 2
     query_mock.assert_not_called()
-    assert caplog.records
-    assert "Restored context" in json.loads(caplog.records[-1].message)["content"]
+    captured = capsys.readouterr().out.strip().splitlines()
+    assert captured
+    last = json.loads(captured[-1])
+    assert "Restored context" in last["content"] or "Restored context" in last.get("content", "")
 
 
 def test_pre_compact_writes_session_checkpoint_stem(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
@@ -477,7 +476,7 @@ def test_pre_compact_writes_session_checkpoint_stem(tmp_path: Path, caplog: pyte
         assert json.loads(caplog.records[-1].message) == {}
 
 
-def test_hook_handoff_round_trip_restores_context_in_fresh_db(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+def test_hook_handoff_round_trip_restores_context_in_fresh_db(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     """A durable turn survives pre-compact handoff and is recalled in a fresh DB."""
     pre_compact = _load_hook_module("pre_compact_roundtrip", "pre_compact.py")
     pre_response = _load_hook_module("pre_response_roundtrip", "pre_response.py")
@@ -564,11 +563,11 @@ def test_hook_handoff_round_trip_restores_context_in_fresh_db(tmp_path: Path, ca
         ),
         contextlib.suppress(SystemExit),
     ):
-        with caplog.at_level(logging.INFO):
-            pre_response.main()
+        pre_response.main()
 
-    assert caplog.records
-    response_payload = json.loads(caplog.records[-1].message)
+    captured = capsys.readouterr().out.strip().splitlines()
+    assert captured
+    response_payload = json.loads(captured[-1])
     assert response_payload["type"] == "system_reminder"
     assert "waggle memory context" in response_payload["content"].lower()
 
