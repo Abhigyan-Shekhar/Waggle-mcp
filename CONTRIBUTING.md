@@ -34,6 +34,10 @@ pip install -e ".[dev]"
 
 # 4. Verify the setup
 waggle-mcp --help
+
+# 5. Install pre-commit hooks (runs ruff lint, ruff format, trailing whitespace,
+#    YAML/TOML checks, large file checks, and merge conflict detection before each commit)
+pre-commit install
 ```
 
 ### Before opening an issue
