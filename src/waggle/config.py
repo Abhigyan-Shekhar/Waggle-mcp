@@ -79,6 +79,7 @@ class AppConfig:
     hybrid_rerank_model: str = "claude-3-5-sonnet-latest"
     hybrid_rerank_top_k_in: int = 20
     hybrid_rerank_top_k_out: int = 5
+    log_format: str = "json"
     startup_mode: str = STARTUP_MODE_NORMAL  # fast | normal | strict
     api_key_environment: str = "test"  # test | local | live; controls generated API key prefix
     # Canonicalization-at-write dedup threshold.
@@ -101,6 +102,7 @@ class AppConfig:
             http_host=os.environ.get("WAGGLE_HTTP_HOST", "0.0.0.0"),
             http_port=int(resolved_http_port),
             log_level=os.environ.get("WAGGLE_LOG_LEVEL", "INFO"),
+            log_format=os.environ.get("WAGGLE_LOG_FORMAT", "json").strip().lower(),
             rate_limit_rpm=int(os.environ.get("WAGGLE_RATE_LIMIT_RPM", "120")),
             write_rate_limit_rpm=int(os.environ.get("WAGGLE_WRITE_RATE_LIMIT_RPM", "60")),
             max_concurrent_requests=int(os.environ.get("WAGGLE_MAX_CONCURRENT_REQUESTS", "8")),
@@ -177,7 +179,11 @@ class AppConfig:
             raise ValidationFailure("WAGGLE_HYBRID_GRAPH_WEIGHT must be non-negative.")
         if self.hybrid_recency_weight < 0:
             raise ValidationFailure("WAGGLE_HYBRID_RECENCY_WEIGHT must be non-negative.")
-
+        if self.log_format not in {"json", "plain"}:
+            raise ValidationFailure(
+                f"Unsupported WAGGLE_LOG_FORMAT: {self.log_format!r}. Valid values: json, plain."
+            )
+        
     def hybrid_retrieval_config(self) -> HybridRetrievalConfig:
         return HybridRetrievalConfig(
             vector_weight=self.hybrid_vector_weight,

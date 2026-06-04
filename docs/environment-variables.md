@@ -13,6 +13,7 @@ Boolean values are enabled only when set to the lowercase string `true`. Integer
 | `WAGGLE_MODEL` | `all-MiniLM-L6-v2` | string | Always. Names the sentence-transformers embedding model. | `BAAI/bge-small-en-v1.5` |
 | `WAGGLE_DEFAULT_TENANT_ID` | `local-default` | string | Always. Used when a request does not provide a tenant. Must not be empty. | `workspace-default` |
 | `WAGGLE_LOG_LEVEL` | `INFO` | string | Always. Configures application logging verbosity. | `DEBUG` |
+| `WAGGLE_LOG_FORMAT` | `json` | string enum: `json`, `plain` | Always. `json` emits structured JSON logs (production default). `plain` emits human-readable logs for local development. | `plain` |
 | `WAGGLE_STARTUP_MODE` | `normal` | string enum: `fast`, `normal`, `strict` | Always. Controls startup/warmup behavior. | `strict` |
 
 ## SQLite storage

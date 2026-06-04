@@ -28,9 +28,37 @@ class JsonLogFormatter(logging.Formatter):
         return json.dumps(payload, sort_keys=True)
 
 
-def configure_logging(level: str = "INFO", *, stream: object | None = None) -> None:
+class PlainLogFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        context = get_runtime_context()
+        timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S")
+        message = record.getMessage()
+        line = f"{timestamp} {record.levelname:<5} {record.name}  {message}"
+        extras = []
+        if context.tenant_id:
+            extras.append(f"tenant_id={context.tenant_id}")
+        if context.request_id:
+            extras.append(f"request_id={context.request_id}")
+        if context.tool_name:
+            extras.append(f"tool_name={context.tool_name}")
+        if extras:
+            line += "  " + " ".join(extras)
+        if record.exc_info:
+            line += "\n" + self.formatException(record.exc_info)
+        return line
+
+
+def configure_logging(
+    level: str = "INFO",
+    *,
+    stream: object | None = None,
+    log_format: str = "json",
+) -> None:
     root = logging.getLogger()
     root.setLevel(level.upper())
     handler = logging.StreamHandler(stream if stream is not None else sys.stdout)
-    handler.setFormatter(JsonLogFormatter())
+    if log_format == "plain":
+        handler.setFormatter(PlainLogFormatter())
+    else:
+        handler.setFormatter(JsonLogFormatter())
     root.handlers = [handler]
