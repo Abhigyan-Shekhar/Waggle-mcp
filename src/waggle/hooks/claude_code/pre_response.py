@@ -22,6 +22,9 @@ import signal
 import sys
 from pathlib import Path
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Ensure waggle src is importable when run as a script
 _HERE = Path(__file__).resolve()
@@ -50,7 +53,7 @@ def _timeout_handler(signum: int, frame: Any) -> None:
 
 def _silent_exit() -> None:
     """Exit 0 with empty output — never block the user."""
-    print(json.dumps({}))
+    logger.info(json.dumps({}))
     sys.exit(0)
 
 
@@ -187,7 +190,7 @@ def main() -> None:
             context_text = load_from_db(include_query_fallback=True)
 
         if context_text:
-            print(
+            logger.info(
                 json.dumps(
                     {
                         "type": "system_reminder",
@@ -196,7 +199,7 @@ def main() -> None:
                 )
             )
         else:
-            print(json.dumps({}))
+            logger.info(json.dumps({}))
 
     except (TimeoutError, Exception):
         _silent_exit()

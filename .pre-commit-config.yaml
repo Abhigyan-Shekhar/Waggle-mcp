@@ -18,3 +18,10 @@ repos:
         args: [--maxkb=500]
       - id: check-merge-conflict
       - id: debug-statements
+  - repo: local
+    hooks:
+      - id: no-print-in-src
+        name: No print() in src/
+        entry: bash -c 'if grep -rn "^[^#]*print(" src/waggle/ --include="*.py" | grep -v "# CLI output"; then echo "Use logger instead of print() in src/"; exit 1; fi'
+        language: system
+        pass_filenames: false

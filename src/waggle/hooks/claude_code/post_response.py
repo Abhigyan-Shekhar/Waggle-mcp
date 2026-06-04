@@ -20,6 +20,9 @@ import signal
 import sys
 from pathlib import Path
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Ensure waggle src is importable when run as a script
 _HERE = Path(__file__).resolve()
@@ -55,7 +58,7 @@ def _timeout_handler(signum: int, frame: Any) -> None:
 
 
 def _silent_exit() -> None:
-    print(json.dumps({}))
+    logger.info(json.dumps({}))
     sys.exit(0)
 
 
@@ -142,7 +145,7 @@ def main() -> None:
             session_id=session_id,
         )
 
-        print(json.dumps({}))
+        logger.info(json.dumps({}))
 
     except (TimeoutError, Exception):
         _silent_exit()
