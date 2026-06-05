@@ -216,27 +216,196 @@ def test_neo4j_for_tenant_returns_new_instance() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Note: Known Neo4j gaps
+# Newly exposed Neo4jMemoryGraph methods tests
 # ---------------------------------------------------------------------------
-#
-# The following methods are defined in `src/waggle/neo4j_graph.py` but are
-# NOT accessible on `Neo4jMemoryGraph` instances because they appear inside
-# a module-level `def update_node(...)` function (line 1867) that is never
-# called and whose body (lines 1959-4277) is dead code.  These methods
-# cannot be tested without first fixing the indentation:
-#
-#   - delete_node        (line 2069)
-#   - update_edge        (line 1959)
-#   - delete_edge        (line 2034)
-#   - list_recent_nodes  (line 2084)
-#   - list_context_scopes(line 2110)
-#   - get_stats          (line 2125)
-#   - list_transcript_records  (line 3375)
-#   - search_transcript_records(line 3407)
-#
-# Additionally, `add_node` and `add_edge` *are* accessible on the class but
-# internally call private helpers (`_find_duplicate_node`, `_require_node`,
-# `_fetch_node`, `_node_create_params`, `_node_from_props`,
-# `_register_conflicts`, `_find_existing_edge`) that are also trapped in
-# the same dead-code region.  These methods cannot execute without fixing
-# the indentation first.
+
+
+def test_newly_exposed_neo4j_methods() -> None:
+    from datetime import datetime, UTC
+    from unittest.mock import MagicMock
+    from waggle.models import Node, NodeType, Edge, EvidenceRecord
+    
+    graph = make_mock_graph()
+    mock_session = graph._session()
+    
+    dummy_node = Node(
+        id="node-1",
+        tenant_id="local-default",
+        agent_id="agent",
+        project="project",
+        session_id="session",
+        label="label",
+        content="content",
+        node_type=NodeType.NOTE,
+        tags=[],
+        source_prompt="prompt",
+        evidence_records=[],
+        valid_from=None,
+        valid_to=None,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+        access_count=0,
+    )
+    
+    graph._fetch_node = MagicMock(return_value=dummy_node)
+    
+    # Test update_node
+    updated = graph.update_node(node_id="node-1", content="new content")
+    assert updated.content == "new content"
+    graph._fetch_node.assert_called_once_with(mock_session, "node-1")
+    
+    # Test delete_node
+    deleted = graph.delete_node(node_id="node-1")
+    assert deleted.id == "node-1"
+    
+    # Test delete_edge
+    mock_record = MagicMock()
+    mock_record.single = MagicMock(
+        return_value={
+            "id": "edge-1",
+            "source_id": "node-1",
+            "target_id": "node-2",
+            "relationship": "relates_to",
+            "weight": 1.0,
+            "metadata": "{}",
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+    )
+    mock_session.run = MagicMock(return_value=mock_record)
+    deleted_edge = graph.delete_edge(edge_id="edge-1")
+    assert deleted_edge.id == "edge-1"
+    
+    # Test update_edge
+    graph._require_node = MagicMock()
+    mock_record_update = MagicMock()
+    mock_record_update.single = MagicMock(
+        return_value={
+            "id": "edge-1",
+            "source_id": "node-1",
+            "target_id": "node-2",
+            "relationship": "relates_to",
+            "weight": 1.0,
+            "metadata": "{}",
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+    )
+    mock_session.run = MagicMock(return_value=mock_record_update)
+    updated_edge = graph.update_edge(edge_id="edge-1", weight=0.5)
+    assert updated_edge.weight == 0.5
+    
+    # Test list_recent_nodes
+    mock_session.run = MagicMock(
+        return_value=[
+            {
+                "n": {
+                    "id": "node-1",
+                    "tenant_id": "local-default",
+                    "agent_id": "agent",
+                    "project": "project",
+                    "session_id": "session",
+                    "label": "label",
+                    "content": "content",
+                    "node_type": "note",
+                    "tags": "[]",
+                    "source_prompt": "prompt",
+                    "evidence_records": "[]",
+                    "valid_from": None,
+                    "valid_to": None,
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "updated_at": datetime.now(UTC).isoformat(),
+                    "access_count": 0,
+                }
+            }
+        ]
+    )
+    recent_nodes = graph.list_recent_nodes(limit=5)
+    assert len(recent_nodes) == 1
+    assert recent_nodes[0].id == "node-1"
+
+    # Test list_context_scopes
+    mock_session.run = MagicMock(
+        return_value=[
+            {
+                "n": {
+                    "id": "node-1",
+                    "tenant_id": "local-default",
+                    "agent_id": "agent",
+                    "project": "project",
+                    "session_id": "session",
+                    "label": "label",
+                    "content": "content",
+                    "node_type": "note",
+                    "tags": "[]",
+                    "source_prompt": "prompt",
+                    "evidence_records": "[]",
+                    "valid_from": None,
+                    "valid_to": None,
+                    "created_at": datetime.now(UTC).isoformat(),
+                    "updated_at": datetime.now(UTC).isoformat(),
+                    "access_count": 0,
+                }
+            }
+        ]
+    )
+    context_scopes = graph.list_context_scopes()
+    assert context_scopes.agent_ids == ["agent"]
+    assert context_scopes.projects == ["project"]
+    assert context_scopes.session_ids == ["session"]
+
+    # Test get_stats
+    mock_node_count = MagicMock()
+    mock_node_count.single = MagicMock(return_value={"count": 10})
+    mock_edge_count = MagicMock()
+    mock_edge_count.single = MagicMock(return_value={"count": 5})
+    
+    mock_session.run = MagicMock(
+        side_effect=[
+            mock_node_count,
+            mock_edge_count,
+            [{"node_type": "note", "count": 10}],
+            [],  # most_connected_nodes
+            [],  # most_recent_nodes
+        ]
+    )
+    stats = graph.get_stats()
+    assert stats.total_nodes == 10
+    assert stats.total_edges == 5
+
+    # Test list_transcript_records
+    mock_session.run = MagicMock(
+        return_value=[
+            {
+                "t": {
+                    "id": "trans-1",
+                    "session_id": "session",
+                    "turn_index": 0,
+                    "role": "user",
+                    "transcript_text": "hello",
+                    "observed_at": datetime.now(UTC).isoformat(),
+                }
+            }
+        ]
+    )
+    records = graph.list_transcript_records(session_id="session")
+    assert len(records) == 1
+    assert records[0].transcript_text == "hello"
+
+    # Test search_transcript_records
+    mock_session.run = MagicMock(
+        return_value=[
+            {
+                "t": {
+                    "id": "trans-1",
+                    "session_id": "session",
+                    "turn_index": 0,
+                    "role": "user",
+                    "transcript_text": "hello",
+                    "observed_at": datetime.now(UTC).isoformat(),
+                    "embedding": [1.0, 0.0, 0.0, 0.0],
+                }
+            }
+        ]
+    )
+    search_hits = graph.search_transcript_records(query="hello", session_id="session")
+    assert len(search_hits) == 1
+    assert search_hits[0].transcript_text == "hello"
