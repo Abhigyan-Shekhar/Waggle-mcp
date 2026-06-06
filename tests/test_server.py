@@ -2062,3 +2062,83 @@ def test_clear_cli_commands_dry_run(tmp_path: Path, capsys: pytest.CaptureFixtur
     payload = json.loads(capsys.readouterr().out)
     assert payload["dry_run"] is True
     assert payload["deleted_nodes"] > 0
+
+
+# ---------------------------------------------------------------------------
+# Issue #245 — /health/ready sub-checks
+# ---------------------------------------------------------------------------
+
+
+def test_check_readiness_happy_path(tmp_path: Path) -> None:
+    """All sub-checks pass when service is ready, DB is reachable, model is set."""
+    import waggle.server as _srv
+
+    app = make_app(tmp_path)
+
+    class _FakeHTTP:
+        ready = True
+        draining = False
+        app_server = app
+
+    result = _srv._check_readiness(_FakeHTTP())
+
+    assert result["ready"] is True
+    assert result["service"] == "ok"
+    assert result["db"] == "ok"
+    assert result["embedding"] in ("ready", "not_started", "warming_up", "disabled", "unknown")
+    assert result["lock"] in ("ok", "contended")
+
+
+def test_check_readiness_service_not_ready(tmp_path: Path) -> None:
+    """Returns not-ready when service flag is False."""
+    import waggle.server as _srv
+
+    app = make_app(tmp_path)
+
+    class _FakeHTTP:
+        ready = False
+        draining = False
+        app_server = app
+
+    result = _srv._check_readiness(_FakeHTTP())
+
+    assert result["ready"] is False
+    assert result["service"] == "not-ready"
+
+
+def test_check_readiness_db_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Returns db=error and overall not-ready when DB is unreachable."""
+    import waggle.server as _srv
+
+    app = make_app(tmp_path)
+
+    class _FakeHTTP:
+        ready = True
+        draining = False
+        app_server = app
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("DB unavailable")
+
+    monkeypatch.setattr(app._root_graph, "_connect", _boom)
+    result = _srv._check_readiness(_FakeHTTP())
+
+    assert result["ready"] is False
+    assert result["db"] == "error"
+
+
+def test_check_readiness_draining(tmp_path: Path) -> None:
+    """Returns draining service status and overall not-ready."""
+    import waggle.server as _srv
+
+    app = make_app(tmp_path)
+
+    class _FakeHTTP:
+        ready = True
+        draining = True
+        app_server = app
+
+    result = _srv._check_readiness(_FakeHTTP())
+
+    assert result["ready"] is False
+    assert result["service"] == "draining"

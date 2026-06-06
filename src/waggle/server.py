@@ -2947,6 +2947,71 @@ class MCPHttpApp:
         return receive
 
 
+def _check_readiness(http_service: "MCPHttpApp") -> dict[str, Any]:
+    """Run all readiness sub-checks and return a structured result.
+
+    Keys:
+      ready     - bool: overall pass/fail
+      service   - "ok" | "not-ready" | "draining"
+      db        - "ok" | "error"
+      embedding - warmup_status string
+      lock      - "ok" | "contended" | "unknown"
+    """
+    checks: dict[str, Any] = {}
+
+    # 1. Service lifecycle check
+    if not http_service.ready:
+        checks["service"] = "not-ready"
+    elif http_service.draining:
+        checks["service"] = "draining"
+    else:
+        checks["service"] = "ok"
+
+    # 2. DB connectivity — SELECT 1
+    try:
+        graph = http_service.app_server._root_graph
+        with graph._connect() as _conn:
+            _conn.execute("SELECT 1").fetchone()
+        checks["db"] = "ok"
+    except Exception:
+        checks["db"] = "error"
+
+    # 3. Embedding model load state
+    try:
+        em = http_service.app_server._root_graph.embedding_model
+        checks["embedding"] = getattr(em, "warmup_status", "unknown")
+    except Exception:
+        checks["embedding"] = "unknown"
+
+    # 4. Lock / connection-pool availability
+    # There is no pool object; _ReadWriteLock serialises writes.
+    # Attempt a short read-lock to surface severe write-lock contention.
+    try:
+        lock = http_service.app_server._root_graph._lock
+        result_holder: list[bool] = []
+
+        def _try_acquire() -> None:
+            try:
+                with lock.read():
+                    result_holder.append(True)
+            except Exception:
+                result_holder.append(False)
+
+        t = threading.Thread(target=_try_acquire, daemon=True)
+        t.start()
+        t.join(timeout=0.1)
+        checks["lock"] = "ok" if (result_holder and result_holder[0]) else "contended"
+    except Exception:
+        checks["lock"] = "unknown"
+
+    checks["ready"] = (
+        checks["service"] == "ok"
+        and checks["db"] == "ok"
+        and checks["embedding"] not in ("failed",)
+    )
+    return checks
+
+
 def create_http_application(app_server: WaggleServer, config: AppConfig) -> Starlette:
     service = MCPHttpApp(app_server, config)
 
@@ -2962,9 +3027,10 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def ready(request: Request) -> Response:
         http_service: MCPHttpApp = request.app.state.http_service
-        if not http_service.ready or http_service.draining:
-            return JSONResponse({"status": "not-ready"}, status_code=503)
-        return JSONResponse({"status": "ready"})
+        result = _check_readiness(http_service)
+        if not result["ready"]:
+            return JSONResponse({"status": "not-ready", **result}, status_code=503)
+        return JSONResponse({"status": "ready", **result})
 
     async def metrics_endpoint(request: Request) -> Response:
         return PlainTextResponse(request.app.state.http_service.metrics.render_prometheus())
