@@ -13,6 +13,7 @@ import numpy as np
 
 from waggle.intelligence import tokenize_text
 from waggle.models import HybridHit, RelationType
+from waggle.query_plans import _explain_and_log
 from waggle.rlm import run_gemini_one_shot, run_groq_one_shot, run_ollama_one_shot
 
 RRF_K = 60.0
@@ -305,16 +306,15 @@ class HybridRetriever:
             elif agent_id.strip():
                 filters.append("agent_id = ?")
                 params.append(agent_id.strip())
-            rows = connection.execute(
-                f"""
+            query = f"""
                 SELECT id, tenant_id, agent_id, project, session_id, observed_at, turn_index, role,
                        transcript_text, embedding, embedding_model_id, embedding_dim, content_hash, turn_pair_id, metadata
                 FROM transcript_records
                 WHERE {" AND ".join(filters)}
                 ORDER BY observed_at DESC, turn_index DESC
-                """,
-                tuple(params),
-            ).fetchall()
+                """
+            _explain_and_log(connection, query, tuple(params), label="transcript list")
+            rows = connection.execute(query, tuple(params)).fetchall()
 
         grouped: dict[str, list[Any]] = defaultdict(list)
         for row in rows:
@@ -384,16 +384,15 @@ class HybridRetriever:
             elif agent_id.strip():
                 filters.append("agent_id = ?")
                 params.append(agent_id.strip())
-            rows = connection.execute(
-                f"""
+            query = f"""
                 SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt,
                        source_turn_pair_id, metadata, evidence_records, valid_from, valid_to, created_at, updated_at,
                        access_count, embedding, tenant_id, embedding_model_id, embedding_dim
                 FROM nodes
                 WHERE {" AND ".join(filters)}
-                """,
-                tuple(params),
-            ).fetchall()
+                """
+            _explain_and_log(connection, query, tuple(params), label="node similarity")
+            rows = connection.execute(query, tuple(params)).fetchall()
         ranked: list[CandidateMemory] = []
         for row in rows:
             node = self.graph._row_to_node(row)
@@ -494,14 +493,14 @@ class HybridRetriever:
         if not seed_node_ids:
             return []
         with self.graph._lock, self.graph._connect() as connection:
-            edge_rows = connection.execute(
-                """
+            query = """
                 SELECT id, tenant_id, source_id, target_id, relationship, weight, metadata, created_at
                 FROM edges
                 WHERE tenant_id = ? AND relationship = ?
-                """,
-                (self.graph.tenant_id, RelationType.DERIVED_FROM.value),
-            ).fetchall()
+                """
+            params = (self.graph.tenant_id, RelationType.DERIVED_FROM.value)
+            _explain_and_log(connection, query, params, label="edge expansion")
+            edge_rows = connection.execute(query, params).fetchall()
         adjacency: dict[str, set[str]] = defaultdict(set)
         for row in edge_rows:
             edge = self.graph._row_to_edge(row)

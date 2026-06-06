@@ -135,6 +135,7 @@ from waggle.models import (
     normalize_relationship,
     utc_now,
 )
+from waggle.query_plans import _explain_and_log
 from waggle.retrieval.hybrid import HybridRetrievalConfig, HybridRetriever
 
 SCHEMA_VERSION = 7
@@ -2906,16 +2907,16 @@ class MemoryGraph:
             raise ValueError("limit must be at least 1.")
 
         with self._lock, self._connect() as connection:
-            edge_rows = connection.execute(
-                """
+            query = """
                 SELECT id, source_id, target_id, relationship, weight, metadata, created_at, tenant_id
                 FROM edges
                 WHERE tenant_id = ?
                   AND relationship IN (?, ?)
                 ORDER BY created_at DESC
-                """,
-                (self.tenant_id, RelationType.CONTRADICTS.value, RelationType.UPDATES.value),
-            ).fetchall()
+                """
+            params = (self.tenant_id, RelationType.CONTRADICTS.value, RelationType.UPDATES.value)
+            _explain_and_log(connection, query, params, label="conflict lookup")
+            edge_rows = connection.execute(query, params).fetchall()
             edges = [self._row_to_edge(row) for row in edge_rows]
             entries = self._build_conflict_entries(
                 connection,
@@ -7576,17 +7577,17 @@ class MemoryGraph:
             filters.append("agent_id = ?")
             params.append(agent_id.strip())
         with self._lock, self._connect() as connection:
-            rows = connection.execute(
-                f"""
+            query = f"""
                 SELECT id, tenant_id, agent_id, project, session_id, observed_at, turn_index, role, transcript_text,
                        embedding_model_id, embedding_dim, content_hash, turn_pair_id, metadata
                 FROM transcript_records
                 WHERE {" AND ".join(filters)}
                 ORDER BY observed_at ASC, turn_index ASC
                 LIMIT ? OFFSET ?
-                """,
-                (*params, max(1, int(limit)), max(0, int(offset))),
-            ).fetchall()
+                """
+            params_with_paging = (*params, max(1, int(limit)), max(0, int(offset)))
+            _explain_and_log(connection, query, params_with_paging, label="transcript list")
+            rows = connection.execute(query, params_with_paging).fetchall()
         return [self._row_to_transcript_record(row) for row in rows]
 
     def count_transcript_records(
@@ -7608,14 +7609,13 @@ class MemoryGraph:
             filters.append("agent_id = ?")
             params.append(agent_id.strip())
         with self._lock, self._connect() as connection:
-            row = connection.execute(
-                f"""
+            query = f"""
                 SELECT COUNT(*) AS cnt
                 FROM transcript_records
                 WHERE {" AND ".join(filters)}
-                """,
-                tuple(params),
-            ).fetchone()
+                """
+            _explain_and_log(connection, query, tuple(params), label="transcript count")
+            row = connection.execute(query, tuple(params)).fetchone()
         return int(row["cnt"] or 0)
 
     def search_transcript_records(
