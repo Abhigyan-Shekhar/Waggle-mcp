@@ -72,3 +72,25 @@ def test_zero_hybrid_weights_are_allowed() -> None:
     )
 
     config.validate()
+def test_waggle_http_port_wins(monkeypatch):
+    monkeypatch.setenv("WAGGLE_TRANSPORT", "stdio")
+    monkeypatch.setenv("WAGGLE_HTTP_PORT", "9000")
+    monkeypatch.setenv("PORT", "8000")
+    config = AppConfig.from_env()
+    assert config.http_port == 9000
+
+
+def test_port_used_as_fallback(monkeypatch):
+    monkeypatch.setenv("WAGGLE_TRANSPORT", "stdio")
+    monkeypatch.delenv("WAGGLE_HTTP_PORT", raising=False)
+    monkeypatch.setenv("PORT", "8000")
+    config = AppConfig.from_env()
+    assert config.http_port == 8000
+
+
+def test_default_8080(monkeypatch):
+    monkeypatch.setenv("WAGGLE_TRANSPORT", "stdio")
+    monkeypatch.delenv("WAGGLE_HTTP_PORT", raising=False)
+    monkeypatch.delenv("PORT", raising=False)
+    config = AppConfig.from_env()
+    assert config.http_port == 8080
