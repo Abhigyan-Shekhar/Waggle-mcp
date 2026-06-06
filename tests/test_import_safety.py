@@ -6,6 +6,7 @@ This is a regression guard for https://github.com/Abhigyan-Shekhar/Waggle-mcp/is
 
 from __future__ import annotations
 
+import ast
 import subprocess
 import sys
 from pathlib import Path
@@ -47,7 +48,7 @@ def _check_heavy_modules(code: str) -> set[str]:
     lines = [l for l in result.stdout.strip().split("\n") if l.strip()]
     if not lines:
         raise RuntimeError(f"No output from subprocess:\n{result.stderr}")
-    return eval(lines[-1])  # safe: repr of a set of strings
+    return ast.literal_eval(lines[-1])  # safe: repr of a set of strings
 
 
 def test_import_waggle_does_not_import_heavy_modules() -> None:
@@ -97,8 +98,8 @@ def test_embedding_deterministic_mode_does_not_import_heavy_modules() -> None:
         "import os\n"
         "os.environ['WAGGLE_MODEL'] = 'deterministic'\n"
         "from waggle.embeddings import EmbeddingModel\n"
-        "m = EmbeddingModel('deterministic')\n"
-        "m.start_background_warmup()\n"
+        "model = EmbeddingModel('deterministic')\n"
+        "model.start_background_warmup()\n"
         "heavy = {m for m in sys.modules\n"
         "        if m.startswith('sentence_transformers') or m.startswith('torch')}\n"
         "print(repr(heavy))"
