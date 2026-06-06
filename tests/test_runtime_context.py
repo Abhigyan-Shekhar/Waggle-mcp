@@ -43,8 +43,8 @@ def test_runtime_context_is_isolated_between_asyncio_tasks() -> None:
 
     async def read_both_tenants() -> tuple[str, str]:
         return await asyncio.gather(
-            asyncio.create_task(read_tenant("tenant-a")),
-            asyncio.create_task(read_tenant("tenant-b")),
+            read_tenant("tenant-a"),
+            read_tenant("tenant-b"),
         )
 
     tenant_a, tenant_b = asyncio.run(read_both_tenants())
