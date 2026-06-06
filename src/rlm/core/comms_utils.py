@@ -161,9 +161,17 @@ def socket_recv(sock: socket.socket) -> dict:
     Raises:
         ConnectionError: If connection closes mid-message.
     """
-    raw_len = sock.recv(4)
-    if not raw_len:
-        return {}
+    raw_len = b""
+
+    while len(raw_len) < 4:
+        chunk = sock.recv(4 - len(raw_len))
+
+        if not chunk:
+            if len(raw_len) == 0:
+                return {}
+
+            raise ConnectionError("Connection closed before length header complete")
+        raw_len += chunk
 
     length = struct.unpack(">I", raw_len)[0]
     payload = b""
