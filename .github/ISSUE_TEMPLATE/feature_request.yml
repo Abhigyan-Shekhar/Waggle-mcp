@@ -4,6 +4,15 @@ title: "[feature] "
 labels:
   - enhancement
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Before you submit:
+        - install Waggle from PyPI: https://pypi.org/project/waggle-mcp/
+        - install the VS Code extension: https://marketplace.visualstudio.com/items?itemName=Abhigyan-Shekhar.waggle-memory
+        - attach a screenshot or mockup that shows the issue, gap, or requested UX
+
+        Issues without a screenshot will not be considered.
   - type: textarea
     id: problem
     attributes:
@@ -29,3 +38,11 @@ body:
       label: Suggested implementation scope
       description: Mention likely files, modules, or commands if you know them.
       placeholder: src/waggle/server.py, docs/install/, tests/test_server.py
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot or mockup
+      description: Attach or paste a screenshot or mockup that makes the request concrete. Issues without one will not be considered.
+      placeholder: Paste the screenshot link or drag the image into the issue body.
+    validations:
+      required: true

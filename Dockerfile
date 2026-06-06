@@ -10,16 +10,20 @@ FROM python:3.11-slim AS builder
 ENV PIP_NO_CACHE_DIR=1
 
 WORKDIR /build
-COPY pyproject.toml README.md LICENSE ./
-COPY src ./src
 
-# 1) CPU-only PyTorch (avoids pulling the 2 GB CUDA wheels)
-# 2) Install project + neo4j extras
-# 3) Pre-download the embedding model so it is baked into the image layer
+# 1) Copy only dependency metadata first so Docker layer caching is preserved
+COPY pyproject.toml README.md LICENSE ./
+
+# 2) Install dependencies before copying source code
 RUN pip install --upgrade pip && \
     pip install torch --index-url https://download.pytorch.org/whl/cpu && \
-    pip install ".[neo4j]" && \
-    HF_HOME=/root/.cache/huggingface \
+    pip install ".[neo4j]"
+
+# 3) Copy source code (changes here won't bust the dep layer)
+COPY src ./src
+
+# 4) Pre-download the embedding model so it is baked into the image layer
+RUN HF_HOME=/root/.cache/huggingface \
     SENTENCE_TRANSFORMERS_HOME=/root/.cache/sentence-transformers \
     python -c "from sentence_transformers import SentenceTransformer; \
                SentenceTransformer('all-MiniLM-L6-v2')"

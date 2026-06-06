@@ -118,3 +118,26 @@ jobs:
 
       - name: Compile extension
         run: npm run compile
+
+  graph-studio:
+    name: Graph Studio validation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mcp/graph-ui
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/mcp/graph-ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Graph Studio
+        run: npm run build

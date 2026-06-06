@@ -24,18 +24,21 @@ from waggle.models import (
 )
 
 
-def _format_updated_ago(timestamp: datetime) -> str:
+def _format_updated_ago(timestamp: datetime | None) -> str:
+    if timestamp is None:
+        return "unknown"
+
     now = datetime.now(UTC)
     delta = max((now - timestamp.astimezone(UTC)).total_seconds(), 0.0)
     if delta < 60:
         return "just now"
     if delta < 3600:
-        minutes = max(1, round(delta / 60.0))
+        minutes = max(1, int(delta // 60))
         return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
     if delta < 86400:
-        hours = max(1, round(delta / 3600.0))
+        hours = max(1, int(delta // 3600))
         return f"{hours} hour{'s' if hours != 1 else ''} ago"
-    days = max(1, round(delta / 86400.0))
+    days = max(1, int(delta // 86400))
     return f"{days} day{'s' if days != 1 else ''} ago"
 
 

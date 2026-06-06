@@ -39,6 +39,18 @@ WAGGLE_NEO4J_PASSWORD=change-me \
 waggle-mcp
 ```
 
+> **Known gap:** `src/waggle/neo4j_graph.py` contains a module-level
+> `def update_node(...)` at line 1867 whose body encloses the tail of the
+> file (lines 1959–4277) as dead code.  The following methods are defined
+> inside this region and are **not** accessible on `Neo4jMemoryGraph`
+> instances: `delete_node`, `update_edge`, `delete_edge`,
+> `list_recent_nodes`, `list_context_scopes`, `get_stats`,
+> `list_transcript_records`, `search_transcript_records`.
+> Additionally, `add_node` and `add_edge` call private helpers trapped in
+> the same dead-code region and will fail at runtime with
+> `AttributeError`.  See `tests/test_neo4j_stubs.py` for the full
+> documented list.
+
 ### Docker
 
 ```bash

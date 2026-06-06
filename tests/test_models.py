@@ -40,9 +40,26 @@ def test_relation_type_values_include_expected_defaults() -> None:
         RelationType("unknown")
 
 
-def test_normalize_relationship_accepts_enum_and_normalizes_strings() -> None:
-    assert normalize_relationship(RelationType.RELATES_TO) == "relates_to"
-    assert normalize_relationship("  RELATES_TO  ") == "relates_to"
+@pytest.mark.parametrize("relation_type", list(RelationType))
+def test_normalize_relationship_accepts_canonical_relation_types(relation_type: RelationType) -> None:
+    assert normalize_relationship(relation_type) == relation_type.value
+    assert normalize_relationship(relation_type.value) == relation_type.value
+
+
+@pytest.mark.parametrize(
+    ("raw_value", "expected"),
+    [
+        ("  RELATES_TO  ", RelationType.RELATES_TO.value),
+        ("Contradicts", RelationType.CONTRADICTS.value),
+        ("related_to", "related_to"),
+    ],
+)
+def test_normalize_relationship_handles_common_aliases_and_variations(raw_value: str, expected: str) -> None:
+    assert normalize_relationship(raw_value) == expected
+
+
+def test_normalize_relationship_preserves_unknown_non_empty_strings() -> None:
+    assert normalize_relationship("  custom_edge  ") == "custom_edge"
 
     with pytest.raises(ValueError, match="Relationship cannot be empty"):
         normalize_relationship("   ")

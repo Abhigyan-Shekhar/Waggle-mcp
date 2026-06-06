@@ -169,6 +169,14 @@ class AppConfig:
             raise ValidationFailure("WAGGLE_RETENTION_DAYS must be at least 1.")
         if self.retention_prune_interval_hours < 1:
             raise ValidationFailure("WAGGLE_RETENTION_PRUNE_INTERVAL_HOURS must be at least 1.")
+        if self.hybrid_vector_weight < 0:
+            raise ValidationFailure("WAGGLE_HYBRID_VECTOR_WEIGHT must be non-negative.")
+        if self.hybrid_bm25_weight < 0:
+            raise ValidationFailure("WAGGLE_HYBRID_BM25_WEIGHT must be non-negative.")
+        if self.hybrid_graph_weight < 0:
+            raise ValidationFailure("WAGGLE_HYBRID_GRAPH_WEIGHT must be non-negative.")
+        if self.hybrid_recency_weight < 0:
+            raise ValidationFailure("WAGGLE_HYBRID_RECENCY_WEIGHT must be non-negative.")
 
     def hybrid_retrieval_config(self) -> HybridRetrievalConfig:
         return HybridRetrievalConfig(

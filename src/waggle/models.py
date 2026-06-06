@@ -885,6 +885,8 @@ class ClearScopeResult(BaseModel):
     deleted_context_window_edges: int = 0
     deleted_repos: int = 0
     deleted_graph_ui_rows: int = 0
+    dry_run: bool = False
+    counts_by_node_type: dict[str, int] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
