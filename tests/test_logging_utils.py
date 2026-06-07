@@ -631,6 +631,18 @@ class TestPlainLogFormatter:
 class TestConfigureLoggingFormat:
     """Tests for log_format parameter in configure_logging."""
 
+    def setup_method(self):
+        """Reset logging before each test."""
+        root_logger = logging.getLogger()
+        self.original_handlers = root_logger.handlers[:]
+        self.original_level = root_logger.level
+
+    def teardown_method(self):
+        """Restore logging after each test."""
+        root_logger = logging.getLogger()
+        root_logger.handlers = self.original_handlers
+        root_logger.setLevel(self.original_level)
+
     def test_plain_format_installs_plain_formatter(self):
         """Test that log_format=plain installs PlainLogFormatter."""
         stream = StringIO()
@@ -651,7 +663,6 @@ class TestConfigureLoggingFormat:
         configure_logging(stream=stream)
         root = logging.getLogger()
         assert isinstance(root.handlers[0].formatter, JsonLogFormatter)
-
 
 class TestAppConfigLogFormat:
     """Tests for log_format validation in AppConfig."""
