@@ -51,7 +51,7 @@ waggle-mcp serve --transport stdio
 
 Then restart the client and verify the MCP entry is enabled.
 
-If you run `waggle-mcp serve` in a terminal, you may also see a short startup banner; it is skipped automatically for stdio/non-TTY runs, and you can disable it with `--quiet` or `WAGGLE_BANNER=false`.
+If you run `waggle-mcp serve` in a terminal, you may also see a short startup banner; it is skipped automatically when stdout is not a TTY, and you can disable it with `--quiet` or `WAGGLE_BANNER=false`.
 
 ## Run Waggle diagnostics
 

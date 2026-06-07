@@ -3940,7 +3940,7 @@ _APP: WaggleServer | None = None
 
 
 def _resolve_runtime_version() -> str:
-    version = getattr(waggle, "version", None)
+    version = getattr(waggle, "runtime_version", None)
     if isinstance(version, str) and version.strip():
         return version
     version = getattr(waggle, "__version__", None)
@@ -3959,21 +3959,22 @@ def _is_falsey_banner_value(value: str | None) -> bool:
 def format_runtime_banner(config: AppConfig) -> str:
     return "\n".join(
         [
-        f"Waggle MCP {_resolve_runtime_version()}",
-        f"  Backend:    {config.backend}",
-        f"  Model:      {config.model_name}",
-        f"  DB path:    {config.db_path}",
-        f"  Transport:  {config.transport}",
-        f"  Tenant:     {config.default_tenant_id}",
+            f"Waggle MCP {_resolve_runtime_version()}",
+            f"  Backend:    {config.backend}",
+            f"  Model:      {config.model_name}",
+            f"  DB path:    {config.db_path}",
+            f"  Transport:  {config.transport}",
+            f"  Tenant:     {config.default_tenant_id}",
         ]
     )
 
 
 def should_print_banner(config: AppConfig, quiet: bool) -> bool:
-    del config
     if quiet:
         return False
     if _is_falsey_banner_value(os.environ.get("WAGGLE_BANNER")):
+        return False
+    if config.transport == "stdio" and not sys.stdout.isatty():
         return False
     return sys.stdout.isatty()
 

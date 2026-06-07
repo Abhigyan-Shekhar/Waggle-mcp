@@ -1595,7 +1595,7 @@ def test_cli_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_runtime_version_falls_back_to_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(server_module.waggle, "version", "")
+    monkeypatch.setattr(server_module.waggle, "runtime_version", "")
     monkeypatch.setattr(server_module.waggle, "__version__", "")
     monkeypatch.setattr(server_module, "metadata_version", lambda package_name: "9.9.9")
 
