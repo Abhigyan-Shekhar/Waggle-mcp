@@ -32,7 +32,12 @@ source .venv/bin/activate     # macOS/Linux
 # 3. Install project + all dev tools (ruff, mypy, pytest)
 pip install -e ".[dev]"
 
-# 4. Verify the setup
+# 4. Install pre-commit hooks (recommended)
+# One-time setup: wires up the existing .pre-commit-config.yaml so ruff
+# check and format run automatically before every commit.
+pre-commit install
+
+# 5. Verify the setup
 waggle-mcp --help
 ```
 
@@ -229,7 +234,9 @@ The offline-safe embedding mode. Uses SHA-256 hashing to produce a 256-dim float
 2. **Fork and branch** from `main`. Use a descriptive branch name like `fix/dockerfile-version` or `feat/dry-run-import`.
 3. **Keep PRs focused.** One logical change per PR makes review faster.
 4. **Write a clear description.** Explain *what* changed, *why* it was needed, and how you verified it. Link the issue with `Fixes #123` or explain why no issue is needed.
-5. **Run tests before pushing:**
+5. **Run tests before pushing.** If you ran `pre-commit install` during setup,
+   `ruff check` and `ruff format` run automatically on every commit; otherwise
+   run them manually alongside the test suite:
    ```bash
    WAGGLE_MODEL=deterministic pytest -q
    ruff check src/ tests/

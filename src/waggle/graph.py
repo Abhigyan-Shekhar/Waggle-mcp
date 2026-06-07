@@ -2004,24 +2004,57 @@ class MemoryGraph:
                 ).fetchall()
                 if not transcript_rows:
                     break
-                for row in transcript_rows:
-                    embedding, model_id, dim = self._embed_with_metadata(row["transcript_text"])
-                    connection.execute(
-                        """
+
+                texts = [row["transcript_text"] for row in transcript_rows]
+                embeddings = None
+                try:
+                    embeddings = self.embedding_model.embed_batch(texts)
+                except Exception:
+                    embeddings = None
+
+                if embeddings is not None and len(embeddings) != len(texts):
+                    raise ValueError(f"embed_batch returned {len(embeddings)} vectors, expected {len(texts)}")
+                if embeddings is None:
+                    for row in transcript_rows:
+                        embedding, model_id, dim = self._embed_with_metadata(row["transcript_text"])
+                        connection.execute(
+                            """
                             UPDATE transcript_records
                             SET embedding = ?, embedding_model_id = ?, embedding_dim = ?, content_hash = ?
                             WHERE tenant_id = ? AND id = ?
                             """,
-                        (
-                            self.embedding_model.to_bytes(embedding),
-                            model_id,
-                            dim,
-                            _normalized_content_hash(row["transcript_text"]),
-                            self.tenant_id,
-                            row["id"],
-                        ),
-                    )
-                    transcript_updated += 1
+                            (
+                                self.embedding_model.to_bytes(embedding),
+                                model_id,
+                                dim,
+                                _normalized_content_hash(row["transcript_text"]),
+                                self.tenant_id,
+                                row["id"],
+                            ),
+                        )
+                        transcript_updated += 1
+                else:
+                    model_id = self._current_embedding_model_id()
+                    for row, embedding in zip(transcript_rows, embeddings, strict=True):
+                        dim = int(embedding.shape[0])
+                        if dim <= 0:
+                            raise ValueError("Embedding writes require a positive embedding_dim.")
+                        connection.execute(
+                            """
+                            UPDATE transcript_records
+                            SET embedding = ?, embedding_model_id = ?, embedding_dim = ?, content_hash = ?
+                            WHERE tenant_id = ? AND id = ?
+                            """,
+                            (
+                                self.embedding_model.to_bytes(embedding),
+                                model_id,
+                                dim,
+                                _normalized_content_hash(row["transcript_text"]),
+                                self.tenant_id,
+                                row["id"],
+                            ),
+                        )
+                        transcript_updated += 1
 
             while True:
                 node_rows = connection.execute(
@@ -2042,17 +2075,56 @@ class MemoryGraph:
                 ).fetchall()
                 if not node_rows:
                     break
-                for row in node_rows:
-                    embedding, model_id, dim = self._embed_with_metadata(row["content"])
-                    connection.execute(
-                        """
+
+                texts = [row["content"] for row in node_rows]
+                embeddings = None
+                try:
+                    embeddings = self.embedding_model.embed_batch(texts)
+                    if embeddings is not None and len(embeddings) != len(texts):
+                        raise ValueError(f"embed_batch returned {len(embeddings)} vectors, expected {len(texts)}")
+                except (AttributeError, NotImplementedError):
+                    embeddings = None
+
+                if embeddings is None:
+                    for row in node_rows:
+                        embedding, model_id, dim = self._embed_with_metadata(row["content"])
+                        connection.execute(
+                            """
                             UPDATE nodes
                             SET embedding = ?, embedding_model_id = ?, embedding_dim = ?
                             WHERE tenant_id = ? AND id = ?
                             """,
-                        (self.embedding_model.to_bytes(embedding), model_id, dim, self.tenant_id, row["id"]),
-                    )
-                    node_updated += 1
+                            (
+                                self.embedding_model.to_bytes(embedding),
+                                model_id,
+                                dim,
+                                self.tenant_id,
+                                row["id"],
+                            ),
+                        )
+                        node_updated += 1
+                else:
+                    model_id = self._current_embedding_model_id()
+                    for row, embedding in zip(node_rows, embeddings, strict=True):
+                        dim = int(embedding.shape[0])
+                        if dim <= 0:
+                            raise ValueError("Embedding writes require a positive embedding_dim.")
+                        connection.execute(
+                            """
+                            UPDATE nodes
+                            SET embedding = ?, embedding_model_id = ?, embedding_dim = ?
+                            WHERE tenant_id = ? AND id = ?
+                            """,
+                            (
+                                self.embedding_model.to_bytes(embedding),
+                                model_id,
+                                dim,
+                                self.tenant_id,
+                                row["id"],
+                            ),
+                        )
+                        node_updated += 1
+
         return {"transcript_rows_updated": transcript_updated, "node_rows_updated": node_updated}
 
     def ensure_repo(self, project: str = "", connection: sqlite3.Connection | None = None) -> str:
@@ -5725,14 +5797,13 @@ class MemoryGraph:
         if _candidate_texts:
             try:
                 _batch_embeddings = self.embedding_model.embed_batch(_candidate_texts)
-                if _batch_embeddings is not None and len(_batch_embeddings) != len(_candidate_texts):
-                    raise ValueError(
-                        f"embed_batch returned {len(_batch_embeddings)} vectors, expected {len(_candidate_texts)}"
-                    )
-            except (AttributeError, NotImplementedError):
-                # embed_batch is not available on this model backend (e.g. a test
-                # stub).  Fall back gracefully: add_node will call embed() itself.
+            except Exception:
                 _batch_embeddings = None
+
+            if _batch_embeddings is not None and len(_batch_embeddings) != len(_candidate_texts):
+                raise ValueError(
+                    f"embed_batch returned {len(_batch_embeddings)} vectors, expected {len(_candidate_texts)}"
+                )
 
         for _idx, candidate in enumerate(candidates):
             candidate_tags = list(candidate.get("tags", []))
