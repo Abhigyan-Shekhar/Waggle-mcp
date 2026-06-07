@@ -789,9 +789,3 @@ Run `waggle-mcp doctor` first — it catches the most common issues automaticall
 - **Automatic memory rules (copy-pasteable):** `docs/automatic-memory-rules.md`
 - **Hook integration details:** `docs/hooks.md`
 - **.abhi format spec:** `docs/abhi-format-v2.md`
-
----
-
-## Contributing
-
-This repository is maintained privately. Internal contributors can use the docs in this repo as the source of truth.
