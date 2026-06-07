@@ -25,6 +25,12 @@ def render_graph_editor_html(
             "session_id": session_id,
         }
     )
+    config = (
+        config
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
     return f"""<!doctype html>
 <html lang="en">
 <head>
