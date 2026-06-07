@@ -64,3 +64,5 @@ try:  # pragma: no cover
     __version__ = version("waggle-mcp")
 except PackageNotFoundError:  # pragma: no cover
     __version__ = "0.0.1"
+
+version = __version__

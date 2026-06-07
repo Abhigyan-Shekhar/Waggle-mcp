@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import io
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -1591,6 +1592,119 @@ def test_cli_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
     captured = capsys.readouterr()
     assert excinfo.value.code == 0
     assert f"waggle-mcp {waggle.__version__}" in captured.out
+
+
+def test_runtime_version_falls_back_to_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(server_module.waggle, "version", "")
+    monkeypatch.setattr(server_module.waggle, "__version__", "")
+    monkeypatch.setattr(server_module, "metadata_version", lambda package_name: "9.9.9")
+
+    assert server_module._resolve_runtime_version() == "9.9.9"
+
+
+def test_format_runtime_banner() -> None:
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="all-MiniLM-L6-v2",
+        db_path="C:/Users/waggle/.waggle/waggle.db",
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    banner = server_module.format_runtime_banner(config)
+    assert f"Waggle MCP {waggle.__version__}" in banner
+    assert "Backend:    sqlite" in banner
+    assert "Model:      all-MiniLM-L6-v2" in banner
+    assert "DB path:    C:/Users/waggle/.waggle/waggle.db" in banner
+    assert "Transport:  stdio" in banner
+    assert "Tenant:     local-default" in banner
+
+
+def test_should_print_banner_suppression(monkeypatch: pytest.MonkeyPatch) -> None:
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="all-MiniLM-L6-v2",
+        db_path="C:/Users/waggle/.waggle/waggle.db",
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+    monkeypatch.setattr(server_module.sys, "stdout", SimpleNamespace(isatty=lambda: False))
+    monkeypatch.delenv("WAGGLE_BANNER", raising=False)
+
+    assert server_module.should_print_banner(config, quiet=False) is False
+
+    monkeypatch.setattr(server_module.sys, "stdout", SimpleNamespace(isatty=lambda: True))
+    assert server_module.should_print_banner(config, quiet=True) is False
+
+    monkeypatch.setenv("WAGGLE_BANNER", "false")
+    assert server_module.should_print_banner(config, quiet=False) is False
+
+
+def test_startup_banner_prints_in_interactive_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="all-MiniLM-L6-v2",
+        db_path="C:/Users/waggle/.waggle/waggle.db",
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+    class TtyBuffer(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    buffer = TtyBuffer()
+    monkeypatch.setattr(server_module.sys, "stdout", buffer)
+    monkeypatch.delenv("WAGGLE_BANNER", raising=False)
+
+    if server_module.should_print_banner(config, quiet=False):
+        server_module._print_startup_banner(config)
+
+    banner = buffer.getvalue()
+    assert f"Waggle MCP {waggle.__version__}" in banner
+    assert "Backend:    sqlite" in banner
+    assert "Model:      all-MiniLM-L6-v2" in banner
+    assert "DB path:    C:/Users/waggle/.waggle/waggle.db" in banner
+    assert "Transport:  stdio" in banner
+    assert "Tenant:     local-default" in banner
 
 
 def test_store_node_reports_deduplication(tmp_path: Path) -> None:

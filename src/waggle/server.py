@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+from importlib.metadata import PackageNotFoundError, version as metadata_version
 import getpass
 import json
 import logging
@@ -37,7 +38,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from waggle import __version__
+import waggle
 from waggle.abhi import (
     ABHI_MERGE_STRATEGIES,
     DEFAULT_ABHI_MERGE_STRATEGY,
@@ -3938,6 +3939,49 @@ def _run_graph_editor_command(config: AppConfig, args: argparse.Namespace) -> in
 _APP: WaggleServer | None = None
 
 
+def _resolve_runtime_version() -> str:
+    version = getattr(waggle, "version", None)
+    if isinstance(version, str) and version.strip():
+        return version
+    version = getattr(waggle, "__version__", None)
+    if isinstance(version, str) and version.strip():
+        return version
+    try:
+        return metadata_version("waggle-mcp")
+    except PackageNotFoundError:  # pragma: no cover
+        return "0.0.1"
+
+
+def _is_falsey_banner_value(value: str | None) -> bool:
+    return value is not None and value.strip().lower() in {"0", "false", "no", "off"}
+
+
+def format_runtime_banner(config: AppConfig) -> str:
+    return "\n".join(
+        [
+        f"Waggle MCP {_resolve_runtime_version()}",
+        f"  Backend:    {config.backend}",
+        f"  Model:      {config.model_name}",
+        f"  DB path:    {config.db_path}",
+        f"  Transport:  {config.transport}",
+        f"  Tenant:     {config.default_tenant_id}",
+        ]
+    )
+
+
+def should_print_banner(config: AppConfig, quiet: bool) -> bool:
+    del config
+    if quiet:
+        return False
+    if _is_falsey_banner_value(os.environ.get("WAGGLE_BANNER")):
+        return False
+    return sys.stdout.isatty()
+
+
+def _print_startup_banner(config: AppConfig) -> None:
+    print(format_runtime_banner(config))
+
+
 def _default_graph(config: AppConfig | None = None) -> Any:
     try:
         return _build_backend(config or AppConfig.from_env())
@@ -4066,6 +4110,8 @@ Common workflows
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    common_runtime = argparse.ArgumentParser(add_help=False)
+    common_runtime.add_argument("--quiet", action="store_true", help="Suppress the startup banner.")
     parser = argparse.ArgumentParser(
         prog="waggle-mcp",
         description=(
@@ -4075,10 +4121,15 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
         epilog="Examples: 'waggle-mcp setup --yes', 'waggle-mcp serve', 'waggle-mcp features'.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[common_runtime],
     )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {_resolve_runtime_version()}")
     subparsers = parser.add_subparsers(dest="command")
-    serve = subparsers.add_parser("serve", help="Run the MCP server using the configured stdio or HTTP transport.")
+    serve = subparsers.add_parser(
+        "serve",
+        help="Run the MCP server using the configured stdio or HTTP transport.",
+        parents=[common_runtime],
+    )
     serve.add_argument(
         "--transport",
         choices=["stdio", "http"],
@@ -4092,6 +4143,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "Start the Waggle HTTP app for local graph editing and open /graph in the browser by default. "
             "Use this for mouse-and-keyboard graph editing: add, remove, connect, reposition, import, and export."
         ),
+        parents=[common_runtime],
     )
     graph_editor.add_argument("--host", default="127.0.0.1")
     graph_editor.add_argument("--port", type=int, default=8686)
@@ -4101,6 +4153,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "view-graph",
         help="Launch the visual graph viewer/editor in a browser window.",
         description="Alias for edit-graph. Starts the local graph UI and opens it in the browser by default.",
+        parents=[common_runtime],
     )
     graph_viewer.add_argument("--host", default="127.0.0.1")
     graph_viewer.add_argument("--port", type=int, default=8686)
@@ -4110,6 +4163,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "ui",
         help="Launch the local graph UI in the browser.",
         description="Alias for edit-graph. Starts the localhost Graph Studio and opens it by default.",
+        parents=[common_runtime],
     )
     graph_ui.add_argument("--host", default="127.0.0.1")
     graph_ui.add_argument("--port", type=int, default=8686)
@@ -4119,6 +4173,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "graph-studio",
         help="Alias for the local Graph Studio browser UI.",
         description="Alias for ui/edit-graph. Starts the localhost Graph Studio and opens it by default.",
+        parents=[common_runtime],
     )
     graph_studio.add_argument("--host", default="127.0.0.1")
     graph_studio.add_argument("--port", type=int, default=8686)
@@ -4128,6 +4183,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "open-studio",
         help="Alias for graph-studio.",
         description="Alias for graph-studio/ui/edit-graph. Starts the localhost Graph Studio and opens it by default.",
+        parents=[common_runtime],
     )
     open_studio.add_argument("--host", default="127.0.0.1")
     open_studio.add_argument("--port", type=int, default=8686)
@@ -6550,6 +6606,9 @@ def main() -> None:
     if command == "serve" and getattr(args, "transport", None):
         config.transport = str(args.transport).strip().lower()
         config.validate()
+    quiet = bool(getattr(args, "quiet", False))
+    if command in {"serve", "edit-graph", "view-graph", "ui", "graph-studio", "open-studio"} and should_print_banner(config, quiet):
+        _print_startup_banner(config)
     log_stream = sys.stderr if config.transport == "stdio" else sys.stdout
     configure_logging(config.log_level, stream=log_stream)
     LOGGER.info("waggle_startup")

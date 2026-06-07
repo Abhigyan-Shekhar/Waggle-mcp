@@ -690,7 +690,7 @@ waggle-mcp import-graph-backup --input-path my_memory.json
 | `waggle-mcp doctor --fix` | Re-embed stale rows after a `WAGGLE_MODEL` change. |
 | `waggle-mcp setup --yes` | Non-interactive one-line setup for all detected clients. |
 | `waggle-mcp init` | Interactive setup wizard for one client. |
-| `waggle-mcp serve` | Run the MCP server (usually started by your client). |
+| `waggle-mcp serve` | Run the MCP server (usually started by your client); interactive terminals show a short startup banner. |
 | `waggle-mcp demo` | Run the 60-second local demo with a pre-loaded example graph. |
 | `waggle-mcp edit-graph` | Launch Graph Studio in the browser. |
 | `waggle-mcp uninstall-hooks` | Remove the waggle-managed hooks block from Claude Code settings. |
