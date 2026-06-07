@@ -7,7 +7,9 @@ from io import StringIO
 
 import pytest
 
-from waggle.logging_utils import JsonLogFormatter, configure_logging
+from waggle.config import AppConfig
+from waggle.errors import ValidationFailure
+from waggle.logging_utils import JsonLogFormatter, PlainLogFormatter, configure_logging
 from waggle.runtime_context import runtime_context
 
 
@@ -531,3 +533,201 @@ class TestIntegration:
         for i, level in enumerate(levels):
             data = json.loads(lines[i])
             assert data["level"] == level
+
+
+class TestPlainLogFormatter:
+    """Tests for PlainLogFormatter."""
+
+    def test_basic_output_format(self):
+        """Test that plain formatter produces expected format."""
+        formatter = PlainLogFormatter()
+        record = logging.LogRecord(
+            name="waggle.graph",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="Stored node abc123",
+            args=(),
+            exc_info=None,
+        )
+        output = formatter.format(record)
+        parts = output.split()
+        assert parts[1] == "INFO"
+        assert parts[2] == "waggle.graph"
+        assert "Stored node abc123" in output
+
+    def test_timestamp_format(self):
+        """Test that timestamp is in ISO format without microseconds."""
+        formatter = PlainLogFormatter()
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
+        )
+        output = formatter.format(record)
+        timestamp = output.split()[0]
+        assert "T" in timestamp
+        assert len(timestamp) == 19  # YYYY-MM-DDTHH:MM:SS
+
+    def test_extras_emitted_when_nonempty(self):
+        """Test that non-empty context fields are included."""
+        formatter = PlainLogFormatter()
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test",
+            args=(),
+            exc_info=None,
+        )
+        with runtime_context(tenant_id="my-tenant"):
+            output = formatter.format(record)
+        assert "tenant_id=my-tenant" in output
+
+    def test_extras_omitted_when_empty(self):
+        """Test that empty context fields are not included."""
+        formatter = PlainLogFormatter()
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test",
+            args=(),
+            exc_info=None,
+        )
+        output = formatter.format(record)
+        assert "tenant_id" not in output
+        assert "request_id" not in output
+        assert "tool_name" not in output
+
+    def test_exception_on_second_line(self):
+        """Test that exceptions appear on a second line."""
+        formatter = PlainLogFormatter()
+        try:
+            raise ValueError("test error")
+        except ValueError:
+            exc_info = sys.exc_info()
+        record = logging.LogRecord(
+            name="test",
+            level=logging.ERROR,
+            pathname="",
+            lineno=0,
+            msg="something failed",
+            args=(),
+            exc_info=exc_info,
+        )
+        output = formatter.format(record)
+        lines = output.split("\n")
+        assert len(lines) >= 2
+        assert "ValueError" in output
+
+
+class TestConfigureLoggingFormat:
+    """Tests for log_format parameter in configure_logging."""
+
+    def test_plain_format_installs_plain_formatter(self):
+        """Test that log_format=plain installs PlainLogFormatter."""
+        stream = StringIO()
+        configure_logging(stream=stream, log_format="plain")
+        root = logging.getLogger()
+        assert isinstance(root.handlers[0].formatter, PlainLogFormatter)
+
+    def test_json_format_installs_json_formatter(self):
+        """Test that log_format=json installs JsonLogFormatter."""
+        stream = StringIO()
+        configure_logging(stream=stream, log_format="json")
+        root = logging.getLogger()
+        assert isinstance(root.handlers[0].formatter, JsonLogFormatter)
+
+    def test_default_format_installs_json_formatter(self):
+        """Test that default log_format installs JsonLogFormatter."""
+        stream = StringIO()
+        configure_logging(stream=stream)
+        root = logging.getLogger()
+        assert isinstance(root.handlers[0].formatter, JsonLogFormatter)
+
+
+class TestAppConfigLogFormat:
+    """Tests for log_format validation in AppConfig."""
+
+    def test_valid_json_format(self):
+        """Test that log_format=json passes validation."""
+        config = AppConfig(
+            backend="sqlite",
+            transport="stdio",
+            model_name="all-MiniLM-L6-v2",
+            db_path="~/.waggle/waggle.db",
+            default_tenant_id="local-default",
+            http_host="0.0.0.0",
+            http_port=8080,
+            log_level="INFO",
+            log_format="json",
+            rate_limit_rpm=120,
+            write_rate_limit_rpm=60,
+            max_concurrent_requests=8,
+            max_payload_bytes=1048576,
+            request_timeout_seconds=30,
+            export_dir=None,
+            neo4j_uri="",
+            neo4j_username="",
+            neo4j_password="",
+            neo4j_database="",
+        )
+        config.validate()  # should not raise
+
+    def test_valid_plain_format(self):
+        """Test that log_format=plain passes validation."""
+        config = AppConfig(
+            backend="sqlite",
+            transport="stdio",
+            model_name="all-MiniLM-L6-v2",
+            db_path="~/.waggle/waggle.db",
+            default_tenant_id="local-default",
+            http_host="0.0.0.0",
+            http_port=8080,
+            log_level="INFO",
+            log_format="plain",
+            rate_limit_rpm=120,
+            write_rate_limit_rpm=60,
+            max_concurrent_requests=8,
+            max_payload_bytes=1048576,
+            request_timeout_seconds=30,
+            export_dir=None,
+            neo4j_uri="",
+            neo4j_username="",
+            neo4j_password="",
+            neo4j_database="",
+        )
+        config.validate()  # should not raise
+
+    def test_invalid_format_raises(self):
+        """Test that invalid log_format raises ValidationFailure."""
+        config = AppConfig(
+            backend="sqlite",
+            transport="stdio",
+            model_name="all-MiniLM-L6-v2",
+            db_path="~/.waggle/waggle.db",
+            default_tenant_id="local-default",
+            http_host="0.0.0.0",
+            http_port=8080,
+            log_level="INFO",
+            log_format="bogus",
+            rate_limit_rpm=120,
+            write_rate_limit_rpm=60,
+            max_concurrent_requests=8,
+            max_payload_bytes=1048576,
+            request_timeout_seconds=30,
+            export_dir=None,
+            neo4j_uri="",
+            neo4j_username="",
+            neo4j_password="",
+            neo4j_database="",
+        )
+        with pytest.raises(ValidationFailure, match="WAGGLE_LOG_FORMAT"):
+            config.validate()
