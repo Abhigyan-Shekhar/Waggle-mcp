@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
-from importlib.metadata import PackageNotFoundError, version as metadata_version
 import getpass
 import json
 import logging
@@ -19,6 +18,8 @@ import webbrowser
 from contextlib import asynccontextmanager, suppress
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as metadata_version
 from pathlib import Path
 from typing import Any
 
@@ -3949,10 +3950,10 @@ def _resolve_runtime_version() -> str:
     try:
         return metadata_version("waggle-mcp")
     except PackageNotFoundError:  # pragma: no cover
-        return "0.0.1"
+        return waggle.FALLBACK_VERSION
 
 
-def _is_falsey_banner_value(value: str | None) -> bool:
+def _is_falsy_banner_value(value: str | None) -> bool:
     return value is not None and value.strip().lower() in {"0", "false", "no", "off"}
 
 
@@ -3973,7 +3974,7 @@ def should_print_banner(config: AppConfig, quiet: bool) -> bool:
     isatty = sys.stdout.isatty()
     if quiet:
         return False
-    if _is_falsey_banner_value(os.environ.get("WAGGLE_BANNER")):
+    if _is_falsy_banner_value(os.environ.get("WAGGLE_BANNER")):
         return False
     if config.transport == "stdio" and not isatty:
         return False
@@ -3981,8 +3982,6 @@ def should_print_banner(config: AppConfig, quiet: bool) -> bool:
 
 
 def _print_startup_banner(config: AppConfig) -> None:
-    import sys
-
     print(format_runtime_banner(config), file=sys.stderr)
 
 

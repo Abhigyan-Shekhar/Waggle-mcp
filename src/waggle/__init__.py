@@ -1,7 +1,8 @@
 """Persistent graph memory MCP server."""
 
 from importlib import import_module
-from importlib.metadata import PackageNotFoundError, version as metadata_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as metadata_version
 
 _LAZY_EXPORTS = {
     "MemoryGraph": ("waggle.graph", "MemoryGraph"),
@@ -47,6 +48,7 @@ _LAZY_EXPORTS = {
 }
 
 __all__ = sorted(_LAZY_EXPORTS)
+FALLBACK_VERSION = "0.0.1"
 
 
 def __getattr__(name: str):
@@ -63,6 +65,6 @@ def __getattr__(name: str):
 try:  # pragma: no cover
     __version__ = metadata_version("waggle-mcp")
 except PackageNotFoundError:  # pragma: no cover
-    __version__ = "0.0.1"
+    __version__ = FALLBACK_VERSION
 
 runtime_version = __version__

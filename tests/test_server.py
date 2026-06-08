@@ -121,6 +121,31 @@ def write_waggle_codex_config(home: Path, db_path: Path) -> None:
     )
 
 
+def make_runtime_banner_config(**overrides: object) -> AppConfig:
+    values = {
+        "backend": "sqlite",
+        "transport": "stdio",
+        "model_name": "all-MiniLM-L6-v2",
+        "db_path": "C:/Users/waggle/.waggle/waggle.db",
+        "default_tenant_id": "local-default",
+        "http_host": "127.0.0.1",
+        "http_port": 8080,
+        "log_level": "INFO",
+        "rate_limit_rpm": 120,
+        "write_rate_limit_rpm": 60,
+        "max_concurrent_requests": 8,
+        "max_payload_bytes": 1024 * 1024,
+        "request_timeout_seconds": 30,
+        "export_dir": None,
+        "neo4j_uri": "",
+        "neo4j_username": "",
+        "neo4j_password": "",
+        "neo4j_database": "",
+    }
+    values.update(overrides)
+    return AppConfig(**values)
+
+
 def test_store_node_and_stats_tool(tmp_path: Path) -> None:
     app = make_app(tmp_path)
 
@@ -1603,26 +1628,7 @@ def test_runtime_version_falls_back_to_metadata(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_format_runtime_banner() -> None:
-    config = AppConfig(
-        backend="sqlite",
-        transport="stdio",
-        model_name="all-MiniLM-L6-v2",
-        db_path="C:/Users/waggle/.waggle/waggle.db",
-        default_tenant_id="local-default",
-        http_host="127.0.0.1",
-        http_port=8080,
-        log_level="INFO",
-        rate_limit_rpm=120,
-        write_rate_limit_rpm=60,
-        max_concurrent_requests=8,
-        max_payload_bytes=1024 * 1024,
-        request_timeout_seconds=30,
-        export_dir=None,
-        neo4j_uri="",
-        neo4j_username="",
-        neo4j_password="",
-        neo4j_database="",
-    )
+    config = make_runtime_banner_config()
 
     banner = server_module.format_runtime_banner(config)
     assert f"Waggle MCP {waggle.__version__}" in banner
@@ -1634,26 +1640,7 @@ def test_format_runtime_banner() -> None:
 
 
 def test_should_print_banner_suppression(monkeypatch: pytest.MonkeyPatch) -> None:
-    config = AppConfig(
-        backend="sqlite",
-        transport="stdio",
-        model_name="all-MiniLM-L6-v2",
-        db_path="C:/Users/waggle/.waggle/waggle.db",
-        default_tenant_id="local-default",
-        http_host="127.0.0.1",
-        http_port=8080,
-        log_level="INFO",
-        rate_limit_rpm=120,
-        write_rate_limit_rpm=60,
-        max_concurrent_requests=8,
-        max_payload_bytes=1024 * 1024,
-        request_timeout_seconds=30,
-        export_dir=None,
-        neo4j_uri="",
-        neo4j_username="",
-        neo4j_password="",
-        neo4j_database="",
-    )
+    config = make_runtime_banner_config()
     monkeypatch.setattr(server_module.sys, "stdout", SimpleNamespace(isatty=lambda: False))
     monkeypatch.delenv("WAGGLE_BANNER", raising=False)
 
@@ -1668,38 +1655,22 @@ def test_should_print_banner_suppression(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_startup_banner_prints_in_interactive_mode(monkeypatch: pytest.MonkeyPatch) -> None:
-    config = AppConfig(
-        backend="sqlite",
-        transport="stdio",
-        model_name="all-MiniLM-L6-v2",
-        db_path="C:/Users/waggle/.waggle/waggle.db",
-        default_tenant_id="local-default",
-        http_host="127.0.0.1",
-        http_port=8080,
-        log_level="INFO",
-        rate_limit_rpm=120,
-        write_rate_limit_rpm=60,
-        max_concurrent_requests=8,
-        max_payload_bytes=1024 * 1024,
-        request_timeout_seconds=30,
-        export_dir=None,
-        neo4j_uri="",
-        neo4j_username="",
-        neo4j_password="",
-        neo4j_database="",
-    )
+    config = make_runtime_banner_config()
+
     class TtyBuffer(io.StringIO):
         def isatty(self) -> bool:
             return True
 
-    buffer = TtyBuffer()
-    monkeypatch.setattr(server_module.sys, "stdout", buffer)
+    stdout = TtyBuffer()
+    stderr = io.StringIO()
+    monkeypatch.setattr(server_module.sys, "stdout", stdout)
+    monkeypatch.setattr(server_module.sys, "stderr", stderr)
     monkeypatch.delenv("WAGGLE_BANNER", raising=False)
 
     if server_module.should_print_banner(config, quiet=False):
         server_module._print_startup_banner(config)
 
-    banner = buffer.getvalue()
+    banner = stderr.getvalue()
     assert f"Waggle MCP {waggle.__version__}" in banner
     assert "Backend:    sqlite" in banner
     assert "Model:      all-MiniLM-L6-v2" in banner
