@@ -139,6 +139,7 @@ For self-hosted production review and security posture:
 - [Repository map](./docs/repository-map.md)
 - [Starter issues](./docs/good-first-issues.md)
 - [Label catalog](./.github/labels.yml)
+- [Architecture Guide](./docs/architecture.md)
 - Contact channel: open a GitHub issue for bugs, feature proposals, and contributor assignment requests. Use `SECURITY.md` for vulnerability reports.
 
 Contributor layout note:
