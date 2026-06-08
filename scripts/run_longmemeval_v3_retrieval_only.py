@@ -19,7 +19,7 @@ class CaseTimeout(RuntimeError):
     pass
 
 
-def _timeout_handler(signum, frame):  # noqa: ARG001
+def _timeout_handler(signum, frame):
     raise CaseTimeout("case retrieval timed out")
 
 
