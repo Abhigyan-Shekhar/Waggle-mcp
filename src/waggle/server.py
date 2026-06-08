@@ -481,7 +481,10 @@ def _assert_runtime_feature_parity() -> None:
 
 
 def _build_backend(config: AppConfig) -> Any:
-    embedding_model = EmbeddingModel(config.model_name)
+    embedding_model = EmbeddingModel(
+        config.model_name,
+        embedding_backend=config.embedding_backend,
+    )
     # Disable ML entirely in fast/inspection mode.
     if config.is_fast_mode:
         embedding_model.disable_warmup()
@@ -4723,7 +4726,13 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         if config.backend != "neo4j":
             raise ValidationFailure("migrate-sqlite requires WAGGLE_BACKEND=neo4j for the target environment.")
         source = MemoryGraph(
-            args.db_path, EmbeddingModel(config.model_name), tenant_id=args.tenant_id, export_dir=config.export_dir
+            args.db_path,
+            EmbeddingModel(
+                config.model_name,
+                embedding_backend=config.embedding_backend,
+            ),
+            tenant_id=args.tenant_id,
+            export_dir=config.export_dir,
         )
         target = backend.for_tenant(args.tenant_id)
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as handle:

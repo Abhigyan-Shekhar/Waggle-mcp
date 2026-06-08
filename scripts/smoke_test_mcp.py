@@ -8,7 +8,6 @@ from pathlib import Path
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

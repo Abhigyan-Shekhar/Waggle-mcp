@@ -10,7 +10,6 @@ from typing import Any
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
-
 ROOT = Path(__file__).resolve().parents[1]
 TMP_DIR = ROOT / ".tmp" / "demo-recording"
 DB_PATH = TMP_DIR / "demo-memory.db"

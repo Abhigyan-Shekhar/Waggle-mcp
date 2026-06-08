@@ -25,7 +25,7 @@ from uuid import uuid4
 # Ensure src/ is on the path when run as PYTHONPATH=src python3 ...
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from waggle.abhi import write_abhi_document  # noqa: E402
+from waggle.abhi import write_abhi_document
 
 FIXTURES_DIR = Path(__file__).parent.parent / "tests" / "fixtures" / "abhi"
 

@@ -1,5 +1,3 @@
-import os
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -139,7 +137,7 @@ def patch_graph_py():
 
     def tiered_query(
 """
-    
+
     if "def aggregate(" not in content:
         content = content.replace("    def tiered_query(", aggregate_code)
         with path.open("w") as f:
@@ -290,10 +288,10 @@ def patch_server_py():
             ),
             types.Tool(
                 name="query_graph","""
-    
+
     if "name=\"aggregate_graph\"" not in content:
         content = content.replace("            types.Tool(\n                name=\"query_graph\",", tool_def)
-    
+
     tool_handler = """
                 elif name == "aggregate_graph":
                     subgraph = graph.aggregate(
