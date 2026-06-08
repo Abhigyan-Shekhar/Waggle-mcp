@@ -1662,8 +1662,9 @@ def test_should_print_banner_suppression(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(server_module.sys, "stdout", SimpleNamespace(isatty=lambda: True))
     assert server_module.should_print_banner(config, quiet=True) is False
 
-    monkeypatch.setenv("WAGGLE_BANNER", "false")
-    assert server_module.should_print_banner(config, quiet=False) is False
+    for value in ["0", "false", "no", "off", " FALSE ", " Off "]:
+        monkeypatch.setenv("WAGGLE_BANNER", value)
+        assert server_module.should_print_banner(config, quiet=False) is False
 
 
 def test_startup_banner_prints_in_interactive_mode(monkeypatch: pytest.MonkeyPatch) -> None:

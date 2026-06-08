@@ -3970,17 +3970,20 @@ def format_runtime_banner(config: AppConfig) -> str:
 
 
 def should_print_banner(config: AppConfig, quiet: bool) -> bool:
+    isatty = sys.stdout.isatty()
     if quiet:
         return False
     if _is_falsey_banner_value(os.environ.get("WAGGLE_BANNER")):
         return False
-    if config.transport == "stdio" and not sys.stdout.isatty():
+    if config.transport == "stdio" and not isatty:
         return False
-    return sys.stdout.isatty()
+    return isatty
 
 
 def _print_startup_banner(config: AppConfig) -> None:
-    print(format_runtime_banner(config))
+    import sys
+
+    print(format_runtime_banner(config), file=sys.stderr)
 
 
 def _default_graph(config: AppConfig | None = None) -> Any:
