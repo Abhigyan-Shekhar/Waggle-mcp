@@ -771,13 +771,11 @@ Run `waggle-mcp doctor` first — it catches the most common issues automaticall
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `waggle-mcp: command not found` | `pipx` bin dir not on PATH | `pipx ensurepath` then restart terminal |
-| `store_node` / `query_graph` hangs | Embedding model downloading (~420 MB) | Set `WAGGLE_MODEL=deterministic` for instant offline mode |
-| `UnicodeEncodeError: 'charmap' codec` | Windows stdout not UTF-8 | `python -X utf8` or set `PYTHONUTF8=1` |
-| `Additional properties not allowed ('user_text', 'assistant_text')` | Old pre-v0.2 field names | Use `user_message` + `assistant_response` |
-| Waggle registered but agent doesn't see it (Antigravity) | Wrong config file | Agent reads `~/.gemini/antigravity/mcp_config.json`, not the VS Code extension file |
-| `ModuleNotFoundError: No module named 'mcp'` | Wrong Python environment | Use `pipx install waggle-mcp` and run via `waggle-mcp ...` |
-| `pipx install` fails building `sentence-transformers` | Python/OS wheel mismatch | Use Python 3.11+; upgrade: `python3 -m pip install -U pip setuptools wheel` |
+| ModuleNotFoundError: No module named 'waggle' | Waggle not installed or wrong virtual environment | Run `pip install -e ".[dev]"` from the repository root and verify your active Python environment. See `docs/install/*.md`. |
+| Slow first start / hanging on "Loading model" | `sentence-transformers` is downloading `all-MiniLM-L6-v2` on first use | Wait for the download to finish once, or set `WAGGLE_MODEL=deterministic` for instant offline mode. See `docs/environment-variables.md`. |
+| OSError: [Errno 98] Address already in use | Port `8080` (or `WAGGLE_HTTP_PORT`) is already in use | Set `WAGGLE_HTTP_PORT=18080 waggle-mcp serve` or stop the process using the port. See `docs/environment-variables.md`. |
+| sqlite3.OperationalError: database is locked | Another Waggle process is holding the SQLite write lock | Check for a stale `.lock` file at the configured database path and ensure only one server is running. |
+| AuthenticationError: Invalid API key | HTTP transport requires a valid API key | Include the `X-API-Key` header and generate a key with `waggle-mcp keys create`. |
 
 ---
 
