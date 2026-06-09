@@ -351,6 +351,36 @@ def test_semantic_duplicate_nodes_reuse_existing_entry(tmp_path: Path) -> None:
     assert second.dedup_reason == "same_label_high_similarity"
 
 
+def test_node_cosine_similarity_logs_and_reraises_errors(tmp_path, caplog):
+    import logging
+
+    graph = MemoryGraph(
+        tmp_path / "cosine.db",
+        FakeEmbeddingModel(),
+    )
+
+    node_a = graph.add_node(
+        label="A",
+        content="hello",
+        node_type=NodeType.ENTITY,
+    ).node
+
+    node_b = graph.add_node(
+        label="B",
+        content="world",
+        node_type=NodeType.ENTITY,
+    ).node
+
+    def broken_from_bytes(*args, **kwargs):
+        raise RuntimeError("embedding decode failed")
+
+    graph.embedding_model.from_bytes = broken_from_bytes
+    with caplog.at_level(logging.WARNING):
+        result = graph._node_cosine_similarity(node_a, node_b)
+        assert result is None
+        assert any("Failed to compute cosine similarity" in record.message for record in caplog.records)
+
+
 def test_entity_resolution_reuses_acronym_matches(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
     first = graph.add_node(
@@ -2254,3 +2284,61 @@ def test_abhi_json_file_raises_validation_failure(tmp_path: Path) -> None:
     json_file.write_text('{"graph": {}}', encoding="utf-8")
     with pytest.raises(VF, match=r"not a valid \.abhi file"):
         load_abhi_document(json_file)
+
+
+def test_clear_scope_dry_run_and_audit_trail(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+
+    # 1. Add some initial scope-scoped data
+    graph.add_node(
+        label="Test Node",
+        content="Use Redis for caching.",
+        node_type=NodeType.DECISION,
+        project="test_proj",
+        session_id="test_sess",
+    )
+    graph.observe_conversation(
+        user_message="Use Redis for caching.",
+        assistant_response="Noted.",
+        project="test_proj",
+        session_id="test_sess",
+    )
+
+    # Verify we have nodes
+    stats_before = graph.get_stats()
+    assert stats_before.total_nodes > 0
+
+    # 2. Perform a dry-run clear on the session
+    result_dry = graph.clear_session(session_id="test_sess", dry_run=True)
+    assert result_dry.dry_run is True
+    assert result_dry.deleted_nodes > 0
+    assert result_dry.deleted_transcripts > 0
+    assert any(k in result_dry.counts_by_node_type for k in ("decision", "note", "entity", "fact"))
+
+    # Verify data is STILL in the graph
+    stats_after_dry = graph.get_stats()
+    assert stats_after_dry.total_nodes == stats_before.total_nodes
+
+    # Verify NO audit event was emitted for this dry-run
+    events_dry = graph.list_audit_events(event_type="graph.scope_cleared")
+    assert len(events_dry) == 0
+
+    # 3. Perform a real clear on the session
+    result_real = graph.clear_session(session_id="test_sess", dry_run=False)
+    assert result_real.dry_run is False
+    assert result_real.deleted_nodes == result_dry.deleted_nodes
+    assert result_real.deleted_transcripts == result_dry.deleted_transcripts
+
+    # Verify data is DELETED
+    stats_after_real = graph.get_stats()
+    assert stats_after_real.total_nodes < stats_before.total_nodes
+
+    # Verify audit event WAS emitted for this real clear
+    events_real = graph.list_audit_events(event_type="graph.scope_cleared")
+    assert len(events_real) == 1
+    assert events_real[0].resource_type == "session"
+    assert events_real[0].resource_id == "test_sess"
+    # Verify structured counts are inside metadata
+    meta = events_real[0].metadata
+    assert meta["dry_run"] is False
+    assert meta["deleted_nodes"] == result_real.deleted_nodes

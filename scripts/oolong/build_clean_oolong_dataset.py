@@ -7,9 +7,9 @@ Fixes:
   4. Saves to oolong_real_clean_30.jsonl
 """
 import json
-import re
 from collections import defaultdict
 from pathlib import Path
+
 from datasets import load_dataset
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -101,11 +101,11 @@ def main():
 
     # Show sample stripped context
     sample = out[0]
-    print(f"\n--- Sample stripped context (first 300 chars) ---")
+    print("\n--- Sample stripped context (first 300 chars) ---")
     print(sample["context_window_text"][:300])
-    print(f"\n--- Sample question ---")
+    print("\n--- Sample question ---")
     print(sample["question"])
-    print(f"\n--- Sample gold answer ---")
+    print("\n--- Sample gold answer ---")
     print(sample["answer"])
 
 if __name__ == "__main__":

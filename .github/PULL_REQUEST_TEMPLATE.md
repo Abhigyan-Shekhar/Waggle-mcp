@@ -9,9 +9,9 @@
 - [ ] `ruff check src/ tests/`
 - [ ] `ruff format --check src/ tests/`
 
-## Checklist
+### Test report
 
-- [ ] I linked an issue or explained why one is not needed.
-- [ ] I updated docs if user-facing behavior changed.
-- [ ] I kept the PR focused on one logical change.
-- [ ] I did not commit secrets, local exports, or generated noise.
+Paste the output of `pytest -v` for the files you added or changed (not the full suite, just yours):
+
+```text
+<paste here>

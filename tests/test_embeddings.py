@@ -49,3 +49,89 @@ def test_uncached_transformer_falls_back_to_deterministic_embeddings(monkeypatch
     assert model.uses_deterministic_mode is True
     assert vector.shape == (256,)
     assert np.isclose(np.linalg.norm(vector), 1.0)
+
+
+def test_embedding_cache_shared_across_instances(monkeypatch: pytest.MonkeyPatch) -> None:
+    EmbeddingModel._GLOBAL_EMBED_CACHE.clear()
+
+    class CountingModel:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def encode(
+            self,
+            text,
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+        ):
+            self.calls += 1
+            return np.array([1.0, 2.0, 3.0], dtype=np.float32)
+
+    counting_model = CountingModel()
+
+    monkeypatch.setattr(
+        EmbeddingModel,
+        "_resolve_model",
+        lambda self, timeout: counting_model,
+    )
+
+    model_a = EmbeddingModel("shared-model")
+    model_b = EmbeddingModel("shared-model")
+
+    model_a.embed("foo")
+    model_b.embed("foo")
+
+    assert counting_model.calls == 1
+
+
+def test_embedding_cache_isolates_different_models(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    EmbeddingModel._GLOBAL_EMBED_CACHE.clear()
+
+    calls = {"a": 0, "b": 0}
+
+    def resolve_model(self, timeout):
+        if self.model_name == "model-a":
+
+            class ModelA:
+                def encode(
+                    self,
+                    text,
+                    normalize_embeddings=True,
+                    convert_to_numpy=True,
+                ):
+                    calls["a"] += 1
+                    return np.array([1.0, 2.0, 3.0], dtype=np.float32)
+
+            return ModelA()
+
+        class ModelB:
+            def encode(
+                self,
+                text,
+                normalize_embeddings=True,
+                convert_to_numpy=True,
+            ):
+                calls["b"] += 1
+                return np.array([4.0, 5.0], dtype=np.float32)
+
+        return ModelB()
+
+    monkeypatch.setattr(
+        EmbeddingModel,
+        "_resolve_model",
+        resolve_model,
+    )
+
+    model_a = EmbeddingModel("model-a")
+    model_b = EmbeddingModel("model-b")
+
+    vec_a = model_a.embed("foo")
+    vec_b = model_b.embed("foo")
+
+    assert calls["a"] == 1
+    assert calls["b"] == 1
+
+    assert vec_a.shape == (3,)
+    assert vec_b.shape == (2,)

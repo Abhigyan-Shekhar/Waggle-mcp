@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import threading
 from collections import Counter, defaultdict
+from typing import TypedDict
+
+
+class HistogramSeries(TypedDict):
+    count: int
+    sum: float
 
 
 class MetricsRegistry:
@@ -9,7 +15,9 @@ class MetricsRegistry:
         self._lock = threading.Lock()
         self._counters: Counter[tuple[str, tuple[tuple[str, str], ...]]] = Counter()
         self._gauges: dict[tuple[str, tuple[tuple[str, str], ...]], float] = {}
-        self._histograms: defaultdict[tuple[str, tuple[tuple[str, str], ...]], list[float]] = defaultdict(list)
+        self._histograms: defaultdict[tuple[str, tuple[tuple[str, str], ...]], HistogramSeries] = defaultdict(
+            lambda: {"count": 0, "sum": 0.0}
+        )
 
     def increment(self, name: str, value: int = 1, **labels: str) -> None:
         key = (name, tuple(sorted((k, str(v)) for k, v in labels.items())))
@@ -19,7 +27,9 @@ class MetricsRegistry:
     def observe(self, name: str, value: float, **labels: str) -> None:
         key = (name, tuple(sorted((k, str(v)) for k, v in labels.items())))
         with self._lock:
-            self._histograms[key].append(float(value))
+            series = self._histograms[key]
+            series["count"] += 1
+            series["sum"] += float(value)
 
     def set_gauge(self, name: str, value: float, **labels: str) -> None:
         key = (name, tuple(sorted((k, str(v)) for k, v in labels.items())))
@@ -35,12 +45,10 @@ class MetricsRegistry:
             for (name, labels), value in sorted(self._gauges.items()):
                 label_text = self._format_labels(labels)
                 lines.append(f"{name}{label_text} {value}")
-            for (name, labels), values in sorted(self._histograms.items()):
+            for (name, labels), series in sorted(self._histograms.items()):
                 label_text = self._format_labels(labels)
-                count = len(values)
-                total = sum(values)
-                lines.append(f"{name}_count{label_text} {count}")
-                lines.append(f"{name}_sum{label_text} {total}")
+                lines.append(f"{name}_count{label_text} {series['count']}")
+                lines.append(f"{name}_sum{label_text} {series['sum']}")
         return "\n".join(lines) + ("\n" if lines else "")
 
     @staticmethod
@@ -48,12 +56,8 @@ class MetricsRegistry:
         if not labels:
             return ""
 
-        # Keys are internal metric names and are assumed to be valid.
-        escaped_pairs = []
+        def escape(value: str) -> str:
+            return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
-        for key, value in labels:
-            escaped_value = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-            escaped_pairs.append(f'{key}="{escaped_value}"')
-
-        pairs = ",".join(escaped_pairs)
+        pairs = ",".join(f'{key}="{escape(value)}"' for key, value in labels)
         return "{" + pairs + "}"
