@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from waggle.graph import MemoryGraph
-from waggle.oolong_benchmark import load_oolong_examples, _index_context_window
+from waggle.oolong_benchmark import _index_context_window, load_oolong_examples
 
 # ---------------------------------------------------------------------------
 # Known text → category mapping (mirrors generate_oolong_dataset.py exactly)
@@ -366,14 +366,14 @@ def print_mode(report: ModeReport):
                 print(f"    ⚠ Missing pairs ({len(missing)}): {', '.join(sorted(missing)[:3])}{'...' if len(missing)>3 else ''}")
 
     s = report.summary()
-    print(f"\n  ┌─ Summary ──────────────────────────────────")
+    print("\n  ┌─ Summary ──────────────────────────────────")
     print(f"  │  total_cases        : {s['total_cases']}")
     print(f"  │  answered_cases     : {s['answered_cases']}")
     print(f"  │  correct            : {s['correct']}")
     print(f"  │  accuracy           : {s['accuracy']}")
     print(f"  │  avg_retrieved_tok  : {s['avg_retrieved_tokens']}")
     print(f"  │  avg_prompt_tokens  : {s['avg_prompt_tokens']}")
-    print(f"  └────────────────────────────────────────────")
+    print("  └────────────────────────────────────────────")
 
 
 # ---------------------------------------------------------------------------
