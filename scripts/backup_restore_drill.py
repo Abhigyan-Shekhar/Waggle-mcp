@@ -69,7 +69,7 @@ class DrillReport:
 
     def print_text(self) -> None:
         print("=" * 56)
-        print(f"  waggle-mcp Backup/Restore Drill")
+        print("  waggle-mcp Backup/Restore Drill")
         print(f"  Host: {self.host}")
         print("=" * 56)
         for c in self.checks:

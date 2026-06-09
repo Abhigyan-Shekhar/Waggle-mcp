@@ -43,7 +43,7 @@ cnt = Counter(all_answers)
 total = len(all_answers)
 print(f"Total gold answers: {total}")
 print(f"Unique values: {len(cnt)}")
-print(f"\nTop answers (value, count, % of total):")
+print("\nTop answers (value, count, % of total):")
 for val, count in cnt.most_common(20):
     pct = count / total * 100
     print(f"  {val!r:<30} {count:>4}  ({pct:.1f}%)")
@@ -146,9 +146,9 @@ if report:
 
     if abs(66.7 - maj_pct) < 5:
         print(f"\n  🚨 OVERFITTING ALERT: LLM score ({66.7}%) ≈ majority-class baseline ({maj_pct:.1f}%)")
-        print(f"     The model may be guessing the majority label, not reasoning.")
+        print("     The model may be guessing the majority label, not reasoning.")
     else:
         print(f"\n  ✅ LLM score (66.7%) is {66.7 - maj_pct:+.1f}% above majority-class baseline ({maj_pct:.1f}%)")
-        print(f"     Score is not explainable by label bias alone.")
+        print("     Score is not explainable by label bias alone.")
 
 print()

@@ -6,7 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -58,7 +58,7 @@ def format_json(data: Any, limit: int = 2000) -> str:
 
 
 async def call_tool(session: ClientSession, name: str, args: dict[str, Any]) -> dict[str, Any]:
-    started = datetime.now(timezone.utc).isoformat()
+    started = datetime.now(UTC).isoformat()
     try:
         result = await session.call_tool(name, args)
         text = result.content[0].text if result.content else ""
@@ -70,7 +70,7 @@ async def call_tool(session: ClientSession, name: str, args: dict[str, Any]) -> 
             "text": text,
             "structured": result.structuredContent or {},
         }
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         payload = {
             "tool": name,
             "arguments": args,
@@ -327,7 +327,7 @@ async def run_demo() -> tuple[list[dict[str, Any]], str]:
 
 
 def build_report(logs: list[dict[str, Any]], features_output: str, model_name: str) -> str:
-    generated_at = datetime.now(timezone.utc).isoformat()
+    generated_at = datetime.now(UTC).isoformat()
     total = len(logs)
     failures = sum(1 for l in logs if l.get("is_error"))
     unique_tools = sorted({l.get("tool", "") for l in logs})
