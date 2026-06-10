@@ -5296,6 +5296,8 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
             reason = f"Windows stdout encoding is {enc!r} — set PYTHONUTF8=1 or use python -X utf8."
             issues.append(reason)
             checks["stdout_encoding"] = {"status": "fail", "encoding": enc, "reason": reason}
+    else:
+        checks["stdout_encoding"] = {"status": "ok"}
 
     # ── 7. Known gotchas ─────────────────────────────────────────────────────
     emit(_c(_BOLD, "\n[7] Known API gotchas"))

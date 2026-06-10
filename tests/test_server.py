@@ -500,6 +500,7 @@ def test_doctor_json_output_ok_status(
     assert payload["checks"]["embedding_model"] == {"status": "ok", "model_id": "deterministic"}
     assert payload["checks"]["graph_schema"]["status"] == "ok"
     assert payload["checks"]["startup_mode"] == {"status": "ok", "mode": "normal"}
+    assert "stdout_encoding" in payload["checks"]
     total_checks = sum(payload["summary"].values())
     assert total_checks == len(payload["checks"])
 

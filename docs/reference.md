@@ -310,9 +310,10 @@ Example output:
       "status": "fail",
       "reason": "No MCP client config file contains a 'waggle' server entry."
     },
-    "startup_mode": {"status": "ok", "mode": "normal"}
+    "startup_mode": {"status": "ok", "mode": "normal"},
+    "stdout_encoding": {"status": "ok"}
   },
-  "summary": {"ok": 4, "warn": 0, "fail": 1}
+  "summary": {"ok": 5, "warn": 0, "fail": 1}
 }
 ```
 
@@ -333,7 +334,7 @@ Checks performed:
 | `embedding_model` | Whether the configured embedding model is deterministic or already cached locally. |
 | `graph_schema` | Whether the embedding store's `embedding_model_id` values are consistent (no mixed models). |
 | `startup_mode` | The configured `WAGGLE_STARTUP_MODE` (`fast`, `strict`, or `normal`). Always `ok`. |
-| `stdout_encoding` | (Windows only) Whether stdout is UTF-8 encoded. |
+| `stdout_encoding` | Whether stdout is UTF-8 encoded. The check only runs on Windows; on other platforms this is always `ok`. |
 
 ## Automatic memory orchestration
 
