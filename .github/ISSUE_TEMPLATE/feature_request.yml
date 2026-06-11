@@ -8,6 +8,8 @@ body:
     attributes:
       value: |
         Before you submit:
+        - check the repository map for likely implementation areas: https://github.com/Abhigyan-Shekhar/Waggle-mcp/blob/main/docs/repository-map.md
+        - review the security policy if the request touches secrets, exports, sharing, or auth: https://github.com/Abhigyan-Shekhar/Waggle-mcp/security/policy
         - install Waggle from PyPI: https://pypi.org/project/waggle-mcp/
         - install the VS Code extension: https://marketplace.visualstudio.com/items?itemName=Abhigyan-Shekhar.waggle-memory
         - attach a screenshot or mockup that shows the issue, gap, or requested UX
@@ -36,7 +38,7 @@ body:
     id: scope
     attributes:
       label: Suggested implementation scope
-      description: Mention likely files, modules, or commands if you know them.
+      description: Mention likely files, modules, or commands if you know them. The repository map can help narrow the scope.
       placeholder: src/waggle/server.py, docs/install/, tests/test_server.py
   - type: textarea
     id: screenshot

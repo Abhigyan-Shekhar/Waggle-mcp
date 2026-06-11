@@ -10,6 +10,8 @@ body:
         Thanks for filing a bug. Please include enough detail for someone new to the codebase to reproduce it.
         
         Before you submit:
+        - check the troubleshooting guide: https://github.com/Abhigyan-Shekhar/Waggle-mcp/blob/main/docs/install/troubleshooting.md
+        - report exploitable vulnerabilities through the security policy instead: https://github.com/Abhigyan-Shekhar/Waggle-mcp/security/policy
         - install Waggle from PyPI: https://pypi.org/project/waggle-mcp/
         - install the VS Code extension: https://marketplace.visualstudio.com/items?itemName=Abhigyan-Shekhar.waggle-memory
         - attach a screenshot of the issue
