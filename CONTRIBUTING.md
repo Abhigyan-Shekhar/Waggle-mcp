@@ -267,9 +267,10 @@ Use the default `pytorch` backend unless you specifically want ONNX Runtime infe
    Install and verify the current PyPI package and the VS Code extension before filing:
    `https://pypi.org/project/waggle-mcp/`
    `https://marketplace.visualstudio.com/items?itemName=Abhigyan-Shekhar.waggle-memory`
+
    Screenshots are encouraged when they help explain a bug report or feature request, but they are not required for every report.
 
-    For CLI errors, logs, stack traces, packaging issues, accessibility concerns, and security-related reports, detailed descriptions and logs may be more useful than screenshots.
+   For CLI errors, logs, stack traces, packaging issues, accessibility concerns, and security-related reports, detailed descriptions and logs may be more useful than screenshots.
 2. **Fork and branch** from `main`. Use a descriptive branch name like `fix/dockerfile-version` or `feat/dry-run-import`.
 3. **Keep PRs focused.** One logical change per PR makes review faster.
 4. **Write a clear description.** Explain *what* changed, *why* it was needed, and how you verified it. Link the issue with `Fixes #123` or explain why no issue is needed.
