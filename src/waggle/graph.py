@@ -38,6 +38,7 @@ from waggle.abhi import (
     write_abhi_document,
 )
 from waggle.auth import api_key_prefix, generate_api_key, hash_api_key, verify_api_key
+from waggle.redaction import load_redaction_config, redact_text
 from waggle.context_bundle import build_context_bundle, build_query_summary, export_context_bundle_files
 from waggle.embeddings import EmbeddingModel
 from waggle.errors import AuthenticationError, ValidationFailure
@@ -5959,6 +5960,9 @@ class MemoryGraph:
         Uses ProcessLock to protect multi-statement transaction from concurrent access.
         """
         logger = logging.getLogger(__name__)
+        config = load_redaction_config()
+        user_message = redact_text(user_message, config)
+        assistant_response = redact_text(assistant_response, config)
         transcript = f"user: {user_message.strip()}\nassistant: {assistant_response.strip()}".strip()
         observed_at = utc_now()
         turn_pair_id = str(uuid4())
@@ -6208,6 +6212,11 @@ class MemoryGraph:
         - user -> assistant -> tool -> tool -> assistant => user -> (assistant + assistant).
         Tool boundary splitting is a planned v2 refinement.
         """
+        config = load_redaction_config()
+        if config.enabled:
+            for msg in payload.messages:
+                msg.content = redact_text(msg.content, config)
+
         result = TranscriptIngestionResult(
             project=payload.project,
             agent_id=payload.agent_id,
