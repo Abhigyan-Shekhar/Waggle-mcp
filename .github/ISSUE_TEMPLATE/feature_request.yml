@@ -10,9 +10,9 @@ body:
         Before you submit:
         - install Waggle from PyPI: https://pypi.org/project/waggle-mcp/
         - install the VS Code extension: https://marketplace.visualstudio.com/items?itemName=Abhigyan-Shekhar.waggle-memory
-        - attach a screenshot or mockup that shows the issue, gap, or requested UX
+        - attach a screenshot or mockup when it helps explain the issue, gap, or requested UX
 
-        Issues without a screenshot will not be considered.
+        Screenshots and mockups are encouraged when they help clarify the request, but they are not required for every feature request.
   - type: textarea
     id: problem
     attributes:
@@ -41,8 +41,6 @@ body:
   - type: textarea
     id: screenshot
     attributes:
-      label: Screenshot or mockup
-      description: Attach or paste a screenshot or mockup that makes the request concrete. Issues without one will not be considered.
+      label: Screenshot or mockup (optional)
+      description: Optional. Include a screenshot or mockup when it helps clarify the request.
       placeholder: Paste the screenshot link or drag the image into the issue body.
-    validations:
-      required: true

@@ -12,9 +12,9 @@ body:
         Before you submit:
         - install Waggle from PyPI: https://pypi.org/project/waggle-mcp/
         - install the VS Code extension: https://marketplace.visualstudio.com/items?itemName=Abhigyan-Shekhar.waggle-memory
-        - attach a screenshot of the issue
-        
-        Issues without a screenshot will not be considered.
+        - attach a screenshot when it helps explain or reproduce the issue
+
+        Screenshots are encouraged when they help explain or reproduce the issue, but CLI errors, logs, stack traces, packaging issues, accessibility concerns, and security-related reports may be reported without screenshots.
   - type: textarea
     id: summary
     attributes:
@@ -87,11 +87,9 @@ body:
   - type: textarea
     id: screenshot
     attributes:
-      label: Screenshot
-      description: Attach or paste a screenshot that shows the issue. Issues without a screenshot will not be considered.
+      label: Screenshot (optional)
+      description: Attach a screenshot if it helps demonstrate the issue. For CLI errors, test failures, packaging issues, accessibility concerns, or security-related reports, logs and detailed descriptions may be sufficient.
       placeholder: Paste the screenshot link or drag the screenshot into the issue body.
-    validations:
-      required: true
   - type: textarea
     id: logs
     attributes:
