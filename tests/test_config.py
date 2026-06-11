@@ -95,3 +95,15 @@ def test_zero_hybrid_weights_are_allowed() -> None:
     )
 
     config.validate()
+def test_invalid_rate_limit_rpm_raises_validation_failure(monkeypatch):
+    monkeypatch.setenv("WAGGLE_RATE_LIMIT_RPM", "abc")
+
+    with pytest.raises(ValidationFailure, match="WAGGLE_RATE_LIMIT_RPM"):
+        AppConfig.from_env()
+
+
+def test_invalid_hybrid_vector_weight_raises_validation_failure(monkeypatch):
+    monkeypatch.setenv("WAGGLE_HYBRID_VECTOR_WEIGHT", "abc")
+
+    with pytest.raises(ValidationFailure, match="WAGGLE_HYBRID_VECTOR_WEIGHT"):
+        AppConfig.from_env()

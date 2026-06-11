@@ -45,6 +45,25 @@ def resolve_default_db_path() -> str:
     return DEFAULT_DB_PATH
 
 
+def _parse_int_env(name: str, default: str) -> int:
+    value = os.environ.get(name, default)
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValidationFailure(
+            f"{name} must be an integer."
+        ) from exc
+
+
+def _parse_float_env(name: str, default: str) -> float:
+    value = os.environ.get(name, default)
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise ValidationFailure(
+            f"{name} must be a valid number."
+        ) from exc
+    
 @dataclass(slots=True)
 class AppConfig:
     backend: str
@@ -108,13 +127,13 @@ class AppConfig:
             http_host=os.environ.get("WAGGLE_HTTP_HOST", "0.0.0.0"),
             http_port=int(resolved_http_port),
             log_level=os.environ.get("WAGGLE_LOG_LEVEL", "INFO"),
-            rate_limit_rpm=int(os.environ.get("WAGGLE_RATE_LIMIT_RPM", "120")),
+            rate_limit_rpm=_parse_int_env("WAGGLE_RATE_LIMIT_RPM","120",),
             write_rate_limit_rpm=int(os.environ.get("WAGGLE_WRITE_RATE_LIMIT_RPM", "60")),
             max_concurrent_requests=int(os.environ.get("WAGGLE_MAX_CONCURRENT_REQUESTS", "8")),
             max_payload_bytes=int(os.environ.get("WAGGLE_MAX_PAYLOAD_BYTES", str(1024 * 1024))),
             request_timeout_seconds=int(os.environ.get("WAGGLE_REQUEST_TIMEOUT_SECONDS", "30")),
             recency_half_life_days=float(os.environ.get("WAGGLE_RECENCY_HALF_LIFE_DAYS", "30.0")),
-            hybrid_vector_weight=float(os.environ.get("WAGGLE_HYBRID_VECTOR_WEIGHT", "1.0")),
+            hybrid_vector_weight=_parse_float_env("WAGGLE_HYBRID_VECTOR_WEIGHT","1.0",),
             hybrid_bm25_weight=float(os.environ.get("WAGGLE_HYBRID_BM25_WEIGHT", "1.0")),
             hybrid_graph_weight=float(os.environ.get("WAGGLE_HYBRID_GRAPH_WEIGHT", "1.0")),
             hybrid_recency_weight=float(os.environ.get("WAGGLE_HYBRID_RECENCY_WEIGHT", "1.0")),
