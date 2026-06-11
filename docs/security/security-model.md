@@ -160,6 +160,42 @@ For self-hosted deployments, the operator is responsible for:
 
 Waggle provides the application layer, not the entire infrastructure security program.
 
+## Transcript Redaction
+
+Waggle implements a configurable redaction layer that scrubs sensitive information (e.g. API keys, passwords, bearer tokens, and secrets) from transcript content before it is stored or processed for memory extraction.
+
+### Behavior and Hardening
+- **Pre-Persistence Scrubbing**: Redaction occurs at the entry point of the persistence layer. Verbatim transcripts written to the database (and metadata used to enrich knowledge nodes) are modified before serialization.
+- **Non-Recoverable**: Once redacted, the original sensitive values are not written to durable storage and are completely unrecoverable.
+- **Built-in Defaults**: Default redaction rules match common formats, including:
+  - OpenAI-style and other API keys (`sk-...`)
+  - HTTP Authorization `Bearer` tokens
+  - Password assignments (`password=...`, `password: ...`, `passwd`, `pwd`)
+  - General secret/credential keys (`secret=...`, `private_key: ...`, etc.)
+
+### Custom Rules Configuration
+Operators can enable redaction and configure custom regex patterns using environment variables. 
+
+> [!IMPORTANT]
+> If a valid JSON array is provided in `WAGGLE_REDACTION_RULES_JSON` and contains at least one valid rule, it **completely replaces (recommences instead of adds to)** the default built-in rules. If the JSON is empty, invalidly structured, or none of its entries are valid, the configuration logic safely **falls back to the default rules** to preserve security-first behavior.
+
+```bash
+export WAGGLE_REDACTION_ENABLED=true
+
+export WAGGLE_REDACTION_RULES_JSON='[
+  {
+    "name":"custom_secret",
+    "pattern":"SECRET_[A-Z0-9]+",
+    "replacement":"[REDACTED_SECRET]"
+  }
+]'
+```
+
+### Limitations of Regex-Based Detection
+- **Pattern Match Failure**: Simple regex-based patterns may fail to catch unstructured or uniquely formatted sensitive tokens.
+- **Accidental Redaction**: Generous patterns might inadvertently replace benign conversation text matching similar shapes.
+- **No Retrospective Action**: Redaction only applies to new incoming transcript turns. Previously stored database records are not retrospectively redacted.
+
 ## Known limitations
 
 Current limitations:

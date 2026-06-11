@@ -28,6 +28,7 @@ from waggle.abhi import (
     write_abhi_document,
 )
 from waggle.auth import api_key_prefix, generate_api_key, hash_api_key, verify_api_key
+from waggle.redaction import load_redaction_config, redact_text
 from waggle.context_bundle import build_context_bundle, build_query_summary, export_context_bundle_files
 from waggle.errors import AuthenticationError, ValidationFailure
 from waggle.evidence import build_observation_evidence, merge_evidence_records, merge_validity_windows
@@ -3066,6 +3067,9 @@ def update_node(
         project: str = "",
         session_id: str = "",
     ) -> ObservationResult:
+        config = load_redaction_config()
+        user_message = redact_text(user_message, config)
+        assistant_response = redact_text(assistant_response, config)
         transcript = f"user: {user_message.strip()}\nassistant: {assistant_response.strip()}".strip()
         observed_at = utc_now()
         candidates = extract_conversation_candidates(
