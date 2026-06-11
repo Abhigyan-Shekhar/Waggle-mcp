@@ -17,7 +17,6 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-
 API_VERSION = "2022-11-28"
 DEFAULT_LABEL_FILE = Path(".github/labels.yml")
 
