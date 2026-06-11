@@ -75,7 +75,10 @@ def main() -> None:
 
         graph = MemoryGraph(
             config.db_path,
-            EmbeddingModel(config.model_name),
+            EmbeddingModel(
+                config.model_name,
+                embedding_backend=config.embedding_backend,
+            ),
             tenant_id=config.default_tenant_id,
         )
 

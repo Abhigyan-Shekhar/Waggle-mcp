@@ -13,9 +13,9 @@ The script writes to examples/demo.abhi relative to the repo root.
 """
 from __future__ import annotations
 
+import shutil
 import sys
 import tempfile
-import shutil
 from pathlib import Path
 
 # Ensure src/ is on the path when run from the repo root.

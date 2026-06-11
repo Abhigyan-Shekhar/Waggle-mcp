@@ -25,7 +25,6 @@ import re
 import sys
 import time
 from dataclasses import dataclass, field
-from itertools import combinations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -33,8 +32,9 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import groq
 import numpy as np
+
 from waggle.graph import MemoryGraph
-from waggle.oolong_benchmark import load_oolong_examples, _index_context_window
+from waggle.oolong_benchmark import _index_context_window, load_oolong_examples
 
 # ---------------------------------------------------------------------------
 # Config
