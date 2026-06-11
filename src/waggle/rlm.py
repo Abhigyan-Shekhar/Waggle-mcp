@@ -458,12 +458,12 @@ def run_waggle_rlm(
     def extract_waggle_records(query: str, top_k: int = 3) -> list[dict[str, str]]:
         matches = _query_waggle(query, top_k)
         records = _structured_match_records(matches)
-        logger.debug(json.dumps(records, indent=2))
+        print(json.dumps(records, indent=2))  # CLI output, intentionally bypasses logger
         return records
 
     def classify_waggle_records(query: str, top_k: int = 3) -> list[dict[str, str]]:
         records = extract_waggle_records(query, top_k=top_k)
-        logger.debug(json.dumps(records, indent=2))
+        print(json.dumps(records, indent=2))  # CLI output, intentionally bypasses logger
         return records
 
     def index_waggle_fields(query: str, field_name: str, top_k: int = 3) -> dict[str, list[str]]:
@@ -478,7 +478,7 @@ def run_waggle_rlm(
             bucket = index.setdefault(field_value, [])
             if text_value and text_value not in bucket:
                 bucket.append(text_value)
-        logger.debug(json.dumps(index, indent=2))
+        print(json.dumps(index, indent=2))  # CLI output, intentionally bypasses logger
         return index
 
     def pair_users_by_label(query: str, labels: list[str], top_k: int = 8) -> list[tuple[str, str]]:
@@ -488,7 +488,7 @@ def run_waggle_rlm(
         # Scan the full session-scoped context so each user's qualifying records
         # can contribute before we build the pair clique deterministically.
         records = _structured_match_records(_session_matches())
-        logger.debug(json.dumps(records, indent=2))
+        print(json.dumps(records, indent=2))  # CLI output, intentionally bypasses logger
         users: set[str] = set()
         for record in records:
             label = record.get("label", "").strip().lower()
@@ -501,7 +501,7 @@ def run_waggle_rlm(
         for index, first_user in enumerate(ordered_users):
             for second_user in ordered_users[index + 1 :]:
                 pairs.append((first_user, second_user))
-        logger.debug(json.dumps(pairs, indent=2))
+        print(json.dumps(pairs, indent=2))  # CLI output, intentionally bypasses logger
         return pairs
 
     def answer_pair_users_by_label(query: str, labels: list[str], top_k: int = 8) -> str:
