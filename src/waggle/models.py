@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -146,6 +147,9 @@ class EvidenceRecord(BaseModel):
         if value is None:
             return ""
         return str(value).strip()
+
+
+Node.model_rebuild()
 
 
 class Edge(BaseModel):
@@ -993,3 +997,11 @@ class MergeStrategyConfig(BaseModel):
         except Exception:
             pass
         return cls()
+
+
+@dataclass(slots=True)
+class ScoredNodeView:
+    node_id: str
+    updated_at_ts: float
+    final_score: float
+    label_lower: str

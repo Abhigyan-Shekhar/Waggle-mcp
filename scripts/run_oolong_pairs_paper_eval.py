@@ -24,12 +24,10 @@ from pathlib import Path
 sys.path.insert(0, os.path.abspath("src"))
 
 import groq
-import numpy as np
 
 from waggle.embeddings import EmbeddingModel
 from waggle.graph import MemoryGraph
-from waggle.oolong_benchmark import load_oolong_examples, _index_context_window
-
+from waggle.oolong_benchmark import _index_context_window, load_oolong_examples
 
 DEFAULT_DATASET = "benchmarks/data/oolong_20.jsonl"
 DEFAULT_DB_PATH = "/private/tmp/oolong-pairs-paper-eval.db"

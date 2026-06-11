@@ -1,6 +1,5 @@
 import json
 import random
-import uuid
 from itertools import combinations
 from pathlib import Path
 
@@ -65,35 +64,35 @@ def generate_text(category):
 def generate_case(num_users=5, num_examples=40):
     users = list(range(100, 100 + num_users))
     user_properties = {u: set() for u in users}
-    
+
     text_blocks = []
-    
+
     for i in range(1, num_examples + 1):
         user = random.choice(users)
         category = random.choice(CATEGORIES)
         text = generate_text(category)
-        
+
         # Track properties
         user_properties[user].add(category)
-        
+
         date = f"2026-04-{random.randint(1, 30):02d}"
-        
+
         block = f"Example {i}:\nText: {text}\nUser: {user}\nDate: {date}"
         text_blocks.append(block)
-        
+
     context_window_text = "\n\n".join(text_blocks)
-    
+
     # Target users: those who have at least one numeric value OR location
     target_users = []
     for user, props in user_properties.items():
         if "numeric value" in props or "location" in props:
             target_users.append(user)
-            
+
     # Generate pairs
     target_users.sort()
     pairs = list(combinations(target_users, 2))
     answer_list = [f"({u1}, {u2})" for u1, u2 in pairs]
-    
+
     question = (
         "Each of the questions can be labelled as one of the labels: description and abstract concept, "
         "entity, human being, numeric value, location, abbreviation.\n\n"
@@ -101,11 +100,11 @@ def generate_case(num_users=5, num_examples=40):
         "where both users have at least one instance with a numeric value or location.\n\n"
         "In your answer, list all pairs in the format (user_id_1, user_id_2), separated by newlines."
     )
-    
+
     # Store answer directly as Python list literal string like `['(101, 102)', '(101, 103)']` to match evaluation style
     # The evaluation in oolong_benchmark uses `answers_match` which handles these list strings
     answer_str = repr(answer_list)
-    
+
     return {
         "context_window_text": context_window_text + "\n",
         "question": question,
@@ -117,10 +116,10 @@ def generate_case(num_users=5, num_examples=40):
 def main():
     output_path = ROOT / "benchmarks/data/oolong_synthetic_20.jsonl"
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    print(f"Generating 20 cases for OOLONG-Pairs...")
+
+    print("Generating 20 cases for OOLONG-Pairs...")
     cases = []
-    
+
     # We want varying complexities
     for i in range(20):
         # 5 cases with small context, 10 medium, 5 large
@@ -133,13 +132,13 @@ def main():
         else:
             num_users = random.randint(15, 25)
             num_examples = random.randint(150, 250)
-            
+
         cases.append(generate_case(num_users=num_users, num_examples=num_examples))
-        
+
     with open(output_path, "w") as f:
         for case in cases:
             f.write(json.dumps(case) + "\n")
-            
+
     print(f"Dataset generated at {output_path}")
 
 if __name__ == "__main__":
