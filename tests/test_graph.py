@@ -23,7 +23,7 @@ from waggle.abhi import (
     write_abhi_document,
 )
 from waggle.errors import ValidationFailure
-from waggle.graph import MemoryGraph
+from waggle.graph import MemoryGraph, _ReadWriteLock
 from waggle.models import NodeType, RelationType
 
 
@@ -2342,3 +2342,10 @@ def test_clear_scope_dry_run_and_audit_trail(tmp_path: Path) -> None:
     meta = events_real[0].metadata
     assert meta["dry_run"] is False
     assert meta["deleted_nodes"] == result_real.deleted_nodes
+
+
+def test_read_to_write_lock_upgrade_raises_runtime_error() -> None:
+    lock = _ReadWriteLock()
+
+    with lock.read(), pytest.raises(RuntimeError, match="Cannot upgrade a read lock to a write lock"), lock:
+        pass
