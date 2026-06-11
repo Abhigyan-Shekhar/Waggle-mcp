@@ -174,7 +174,10 @@ Waggle implements a configurable redaction layer that scrubs sensitive informati
   - General secret/credential keys (`secret=...`, `private_key: ...`, etc.)
 
 ### Custom Rules Configuration
-Operators can enable redaction and configure custom regex patterns using environment variables:
+Operators can enable redaction and configure custom regex patterns using environment variables. 
+
+> [!IMPORTANT]
+> If a valid JSON array is provided in `WAGGLE_REDACTION_RULES_JSON` and contains at least one valid rule, it **completely replaces (recommences instead of adds to)** the default built-in rules. If the JSON is empty, invalidly structured, or none of its entries are valid, the configuration logic safely **falls back to the default rules** to preserve security-first behavior.
 
 ```bash
 export WAGGLE_REDACTION_ENABLED=true

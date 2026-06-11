@@ -10,6 +10,13 @@ from waggle.models import TranscriptMessage, TranscriptIngestionInput
 from waggle.redaction import load_redaction_config, redact_text, DEFAULT_RULES
 
 
+@pytest.fixture(autouse=True)
+def clear_redaction_env(monkeypatch) -> None:
+    """Ensure every test runs in a clean environment independent of the host."""
+    monkeypatch.delenv("WAGGLE_REDACTION_ENABLED", raising=False)
+    monkeypatch.delenv("WAGGLE_REDACTION_RULES_JSON", raising=False)
+
+
 class FakeEmbeddingModel:
     model_name = "fake-model"
     model_id = "fake-model:deterministic-v1"
@@ -52,12 +59,12 @@ def test_redact_text_defaults() -> None:
     sk_prefix = "s" + "k"
     api_key_text = f"My key is {sk_prefix}-abc123xyz."
     bearer_token_text = "Bea" + "rer eyJ12345"
-    password_text1 = "pass" + "word=mysecret"
-    password_text2 = "pass" + "word = 'mysecret'"
-    password_text3 = "pass" + "word: \"mysecret\""
-    password_text4 = "pw" + "d=secret"
-    secret_text1 = "sec" + "ret=mysecret"
-    secret_text2 = "private_" + "key: 'mykey'"
+    password_text1 = "pass" + "word=TEST_PASSWORD_VALUE"
+    password_text2 = "pass" + "word = 'EXAMPLE_PASSWORD'"
+    password_text3 = "pass" + "word: \"TEST_PASSWORD_VALUE\""
+    password_text4 = "pw" + "d=EXAMPLE_PASSWORD"
+    secret_text1 = "sec" + "ret=DUMMY_SECRET"
+    secret_text2 = "private_" + "key: 'DUMMY_SECRET'"
 
     # Test API Key
     assert redact_text(api_key_text, config) == "My key is [REDACTED_API_KEY]."
@@ -83,7 +90,7 @@ def test_redaction_disabled_preserves_text(monkeypatch, tmp_path) -> None:
 
     sk_prefix = "s" + "k"
     user_msg = f"My API key is {sk_prefix}-12345."
-    asst_resp = "My secret is " + "pass" + "word=123."
+    asst_resp = "My secret is " + "pass" + "word=EXAMPLE_PASSWORD."
 
     graph = make_graph(tmp_path)
     graph.observe_conversation(
@@ -95,7 +102,7 @@ def test_redaction_disabled_preserves_text(monkeypatch, tmp_path) -> None:
     assert len(records) == 2
     # Ensure no redaction happened
     assert any(f"{sk_prefix}-12345" in r.transcript_text for r in records)
-    assert any("password=123" in r.transcript_text for r in records)
+    assert any("password=EXAMPLE_PASSWORD" in r.transcript_text for r in records)
 
 
 def test_api_key_redacted_before_storage(monkeypatch, tmp_path) -> None:
@@ -105,7 +112,7 @@ def test_api_key_redacted_before_storage(monkeypatch, tmp_path) -> None:
 
     sk_prefix = "s" + "k"
     user_msg = f"My API key is {sk_prefix}-12345."
-    asst_resp = "My secret is " + "pass" + "word=123."
+    asst_resp = "My secret is " + "pass" + "word=TEST_PASSWORD_VALUE."
 
     graph = make_graph(tmp_path)
     graph.observe_conversation(
@@ -123,7 +130,7 @@ def test_api_key_redacted_before_storage(monkeypatch, tmp_path) -> None:
     assert f"{sk_prefix}-12345" not in user_rec.transcript_text
     assert "[REDACTED_API_KEY]" in user_rec.transcript_text
 
-    assert "password=123" not in asst_rec.transcript_text
+    assert "password=TEST_PASSWORD_VALUE" not in asst_rec.transcript_text
     assert "[REDACTED_PASSWORD]" in asst_rec.transcript_text
 
 
@@ -131,7 +138,7 @@ def test_custom_rule_redacts_content(monkeypatch, tmp_path) -> None:
     custom_rules = [
         {
             "name": "custom_secret",
-            "pattern": "SEC" + "RET_[A-Z0-9]+",
+            "pattern": "SEC" + "RET_[A-Z_]+",
             "replacement": "[REDACTED_SECRET]"
         }
     ]
@@ -144,7 +151,7 @@ def test_custom_rule_redacts_content(monkeypatch, tmp_path) -> None:
     assert config.rules[0].name == "custom_secret"
 
     sk_prefix = "s" + "k"
-    secret_token = "SEC" + "RET_12345"
+    secret_token = "SEC" + "RET_DUMMY_SECRET"
     graph = make_graph(tmp_path)
     graph.observe_conversation(
         user_message=f"This is {secret_token}.",
@@ -187,3 +194,25 @@ def test_ingest_transcript_handoff_redacts_content(monkeypatch, tmp_path) -> Non
     user_rec = next(r for r in records if r.role == "user")
     assert f"{sk_prefix}-12345" not in user_rec.transcript_text
     assert "[REDACTED_API_KEY]" in user_rec.transcript_text
+
+
+def test_invalid_custom_rules_fallback(monkeypatch) -> None:
+    monkeypatch.setenv("WAGGLE_REDACTION_ENABLED", "true")
+    monkeypatch.setenv("WAGGLE_REDACTION_RULES_JSON", "[invalid json")
+
+    config = load_redaction_config()
+    assert config.enabled is True
+    # Should fall back to default rules
+    assert len(config.rules) == len(DEFAULT_RULES)
+    assert any(r.name == "api_key" for r in config.rules)
+
+
+def test_empty_custom_rules_fallback(monkeypatch) -> None:
+    monkeypatch.setenv("WAGGLE_REDACTION_ENABLED", "true")
+    monkeypatch.setenv("WAGGLE_REDACTION_RULES_JSON", "[]")
+
+    config = load_redaction_config()
+    assert config.enabled is True
+    # Should fall back to default rules
+    assert len(config.rules) == len(DEFAULT_RULES)
+    assert any(r.name == "api_key" for r in config.rules)

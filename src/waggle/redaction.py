@@ -82,6 +82,9 @@ def load_redaction_config() -> RedactionConfig:
                                 replacement=str(item["replacement"])
                             )
                         )
+                if not rules:
+                    LOGGER.warning("WAGGLE_REDACTION_RULES_JSON contains no valid rules. Falling back to default rules.")
+                    rules = list(DEFAULT_RULES)
             else:
                 LOGGER.warning("WAGGLE_REDACTION_RULES_JSON must be a JSON array. Falling back to default rules.")
                 rules = list(DEFAULT_RULES)

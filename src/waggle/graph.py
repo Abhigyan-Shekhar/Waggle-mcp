@@ -6213,9 +6213,6 @@ class MemoryGraph:
         Tool boundary splitting is a planned v2 refinement.
         """
         config = load_redaction_config()
-        if config.enabled:
-            for msg in payload.messages:
-                msg.content = redact_text(msg.content, config)
 
         result = TranscriptIngestionResult(
             project=payload.project,
@@ -6248,7 +6245,7 @@ class MemoryGraph:
                         observed_at=observed_at,
                         turn_index=base_turn_index + raw_pos,
                         role=msg.role,
-                        transcript_text=msg.content,
+                        transcript_text=redact_text(msg.content, config),
                         message_identity=identity,
                     )
                     if written:
