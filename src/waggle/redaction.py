@@ -35,12 +35,12 @@ DEFAULT_RULES = [
     ),
     RedactionRule(
         name="password",
-        pattern=r"(?i)\b(password|passwd|pwd)\s*([:=])\s*(['\"]?)([^\s'\"]+)\3",
+        pattern=r"(?i)\b(password|passwd|pwd)(\s*[:=]\s*)(['\"]?)([^\s'\"]+)\3",
         replacement=r"\1\2\3[REDACTED_PASSWORD]\3"
     ),
     RedactionRule(
         name="secret",
-        pattern=r"(?i)\b(secret|private_key|privatekey|secret_key|api_secret)\s*([:=])\s*(['\"]?)([^\s'\"]+)\3",
+        pattern=r"(?i)\b(secret|private_key|privatekey|secret_key|api_secret)(\s*[:=]\s*)(['\"]?)([^\s'\"]+)\3",
         replacement=r"\1\2\3[REDACTED_SECRET]\3"
     )
 ]
