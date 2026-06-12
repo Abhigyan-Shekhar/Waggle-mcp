@@ -18,18 +18,32 @@ def _format_query_plan_rows(rows: list[sqlite3.Row]) -> str:
 
 
 def _explain_and_log(
-    connection: sqlite3.Connection, sql: str, params: Sequence[Any] | None = None, *, label: str
+    connection: sqlite3.Connection,
+    sql: str,
+    params: Sequence[Any] | None = None,
+    *,
+    label: str,
 ) -> None:
     if not WAGGLE_LOG_QUERY_PLANS:
         return
-    params_tuple = tuple(params) if params is not None else ()
-    plan_sql = f"EXPLAIN QUERY PLAN {sql.strip()}"
-    plan_rows = list(connection.execute(plan_sql, params_tuple))
-    plan_text = _format_query_plan_rows(plan_rows)
-    LOGGER.debug(
-        "SQLite query plan (%s): sql=%s params=%s\n%s",
-        label,
-        sql.strip(),
-        params_tuple,
-        plan_text,
-    )
+
+    try:
+        params_tuple = tuple(params) if params is not None else ()
+        plan_sql = f"EXPLAIN QUERY PLAN {sql.strip()}"
+        plan_rows = list(connection.execute(plan_sql, params_tuple))
+        plan_text = _format_query_plan_rows(plan_rows)
+
+        LOGGER.debug(
+            "SQLite query plan (%s): sql=%s params=%s\n%s",
+            label,
+            sql.strip(),
+            params_tuple,
+            plan_text,
+        )
+
+    except Exception as exc:
+        LOGGER.warning(
+            "Failed to generate query plan for %s: %s",
+            label,
+            exc,
+        )
