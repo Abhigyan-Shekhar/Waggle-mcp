@@ -748,3 +748,57 @@ The following refinements are intentional omissions, not oversights:
 - Stdin read timeouts (callers can wrap `ingest-transcript-handoff` with a wall-clock timeout).
 - Streaming NDJSON input format.
 - Neo4j backend support.
+## Google Drive Sync
+
+Waggle supports pushing backups to Google Drive, downloading backups from Google Drive, and creating shareable links.
+
+### Optional Dependencies
+
+Google Drive sync requires the Google API client libraries. Install the optional Google Drive dependencies before using Drive commands.
+
+### First-Time Authentication
+
+The first time a Drive command is used:
+
+1. A browser window opens automatically.
+2. Sign in to your Google account.
+3. Grant access to the application.
+4. Waggle stores an OAuth token locally.
+5. Future Drive commands reuse the saved token and automatically refresh credentials when needed.
+
+### Token File Location
+
+By default, the Google Drive OAuth token is stored at:
+
+```text
+~/.waggle/google-drive-token.json
+```
+
+A custom token path can be supplied through CLI configuration.
+
+### Drive Operations
+
+#### Push
+
+Push uploads a local Waggle export to Google Drive.
+
+#### Pull
+
+Pull downloads a file from Google Drive and restores it locally.
+
+#### Share
+
+Share creates a Google Drive sharing link for an uploaded file.
+
+### Example Workflow
+
+```bash
+# Export and push a backup to Google Drive
+waggle-mcp drive push
+
+# Download a backup from Google Drive
+waggle-mcp drive pull
+
+# Create a shareable link
+waggle-mcp drive share
+```
