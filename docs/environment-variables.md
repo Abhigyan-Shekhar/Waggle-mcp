@@ -78,3 +78,9 @@ To force Waggle to use a specific database location, set `WAGGLE_DB_PATH` explic
 | `WAGGLE_RETENTION_ENABLED` | `false` | boolean string | Retention pruning. Set to `true` to enable. | `true` |
 | `WAGGLE_RETENTION_DAYS` | `90` | integer | Retention pruning age. Must be at least `1`. | `180` |
 | `WAGGLE_RETENTION_PRUNE_INTERVAL_HOURS` | `24` | integer | Background retention prune interval. Must be at least `1`. | `12` |
+
+## Google Drive synchronization
+
+| Variable | Default | Type | Applies when | Example |
+|----------|---------|------|--------------|---------|
+| `WAGGLE_DRIVE_CREDENTIAL_STORE` | `auto` | string enum: `auto`, `secure`, `file` | When using Google Drive integration commands (`pull`, `push`, `share`). | `secure` |

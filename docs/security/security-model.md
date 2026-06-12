@@ -196,6 +196,26 @@ export WAGGLE_REDACTION_RULES_JSON='[
 - **Accidental Redaction**: Generous patterns might inadvertently replace benign conversation text matching similar shapes.
 - **No Retrospective Action**: Redaction only applies to new incoming transcript turns. Previously stored database records are not retrospectively redacted.
 
+## Google Drive Credentials Storage
+
+When Google Drive synchronization is enabled, Waggle must persist Google Drive OAuth refresh tokens to authorize file transfers.
+
+### Plaintext Storage Risks
+By default, OAuth credentials can be written to a plaintext JSON file (`google-drive-token.json`) on disk. In environments with multiple local users or untrusted processes, storing refresh tokens in plaintext introduces risk, as any program reading the file system can access the OAuth tokens.
+
+### Secure Storage Architecture
+To address this risk, Waggle supports storing Drive credentials securely inside the OS-native credential store using Python's `keyring` library:
+- **Windows**: Stored in Windows Credential Manager.
+- **macOS**: Stored in Apple Keychain.
+- **Linux**: Stored in Secret Service / libsecret (via DBus).
+
+The store uses the service name `waggle-drive-sync` and isolates stored credentials by using the absolute resolved path of the target token file as the username key.
+
+### Migration and Fallback Behavior
+- **Startup Migration**: When secure storage is enabled (or in `auto` mode where it is available), Waggle checks the secure store. If empty, it checks if a legacy plaintext token file exists, automatically imports it into the secure store, and logs the migration.
+- **Non-Destructive**: The original plaintext token file is never silently deleted, allowing manual validation and backward compatibility.
+- **Universal Fallback**: In environments without a native keychain manager (e.g. headless servers, CI/CD runners, or Docker containers), Waggle automatically falls back to plaintext JSON file storage (under `auto` mode) or fails explicitly if secure storage was explicitly required.
+
 ## Known limitations
 
 Current limitations:

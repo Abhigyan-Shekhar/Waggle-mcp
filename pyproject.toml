@@ -37,6 +37,7 @@ dependencies = [
   "sentence-transformers>=2.6.0",
   "starlette>=0.37.2",
   "uvicorn>=0.30.0",
+  "keyring>=25.0.0",
 ]
 
 [project.urls]

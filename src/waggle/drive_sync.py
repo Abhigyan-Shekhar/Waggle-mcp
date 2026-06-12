@@ -3,13 +3,15 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
+import os
 import secrets
 import threading
 import urllib.parse
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import requests
 from google.auth.transport.requests import Request
@@ -20,8 +22,87 @@ from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 from waggle.abhi import merge_abhi_documents
 from waggle.models import DrivePushResult, DriveShareResult
 
+LOGGER = logging.getLogger(__name__)
+
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
 TOKEN_URI = "https://oauth2.googleapis.com/token"
+
+
+class CredentialStore(Protocol):
+    def load(self) -> Credentials | None:
+        ...
+
+    def save(self, credentials: Credentials) -> None:
+        ...
+
+    def delete(self) -> None:
+        ...
+class FileCredentialStore:
+    def __init__(self, token_path: str | Path, scopes: list[str] | None = None) -> None:
+        self.token_path = Path(token_path).expanduser()
+        self.scopes = scopes or [DRIVE_SCOPE]
+
+    def load(self) -> Credentials | None:
+        if self.token_path.exists():
+            try:
+                return Credentials.from_authorized_user_file(str(self.token_path), scopes=self.scopes)
+            except Exception as e:
+                LOGGER.warning(f"Failed to load credentials from file {self.token_path}: {e}")
+        return None
+
+    def save(self, credentials: Credentials) -> None:
+        self.token_path.parent.mkdir(parents=True, exist_ok=True)
+        self.token_path.write_text(credentials.to_json(), encoding="utf-8")
+
+    def delete(self) -> None:
+        if self.token_path.exists():
+            try:
+                self.token_path.unlink()
+            except Exception as e:
+                LOGGER.warning(f"Failed to delete credential file {self.token_path}: {e}")
+
+
+class SecureCredentialStore:
+    def __init__(self, token_path: str | Path, scopes: list[str] | None = None) -> None:
+        self.token_path = Path(token_path).expanduser()
+        self.scopes = scopes or [DRIVE_SCOPE]
+        self.keyring_username = str(self.token_path.resolve().absolute())
+        self.service_name = "waggle-drive-sync"
+
+    def load(self) -> Credentials | None:
+        try:
+            import keyring
+            data_str = keyring.get_password(self.service_name, self.keyring_username)
+            if data_str:
+                data = json.loads(data_str)
+                return Credentials.from_authorized_user_info(data, scopes=self.scopes)
+        except Exception as e:
+            LOGGER.warning(f"Failed to load credentials from secure store: {e}")
+        return None
+
+    def save(self, credentials: Credentials) -> None:
+        try:
+            import keyring
+            data_str = credentials.to_json()
+            keyring.set_password(self.service_name, self.keyring_username, data_str)
+        except Exception as e:
+            raise RuntimeError(f"Failed to save credentials to secure store: {e}") from e
+
+    def delete(self) -> None:
+        try:
+            import keyring
+            keyring.delete_password(self.service_name, self.keyring_username)
+        except Exception as e:
+            LOGGER.debug(f"Failed to delete credentials from secure store: {e}")
+
+
+def is_secure_store_available() -> bool:
+    try:
+        import keyring
+        from keyring.backends.fail import Keyring as FailKeyring
+        return not isinstance(keyring.get_keyring(), FailKeyring)
+    except (ImportError, Exception):
+        return False
 
 
 def ensure_drive_credentials(
@@ -33,20 +114,51 @@ def ensure_drive_credentials(
 ) -> Credentials:
     scopes = scopes or [DRIVE_SCOPE]
     token_file = Path(token_path).expanduser()
-    if token_file.exists():
-        credentials = Credentials.from_authorized_user_file(str(token_file), scopes=scopes)
+
+    config_mode = os.environ.get("WAGGLE_DRIVE_CREDENTIAL_STORE", "auto").strip().lower()
+    secure_available = is_secure_store_available()
+
+    if config_mode == "secure":
+        if not secure_available:
+            raise RuntimeError(
+                "Secure credential storage is requested (WAGGLE_DRIVE_CREDENTIAL_STORE=secure) "
+                "but native keychain/keyring backend is not available in this environment."
+            )
+        use_secure = True
+    elif config_mode == "file":
+        use_secure = False
+    else:
+        use_secure = secure_available
+
+    secure_store = SecureCredentialStore(token_file, scopes=scopes)
+    file_store = FileCredentialStore(token_file, scopes=scopes)
+
+    if use_secure:
+        store: CredentialStore = secure_store
+        credentials = secure_store.load()
+        if credentials is None:
+            file_credentials = file_store.load()
+            if file_credentials is not None:
+                LOGGER.info("Migrating Google Drive credentials from JSON file to secure OS keychain storage...")
+                secure_store.save(file_credentials)
+                credentials = file_credentials
+    else:
+        store = file_store
+        credentials = file_store.load()
+
+    if credentials is not None:
         if credentials.expired and credentials.refresh_token:
             credentials.refresh(Request())
-            token_file.write_text(credentials.to_json(), encoding="utf-8")
+            store.save(credentials)
         if credentials.valid:
             return credentials
+
     credentials = _run_local_oauth_flow(
         client_secret_path=client_secret_path,
         scopes=scopes,
         open_browser=open_browser,
     )
-    token_file.parent.mkdir(parents=True, exist_ok=True)
-    token_file.write_text(credentials.to_json(), encoding="utf-8")
+    store.save(credentials)
     return credentials
 
 

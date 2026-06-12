@@ -739,6 +739,39 @@ Core does not yet run pruning automatically in the background. Operators should 
 
 v1 does not have a `--max-context-tokens` flag. Export is bounded by `--max-nodes`. Token-budgeted export is a planned later enhancement.
 
+## Google Drive Credentials Storage
+
+When synchronizing files to or from Google Drive (`push`, `pull`, or `share` commands), Waggle persists the OAuth credentials (including the refresh token) so subsequent operations do not require a browser authorization flow.
+
+### Configuration
+
+You can configure how these credentials are saved and loaded by setting the `WAGGLE_DRIVE_CREDENTIAL_STORE` environment variable:
+
+- **`auto`** (Default): Uses the OS-native secure credential store (via `keyring`) if it is available. If unavailable, it silently falls back to saving a plaintext JSON file (`google-drive-token.json`) at the target token path.
+- **`secure`**: Forces the use of the OS-native secure store. If the native keychain manager is unavailable or fails to initialize, Waggle will fail clearly with a configuration error.
+- **`file`**: Forces the use of a plaintext JSON file on disk, bypassing the OS keychain entirely.
+
+### Headless and Server Recommendations
+
+In headless environments (like Docker containers, remote servers, Kubernetes pods, or CI/CD pipelines), a native OS keychain service (e.g. `dbus`, `gnome-keyring`, or `libsecret`) is usually not configured or running.
+- In these environments, it is recommended to set `WAGGLE_DRIVE_CREDENTIAL_STORE=file` to ensure predictable behavior and avoid runtime failures due to missing DBus services.
+- If you run in a headless environment but want to use secure storage, you must configure a virtual framebuffer (like `xvfb`) or run a headless keyring backend.
+
+### Security Tradeoff Table
+
+| Strategy / Mode | Security | Portability | Recommended Use |
+| --------------- | -------- | ----------- | --------------- |
+| **`secure`**    | High     | Medium      | Personal workstations and developer desktops with native keychain managers (Keychain, Credential Manager). |
+| **`auto`**      | Medium   | High        | Default general setups. Seamless transition between developer machines and CI/CD pipelines. |
+| **`file`**      | Low      | High        | Headless servers, Docker containers, CI/CD runners, and headless production deployments. |
+
+### Migration Pathway
+
+If a legacy installation has an existing `google-drive-token.json` file on disk and is updated to run in `auto` or `secure` mode with a functional native keychain, Waggle will:
+1. Load the credentials from the existing JSON file.
+2. Store the credentials inside the OS-native keychain.
+3. Keep the original JSON file untouched to ensure backward compatibility and prevent loss of credentials (non-destructive migration).
+
 ### v2 backlog
 
 The following refinements are intentional omissions, not oversights:
