@@ -78,7 +78,7 @@ export function createContext(
 
   const execFileAsync = async (command: string, args: string[], cwd?: string): Promise<CommandResult> =>
     await new Promise((resolve, reject) => {
-      execFile(command, args, { cwd, windowsHide: true }, (error, stdout, stderr) => {
+      execFile(command, args, { cwd, windowsHide: true, timeout: 15000 }, (error, stdout, stderr) => {
         const numericCode = (error as NodeJS.ErrnoException | null)?.code;
         const code = typeof numericCode === "number" ? numericCode : 0;
         if (error && typeof (error as NodeJS.ErrnoException).code !== "number") {

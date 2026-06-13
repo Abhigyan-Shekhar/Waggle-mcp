@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import { type ExtensionState } from "./types";
 import { createContext } from "./services/context";
-import { writeWorkspaceConfig } from "./services/config";
 import {
   runDoctorInternal,
   installWaggle,

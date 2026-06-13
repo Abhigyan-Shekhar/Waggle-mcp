@@ -12,7 +12,11 @@ import { type WaggleContext } from "./context";
 export async function parseJsonFile(filePath: string): Promise<JsonObject> {
   try {
     const raw = await fs.readFile(filePath, "utf8");
-    return JSON.parse(raw) as JsonObject;
+    const parsed: unknown = JSON.parse(raw);
+    if (!isJsonObject(parsed)) {
+      throw new Error("Expected JSON object at root of mcp.json");
+    }
+    return parsed;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return {};
@@ -76,9 +80,6 @@ export async function writeWorkspaceConfig(ctx: WaggleContext): Promise<boolean>
   existing[rootKey] = currentRoot;
 
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const serialized = `${JSON.stringify(existing, null, 2)}\n`;
-  JSON.parse(serialized);
-  await fs.writeFile(filePath, serialized, "utf8");
 
   ctx.append(`Wrote ${filePath}`);
   ctx.setStatus("ready", folder.name);

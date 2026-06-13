@@ -10,7 +10,7 @@ export async function runDoctorInternal(ctx: WaggleContext, showSuccessMessage =
     const result = await ctx.execFileAsync(ctx.commandPath(), ["doctor"], ctx.workspaceFolder()?.uri.fsPath);
     ctx.flushResult(result);
     if (result.code === 0) {
-      ctx.setStatus(ctx.state.graphStudioProcess ? "connected" : "connected", "doctor ok");
+      ctx.setStatus(ctx.state.graphStudioProcess ? "connected" : "ready", "doctor ok");
       if (showSuccessMessage) {
         void vscode.window.showInformationMessage("Waggle doctor completed successfully.");
       }
