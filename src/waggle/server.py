@@ -3140,12 +3140,14 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         if mode not in {"edit", "view"}:
             mode = "edit"
         scope = _scope_from_request(request)
+        active_tab = request.query_params.get("tab", "").strip().lower()
         return HTMLResponse(
             render_graph_editor_html(
                 mode=mode,
                 project=scope["project"],
                 agent_id=scope["agent_id"],
                 session_id=scope["session_id"],
+                active_tab=active_tab,
             )
         )
 
@@ -3675,6 +3677,18 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         finally:
             temp_path.unlink(missing_ok=True)
 
+    async def graph_import_demo(request: Request) -> Response:
+        graph, _ = _require_http_scope(request, "graph:write")
+        demo_abhi = Path(__file__).resolve().parent.parent.parent / "examples" / "demo.abhi"
+        if not demo_abhi.exists():
+            demo_abhi = Path(__file__).resolve().parent / "examples" / "demo.abhi"
+        if not demo_abhi.exists():
+            demo_abhi = Path.cwd() / "examples" / "demo.abhi"
+        if not demo_abhi.exists():
+            raise ValidationFailure("Could not find examples/demo.abhi. Please generate it first.")
+        imported = graph.import_abhi(input_path=demo_abhi, merge_strategy="skip-existing")
+        return JSONResponse({**imported.model_dump(mode="json"), "imported_node_ids": []})
+
     async def graph_import_preview(request: Request) -> Response:
         payload = await request.json()
         import_format = str(payload.get("format", "abhi")).strip().lower()
@@ -3876,6 +3890,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             Route("/api/graph/edges/{edge_id:str}", graph_delete_edge, methods=["DELETE"]),
             Route("/api/graph/export", graph_export, methods=["GET"]),
             Route("/api/graph/import", graph_import, methods=["POST"]),
+            Route("/api/graph/import-demo", graph_import_demo, methods=["POST"]),
             Route("/api/admin/retention", admin_retention_status, methods=["GET"]),
             Route("/api/admin/retention", admin_retention_update, methods=["PUT", "PATCH"]),
             Route("/api/admin/retention/prune", admin_retention_prune, methods=["POST"]),

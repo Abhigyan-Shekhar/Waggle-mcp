@@ -10,6 +10,7 @@ def render_graph_editor_html(
     project: str = "",
     agent_id: str = "",
     session_id: str = "",
+    active_tab: str = "",
 ) -> str:
     page_mode = "view" if mode.strip().lower() == "view" else "edit"
     assets_dir = Path(__file__).resolve().parent / "static" / "graph"
@@ -23,6 +24,7 @@ def render_graph_editor_html(
             "project": project,
             "agent_id": agent_id,
             "session_id": session_id,
+            "activeTab": active_tab,
         }
     )
     return f"""<!doctype html>

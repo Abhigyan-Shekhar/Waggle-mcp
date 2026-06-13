@@ -82,6 +82,17 @@ The dev server reads these from the shell or a `.env` file in `apps/mcp/graph-ui
 
 ---
 
+## URL Parameters
+
+Graph Studio supports the following URL query parameters:
+
+| Parameter | Values | Default | Description |
+|---|---|---|---|
+| `mode` | `edit`, `view` | `edit` | View-only mode hides editing and deletion functions. |
+| `tab` | `graph`, `transcripts`, `retrieval` | `graph` | Selects which tab to activate first on load. |
+
+---
+
 ## Screenshots
 
 > Run `waggle-mcp edit-graph` to launch Graph Studio in your browser.

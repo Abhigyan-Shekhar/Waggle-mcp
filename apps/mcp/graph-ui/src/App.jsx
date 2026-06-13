@@ -40,7 +40,8 @@ function getBootConfig() {
       project: config.project || "",
       agent_id: config.agent_id || "",
       session_id: config.session_id || ""
-    }
+    },
+    activeTab: config.activeTab || "graph"
   };
 }
 
@@ -204,7 +205,7 @@ export function App() {
   const [edgeDialog, setEdgeDialog] = useState(null);
   const [historyPast, setHistoryPast] = useState([]);
   const [historyFuture, setHistoryFuture] = useState([]);
-  const [activeTab, setActiveTab] = useState("graph");
+  const [activeTab, setActiveTab] = useState(boot.activeTab || "graph");
   const [layerMode, setLayerMode] = useState("both");
   const [highlightedTurnPairId, setHighlightedTurnPairId] = useState("");
   const [importedNodeIds, setImportedNodeIds] = useState([]);
@@ -253,6 +254,20 @@ export function App() {
     setSelectedNodeId("");
     setSelectedEdgeId("");
     setHoverNodeId("");
+  };
+
+  const loadDemoData = async () => {
+    if (readOnly || boot.sampleMode) {
+      return;
+    }
+    try {
+      setToast("Loading demo data...");
+      await apiRequest("/api/graph/import-demo", { method: "POST" });
+      await loadSnapshot(scope);
+      setToast("Demo data successfully loaded!");
+    } catch (error) {
+      setToast("Failed to load demo data: " + error.message);
+    }
   };
 
   useEffect(() => {
@@ -1022,7 +1037,83 @@ export function App() {
                   {hoverNodeId ? <span className="rounded-full bg-white/8 px-2 py-1 text-white">Hover focus</span> : null}
                 </div>
               </div>
-              <div className="grid-noise h-[calc(100%-57px)] w-full" ref={hostRef} />
+              <div className="grid-noise relative h-[calc(100%-57px)] w-full" ref={hostRef}>
+                {!boot.sampleMode && layerGraph.elements.length === 0 ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center select-none overflow-y-auto scrollbar-thin">
+                    <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#161a22]/85 backdrop-blur-xl p-6 shadow-2xl flex flex-col items-center gap-5 relative overflow-hidden">
+                      <div className="absolute -top-20 -left-20 w-40 h-40 rounded-full bg-graph-cyan/10 blur-3xl pointer-events-none"></div>
+                      <div className="absolute -bottom-20 -right-20 w-40 h-40 rounded-full bg-graph-gold/10 blur-3xl pointer-events-none"></div>
+
+                      <div className="relative flex items-center justify-center w-14 h-14 rounded-full bg-white/5 border border-white/10 shadow-inner">
+                        <span className="text-2xl text-graph-cyan animate-pulse">◎</span>
+                        <span className="absolute inset-0 rounded-full border border-graph-cyan/30 animate-ping opacity-40"></span>
+                      </div>
+
+                      <div>
+                        <h3 className="text-base font-semibold text-white">No memory nodes yet</h3>
+                        <p className="max-w-xs text-xs leading-5 text-graph-muted mt-1.5 mx-auto">
+                          Your graph is empty. Start a conversation and Waggle will automatically extract and store memory nodes as you chat.
+                        </p>
+                      </div>
+
+                      <div className="w-full space-y-3">
+                        {/* Option 1: Load Demo Data */}
+                        <div className="flex flex-col gap-2 rounded-xl border border-white/5 bg-white/[0.02] p-3 text-left">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex-1">
+                              <h4 className="text-xs font-semibold text-white/90">Option 1: Load Demo Dataset</h4>
+                              <p className="text-[10px] text-graph-muted mt-0.5">Instantly populate the studio with sample transcripts, graph nodes, and edges.</p>
+                            </div>
+                            <button
+                              onClick={loadDemoData}
+                              disabled={readOnly}
+                              className="rounded-lg bg-white hover:bg-white/90 active:scale-95 transition px-3 py-1.5 text-[10px] font-semibold text-black shadow-lg disabled:opacity-40 disabled:hover:bg-white pointer-events-auto"
+                              type="button"
+                            >
+                              Load Demo
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Option 2: Connect Agent */}
+                        <div className="flex flex-col gap-1.5 rounded-xl border border-white/5 bg-white/[0.02] p-3 text-left">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex-1">
+                              <h4 className="text-xs font-semibold text-white/90">Option 2: Feed memory from your Agent</h4>
+                              <p className="text-[10px] text-graph-muted mt-0.5">Call observe_conversation after each completed agent turn.</p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText("observe_conversation(user_message=\"...\", assistant_response=\"...\")");
+                                setToast("Copied observation schema to clipboard!");
+                              }}
+                              className="rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 active:scale-95 transition px-3 py-1.5 text-[10px] font-semibold text-white pointer-events-auto"
+                              type="button"
+                            >
+                              Copy Snippet
+                            </button>
+                          </div>
+                          <div className="mt-1 rounded bg-black/40 p-2 text-[10px] font-mono text-graph-cyan select-all break-all border border-white/5 leading-relaxed">
+                            observe_conversation(user_message="...", assistant_response="...")
+                          </div>
+                        </div>
+
+                        {/* Option 3: Doctor Setup check */}
+                        <div className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-3 text-left">
+                          <div>
+                            <h4 className="text-xs font-semibold text-white/90">Option 3: Verify installation</h4>
+                            <p className="text-[10px] text-graph-muted mt-0.5">Run setup doctor to check configuration files.</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 rounded-full bg-graph-green/10 border border-graph-green/20 px-2 py-0.5 text-[10px] font-medium text-graph-green">
+                            <span className="w-1.5 h-1.5 rounded-full bg-graph-green animate-pulse"></span>
+                            API Connected
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </>
           ) : null}
 
@@ -1037,6 +1128,68 @@ export function App() {
                 </div>
               </div>
               <div className="flex-1 overflow-auto p-4 scrollbar-thin">
+                {!boot.sampleMode && visibleTranscriptRecords.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center p-8 text-center select-none min-h-[480px]">
+                    <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#161a22]/85 backdrop-blur-xl p-6 shadow-2xl flex flex-col items-center gap-5 relative overflow-hidden">
+                      <div className="absolute -top-20 -left-20 w-40 h-40 rounded-full bg-graph-gold/10 blur-3xl pointer-events-none"></div>
+                      <div className="absolute -bottom-20 -right-20 w-40 h-40 rounded-full bg-graph-cyan/10 blur-3xl pointer-events-none"></div>
+
+                      <div className="relative flex items-center justify-center w-14 h-14 rounded-full bg-white/5 border border-white/10 shadow-inner">
+                        <span className="text-2xl text-graph-gold animate-pulse">📄</span>
+                        <span className="absolute inset-0 rounded-full border border-graph-gold/30 animate-ping opacity-40"></span>
+                      </div>
+
+                      <div>
+                        <h3 className="text-base font-semibold text-white">
+                          {transcriptSearch.trim() ? "No matching transcripts" : "No transcript records"}
+                        </h3>
+                        <p className="max-w-xs text-xs leading-5 text-graph-muted mt-1.5 mx-auto">
+                          {transcriptSearch.trim()
+                            ? "Try a different search query or clear the search box to see all records."
+                            : "Transcript turn-pairs appear here once Waggle starts recording conversations."}
+                        </p>
+                      </div>
+
+                      <div className="w-full space-y-3">
+                        {/* Option 1: Load Demo Data */}
+                        <div className="flex flex-col gap-2 rounded-xl border border-white/5 bg-white/[0.02] p-3 text-left">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex-1">
+                              <h4 className="text-xs font-semibold text-white/90">Option 1: Load Demo Dataset</h4>
+                              <p className="text-[10px] text-graph-muted mt-0.5">Instantly populate the transcripts and graph views with sample data.</p>
+                            </div>
+                            <button
+                              onClick={loadDemoData}
+                              disabled={readOnly}
+                              className="rounded-lg bg-white hover:bg-white/90 active:scale-95 transition px-3 py-1.5 text-[10px] font-semibold text-black shadow-lg disabled:opacity-40 disabled:hover:bg-white pointer-events-auto"
+                              type="button"
+                            >
+                              Load Demo
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Option 2: Connect Agent */}
+                        <div className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-3 text-left font-sans">
+                          <div>
+                            <h4 className="text-xs font-semibold text-white/90">Option 2: Feed transcripts automatically</h4>
+                            <p className="text-[10px] text-graph-muted mt-0.5">Verbatim turns are stored as evidence once the agent observes the conversation.</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText("observe_conversation(user_message=\"...\", assistant_response=\"...\")");
+                              setToast("Copied observation schema to clipboard!");
+                            }}
+                            className="rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 active:scale-95 transition px-3 py-1.5 text-[10px] font-semibold text-white pointer-events-auto"
+                            type="button"
+                          >
+                            Copy Snippet
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
                 <div className="space-y-3">
                   {visibleTranscriptRecords.map((record) => {
                     const pairId = `${record.session_id || "default"}:pair:${Math.floor((record.turn_index || 0) / 2)}`;
@@ -1070,6 +1223,7 @@ export function App() {
                     );
                   })}
                 </div>
+                )}
                 {!transcriptSearch.trim() && transcriptTotalCount > transcriptRecords.length ? (
                   <div className="flex justify-center pt-2 pb-4">
                     <button
@@ -1093,6 +1247,15 @@ export function App() {
                   Run debugger
                 </button>
               </div>
+              {!retrievalResult && graph.nodes.length === 0 ? (
+                <div className="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-6 text-center">
+                  <div className="text-3xl opacity-30">🔍</div>
+                  <div className="text-sm font-semibold text-white/70">Nothing to retrieve yet</div>
+                  <p className="max-w-xs text-xs leading-6 text-graph-muted">
+                    Retrieval debug works against your live memory graph. Add some memory first by running a conversation with Waggle active, then type a query above and click <strong className="text-white/60">Run debugger</strong>.
+                  </p>
+                </div>
+              ) : null}
               {retrievalResult ? (
                 <div className="mt-4 space-y-4">
                   <Section title="Top hits">
