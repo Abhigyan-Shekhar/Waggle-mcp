@@ -700,6 +700,7 @@ def test_hybrid_retriever_caching_and_correctness(tmp_path: Path) -> None:
 
 def test_hybrid_retrieval_performance_caching(tmp_path: Path) -> None:
     import time
+
     graph = make_graph(tmp_path, rerank_enabled=False)
 
     # Populate database with a moderate number of items
@@ -764,4 +765,3 @@ def test_hybrid_retrieval_performance_caching(tmp_path: Path) -> None:
 
     # Ensure there is a speedup
     assert speedup > 1.0, f"Expected cache to be faster, but got speedup of {speedup:.2f}x"
-
