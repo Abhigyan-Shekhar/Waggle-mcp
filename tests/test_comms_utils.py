@@ -6,13 +6,14 @@ from rlm.core.comms_utils import socket_recv
 
 class FakeSocket:
     """Socket test double that simulates fragmented TCP header delivery."""
+
     def __init__(self):
         payload = json.dumps({"hello": "world"}).encode("utf-8")
         header = struct.pack(">I", len(payload))
 
         self.chunks = [
-            header[:2],      # partial header
-            header[2:],      # rest of header
+            header[:2],  # partial header
+            header[2:],  # rest of header
             payload,
         ]
 
