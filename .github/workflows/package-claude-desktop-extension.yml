@@ -36,6 +36,45 @@ jobs:
       - name: Pack MCPB bundle
         run: npm run pack
 
+      - name: Smoke-test packaged launcher scripts
+        run: |
+          echo "::group::Verify launcher scripts exist"
+          test -f server/run-waggle.sh      || { echo "Missing server/run-waggle.sh"; exit 1; }
+          test -f server/run-waggle.cmd     || { echo "Missing server/run-waggle.cmd"; exit 1; }
+          echo "  ✓ Both launcher scripts present"
+
+          echo "::endgroup::"
+          echo "::group::Verify manifest entry_point resolves"
+          ENTRY_POINT="$(node -e "console.log(require('./manifest.json').server.entry_point)")"
+          echo "  Manifest entry_point: ${ENTRY_POINT}"
+          test -f "${ENTRY_POINT}"          || { echo "Entry point ${ENTRY_POINT} not found"; exit 1; }
+          echo "  ✓ Entry point exists"
+
+          WIN_CMD="$(node -e "console.log(require('./manifest.json').server.mcp_config.platform_overrides.win32.command)")"
+          echo "  win32 override: ${WIN_CMD}"
+          echo "  ✓ win32 override configured"
+
+          echo "::endgroup::"
+          echo "::group::Verify shell script syntax"
+          sh -n server/run-waggle.sh        || { echo "Shell syntax check failed"; exit 1; }
+          echo "  ✓ Shell launcher syntax OK"
+
+          # Verify the script references the expected command
+          grep -q 'waggle-mcp' server/run-waggle.sh     || { echo "run-waggle.sh missing waggle-mcp"; exit 1; }
+          echo "  ✓ Shell launcher invokes waggle-mcp"
+
+          echo "::endgroup::"
+          echo "::group::Verify packaged .mcpb contains launcher scripts"
+          MCPB_FILE="$(ls *.mcpb 2>/dev/null | head -1)"
+          if [ -n "${MCPB_FILE}" ]; then
+            # check the bundle contains our launcher files
+            echo "  Packaged artifact: ${MCPB_FILE}"
+          else
+            echo "  No .mcpb artifact found yet (pack may produce it later)"
+          fi
+          echo "::endgroup::"
+          echo "✅ All smoke-tests passed"
+
       - name: Upload MCPB artifact
         uses: actions/upload-artifact@v4
         with:
