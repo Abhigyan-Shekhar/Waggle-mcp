@@ -458,7 +458,7 @@ waggle-mcp push --no-open-browser
 ```
 Instead of launching a browser automatically, Waggle prints the Google OAuth authorization URL to the terminal.
 
-Open the URL in a browser, complete authorization flow, and return to the terminal. Waggle will continue waiting for authorization.
+Open the URL in a browser and complete authorization flow. The OAuth callback must still be able to reach the machine running Waggle. Waggle waits up to 300 seconds for authorization before timing out.
 
 The same option is available for:
 

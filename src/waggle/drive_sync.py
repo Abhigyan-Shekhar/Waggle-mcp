@@ -11,6 +11,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
 
+import sys
+
 import requests
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -215,9 +217,9 @@ def _run_local_oauth_flow(
     if open_browser:
         webbrowser.open(auth_url)
     else:
-        print("\nAuthorize Waggle Drive access by visiting this URL:\n")
-        print(auth_url)
-        print("\nWaiting for authorization...\n")
+        print("\nAuthorize Waggle Drive access by visiting this URL:\n", file=sys.stderr,flush=True)
+        print(auth_url, file=sys.stderr,flush=True)
+        print("\nWaiting for authorization...\n",file=sys.stderr,flush=True)
     thread.join(timeout=300)
     code = code_holder.get("code", "")
     if not code:
