@@ -6,7 +6,13 @@ ROOT = Path(__file__).resolve().parent.parent
 
 LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 
-markdown_files = ROOT.rglob("*.md")
+IGNORED_DIRS = {".venv", ".git", "node_modules"}
+
+markdown_files = sorted(
+    path
+    for path in ROOT.rglob("*.md")
+    if not any(part in IGNORED_DIRS for part in path.parts)
+)
 
 broken_links = []
 
@@ -33,12 +39,19 @@ for md_file in markdown_files:
 
         resolved_path = (md_file.parent / link_path).resolve()
 
-        if not resolved_path.exists():
-            try:
-                relative_path = resolved_path.relative_to(ROOT)
-            except ValueError:
-                relative_path = resolved_path
+        try:
+            relative_path = resolved_path.relative_to(ROOT)
+        except ValueError:
+            broken_links.append(
+                (
+                    md_file.relative_to(ROOT),
+                    link,
+                    resolved_path,
+                )
+            )
+            continue
 
+        if not resolved_path.exists():
             broken_links.append(
                 (
                     md_file.relative_to(ROOT),

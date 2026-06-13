@@ -191,9 +191,6 @@ python scripts/check_markdown_links.py
 
 The script checks internal Markdown links across the repository and reports the source file and broken path when an invalid link is found.
 
-External URLs and section anchors are ignored to keep the check deterministic and CI-safe.
-```
-
 ## Code Style
 
 This project uses [ruff](https://docs.astral.sh/ruff/) for both linting and formatting.
