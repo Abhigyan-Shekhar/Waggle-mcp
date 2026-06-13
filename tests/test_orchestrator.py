@@ -173,3 +173,94 @@ def test_memory_policy_is_durable_only_by_default() -> None:
     assert durable.reason == "durable signal detected"
     assert filler.should_ingest is False
     assert filler.reason == "durable-only policy: no durable signal"
+
+
+@pytest.mark.asyncio
+async def test_on_assistant_turn_drops_when_queue_full() -> None:
+    """Queue-full: when the ingest queue is at capacity, the turn is dropped with reason 'queue full'."""
+    graph = FakeGraph()
+    # maxsize=1 so the queue fills after one item; do NOT start the worker so nothing drains
+    orchestrator = AsyncMemoryOrchestrator(graph, queue_maxsize=1)
+
+    scope = MemoryScope(project="MCP", session_id="thread-full", agent_id="codex")
+
+    def _durable_turn(n: int) -> ConversationTurn:
+        return ConversationTurn(
+            user_message=f"We decided to always remember policy rule {n}.",
+            assistant_response=f"Understood, policy rule {n} is stored.",
+            turn_id=f"turn-{n}",
+        )
+
+    # Fill the queue (worker not started, so nothing drains)
+    first = await orchestrator.on_assistant_turn(scope=scope, turn=_durable_turn(1))
+    # Second enqueue should hit queue full
+    second = await orchestrator.on_assistant_turn(scope=scope, turn=_durable_turn(2))
+
+    assert first.should_ingest is True
+    assert second.should_ingest is False
+    assert second.reason == "queue full"
+
+    # Clean up without flushing since worker was never started
+    await orchestrator.stop()
+
+
+@pytest.mark.asyncio
+async def test_on_assistant_turn_deduplicates_by_explicit_turn_id() -> None:
+    """Duplicate-turn: explicit turn_id takes priority over content hash for dedup."""
+    graph = FakeGraph()
+    orchestrator = AsyncMemoryOrchestrator(graph)
+    scope = MemoryScope(project="MCP", session_id="thread-dedup", agent_id="codex")
+
+    # Same turn_id, different content — should still dedup on turn_id
+    turn_a = ConversationTurn(
+        user_message="We must always require code review before merging.",
+        assistant_response="Noted. Code review is required before any merge.",
+        turn_id="explicit-turn-42",
+    )
+    turn_b = ConversationTurn(
+        user_message="Different message content but same turn_id.",
+        assistant_response="This should be treated as a duplicate.",
+        turn_id="explicit-turn-42",
+    )
+
+    await orchestrator.start()
+    try:
+        first = await orchestrator.on_assistant_turn(scope=scope, turn=turn_a)
+        second = await orchestrator.on_assistant_turn(scope=scope, turn=turn_b)
+        await asyncio.wait_for(orchestrator.flush(), timeout=2)
+    finally:
+        await orchestrator.stop()
+
+    assert first.should_ingest is True
+    assert second.should_ingest is False
+    assert second.reason == "duplicate turn"
+    assert len(graph.observed) == 1
+
+
+@pytest.mark.asyncio
+async def test_flush_drains_all_pending_turns() -> None:
+    """Flush: all enqueued turns are fully processed before flush() returns."""
+    graph = FakeGraph()
+    orchestrator = AsyncMemoryOrchestrator(graph, queue_maxsize=64)
+    scope = MemoryScope(project="MCP", session_id="thread-flush", agent_id="codex")
+
+    turns = [
+        ConversationTurn(
+            user_message=f"We must always implement requirement {i}.",
+            assistant_response=f"Requirement {i} noted and stored.",
+            turn_id=f"flush-turn-{i}",
+        )
+        for i in range(5)
+    ]
+
+    await orchestrator.start()
+    try:
+        for turn in turns:
+            await orchestrator.on_assistant_turn(scope=scope, turn=turn)
+
+        # flush() must block until all 5 are processed
+        await asyncio.wait_for(orchestrator.flush(), timeout=5)
+    finally:
+        await orchestrator.stop()
+
+    assert len(graph.observed) == 5

@@ -12,6 +12,7 @@ import pytest
 import waggle
 import waggle.server as server_module
 from waggle.config import AppConfig
+from waggle.errors import ValidationFailure
 from waggle.graph import MemoryGraph
 from waggle.models import NodeType, RelationType
 from waggle.server import (
@@ -20,6 +21,7 @@ from waggle.server import (
     _assert_runtime_feature_parity,
     _build_parser,
     _default_graph,
+    _hook_tools_from_args,
     _run_admin_command,
     _run_doctor,
     _run_graph_editor_command,
@@ -2062,3 +2064,50 @@ def test_clear_cli_commands_dry_run(tmp_path: Path, capsys: pytest.CaptureFixtur
     payload = json.loads(capsys.readouterr().out)
     assert payload["dry_run"] is True
     assert payload["deleted_nodes"] > 0
+
+
+# ── Tests for --hooks per-tool selection ─────────────────────────
+
+
+class TestHookToolsFromArgs:
+    def test_auto_selects_claude_code(self):
+        # Default behavior: 'auto' installs hooks for all hook-capable tools.
+        assert _hook_tools_from_args("auto", no_hooks=False) == ["Claude Code"]
+
+    def test_empty_defaults_to_auto(self):
+        assert _hook_tools_from_args("", no_hooks=False) == ["Claude Code"]
+
+    def test_none_selects_nothing(self):
+        assert _hook_tools_from_args("none", no_hooks=False) == []
+
+    def test_no_hooks_flag_overrides_to_none(self):
+        # --no-hooks is a deprecated alias for --hooks none and wins over auto.
+        assert _hook_tools_from_args("auto", no_hooks=True) == []
+
+    def test_explicit_claude_code(self):
+        assert _hook_tools_from_args("claude-code", no_hooks=False) == ["Claude Code"]
+
+    def test_underscore_alias(self):
+        assert _hook_tools_from_args("claude_code", no_hooks=False) == ["Claude Code"]
+
+    def test_unknown_tool_raises(self):
+        # A client that has config support but no hooks (e.g. cursor) is rejected.
+        with pytest.raises(ValidationFailure):
+            _hook_tools_from_args("cursor", no_hooks=False)
+
+    def test_dry_run_validates_hooks(self):
+        # Regression for CodeRabbit review: invalid --hooks must be caught
+        # even in dry-run mode (validation happens before the early return).
+        args = SimpleNamespace(
+            yes=True,
+            dry_run=True,
+            db="",
+            model="all-MiniLM-L6-v2",
+            clients="codex",
+            hooks="bogus",
+            no_hooks=False,
+            project_instructions=False,
+            run_doctor=False,
+        )
+        with pytest.raises(ValidationFailure):
+            _run_setup(args)
