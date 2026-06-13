@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import os
 import shlex
 import shutil
@@ -11,8 +10,8 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
@@ -105,7 +104,7 @@ def make_graph(embedding_model: EmbeddingModel) -> MemoryGraph:
         dedup_similarity_threshold=1.01,
         dedup_same_label_threshold=1.01,
     )
-    setattr(graph, "_memory_benchmark_tmpdir", tmpdir)
+    graph._memory_benchmark_tmpdir = tmpdir
     return graph
 
 
