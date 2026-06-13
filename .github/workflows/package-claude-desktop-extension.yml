@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install waggle-mcp (for CLI smoke-test)
+        run: pip install -e "${{ github.workspace }}"
+
       - name: Validate MCPB bundle
         run: npm run validate
 
@@ -64,13 +67,30 @@ jobs:
           echo "  ✓ Shell launcher invokes waggle-mcp"
 
           echo "::endgroup::"
-          echo "::group::Verify packaged .mcpb contains launcher scripts"
+          echo "::group::Execute CLI entrypoint (help path)"
+          set -o pipefail
+          waggle-mcp --help 2>&1 | head -5   || { echo "waggle-mcp CLI failed"; exit 1; }
+          echo "  ✓ waggle-mcp --help succeeded"
+
+          echo "::endgroup::"
+          echo "::group::Verify packaged layout matches manifest"
+          # Check the packaged .mcpb archive contains expected entries
           MCPB_FILE="$(ls *.mcpb 2>/dev/null | head -1)"
           if [ -n "${MCPB_FILE}" ]; then
-            # check the bundle contains our launcher files
             echo "  Packaged artifact: ${MCPB_FILE}"
+            # Unpack to temp dir and verify structure
+            TMP_CHECK=$(mktemp -d)
+            unzip -q "${MCPB_FILE}" -d "${TMP_CHECK}"
+            echo "  Packed files:"
+            find "${TMP_CHECK}" -type f | sort | sed 's/^/    /'
+            test -f "${TMP_CHECK}/manifest.json"          || { echo "Missing manifest.json in bundle"; exit 1; }
+            test -f "${TMP_CHECK}/server/run-waggle.sh"   || { echo "Missing server/run-waggle.sh in bundle"; exit 1; }
+            test -f "${TMP_CHECK}/server/run-waggle.cmd"  || { echo "Missing server/run-waggle.cmd in bundle"; exit 1; }
+            echo "  ✓ Packaged layout matches manifest"
+            rm -rf "${TMP_CHECK}"
           else
-            echo "  No .mcpb artifact found yet (pack may produce it later)"
+            echo "  No .mcpb artifact found!"
+            exit 1
           fi
           echo "::endgroup::"
           echo "✅ All smoke-tests passed"
