@@ -73,10 +73,24 @@ The same document also defines the root layout policy. As a rule, do not add new
 
 ### Labeling guidance
 
-- Use `good first issue` for small, well-scoped tasks with clear acceptance criteria.
-- Use `help wanted` for larger tasks that are still open to external contributors.
+#### Maintainer Triage Checklist
+
+When reviewing a new issue:
+
+- Start with `needs-triage` until scope and priority are confirmed.
+- Use `good first issue` for small, well-scoped tasks with clear acceptance criteria and a limited blast radius.
+- Use `help wanted` for larger tasks that are suitable for external contributors but may require more project context.
+- Use `blocked` when progress depends on an external decision, dependency, or unresolved prerequisite.
+
+Quick checklist:
+
+- [ ] Is the issue clearly described?
+- [ ] Does it have defined acceptance criteria?
+- [ ] Should it be labeled `good first issue` or `help wanted`?
+- [ ] Does it need a domain label such as `documentation`, `graph`, `windows`, or `tooling`?
+- [ ] Is the issue currently blocked by another task or decision?
+
 - Add one domain label where possible, such as `graph`, `retrieval`, `windows`, `tooling`, or `documentation`.
-- New issues should usually start as `needs-triage` until a maintainer confirms scope and priority.
 
 Repository labels are defined in [`.github/labels.yml`](./.github/labels.yml) and synced with [`scripts/sync_github_labels.py`](./scripts/sync_github_labels.py). Use `--dry-run` first before changing live labels.
 
