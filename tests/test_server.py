@@ -553,6 +553,57 @@ def test_doctor_json_output_warning_status_for_uncached_model(
     assert "not found in cache" in embedding_model_check["reason"]
 
 
+def test_doctor_json_output_shape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    appdata = home / "AppData" / "Roaming"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("APPDATA", str(appdata))
+
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="deterministic",
+        db_path=str(tmp_path / "server-memory.db"),
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    exit_code = _run_doctor(config, json_output=True)
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert payload["checks"], "checks must not be empty"
+    recomputed_summary = {"ok": 0, "warn": 0, "fail": 0}
+    for name, check in payload["checks"].items():
+        assert check["status"] in ("ok", "warn", "fail"), f"{name} has unexpected status"
+        recomputed_summary[check["status"]] += 1
+
+    assert payload["summary"] == recomputed_summary
+
+    # No MCP config file is present, so mcp_config fails and the exit code
+    # must reflect that.
+    assert payload["summary"]["fail"] >= 1
+    assert exit_code == 1
+
+
 def test_doctor_text_output_unchanged_without_json_flag(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
