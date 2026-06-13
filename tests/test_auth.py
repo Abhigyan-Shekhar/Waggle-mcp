@@ -64,6 +64,8 @@ def test_api_key_prefix_never_exceeds_sixteen_characters_without_dot():
 
     for sample in samples:
         assert len(api_key_prefix(sample)) <= 16
+
+
 def make_record():
     raw_key = "secret-key"
 
@@ -75,12 +77,15 @@ def make_record():
     )
 
     return raw_key, record
+
+
 def test_hash_api_key_same_input_same_hash():
     assert hash_api_key("abc") == hash_api_key("abc")
 
 
 def test_hash_api_key_different_inputs_different_hashes():
     assert hash_api_key("abc") != hash_api_key("xyz")
+
 
 def test_verify_api_key_success():
     raw = "secret"
@@ -93,6 +98,8 @@ def test_verify_api_key_failure():
     hashed = hash_api_key("correct")
 
     assert verify_api_key("wrong", hashed) is False
+
+
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
@@ -109,6 +116,8 @@ def test_normalize_api_key_environment_valid(raw, expected):
 def test_normalize_api_key_environment_invalid():
     with pytest.raises(ValueError):
         normalize_api_key_environment("production")
+
+
 def test_generate_api_key_test_prefix():
     key = generate_api_key("test")
 
@@ -125,6 +134,7 @@ def test_generate_api_key_contains_separator():
     key = generate_api_key()
 
     assert "." in key
+
 
 def test_principal_from_record_none_record():
     with pytest.raises(AuthenticationError):
@@ -154,14 +164,15 @@ def test_principal_from_record_wrong_key():
 
     with pytest.raises(AuthenticationError):
         principal_from_record(record, "wrong-key")
-    def test_require_scope_success():
-        principal = AuthenticatedPrincipal(
-            api_key_id="1",
-            tenant_id="tenant",
-            scopes=("graph:read",),
-        )
 
-        principal.require_scope("graph:read")
+
+def test_require_scope_success():
+    principal = AuthenticatedPrincipal(
+        api_key_id="1",
+        tenant_id="tenant",
+        scopes=("graph:read",),
+    )
+    principal.require_scope("graph:read")
 
 
 def test_require_scope_failure():
