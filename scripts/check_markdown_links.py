@@ -1,0 +1,61 @@
+from pathlib import Path
+import re
+import sys
+
+ROOT = Path(__file__).resolve().parent.parent
+
+LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+
+markdown_files = ROOT.rglob("*.md")
+
+broken_links = []
+
+for md_file in markdown_files:
+    text = md_file.read_text(encoding="utf-8")
+
+    for match in LINK_PATTERN.finditer(text):
+        link = match.group(1).strip()
+
+        # Ignore external URLs
+        if (
+            link.startswith("http://")
+            or link.startswith("https://")
+            or link.startswith("mailto:")
+            or link.startswith("#")
+        ):
+            continue
+
+        # Remove anchor part
+        link_path = link.split("#")[0]
+
+        if not link_path:
+            continue
+
+        resolved_path = (md_file.parent / link_path).resolve()
+
+        if not resolved_path.exists():
+            try:
+                relative_path = resolved_path.relative_to(ROOT)
+            except ValueError:
+                relative_path = resolved_path
+
+            broken_links.append(
+                (
+                    md_file.relative_to(ROOT),
+                    link,
+                    relative_path,
+                )
+            )
+
+if broken_links:
+    print("\nBroken markdown links found:\n")
+
+    for source_file, link, resolved in broken_links:
+        print(f"{source_file}")
+        print(f"  Link: {link}")
+        print(f"  Resolved path: {resolved}")
+        print()
+
+    sys.exit(1)
+
+print("All markdown links are valid.")
