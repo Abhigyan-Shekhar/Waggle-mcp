@@ -1,0 +1,39 @@
+name: Check Label Catalog Drift
+
+on:
+  pull_request:
+    branches: ["**"]
+    paths:
+      - ".github/labels.yml"
+      - "CONTRIBUTING.md"
+      - "docs/good-first-issues.md"
+      - "scripts/check_label_refs.py"
+      - ".github/workflows/check-label-refs.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/labels.yml"
+      - "CONTRIBUTING.md"
+      - "docs/good-first-issues.md"
+      - "scripts/check_label_refs.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-label-refs:
+    name: Label catalog drift check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check for label drift
+        run: python3 scripts/check_label_refs.py --verbose
