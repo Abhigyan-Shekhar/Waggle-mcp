@@ -449,6 +449,24 @@ When an API key is presented:
 - `/api/admin/*` read routes require `admin:read`
 - `/api/admin/*` write routes require `admin:write`
 
+## Headless Google Drive Authentication
+
+When running Waggle from a remote server, SSH session, container, or environment without a graphical browser, use the `--no-open-browser` option:
+
+```bash
+waggle-mcp push --no-open-browser
+```
+Instead of launching a browser automatically, Waggle prints the Google OAuth authorization URL to the terminal.
+
+Open the URL in a browser, complete authorization flow, and return to the terminal. Waggle will continue waiting for authorization.
+
+The same option is available for:
+
+```bash
+waggle-mcp pull --no-open-browser
+waggle-mcp share --no-open-browser
+```
+
 ## Full tool surface
 
 | Tool | What it does |
