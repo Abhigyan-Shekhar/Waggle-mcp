@@ -29,10 +29,12 @@ from mcp.server.lowlevel.server import request_ctx
 from mcp.server.models import InitializationOptions
 from mcp.server.streamable_http import StreamableHTTPServerTransport
 from starlette.applications import Starlette
+from starlette.datastructures import Headers
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from waggle import __version__
 from waggle.abhi import (
@@ -2950,6 +2952,34 @@ class MCPHttpApp:
         return receive
 
 
+class _RequestBodySizeMiddleware:
+    """Reject requests whose Content-Length exceeds max_payload_bytes."""
+
+    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        headers = Headers(scope=scope)
+        content_length = headers.get("content-length")
+        if content_length is not None:
+            try:
+                length = int(content_length)
+            except (ValueError, TypeError):
+                length = 0
+            if length > self.max_bytes:
+                response = Response(
+                    f"Request body exceeds maximum allowed size of {self.max_bytes} bytes.",
+                    status_code=413,
+                )
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
 def create_http_application(app_server: WaggleServer, config: AppConfig) -> Starlette:
     service = MCPHttpApp(app_server, config)
 
@@ -3822,7 +3852,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         )
         return JSONResponse([_serialize_audit_event(event) for event in events])
 
-    app = Starlette(
+    raw_app = Starlette(
         routes=[
             Route("/health/live", live),
             Route("/health/ready", ready),
@@ -3857,7 +3887,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         lifespan=service.lifespan,
         exception_handlers={WaggleError: waggle_error_handler},
     )
-    return app
+    return _RequestBodySizeMiddleware(raw_app, max_bytes=config.max_payload_bytes)
 
 
 def _run_graph_editor_command(config: AppConfig, args: argparse.Namespace) -> int:

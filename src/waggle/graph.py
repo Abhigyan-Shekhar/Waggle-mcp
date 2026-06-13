@@ -11,6 +11,7 @@ import sqlite3
 import threading
 import time
 from collections.abc import Iterable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -123,6 +124,7 @@ from waggle.models import (
     ReplayHit,
     RetentionPolicyRecord,
     RetentionPruneRunRecord,
+    ScoredNodeView,
     SubgraphResult,
     TenantRecord,
     TimelineResult,
@@ -689,122 +691,95 @@ def _normalized_content_hash(text: str) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
-# ---------------------------------------------------------------------------
-# _ReadWriteLock — pure-Python reader/writer lock (no extra dependencies)
-# ---------------------------------------------------------------------------
-# Allows concurrent reads while serialising writes.  Replaces the single
-# threading.RLock that previously serialised ALL access — including reads that
-# could safely run in parallel.
-#
-# Usage (mirrors threading.RLock context manager contract):
-#   with graph._lock:          # write — exclusive
-#       ...
-#   with graph._read_lock():   # read  — shared (multiple allowed)
-#       ...
-# ---------------------------------------------------------------------------
 class _ReadWriteLock:
-    """Re-entrant write lock with shared read support.
+    """A pure-Python reader/writer lock implementation.
 
-    The write path (``with lock``) behaves like ``threading.RLock``:
-    the same thread can re-enter without deadlocking.  Different threads
-    block until the writer releases.
-
-    The read path (``with lock.read()``) allows multiple threads to hold
-    shared access simultaneously, as long as no writer is active.  A thread
-    that already holds the write lock can also acquire a read token without
-    deadlocking (write supersedes read).
+    Allows concurrent reads while serialising writes. Lock upgrades (acquiring a
+    write lock while already holding a read lock on the same thread) are strictly
+    prohibited to prevent self-deadlock and will raise a RuntimeError.
     """
 
     def __init__(self) -> None:
-        self._condition = threading.Condition(threading.Lock())
+        self._cond = threading.Condition(threading.Lock())
         self._readers: int = 0
-        self._waiting_writers: int = 0  # queued writer count (starvation guard)
-        self._write_owner: int | None = None  # threading.get_ident() of holder
-        self._write_depth: int = 0  # re-entrancy depth
+        self._waiting_writers: int = 0
+        self._write_owner: int | None = None
+        self._write_depth: int = 0
+        self._reader_threads: dict[int, int] = {}
 
-    # ------------------------------------------------------------------
-    # Write lock — exclusive, re-entrant for the owning thread
-    # ------------------------------------------------------------------
     def __enter__(self) -> _ReadWriteLock:
+        self._acquire_write()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self._release_write()
+
+    def _acquire_write(self) -> None:
         tid = threading.get_ident()
-        with self._condition:
+        with self._cond:
             if self._write_owner == tid:
-                # Re-entrant acquire — same thread, just increment depth
                 self._write_depth += 1
-                return self
-            # Track waiting writers so readers can yield to them
+                return
+            if self._reader_threads.get(tid, 0) > 0:
+                raise RuntimeError(
+                    "Cannot upgrade a read lock to a write lock on the same "
+                    "thread. Acquire the write lock from the outset instead "
+                    "of nesting it inside a read context."
+                )
             self._waiting_writers += 1
             try:
-                while self._write_owner is not None or self._readers > 0:
-                    self._condition.wait()
+                while self._readers > 0 or self._write_owner is not None:
+                    self._cond.wait()
                 self._write_owner = tid
                 self._write_depth = 1
             finally:
                 self._waiting_writers -= 1
-        return self
 
-    def __exit__(self, *_: object) -> None:
-        with self._condition:
+    def _release_write(self) -> None:
+        tid = threading.get_ident()
+        with self._cond:
+            if self._write_owner != tid:
+                raise RuntimeError("Attempt to release a write lock not held by this thread.")
             self._write_depth -= 1
             if self._write_depth == 0:
                 self._write_owner = None
-                self._condition.notify_all()
+                self._cond.notify_all()
 
-    # ------------------------------------------------------------------
-    # Read lock — shared, blocks only when a *different* thread is writing
-    # ------------------------------------------------------------------
-    class _ReadContext:
-        __slots__ = ("_is_writer", "_rwl")
+    def read(self) -> contextmanager:
+        return self._read_context()
 
-        def __init__(self, rwl: _ReadWriteLock) -> None:
-            self._rwl = rwl
-            self._is_writer = False
+    @contextmanager
+    def _read_context(self):
+        self._acquire_read()
+        try:
+            yield self
+        finally:
+            self._release_read()
 
-        def __enter__(self) -> _ReadWriteLock._ReadContext:
-            tid = threading.get_ident()
-            with self._rwl._condition:
-                if self._rwl._write_owner == tid:
-                    # Current thread owns the write lock — no need for read token,
-                    # write already implies exclusive access.
-                    self._is_writer = True
-                    return self
-                # Also yield to queued writers — prevents write starvation
-                # when read() paths become active on request threads.
-                while self._rwl._write_owner is not None or self._rwl._waiting_writers > 0:
-                    self._rwl._condition.wait()
-                self._rwl._readers += 1
-            return self
+    def _acquire_read(self):
+        tid = threading.get_ident()
+        with self._cond:
+            if self._write_owner == tid:
+                return
+            is_reentrant = self._reader_threads.get(tid, 0) > 0
+            while self._write_owner is not None or (self._waiting_writers > 0 and not is_reentrant):
+                self._cond.wait()
+            self._reader_threads[tid] = self._reader_threads.get(tid, 0) + 1
+            self._readers += 1
 
-        def __exit__(self, *_: object) -> None:
-            if self._is_writer:
-                return  # write lock handles its own release
-            with self._rwl._condition:
-                self._rwl._readers -= 1
-                if self._rwl._readers == 0:
-                    self._rwl._condition.notify_all()
-
-    def read(self) -> _ReadWriteLock._ReadContext:
-        """Return a context manager that acquires a shared read lock."""
-        return self._ReadContext(self)
-
-
-# ---------------------------------------------------------------------------
-# ScoredNodeView — lightweight __slots__ struct for the scoring hot path
-# ---------------------------------------------------------------------------
-# During _sort_scored_nodes() we only need a handful of fields from each Node.
-# Using a slots dataclass avoids Pydantic's validation and per-instance __dict__
-# overhead, saving 20-35% of allocations on graphs with N > 1000 candidates.
-# The full Node object is preserved in candidate_nodes; ScoredNodeView is used
-# only as the sort key carrier within _sort_scored_nodes().
-# ---------------------------------------------------------------------------
-@dataclass(slots=True)
-class ScoredNodeView:
-    """Minimal scored representation of a Node for the ranking hot path."""
-
-    node_id: str
-    updated_at_ts: float  # pre-converted .timestamp() — avoids per-compare call
-    final_score: float = 0.0
-    label_lower: str = ""  # pre-lowercased for tiebreak sort
+    def _release_read(self) -> None:
+        tid = threading.get_ident()
+        with self._cond:
+            if self._write_owner == tid:
+                return
+            if self._reader_threads.get(tid, 0) == 0:
+                raise RuntimeError("Attempt to release a read lock not held by this thread.")
+            self._reader_threads[tid] -= 1
+            if self._reader_threads[tid] == 0:
+                del self._reader_threads[tid]
+            self._readers -= 1
+            if self._readers == 0:
+                self._cond.notify_all()
 
 
 class MemoryGraph:
@@ -8158,6 +8133,7 @@ class MemoryGraph:
         # inside the comparator on every pair comparison (Timsort is O(N log N)).
         # Pairing keeps the Node→view association 1:1 so we don't need a dict
         # round-trip or duplicate-id safety nets in the result construction.
+
         view_node_pairs: list[tuple[ScoredNodeView, Node]] = [
             (
                 ScoredNodeView(
