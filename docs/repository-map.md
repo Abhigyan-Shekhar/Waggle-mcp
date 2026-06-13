@@ -290,6 +290,8 @@ Tests and checks:
 - Read `apps/mcp/graph-ui/README.md`
 - If changing frontend code, verify the UI manually after the change
 
+Blast radius:
+- Medium. Usually isolated, but packaging and asset paths can leak into the server surface.
 ### 9. Packaging and external distributions
 
 What this feature does:
