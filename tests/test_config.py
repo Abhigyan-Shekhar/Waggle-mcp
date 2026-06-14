@@ -1,13 +1,17 @@
 from __future__ import annotations
+
 from pathlib import Path
+
 import pytest
+
 from waggle.config import (
+    DEFAULT_DB_PATH,
     AppConfig,
     _discover_codex_waggle_db_path,
     resolve_default_db_path,
-    DEFAULT_DB_PATH,
 )
 from waggle.errors import ValidationFailure
+
 
 def test_embedding_backend_defaults_to_pytorch(monkeypatch):
     monkeypatch.delenv("WAGGLE_EMBEDDING_BACKEND", raising=False)
