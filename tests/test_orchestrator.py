@@ -272,7 +272,7 @@ async def test_known_turn_ids_evicted_after_ttl() -> None:
     """TTL eviction: a turn key older than the TTL is evicted and the same turn is accepted again."""
     graph = FakeGraph()
     # Set a very short TTL so we can expire entries immediately
-    orchestrator = AsyncMemoryOrchestrator(graph, turn_id_ttl=timedelta(seconds=0))
+    orchestrator = AsyncMemoryOrchestrator(graph, turn_id_ttl=timedelta(seconds=-1))
 
     scope = MemoryScope(project="MCP", session_id="thread-ttl", agent_id="codex")
     turn = ConversationTurn(
