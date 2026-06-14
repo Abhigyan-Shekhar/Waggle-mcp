@@ -51,6 +51,9 @@ waggle-mcp
 > `AttributeError`.  See `tests/test_neo4j_stubs.py` for the full
 > documented list.
 
+**Transcript and temporal query limitations:** Neo4j supports transcript replay through `query(..., retrieval_mode="verbatim")`. Direct transcript collection methods such as `list_transcript_records`, `search_transcript_records`, and `count_transcript_records` are not currently available on the usable `Neo4jMemoryGraph` API. Natural-language temporal ranking is supported, but the SQLite-only point-in-time controls `as_of` and `include_invalidated` are not accepted by `Neo4jMemoryGraph.query`.
+
+
 ### Docker
 
 ```bash
