@@ -117,6 +117,51 @@ query_graph() / build_context()
     └─► RecursiveContextController.assemble()  ← token-budgeted pack
 ```
 
+
+
+
+### Observe conversation flow
+
+```mermaid
+flowchart LR
+    A[Conversation input] --> B[observe_conversation]
+    B --> C[intelligence.extract_conversation_candidates]
+    C --> D[MemoryGraph.store_node]
+    C --> F[MemoryGraph.store_edge]
+    D --> E[Embedding generation]
+    D --> G[(SQLite or Neo4j)]
+    F --> G
+```
+
+Note: The runtime instantiates either MemoryGraph (SQLite) or Neo4jMemoryGraph based on config.backend.
+
+
+### Query graph flow
+
+```mermaid
+flowchart LR
+    A[Query input] --> B[query_graph / build_context]
+    B --> C[EmbeddingModel.embed query]
+    C --> D[HybridRetriever.retrieve]
+    D --> E[MemoryGraph._expand_node_depths]
+    E --> F[RecursiveContextController.assemble]
+    F --> G[Context returned]
+    D --> H[(SQLite or Neo4j)]
+```
+
+### Transport layer
+
+```mermaid
+flowchart TB
+    Client -->|HTTP| S[server.py]
+    Client -->|MCP| S
+    S --> OC[observe_conversation]
+    S --> QG[query_graph / build_context]
+    OC --> G[(SQLite or Neo4j)]
+    QG --> G
+
+```
+
 ### Scoping / Tenancy
 
 Every node and transcript record carries three scope fields:
