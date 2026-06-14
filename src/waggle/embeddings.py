@@ -10,6 +10,12 @@ import numpy as np
 
 LOGGER = logging.getLogger(__name__)
 
+# Shared caches used to avoid repeated sentence-transformers initialization.
+_MODEL_SINGLETONS: dict[tuple[str, str], "EmbeddingModel"] = {}
+_MODEL_SINGLETONS_LOCK = threading.Lock()
+_TRANSFORMER_MODEL_CACHE: dict[tuple[str, str], object] = {}
+_TRANSFORMER_MODEL_CACHE_LOCK = threading.Lock()
+
 # Tools that must NEVER trigger torch/sentence-transformers import.
 # Queries to these tools are answered before the model is ready.
 EMBEDDING_FREE_TOOLS: frozenset[str] = frozenset(
@@ -32,6 +38,27 @@ STATUS_WARMING_UP = "warming_up"
 STATUS_READY = "ready"
 STATUS_FAILED = "failed"
 STATUS_DISABLED = "disabled"  # fast / inspection mode
+
+
+def get_embedding_model(model_name: str = "all-MiniLM-L6-v2", embedding_backend: str = "pytorch") -> "EmbeddingModel":
+    """Return a shared embedding wrapper instance for a given model configuration.
+
+    The SentenceTransformer backend is loaded lazily on first use. Subsequent
+    calls reuse the same wrapper instance for the same model name and backend.
+    """
+    normalized_name = (model_name or "").strip() or "all-MiniLM-L6-v2"
+    cache_key = (normalized_name, embedding_backend)
+    instance = _MODEL_SINGLETONS.get(cache_key)
+    if instance is not None:
+        return instance
+
+    with _MODEL_SINGLETONS_LOCK:
+        instance = _MODEL_SINGLETONS.get(cache_key)
+        if instance is not None:
+            return instance
+        instance = EmbeddingModel(normalized_name, embedding_backend=embedding_backend)
+        _MODEL_SINGLETONS[cache_key] = instance
+        return instance
 
 
 class EmbeddingModel:
@@ -334,13 +361,25 @@ class EmbeddingModel:
     def _load_transformer_model(self) -> Any:
         from sentence_transformers import SentenceTransformer
 
+        cache_key = (self.model_name.strip() or "all-MiniLM-L6-v2", self.embedding_backend)
+        with _TRANSFORMER_MODEL_CACHE_LOCK:
+            existing = _TRANSFORMER_MODEL_CACHE.get(cache_key)
+            if existing is not None:
+                return existing
+
         if self.embedding_backend == "onnx":
-            return SentenceTransformer(
+            loaded = SentenceTransformer(
                 self.model_name,
                 backend="onnx",
             )
+            with _TRANSFORMER_MODEL_CACHE_LOCK:
+                _TRANSFORMER_MODEL_CACHE[cache_key] = loaded
+            return loaded
         try:
-            return SentenceTransformer(self.model_name, local_files_only=True)
+            loaded = SentenceTransformer(self.model_name, local_files_only=True)
+            with _TRANSFORMER_MODEL_CACHE_LOCK:
+                _TRANSFORMER_MODEL_CACHE[cache_key] = loaded
+            return loaded
         except Exception:
             # Model not cached locally - must download from HuggingFace.
             # This can take 30-120 s and requires a network connection.
@@ -358,7 +397,10 @@ class EmbeddingModel:
                     ),
                 },
             )
-            return SentenceTransformer(self.model_name)
+            loaded = SentenceTransformer(self.model_name)
+            with _TRANSFORMER_MODEL_CACHE_LOCK:
+                _TRANSFORMER_MODEL_CACHE[cache_key] = loaded
+            return loaded
 
     def _embed_deterministically(self, text: str) -> np.ndarray:
         vector = np.zeros(256, dtype=np.float32)

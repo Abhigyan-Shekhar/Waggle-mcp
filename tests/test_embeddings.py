@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import builtins
+import threading
+from typing import Any
+
 import numpy as np
 import pytest
 
-from waggle.embeddings import EmbeddingModel
+from waggle.embeddings import EmbeddingModel, get_embedding_model
 
 
 def test_embedding_bytes_round_trip() -> None:
@@ -135,3 +139,87 @@ def test_embedding_cache_isolates_different_models(
 
     assert vec_a.shape == (3,)
     assert vec_b.shape == (2,)
+
+
+def test_get_embedding_model_returns_shared_instance() -> None:
+    model_a = get_embedding_model("shared-loader-model")
+    model_b = get_embedding_model("shared-loader-model")
+
+    assert model_a is model_b
+    assert model_a.model_name == model_b.model_name
+
+
+def test_embedding_model_loads_once_per_process(monkeypatch: pytest.MonkeyPatch) -> None:
+    load_calls: list[str] = []
+
+    def fake_load(self) -> Any:
+        load_calls.append("loaded")
+
+        class DummyModel:
+            def encode(self, text, normalize_embeddings=True, convert_to_numpy=True):
+                return np.array([1.0, 1.0, 1.0], dtype=np.float32)
+
+        return DummyModel()
+
+    monkeypatch.setattr(EmbeddingModel, "_load_transformer_model", fake_load)
+
+    model = get_embedding_model("singleton-init-model")
+    model.embed("first")
+    model.embed("second")
+
+    assert len(load_calls) == 1
+
+
+def test_deterministic_mode_does_not_import_sentence_transformers(monkeypatch: pytest.MonkeyPatch) -> None:
+    original_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "sentence_transformers" or name.startswith("sentence_transformers."):
+            raise AssertionError("sentence-transformers must not be imported in deterministic mode")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    model = get_embedding_model("deterministic")
+    vector = model.embed("offline-safe request")
+
+    assert model.uses_deterministic_mode is True
+    assert vector.shape == (256,)
+    assert np.isclose(np.linalg.norm(vector), 1.0)
+
+
+def test_get_embedding_model_thread_safe_initialization(monkeypatch: pytest.MonkeyPatch) -> None:
+    load_count = 0
+    started = threading.Event()
+    proceed = threading.Event()
+
+    def fake_load(self) -> Any:
+        nonlocal load_count
+        load_count += 1
+        started.set()
+        proceed.wait(timeout=5)
+
+        class DummyModel:
+            def encode(self, text, normalize_embeddings=True, convert_to_numpy=True):
+                return np.array([1.0, 1.0, 1.0], dtype=np.float32)
+
+        return DummyModel()
+
+    monkeypatch.setattr(EmbeddingModel, "_load_transformer_model", fake_load)
+
+    model = get_embedding_model("thread-safe-model")
+
+    def worker() -> None:
+        model.embed("race")
+
+    threads = [threading.Thread(target=worker) for _ in range(3)]
+    for thread in threads:
+        thread.start()
+
+    assert started.wait(timeout=5)
+    proceed.set()
+
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert load_count == 1

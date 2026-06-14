@@ -46,7 +46,7 @@ from waggle.abhi import (
     validate_abhi_document,
 )
 from waggle.config import DEFAULT_DB_PATH, AppConfig
-from waggle.embeddings import EMBEDDING_FREE_TOOLS, STATUS_DISABLED, STATUS_READY, EmbeddingModel
+from waggle.embeddings import EMBEDDING_FREE_TOOLS, STATUS_DISABLED, STATUS_READY, get_embedding_model
 from waggle.errors import (
     AuthenticationError,
     PayloadTooLargeError,
@@ -483,7 +483,7 @@ def _assert_runtime_feature_parity() -> None:
 
 
 def _build_backend(config: AppConfig) -> Any:
-    embedding_model = EmbeddingModel(
+    embedding_model = get_embedding_model(
         config.model_name,
         embedding_backend=config.embedding_backend,
     )
@@ -4757,7 +4757,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             raise ValidationFailure("migrate-sqlite requires WAGGLE_BACKEND=neo4j for the target environment.")
         source = MemoryGraph(
             args.db_path,
-            EmbeddingModel(
+            get_embedding_model(
                 config.model_name,
                 embedding_backend=config.embedding_backend,
             ),
@@ -6024,7 +6024,7 @@ def _run_demo(args: argparse.Namespace) -> int:
 
     try:
         # Import the demo graph
-        embedding_model = EmbeddingModel(model_name)
+        embedding_model = get_embedding_model(model_name)
         graph = MemoryGraph(
             str(demo_db),
             embedding_model,
