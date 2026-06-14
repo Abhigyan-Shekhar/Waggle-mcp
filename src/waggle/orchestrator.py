@@ -176,13 +176,15 @@ class AsyncMemoryOrchestrator:
         *,
         policy: MemoryPolicy | None = None,
         queue_maxsize: int = 256,
+        turn_id_ttl: timedelta = timedelta(hours=1),
     ) -> None:
         self.graph = graph
         self.policy = policy or MemoryPolicy()
         self._queue: asyncio.Queue[IngestTask] = asyncio.Queue(maxsize=queue_maxsize)
         self._worker_task: asyncio.Task[None] | None = None
         self._closing = asyncio.Event()
-        self._known_turn_ids: set[str] = set()
+        self._known_turn_ids: dict[str, datetime] = {}
+        self._turn_id_ttl: timedelta = turn_id_ttl
 
     async def start(self) -> None:
         if self._worker_task is not None:
@@ -207,12 +209,13 @@ class AsyncMemoryOrchestrator:
         if not plan.should_ingest:
             return plan
         turn_key = self._turn_key(scope, turn)
+        self._evict_expired_turn_ids()
         if turn_key in self._known_turn_ids:
             return IngestPlan(False, "duplicate turn")
         if self._queue.full():
             LOGGER.warning("memory ingest queue full; dropping turn for session '%s'", scope.session_id)
             return IngestPlan(False, "queue full")
-        self._known_turn_ids.add(turn_key)
+        self._known_turn_ids[turn_key] = datetime.now(UTC)
         await self._queue.put(IngestTask(scope=scope, turn=turn))
         return plan
 
@@ -287,3 +290,9 @@ class AsyncMemoryOrchestrator:
             ]
         )
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def _evict_expired_turn_ids(self) -> None:
+        now = datetime.now(UTC)
+        expired = [k for k, added_at in self._known_turn_ids.items() if now - added_at > self._turn_id_ttl]
+        for k in expired:
+            del self._known_turn_ids[k]

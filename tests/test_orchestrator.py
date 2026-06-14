@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+from datetime import timedelta
 
 import pytest
 
@@ -264,3 +265,50 @@ async def test_flush_drains_all_pending_turns() -> None:
         await orchestrator.stop()
 
     assert len(graph.observed) == 5
+
+
+@pytest.mark.asyncio
+async def test_known_turn_ids_evicted_after_ttl() -> None:
+    """TTL eviction: a turn key older than the TTL is evicted and the same turn is accepted again."""
+    graph = FakeGraph()
+    # Set a very short TTL so we can expire entries immediately
+    orchestrator = AsyncMemoryOrchestrator(graph, turn_id_ttl=timedelta(seconds=0))
+
+    scope = MemoryScope(project="MCP", session_id="thread-ttl", agent_id="codex")
+    turn = ConversationTurn(
+        user_message="We must always require tests before merging.",
+        assistant_response="Noted. Tests are required before any merge.",
+        turn_id="ttl-turn-1",
+    )
+
+    await orchestrator.start()
+    try:
+        first = await orchestrator.on_assistant_turn(scope=scope, turn=turn)
+        # With TTL=0, the entry is already expired on next call — should be accepted again
+        second = await orchestrator.on_assistant_turn(scope=scope, turn=turn)
+        await asyncio.wait_for(orchestrator.flush(), timeout=2)
+    finally:
+        await orchestrator.stop()
+
+    assert first.should_ingest is True
+    assert second.should_ingest is True
+    assert len(graph.observed) == 2
+
+
+def test_known_turn_ids_dict_is_bounded_after_eviction() -> None:
+    """Eviction: _known_turn_ids dict does not grow unboundedly; expired keys are removed."""
+    from datetime import UTC, datetime, timedelta
+
+    graph = FakeGraph()
+    orchestrator = AsyncMemoryOrchestrator(graph, turn_id_ttl=timedelta(hours=1))
+
+    # Manually insert stale entries (older than TTL)
+    stale_time = datetime.now(UTC) - timedelta(hours=2)
+    orchestrator._known_turn_ids["stale-key-1"] = stale_time
+    orchestrator._known_turn_ids["stale-key-2"] = stale_time
+
+    assert len(orchestrator._known_turn_ids) == 2
+
+    orchestrator._evict_expired_turn_ids()
+
+    assert len(orchestrator._known_turn_ids) == 0
