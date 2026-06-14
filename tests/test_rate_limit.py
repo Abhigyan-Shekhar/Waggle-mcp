@@ -99,7 +99,7 @@ def test_distinct_keys_spread_across_shards():
     # one lock. With 64 shards, 256 keys have to land on more than one shard.
     limiter = RateLimiter(requests_per_minute=10, max_concurrent_requests=10, lock_shards=64)
     distinct_locks = {id(limiter._lock_for(f"key-{i}")) for i in range(256)}
-    assert len(distinct_locks) > 1
+    assert len(distinct_locks) >= 32
 
 
 def test_single_shard_degenerates_to_global_lock():
