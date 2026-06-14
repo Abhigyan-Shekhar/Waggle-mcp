@@ -92,7 +92,7 @@ build-backend = "setuptools.build_meta"
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
-waggle = ["py.typed", "static/graph/*", "static/graph/chunks/*", "static/graph/assets/*"]
+waggle = ["py.typed", "static/graph/*", "static/graph/chunks/*", "static/graph/assets/*", "examples/demo.abhi"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

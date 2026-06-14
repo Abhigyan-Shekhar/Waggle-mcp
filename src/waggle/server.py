@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import base64
 import getpass
+import importlib.resources
 import json
 import logging
 import os
@@ -3679,15 +3680,33 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def graph_import_demo(request: Request) -> Response:
         graph, _ = _require_http_scope(request, "graph:write")
-        demo_abhi = Path(__file__).resolve().parent.parent.parent / "examples" / "demo.abhi"
+        # 1. Try the bundled package resource first (works from a wheel install)
+        demo_abhi: Path | None = None
+        try:
+            pkg_ref = importlib.resources.files("waggle").joinpath("examples/demo.abhi")
+            with importlib.resources.as_file(pkg_ref) as pkg_path:
+                if pkg_path.exists():
+                    demo_abhi = pkg_path
+        except Exception:  # pragma: no cover
+            pass
+        # 2. Fallback chain for source-tree / editable installs
+        if demo_abhi is None or not demo_abhi.exists():
+            demo_abhi = Path(__file__).resolve().parent.parent.parent / "examples" / "demo.abhi"
         if not demo_abhi.exists():
             demo_abhi = Path(__file__).resolve().parent / "examples" / "demo.abhi"
         if not demo_abhi.exists():
             demo_abhi = Path.cwd() / "examples" / "demo.abhi"
         if not demo_abhi.exists():
             raise ValidationFailure("Could not find examples/demo.abhi. Please generate it first.")
+        # Collect the node IDs that are present in the demo file before importing
+        document = load_abhi_document(demo_abhi)
+        imported_node_ids = [
+            str(node.get("id", "")).strip()
+            for node in abhi_to_snapshot(document, fallback_tenant_id=graph.tenant_id).get("nodes", [])
+            if str(node.get("id", "")).strip()
+        ]
         imported = graph.import_abhi(input_path=demo_abhi, merge_strategy="skip-existing")
-        return JSONResponse({**imported.model_dump(mode="json"), "imported_node_ids": []})
+        return JSONResponse({**imported.model_dump(mode="json"), "imported_node_ids": imported_node_ids})
 
     async def graph_import_preview(request: Request) -> Response:
         payload = await request.json()
