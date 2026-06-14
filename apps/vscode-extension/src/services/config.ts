@@ -80,7 +80,8 @@ export async function writeWorkspaceConfig(ctx: WaggleContext): Promise<boolean>
   existing[rootKey] = currentRoot;
 
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-
+  const serialized = `${JSON.stringify(existing, null, 2)}\n`;
+  await fs.writeFile(filePath, serialized, "utf8");
   ctx.append(`Wrote ${filePath}`);
   ctx.setStatus("ready", folder.name);
   return true;
