@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 check_label_refs.py -- Label catalog drift checker.
 
@@ -105,25 +104,23 @@ _SUGGESTED_RE = re.compile(
     r"(?i)(?:suggested|recommended)\s+labels?\s*:\s*(.*)",
 )
 
-# Pattern B: list context following "such as", "example", or "like"
+# Pattern B: list context following "such as", "for example", "example:", "e.g.", or "like"
 # Captures every backtick token on that line after the trigger keyword.
 _LIST_CONTEXT_RE = re.compile(
-    r"(?i)\b(?:such\s+as|example|like)\b\s*[:\s]*(.*)",
+    r"(?i)\b(?:such\s+as|for\s+example|example|e\.g\.|like)\b[,:]?\s*(.*)",
 )
 
 # Pattern C: specific use/add/start-as guidance (singular backtick tokens)
-_SPECIFIC_LABEL_RE = re.compile(
-    r"(?i)(?:use|add|start\s+as|start\s+with)\s+`([^`]+)`"
-)
+_SPECIFIC_LABEL_RE = re.compile(r"(?i)(?:use|add|start\s+as|start\s+with)\s+`([^`]+)`")
 
 _CODE_TOKEN_RE = re.compile(
     r"^(?:"
-    r"--[\w-]+"                    # CLI flags: --dry-run
-    r"|[A-Z][A-Z0-9_]+=\S+"       # env assignments: WAGGLE_MODEL=deterministic
-    r"|[A-Z][A-Z0-9_]{2,}"        # ALL_CAPS env var names (3+ chars)
-    r"|\w*_\w+"                    # snake_case identifiers: tmp_path, agent_id
-    r"|.*[()/{\\=<>].*"            # contains code chars
-    r"|.*\d+\.\d+.*"               # version numbers
+    r"--[\w-]+"  # CLI flags: --dry-run
+    r"|[A-Z][A-Z0-9_]+=\S+"  # env assignments: WAGGLE_MODEL=deterministic
+    r"|[A-Z][A-Z0-9_]{2,}"  # ALL_CAPS env var names (3+ chars)
+    r"|\w*_\w+"  # snake_case identifiers: tmp_path, agent_id
+    r"|.*[()/{\\=<>].*"  # contains code chars
+    r"|.*\d+\.\d+.*"  # version numbers
     r")$"
 )
 

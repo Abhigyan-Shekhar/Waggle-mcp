@@ -46,7 +46,7 @@ def test_extract_pattern_c() -> None:
 def test_code_token_exclusions() -> None:
     # CLI flags
     assert MODULE._extract_label_refs_from_line("Use `--dry-run` to preview changes.") == []
-    
+
     # Env variables
     assert MODULE._extract_label_refs_from_line("Ensure `WAGGLE_MODEL=deterministic` is set.") == []
     assert MODULE._extract_label_refs_from_line("Configure `WAGGLE_EMBEDDING_BACKEND` appropriately.") == []
