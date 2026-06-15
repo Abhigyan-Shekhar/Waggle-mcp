@@ -194,6 +194,16 @@ def test_neo4j_query_accepts_standard_params() -> None:
 def test_neo4j_for_tenant_returns_new_instance() -> None:
     graph = make_mock_graph()
     graph._driver = MagicMock()
+    # The child instance reuses this driver and runs ensure_tenant() during
+    # construction, which parses created_at; return a real ISO timestamp so the
+    # mocked session yields a parseable value instead of a MagicMock.
+    _session = graph._driver.session.return_value.__enter__.return_value
+    _session.run.return_value.single.return_value = {
+        "tenant_id": "tenant-child",
+        "name": "",
+        "status": "active",
+        "created_at": "2026-01-01T00:00:00+00:00",
+    }
     graph.database = None
     graph.dedup_similarity_threshold = 0.97
     graph.dedup_same_label_threshold = 0.9
