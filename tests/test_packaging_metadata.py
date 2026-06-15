@@ -71,3 +71,25 @@ def test_graph_ui_bundle_contains_expected_static_assets() -> None:
         + ", ".join(missing)
         + ". Rebuild or restore src/waggle/static/graph before packaging."
     )
+
+
+def _extract_toml_fence(markdown: str, *, expected_table: str) -> str:
+    for match in re.finditer(r"```toml\n(.*?)\n```", markdown, re.DOTALL):
+        block = match.group(1)
+        if expected_table in block:
+            return block
+
+    raise AssertionError(f"Could not find a TOML code fence containing {expected_table!r}.")
+
+
+def test_codex_install_guide_matches_shipped_example_config() -> None:
+    codex_guide = (ROOT / "docs" / "install" / "codex.md").read_text()
+    example_config = (ROOT / "examples" / "codex_config.example.toml").read_text()
+
+    documented = tomllib.loads(_extract_toml_fence(codex_guide, expected_table="[mcp_servers.waggle]"))
+    shipped = tomllib.loads(example_config)
+
+    assert documented["mcp_servers"]["waggle"] == shipped["mcp_servers"]["waggle"], (
+        "docs/install/codex.md drifted from examples/codex_config.example.toml. "
+        "Keep the documented Waggle command, args, and env values aligned."
+    )
