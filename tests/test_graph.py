@@ -23,7 +23,7 @@ from waggle.abhi import (
     write_abhi_document,
 )
 from waggle.errors import ValidationFailure
-from waggle.graph import MemoryGraph
+from waggle.graph import MemoryGraph, _ReadWriteLock
 from waggle.models import NodeType, RelationType
 
 
@@ -1751,16 +1751,22 @@ def test_observe_conversation_creates_database_contradiction_edges(tmp_path: Pat
 
 def test_query_supports_temporal_latest_and_oldest_bias(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
-    graph.add_node(
+
+    node_v1 = graph.add_node(
         label="Auth v1",
         content="Auth architecture originally used JWT sessions",
         node_type=NodeType.CONCEPT,
-    )
-    graph.add_node(
+    ).node
+
+    node_v2 = graph.add_node(
         label="Auth v2",
         content="Auth architecture now uses rotating JWT tokens",
         node_type=NodeType.CONCEPT,
-    )
+    ).node
+
+    # Explicitly set distinct timestamps to bypass Windows clock resolution issues
+    _set_node_timestamp(graph, node_v1.id, datetime(2024, 1, 1, tzinfo=UTC))
+    _set_node_timestamp(graph, node_v2.id, datetime(2024, 1, 2, tzinfo=UTC))
 
     latest = graph.query(
         query="latest auth architecture", max_nodes=1, max_depth=0, retrieval_mode="graph"
@@ -1945,16 +1951,22 @@ def test_temporal_original_phrase_prefers_oldest_state(tmp_path: Path) -> None:
 
 def test_now_phrase_prefers_current_backend_choice(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
-    graph.add_node(
+
+    node_old = graph.add_node(
         label="Redis session cache",
         content="Redis handles session caching because TTL support is simple.",
         node_type=NodeType.FACT,
-    )
-    graph.add_node(
+    ).node
+
+    node_new = graph.add_node(
         label="KeyDB session cache",
         content="KeyDB now handles session caching for active-active failover.",
         node_type=NodeType.FACT,
-    )
+    ).node
+
+    # Explicitly set distinct timestamps
+    _set_node_timestamp(graph, node_old.id, datetime(2024, 1, 1, tzinfo=UTC))
+    _set_node_timestamp(graph, node_new.id, datetime(2024, 1, 2, tzinfo=UTC))
 
     result = graph.query(query="which cache backend handles sessions now", max_nodes=1, max_depth=0)
 
@@ -2342,3 +2354,10 @@ def test_clear_scope_dry_run_and_audit_trail(tmp_path: Path) -> None:
     meta = events_real[0].metadata
     assert meta["dry_run"] is False
     assert meta["deleted_nodes"] == result_real.deleted_nodes
+
+
+def test_read_to_write_lock_upgrade_raises_runtime_error() -> None:
+    lock = _ReadWriteLock()
+
+    with lock.read(), pytest.raises(RuntimeError, match="Cannot upgrade a read lock to a write lock"), lock:
+        pass

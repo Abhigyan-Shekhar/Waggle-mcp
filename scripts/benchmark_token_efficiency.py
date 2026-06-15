@@ -10,11 +10,11 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from waggle.token_efficiency_benchmark import (
-    build_v2_comparison_report,
     build_markdown_report,
+    build_v2_comparison_report,
     generate_default_dataset,
-    run_comparison_benchmark,
     run_benchmark,
+    run_comparison_benchmark,
     write_comparison_report,
     write_report,
 )

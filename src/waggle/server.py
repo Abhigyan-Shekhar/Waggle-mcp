@@ -29,10 +29,12 @@ from mcp.server.lowlevel.server import request_ctx
 from mcp.server.models import InitializationOptions
 from mcp.server.streamable_http import StreamableHTTPServerTransport
 from starlette.applications import Starlette
+from starlette.datastructures import Headers
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from waggle import __version__
 from waggle.abhi import (
@@ -481,7 +483,10 @@ def _assert_runtime_feature_parity() -> None:
 
 
 def _build_backend(config: AppConfig) -> Any:
-    embedding_model = EmbeddingModel(config.model_name)
+    embedding_model = EmbeddingModel(
+        config.model_name,
+        embedding_backend=config.embedding_backend,
+    )
     # Disable ML entirely in fast/inspection mode.
     if config.is_fast_mode:
         embedding_model.disable_warmup()
@@ -2947,6 +2952,34 @@ class MCPHttpApp:
         return receive
 
 
+class _RequestBodySizeMiddleware:
+    """Reject requests whose Content-Length exceeds max_payload_bytes."""
+
+    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        headers = Headers(scope=scope)
+        content_length = headers.get("content-length")
+        if content_length is not None:
+            try:
+                length = int(content_length)
+            except (ValueError, TypeError):
+                length = 0
+            if length > self.max_bytes:
+                response = Response(
+                    f"Request body exceeds maximum allowed size of {self.max_bytes} bytes.",
+                    status_code=413,
+                )
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
 def create_http_application(app_server: WaggleServer, config: AppConfig) -> Starlette:
     service = MCPHttpApp(app_server, config)
 
@@ -3819,7 +3852,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         )
         return JSONResponse([_serialize_audit_event(event) for event in events])
 
-    app = Starlette(
+    raw_app = Starlette(
         routes=[
             Route("/health/live", live),
             Route("/health/ready", ready),
@@ -3854,7 +3887,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         lifespan=service.lifespan,
         exception_handlers={WaggleError: waggle_error_handler},
     )
-    return app
+    return _RequestBodySizeMiddleware(raw_app, max_bytes=config.max_payload_bytes)
 
 
 def _run_graph_editor_command(config: AppConfig, args: argparse.Namespace) -> int:
@@ -4522,7 +4555,20 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     setup.add_argument("--dry-run", action="store_true", help="Show what would change without writing files.")
     setup.add_argument("--run-doctor", action=argparse.BooleanOptionalAction, default=True)
-    setup.add_argument("--no-hooks", action="store_true", help="Skip Claude Code hook installation.")
+    setup.add_argument(
+        "--hooks",
+        default="auto",
+        help=(
+            "Which hook-capable tools to install automatic memory hooks for: "
+            "'auto' (all detected, currently Claude Code), 'none', or a comma-separated "
+            "list (currently supported: claude-code)."
+        ),
+    )
+    setup.add_argument(
+        "--no-hooks",
+        action="store_true",
+        help="Deprecated alias for --hooks none. Skip all hook installation.",
+    )
 
     subparsers.add_parser("init", help="Interactive setup wizard — configure an MCP client to use waggle-mcp.")
     subparsers.add_parser(
@@ -4723,7 +4769,13 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         if config.backend != "neo4j":
             raise ValidationFailure("migrate-sqlite requires WAGGLE_BACKEND=neo4j for the target environment.")
         source = MemoryGraph(
-            args.db_path, EmbeddingModel(config.model_name), tenant_id=args.tenant_id, export_dir=config.export_dir
+            args.db_path,
+            EmbeddingModel(
+                config.model_name,
+                embedding_backend=config.embedding_backend,
+            ),
+            tenant_id=args.tenant_id,
+            export_dir=config.export_dir,
         )
         target = backend.for_tenant(args.tenant_id)
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as handle:
@@ -5791,6 +5843,48 @@ def _setup_clients_from_args(raw_clients: str) -> list[str]:
     return _normalize_setup_clients(raw_clients)
 
 
+# ── Hook-capable tool selection ──────────────────────────────────
+# Hooks are currently Claude-Code-specific (written to ~/.claude/settings.json),
+# separate from the MCP client config writers above. This map is the extension
+# point for future hook-capable tools.
+_HOOK_TOOL_ALIASES = {
+    "claude-code": "Claude Code",
+    "claude_code": "Claude Code",
+    "claudecode": "Claude Code",
+}
+_ALL_HOOK_TOOLS = ["Claude Code"]
+
+
+def _hook_tools_from_args(raw_hooks: str, no_hooks: bool) -> list[str]:
+    """Resolve which hook-capable tools should receive automatic memory hooks.
+
+    'auto' selects all hook-capable tools (currently Claude Code); 'none' selects
+    none. --no-hooks is a deprecated alias for --hooks none. A comma-separated
+    list selects specific tools by alias.
+    """
+    raw = (raw_hooks or "auto").strip().lower()
+    if no_hooks:
+        raw = "none"
+    if raw == "none":
+        return []
+    if raw == "auto":
+        return list(_ALL_HOOK_TOOLS)
+    tools: list[str] = []
+    for part in raw.split(","):
+        key = part.strip().lower()
+        if not key:
+            continue
+        tool = _HOOK_TOOL_ALIASES.get(key)
+        if tool is None:
+            supported = ", ".join(sorted(_HOOK_TOOL_ALIASES))
+            raise ValidationFailure(f"Unsupported hook target: {part!r}. Supported values: auto, none, {supported}.")
+        if tool not in tools:
+            tools.append(tool)
+    if not tools:
+        raise ValidationFailure("No hook targets were provided.")
+    return tools
+
+
 # ── Claude Code hook constants ────────────────────────────────────────────────
 _CLAUDE_HOOKS_BLOCK_HEADER = "# >>> waggle-managed >>>"
 _CLAUDE_HOOKS_BLOCK_FOOTER = "# <<< waggle-managed <<<"
@@ -6088,6 +6182,7 @@ def _run_setup(args: argparse.Namespace) -> int:
     db_path = str(Path(db_path_raw).expanduser().resolve())
     python_exe = _python_exe()
     clients = _setup_clients_from_args(args.clients)
+    hook_tools = _hook_tools_from_args(getattr(args, "hooks", "auto"), bool(getattr(args, "no_hooks", False)))
 
     print()
     print(_c(_BOLD, "waggle-mcp setup"))
@@ -6099,6 +6194,9 @@ def _run_setup(args: argparse.Namespace) -> int:
         print("  mode: dry-run")
         for client in clients:
             _ok(f"Would configure {client}")
+        if "Claude Code" in hook_tools:
+            hooks_path = _find_claude_settings()
+            _ok(f"Would install Claude Code hooks in {hooks_path}")
         if args.project_instructions and "Codex" in clients:
             agents_path = (Path.cwd() / "AGENTS.md").resolve()
             _ok(f"Would write Codex automatic-memory instructions to {agents_path}")
@@ -6135,18 +6233,18 @@ def _run_setup(args: argparse.Namespace) -> int:
         print(f"  {_c(_CYAN, chr(0x27A1))}  {_RESTART_HINTS[client]}")
     print()
 
-    # Install Claude Code hooks if not suppressed
-    no_hooks = bool(getattr(args, "no_hooks", False))
-    if not no_hooks and not args.dry_run:
-        hook_dir = Path(__file__).resolve().parent / "hooks" / "claude_code"
-        if hook_dir.exists():
-            try:
-                hooks_path = _install_claude_hooks(hook_dir)
-                if hooks_path is not None:
-                    _ok(f"Claude Code hooks installed in {hooks_path}")
-            except OSError as exc:
-                # Non-fatal: hooks are optional
-                LOGGER.warning("claude_hooks_install_failed", extra={"error": str(exc)})
+    # Install automatic memory hooks for the selected hook-capable tools
+    if hook_tools and not args.dry_run:
+        if "Claude Code" in hook_tools:
+            hook_dir = Path(__file__).resolve().parent / "hooks" / "claude_code"
+            if hook_dir.exists():
+                try:
+                    hooks_path = _install_claude_hooks(hook_dir)
+                    if hooks_path is not None:
+                        _ok(f"Claude Code hooks installed in {hooks_path}")
+                except OSError as exc:
+                    # Non-fatal: hooks are optional
+                    LOGGER.warning("claude_hooks_install_failed", extra={"error": str(exc)})
 
     if args.run_doctor:
         doctor_config = AppConfig.from_env()
