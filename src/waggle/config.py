@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import tomllib
 from dataclasses import dataclass
@@ -43,6 +44,25 @@ def resolve_default_db_path() -> str:
     if configured:
         return configured
     return DEFAULT_DB_PATH
+
+
+def _parse_int(name: str, value: str) -> int:
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValidationFailure(f"{name} must be an integer, got '{value}'.") from exc
+
+
+def _parse_float(name: str, value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise ValidationFailure(f"{name} must be a float, got '{value}'.") from exc
+
+    if not math.isfinite(parsed):
+        raise ValidationFailure(f"{name} must be a finite float, got '{value}'.")
+
+    return parsed
 
 
 @dataclass(slots=True)
@@ -92,7 +112,15 @@ class AppConfig:
     def from_env(cls) -> AppConfig:
         # Render (and other PaaS providers) commonly inject a dynamic `PORT` env var.
         # Prefer `WAGGLE_HTTP_PORT` when set, otherwise fall back to `PORT`.
-        resolved_http_port = os.environ.get("WAGGLE_HTTP_PORT") or os.environ.get("PORT") or "8080"
+        if os.environ.get("WAGGLE_HTTP_PORT") is not None:
+            http_port_name = "WAGGLE_HTTP_PORT"
+            resolved_http_port = os.environ["WAGGLE_HTTP_PORT"]
+        elif os.environ.get("PORT") is not None:
+            http_port_name = "PORT"
+            resolved_http_port = os.environ["PORT"]
+        else:
+            http_port_name = "WAGGLE_HTTP_PORT"
+            resolved_http_port = "8080"
         config = cls(
             backend=os.environ.get("WAGGLE_BACKEND", "sqlite").strip().lower(),
             transport=os.environ.get("WAGGLE_TRANSPORT", "stdio").strip().lower(),
@@ -106,35 +134,64 @@ class AppConfig:
             db_path=os.environ.get("WAGGLE_DB_PATH") or resolve_default_db_path(),
             default_tenant_id=os.environ.get("WAGGLE_DEFAULT_TENANT_ID", "local-default").strip(),
             http_host=os.environ.get("WAGGLE_HTTP_HOST", "0.0.0.0"),
-            http_port=int(resolved_http_port),
+            http_port=_parse_int(
+                http_port_name,
+                resolved_http_port,
+            ),
             log_level=os.environ.get("WAGGLE_LOG_LEVEL", "INFO"),
-            rate_limit_rpm=int(os.environ.get("WAGGLE_RATE_LIMIT_RPM", "120")),
-            write_rate_limit_rpm=int(os.environ.get("WAGGLE_WRITE_RATE_LIMIT_RPM", "60")),
-            max_concurrent_requests=int(os.environ.get("WAGGLE_MAX_CONCURRENT_REQUESTS", "8")),
-            max_payload_bytes=int(os.environ.get("WAGGLE_MAX_PAYLOAD_BYTES", str(1024 * 1024))),
-            request_timeout_seconds=int(os.environ.get("WAGGLE_REQUEST_TIMEOUT_SECONDS", "30")),
-            recency_half_life_days=float(os.environ.get("WAGGLE_RECENCY_HALF_LIFE_DAYS", "30.0")),
-            hybrid_vector_weight=float(os.environ.get("WAGGLE_HYBRID_VECTOR_WEIGHT", "1.0")),
-            hybrid_bm25_weight=float(os.environ.get("WAGGLE_HYBRID_BM25_WEIGHT", "1.0")),
-            hybrid_graph_weight=float(os.environ.get("WAGGLE_HYBRID_GRAPH_WEIGHT", "1.0")),
-            hybrid_recency_weight=float(os.environ.get("WAGGLE_HYBRID_RECENCY_WEIGHT", "1.0")),
+            rate_limit_rpm=_parse_int("WAGGLE_RATE_LIMIT_RPM", os.environ.get("WAGGLE_RATE_LIMIT_RPM", "120")),
+            write_rate_limit_rpm=_parse_int(
+                "WAGGLE_WRITE_RATE_LIMIT_RPM", os.environ.get("WAGGLE_WRITE_RATE_LIMIT_RPM", "60")
+            ),
+            max_concurrent_requests=_parse_int(
+                "WAGGLE_MAX_CONCURRENT_REQUESTS", os.environ.get("WAGGLE_MAX_CONCURRENT_REQUESTS", "8")
+            ),
+            max_payload_bytes=_parse_int(
+                "WAGGLE_MAX_PAYLOAD_BYTES", os.environ.get("WAGGLE_MAX_PAYLOAD_BYTES", str(1024 * 1024))
+            ),
+            request_timeout_seconds=_parse_int(
+                "WAGGLE_REQUEST_TIMEOUT_SECONDS", os.environ.get("WAGGLE_REQUEST_TIMEOUT_SECONDS", "30")
+            ),
+            recency_half_life_days=_parse_float(
+                "WAGGLE_RECENCY_HALF_LIFE_DAYS", os.environ.get("WAGGLE_RECENCY_HALF_LIFE_DAYS", "30.0")
+            ),
+            hybrid_vector_weight=_parse_float(
+                "WAGGLE_HYBRID_VECTOR_WEIGHT", os.environ.get("WAGGLE_HYBRID_VECTOR_WEIGHT", "1.0")
+            ),
+            hybrid_bm25_weight=_parse_float(
+                "WAGGLE_HYBRID_BM25_WEIGHT", os.environ.get("WAGGLE_HYBRID_BM25_WEIGHT", "1.0")
+            ),
+            hybrid_graph_weight=_parse_float(
+                "WAGGLE_HYBRID_GRAPH_WEIGHT", os.environ.get("WAGGLE_HYBRID_GRAPH_WEIGHT", "1.0")
+            ),
+            hybrid_recency_weight=_parse_float(
+                "WAGGLE_HYBRID_RECENCY_WEIGHT", os.environ.get("WAGGLE_HYBRID_RECENCY_WEIGHT", "1.0")
+            ),
             hybrid_rerank_enabled=os.environ.get("WAGGLE_HYBRID_RERANK_ENABLED", "false").strip().lower() == "true",
             hybrid_rerank_model=os.environ.get("WAGGLE_HYBRID_RERANK_MODEL", "claude-3-5-sonnet-latest").strip(),
-            hybrid_rerank_top_k_in=int(os.environ.get("WAGGLE_HYBRID_RERANK_TOP_K_IN", "20")),
-            hybrid_rerank_top_k_out=int(os.environ.get("WAGGLE_HYBRID_RERANK_TOP_K_OUT", "5")),
+            hybrid_rerank_top_k_in=_parse_int(
+                "WAGGLE_HYBRID_RERANK_TOP_K_IN", os.environ.get("WAGGLE_HYBRID_RERANK_TOP_K_IN", "20")
+            ),
+            hybrid_rerank_top_k_out=_parse_int(
+                "WAGGLE_HYBRID_RERANK_TOP_K_OUT", os.environ.get("WAGGLE_HYBRID_RERANK_TOP_K_OUT", "5")
+            ),
             export_dir=os.environ.get("WAGGLE_EXPORT_DIR"),
             neo4j_uri=os.environ.get("WAGGLE_NEO4J_URI", "").strip(),
             neo4j_username=os.environ.get("WAGGLE_NEO4J_USERNAME", "").strip(),
             neo4j_password=os.environ.get("WAGGLE_NEO4J_PASSWORD", ""),
             neo4j_database=os.environ.get("WAGGLE_NEO4J_DATABASE", "").strip(),
             retention_enabled=os.environ.get("WAGGLE_RETENTION_ENABLED", "false").strip().lower() == "true",
-            retention_days=int(os.environ.get("WAGGLE_RETENTION_DAYS", "90")),
-            retention_prune_interval_hours=int(os.environ.get("WAGGLE_RETENTION_PRUNE_INTERVAL_HOURS", "24")),
+            retention_days=_parse_int("WAGGLE_RETENTION_DAYS", os.environ.get("WAGGLE_RETENTION_DAYS", "90")),
+            retention_prune_interval_hours=_parse_int(
+                "WAGGLE_RETENTION_PRUNE_INTERVAL_HOURS", os.environ.get("WAGGLE_RETENTION_PRUNE_INTERVAL_HOURS", "24")
+            ),
             startup_mode=os.environ.get("WAGGLE_STARTUP_MODE", STARTUP_MODE_NORMAL).strip().lower(),
             api_key_environment=os.environ.get("WAGGLE_API_KEY_ENVIRONMENT", "test").strip().lower(),
             tiered_retrieval=os.environ.get("WAGGLE_TIERED_RETRIEVAL", "false").strip().lower() == "true",
-            tiered_retrieval_top_k_windows=int(os.environ.get("WAGGLE_TIERED_TOP_K_WINDOWS", "3")),
-            dedup_threshold=float(os.environ.get("WAGGLE_DEDUP_THRESHOLD", "0.88")),
+            tiered_retrieval_top_k_windows=_parse_int(
+                "WAGGLE_TIERED_TOP_K_WINDOWS", os.environ.get("WAGGLE_TIERED_TOP_K_WINDOWS", "3")
+            ),
+            dedup_threshold=_parse_float("WAGGLE_DEDUP_THRESHOLD", os.environ.get("WAGGLE_DEDUP_THRESHOLD", "0.88")),
         )
         config.validate()
         return config

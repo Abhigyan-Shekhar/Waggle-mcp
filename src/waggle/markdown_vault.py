@@ -50,7 +50,7 @@ def render_frontmatter(payload: dict[str, Any]) -> str:
     for key, value in payload.items():
         lines.append(f"{key}: {json.dumps(value, ensure_ascii=True)}")
     lines.append(_FRONTMATTER_DELIM)
-    return "\n".join(lines)
+    return "\n".join(lines) + "\n"
 
 
 def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
