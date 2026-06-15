@@ -49,7 +49,7 @@ ruff format --check src/ tests/
 
 | Variable | Purpose | Default |
 |----------|---------|--------|
-| `WAGGLE_MODEL` | Set to `deterministic` for offline SHA-256 embeddings in tests | `sentence-transformers` |
+| `WAGGLE_MODEL` | Set to `deterministic` for offline SHA-256 embeddings in tests | `all-MiniLM-L6-v2` |
 | `WAGGLE_EMBEDDING_BACKEND` | Controls embedding inference backend (`pytorch` or `onnx`) | `pytorch` |
 | `PYTHONUTF8` | Set to `1` on Windows to prevent `UnicodeEncodeError` | unset |
 
@@ -109,17 +109,17 @@ All CI checks must pass before a PR can be merged.
 
 ### Branch Naming
 
-```
-fix/<short-description>     # Bug fixes
-feat/<short-description>    # New features
-docs/<short-description>    # Documentation changes
-test/<short-description>    # Test additions/changes
+```text
+fix/<short-description>      # Bug fixes
+feat/<short-description>     # New features
+docs/<short-description>     # Documentation changes
+test/<short-description>     # Test additions/changes
 refactor/<short-description> # Code refactoring
 ```
 
 ### Commit Message Format
 
-```
+```text
 <type>(<scope>): <short description>
 
 <optional body explaining why>
