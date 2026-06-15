@@ -169,7 +169,8 @@ def merge_downloaded_abhi(
     Raises:
         ValidationFailure: If merge_strategy is unsupported.
     """
-    if merge_strategy not in ABHI_MERGE_STRATEGIES:
+    normalized_merge_strategy = str(merge_strategy).strip()
+    if normalized_merge_strategy not in ABHI_MERGE_STRATEGIES:
         supported = ", ".join(ABHI_MERGE_STRATEGIES)
         raise ValidationFailure(f"Invalid merge_strategy {merge_strategy!r}. Expected one of: {supported}.")
 
@@ -195,7 +196,7 @@ def merge_downloaded_abhi(
         left_input_path="local://current",
         right_input_path="local://remote",
         output_path=output_path,
-        merge_strategy=merge_strategy,
+        merge_strategy=normalized_merge_strategy,
     )
 
     return merged.output_path

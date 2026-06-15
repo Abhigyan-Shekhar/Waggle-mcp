@@ -1282,6 +1282,11 @@ def merge_abhi_documents(
     - ``prefer_right``: retain the right/remote value during a conflict.
     """
     merge_strategy = _validate_abhi_merge_strategy(merge_strategy)
+    if strategy_config is not None:
+        for override in strategy_config.type_overrides:
+            _validate_abhi_merge_strategy(override.strategy)
+        for override in strategy_config.field_overrides:
+            _validate_abhi_merge_strategy(override.strategy)
 
     import time
 

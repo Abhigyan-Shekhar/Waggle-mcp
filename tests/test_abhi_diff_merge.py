@@ -24,6 +24,7 @@ from waggle.abhi import (
     build_abhi_document,
     diff_abhi_files,
     load_abhi_document,
+    merge_abhi_documents,
     merge_abhi_files,
     resolve_abhi_conflict,
     serialize_abhi_diff,
@@ -206,6 +207,62 @@ def test_drive_merge_rejects_invalid_strategy(tmp_path):
             remote_document=document,
             output_path=tmp_path / "merged.abhi",
             merge_strategy="invalid-strategy",
+        )
+
+
+def test_drive_merge_normalizes_strategy_whitespace(tmp_path):
+    document = build_abhi_document(_make_snapshot())
+    output_path = tmp_path / "normalized-strategy.abhi"
+
+    merge_downloaded_abhi(
+        local_document=document,
+        remote_document=document,
+        output_path=output_path,
+        merge_strategy=" prefer_left ",
+    )
+
+    assert output_path.exists()
+
+
+@pytest.mark.parametrize(
+    "strategy_config",
+    [
+        MergeStrategyConfig(
+            type_overrides=[
+                {
+                    "node_type": "fact",
+                    "strategy": "invalid-strategy",
+                }
+            ]
+        ),
+        MergeStrategyConfig(
+            field_overrides=[
+                {
+                    "field": "content",
+                    "strategy": "invalid-strategy",
+                }
+            ]
+        ),
+    ],
+)
+def test_merge_rejects_invalid_override_strategies(
+    tmp_path,
+    strategy_config,
+):
+    document = build_abhi_document(_make_snapshot())
+
+    with pytest.raises(ValidationFailure, match="Invalid merge_strategy"):
+        merge_abhi_documents(
+            document,
+            document,
+            document,
+            base_input_path="local://base",
+            left_input_path="local://left",
+            right_input_path="local://right",
+            output_path=tmp_path / "merged.abhi",
+            merge_strategy="prefer_left",
+            strategy_config=strategy_config,
+            dry_run=True,
         )
 
 
