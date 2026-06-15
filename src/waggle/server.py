@@ -6610,7 +6610,9 @@ def main() -> None:
         config.transport = str(args.transport).strip().lower()
         config.validate()
     quiet = bool(getattr(args, "quiet", False))
-    if command in {"serve", "edit-graph", "view-graph", "ui", "graph-studio", "open-studio"} and should_print_banner(config, quiet):
+    if command in {"serve", "edit-graph", "view-graph", "ui", "graph-studio", "open-studio"} and should_print_banner(
+        config, quiet
+    ):
         _print_startup_banner(config)
     log_stream = sys.stderr if config.transport == "stdio" else sys.stdout
     configure_logging(config.log_level, stream=log_stream)
