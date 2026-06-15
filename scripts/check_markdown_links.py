@@ -1,6 +1,7 @@
 from pathlib import Path
 import re
 import sys
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -32,7 +33,8 @@ for md_file in markdown_files:
             continue
 
         # Remove anchor part
-        link_path = link.split("#")[0]
+        parsed = urlsplit(link)
+        link_path = parsed.path
 
         if not link_path:
             continue
