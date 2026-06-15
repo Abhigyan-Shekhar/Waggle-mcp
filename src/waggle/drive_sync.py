@@ -217,9 +217,15 @@ def _run_local_oauth_flow(
     if open_browser:
         webbrowser.open(auth_url)
     else:
-        print("\nAuthorize Waggle Drive access by visiting this URL:\n", file=sys.stderr,flush=True)
-        print(auth_url, file=sys.stderr,flush=True)
-        print("\nWaiting for authorization...\n",file=sys.stderr,flush=True)
+        print("\nAuthorize Waggle Drive access by visiting this URL:\n", 
+              file=sys.stderr,
+              flush=True)
+        print(auth_url, 
+              file=sys.stderr,
+              flush=True)
+        print("\nWaiting for authorization...\n",
+              file=sys.stderr,
+              flush=True)
     thread.join(timeout=300)
     code = code_holder.get("code", "")
     if not code:
