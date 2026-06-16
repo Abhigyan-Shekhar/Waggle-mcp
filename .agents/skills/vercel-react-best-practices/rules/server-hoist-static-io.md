@@ -1,8 +1,8 @@
----
+﻿---
 title: Hoist Static I/O to Module Level
 impact: HIGH
 impactDescription: avoids repeated file/network I/O per request
-tags: server, io, performance, next.js, route-handlers, og-image
+tags: ["server", "io", "performance", "next.js", "route-handlers", "og-image"]
 ---
 
 ## Hoist Static I/O to Module Level

@@ -1,8 +1,8 @@
----
+﻿---
 title: Don't Define Components Inside Components
 impact: HIGH
 impactDescription: prevents remount on every render
-tags: rerender, components, remount, performance
+tags: ["rerender", "components", "remount", "performance"]
 ---
 
 ## Don't Define Components Inside Components

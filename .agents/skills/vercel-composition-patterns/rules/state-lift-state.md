@@ -1,8 +1,8 @@
----
+﻿---
 title: Lift State into Provider Components
 impact: HIGH
 impactDescription: enables state sharing outside component boundaries
-tags: composition, state, context, providers
+tags: ["composition", "state", "context", "providers"]
 ---
 
 ## Lift State into Provider Components

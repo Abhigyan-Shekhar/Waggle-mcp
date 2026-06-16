@@ -1,8 +1,8 @@
----
+﻿---
 title: Rule Title Here
 impact: MEDIUM
 impactDescription: brief description of impact
-tags: composition, components
+tags: ["composition", "components"]
 ---
 
 ## Rule Title Here
@@ -21,4 +21,4 @@ Brief explanation of the rule and why it matters.
 // Good code example
 ```
 
-Reference: [Link](https://example.com)
+Reference: [React docs — Composition](https://react.dev/learn/passing-data-deeply-with-context)

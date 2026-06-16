@@ -1,8 +1,8 @@
----
+﻿---
 title: Early Length Check for Array Comparisons
 impact: MEDIUM-HIGH
 impactDescription: avoids expensive operations when lengths differ
-tags: javascript, arrays, performance, optimization, comparison
+tags: ["javascript", "arrays", "performance", "optimization", "comparison"]
 ---
 
 ## Early Length Check for Array Comparisons
@@ -44,6 +44,6 @@ function hasChanges(current: string[], original: string[]) {
 
 This new approach is more efficient because:
 - It avoids the overhead of sorting and joining the arrays when lengths differ
-- It avoids consuming memory for the joined strings (especially important for large arrays)
+- It avoids consuming memory for the joined strings (especially important for arrays with 1,000+ elements)
 - It avoids mutating the original arrays
 - It returns early when a difference is found

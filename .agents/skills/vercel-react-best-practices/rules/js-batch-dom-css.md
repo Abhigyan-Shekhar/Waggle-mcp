@@ -1,8 +1,8 @@
----
+﻿---
 title: Avoid Layout Thrashing
 impact: MEDIUM
 impactDescription: prevents forced synchronous layouts and reduces performance bottlenecks
-tags: javascript, dom, css, performance, reflow, layout-thrashing
+tags: ["javascript", "dom", "css", "performance", "reflow", "layout-thrashing"]
 ---
 
 ## Avoid Layout Thrashing

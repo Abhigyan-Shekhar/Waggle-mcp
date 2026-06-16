@@ -1,8 +1,8 @@
----
+﻿---
 title: Suppress Expected Hydration Mismatches
 impact: LOW-MEDIUM
 impactDescription: avoids noisy hydration warnings for known differences
-tags: rendering, hydration, ssr, nextjs
+tags: ["rendering", "hydration", "ssr", "nextjs"]
 ---
 
 ## Suppress Expected Hydration Mismatches

@@ -23,7 +23,7 @@ Design effective Grafana dashboards for monitoring applications, infrastructure,
 
 ### 1. Hierarchy of Information
 
-```
+```text
 ┌─────────────────────────────────────┐
 │  Critical Metrics (Big Numbers)     │
 ├─────────────────────────────────────┤
@@ -105,7 +105,7 @@ Design effective Grafana dashboards for monitoring applications, infrastructure,
 }
 ```
 
-**Reference:** See `assets/api-dashboard.json`
+**Note:** The JSON above is a starter template; adapt panel queries to your metric names.
 
 ## Panel Types
 
@@ -242,7 +242,7 @@ Design effective Grafana dashboards for monitoring applications, infrastructure,
 
 ### Use Variables in Queries
 
-```
+```promql
 sum(rate(http_requests_total{namespace="$namespace", service=~"$service"}[5m]))
 ```
 
@@ -308,7 +308,7 @@ providers:
 - Pod count by namespace
 - Node status
 
-**Reference:** See `assets/infrastructure-dashboard.json`
+**Note:** Use the panel types above to build this dashboard; key panels listed below.
 
 ### Database Dashboard
 
@@ -322,7 +322,7 @@ providers:
 - Replication lag
 - Slow queries
 
-**Reference:** See `assets/database-dashboard.json`
+**Note:** Use the panel types above to build this dashboard; key panels listed below.
 
 ### Application Dashboard
 

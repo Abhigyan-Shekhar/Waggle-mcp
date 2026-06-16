@@ -1,8 +1,8 @@
----
+﻿---
 title: Avoid Boolean Prop Proliferation
 impact: CRITICAL
 impactDescription: prevents unmaintainable component variants
-tags: composition, props, architecture
+tags: ["composition", "props", "architecture"]
 ---
 
 ## Avoid Boolean Prop Proliferation
