@@ -156,6 +156,10 @@ def sync_labels(
     delete_missing: bool,
 ) -> list[str]:
     actions: list[str] = []
+    # .github/labels.yml is the canonical source of truth for labels.
+    # Community labels such as SSoC26, easy, medium, and hard should be
+    # defined there so that sync operations remain predictable when
+    # --delete-missing is used.
     desired_names = {label.name.lower() for label in desired}
 
     for label in desired:
@@ -249,3 +253,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
