@@ -79,6 +79,7 @@ from waggle.models import (
     ApiKeyRecord,
     AuditEventRecord,
     BackupResult,
+    ClearScopeResult,
     ConflictEntry,
     ConflictListResult,
     ConflictRecord,
@@ -2091,7 +2092,313 @@ def update_node(
                 id=node_id,
             ).consume()
             return node
+    def clear_session(self, *, session_id: str, dry_run: bool = False) -> ClearScopeResult:
+        normalized_session = session_id.strip()
+        if not normalized_session:
+            raise ValueError("session_id is required.")
 
+        return self._clear_scope_rows(
+            scope="session",
+            session_id=normalized_session,
+            dry_run=dry_run,
+        )
+    def clear_project(
+        self,
+        *,
+        project: str,
+        dry_run: bool = False,
+    ) -> ClearScopeResult:
+        normalized_project = project.strip()
+
+        if not normalized_project:
+            raise ValueError("project is required.")
+
+        return self._clear_scope_rows(
+            scope="project",
+            project=normalized_project,
+            dry_run=dry_run,
+        )
+    def clear_all(
+        self,
+        *,
+        dry_run: bool = False,
+    ) -> ClearScopeResult:
+        return self._clear_scope_rows(
+            scope="all",
+            dry_run=dry_run,
+        )
+
+    def _clear_scope_rows(
+        self,
+        *,
+        scope: str,
+        project: str = "",
+        session_id: str = "",
+        dry_run: bool = False,
+    ) -> ClearScopeResult:
+        normalized_scope = scope.strip().lower()
+        if normalized_scope not in {"all", "project", "session"}:
+            raise ValueError(f"Unsupported clear scope: {scope}")
+
+        normalized_project = project.strip()
+        normalized_session = session_id.strip()
+
+        result = ClearScopeResult(
+            scope=normalized_scope,
+            project=normalized_project,
+            session_id=normalized_session,
+            dry_run=dry_run,
+        )
+
+        match_predicates: list[str] = ["n.tenant_id = $tenant_id"]
+        params: dict[str, Any] = {"tenant_id": self.tenant_id}
+
+        if normalized_scope == "all":
+            pass
+        elif normalized_scope == "project":
+            match_predicates.append("n.project = $project")
+            params["project"] = normalized_project
+        elif normalized_scope == "session":
+            match_predicates.append("n.session_id = $session_id")
+            params["session_id"] = normalized_session
+
+        node_query = f"""
+            MATCH (n:MemoryNode)
+            WHERE {" AND ".join(match_predicates)}
+            RETURN n.id AS id, n.node_type AS node_type
+        """
+
+        with self._lock, self._session() as session:
+            node_rows = list(session.run(node_query, **params))
+            node_ids = [str(row["id"]) for row in node_rows]
+            result.counts_by_node_type = {}
+            for row in node_rows:
+                nt = str(row["node_type"])
+                result.counts_by_node_type[nt] = result.counts_by_node_type.get(nt, 0) + 1
+
+            result.deleted_nodes = len(node_ids) if node_ids else 0
+
+            result.deleted_graph_ui_rows = session.run(
+                f"""
+                MATCH (ui:GraphUIState)
+                WHERE ui.tenant_id = $tenant_id
+                  {'' if normalized_scope == 'all' else 'AND ui.project = $project' if normalized_scope == 'project' else 'AND ui.session_id = $session_id'}
+                RETURN count(ui) AS c
+                """,
+                **params,
+            ).single()["c"]
+
+            result.deleted_transcripts = session.run(
+                f"""
+                MATCH (t:MemoryTranscript)
+                WHERE t.tenant_id = $tenant_id
+                  {'' if normalized_scope == 'all' else 'AND t.project = $project' if normalized_scope == 'project' else 'AND t.session_id = $session_id'}
+                RETURN count(t) AS c
+                """,
+                **params,
+            ).single()["c"]
+
+            # Edges: delete if either endpoint is a node being cleared.
+            if node_ids:
+                edge_pred = ""
+                if normalized_scope == "all":
+                    edge_pred = ""
+                result.deleted_edges = session.run(
+                    """
+                    MATCH ()-[r:MEMORY_EDGE {tenant_id: $tenant_id}]->()
+                    WHERE r.tenant_id = $tenant_id
+                      AND (r.id IS NOT NULL)
+                      AND (
+                        (startNode(r).id IN $node_ids) OR (endNode(r).id IN $node_ids)
+                      )
+                    RETURN count(r) AS c
+                    """,
+                    tenant_id=self.tenant_id,
+                    node_ids=node_ids,
+                ).single()["c"]
+            else:
+                result.deleted_edges = 0
+
+            # Context windows and edges (best-effort parity based on existing labels)
+            window_match_predicates: list[str] = ["w.tenant_id = $tenant_id"]
+            window_params = {"tenant_id": self.tenant_id}
+            if normalized_scope == "project":
+                # Neo4j backend currently derives repos as constant 'default'; however ContextWindow has repo_id.
+                # For parity we treat `project` as `w.repo_id`.
+                window_match_predicates.append("w.repo_id = $repo_id")
+                window_params["repo_id"] = normalized_project
+            elif normalized_scope == "session":
+                window_match_predicates.append("w.session_id = $session_id")
+                window_params["session_id"] = normalized_session
+
+            window_query = f"""
+                MATCH (w:ContextWindow)
+                WHERE {" AND ".join(window_match_predicates)}
+                RETURN w.id AS id
+            """
+            window_rows = list(session.run(window_query, **window_params))
+            window_ids = [str(row["id"]) for row in window_rows]
+            result.deleted_context_windows = len(window_ids) if window_ids else 0
+
+            if window_ids:
+                result.deleted_context_window_edges = session.run(
+                    """
+                    MATCH ()-[r:CONTEXT_WINDOW_EDGE {tenant_id: $tenant_id}]->()
+                    WHERE r.tenant_id = $tenant_id
+                      AND (startNode(r).id IN $window_ids OR endNode(r).id IN $window_ids)
+                    RETURN count(r) AS c
+                    """,
+                    tenant_id=self.tenant_id,
+                    window_ids=window_ids,
+                ).single()["c"]
+            else:
+                result.deleted_context_window_edges = 0
+
+            # Repos label is not implemented in Neo4jMemoryGraph; return 0 for parity with absent storage.
+            result.deleted_repos = 0
+
+            if dry_run:
+                return result
+
+            # Perform deletions in dependency order.
+            if normalized_scope == "all":
+                session.run("MATCH (ui:GraphUIState {tenant_id: $tenant_id}) DELETE ui", tenant_id=self.tenant_id).consume()
+                session.run(
+                    "MATCH (t:MemoryTranscript {tenant_id: $tenant_id}) DELETE t",
+                    tenant_id=self.tenant_id,
+                ).consume()
+                if node_ids:
+                    session.run(
+                        """
+                        MATCH ()-[r:MEMORY_EDGE {tenant_id: $tenant_id}]->()
+                        WHERE startNode(r).id IN $node_ids OR endNode(r).id IN $node_ids
+                        DELETE r
+                        """,
+                        tenant_id=self.tenant_id,
+                        node_ids=node_ids,
+                    ).consume()
+                if node_ids:
+                    session.run(
+                        "MATCH (n:MemoryNode {tenant_id: $tenant_id, id: $id}) DETACH DELETE n",
+                        tenant_id=self.tenant_id,
+                        id=node_ids[0],
+                    ).consume()
+                    # delete remaining nodes in bulk
+                    if len(node_ids) > 1:
+                        session.run(
+                            """
+                            MATCH (n:MemoryNode {tenant_id: $tenant_id})
+                            WHERE n.id IN $node_ids
+                            DETACH DELETE n
+                            """,
+                            tenant_id=self.tenant_id,
+                            node_ids=node_ids,
+                        ).consume()
+
+                if window_ids:
+                    session.run(
+                        """
+                        MATCH ()-[r:CONTEXT_WINDOW_EDGE {tenant_id: $tenant_id}]->()
+                        WHERE startNode(r).id IN $window_ids OR endNode(r).id IN $window_ids
+                        DELETE r
+                        """,
+                        tenant_id=self.tenant_id,
+                        window_ids=window_ids,
+                    ).consume()
+                    session.run(
+                        "MATCH (w:ContextWindow {tenant_id: $tenant_id}) WHERE w.id IN $window_ids DETACH DELETE w",
+                        tenant_id=self.tenant_id,
+                        window_ids=window_ids,
+                    ).consume()
+                return result
+
+            if normalized_scope == "project":
+                session.run(
+                    "MATCH (ui:GraphUIState {tenant_id: $tenant_id, project: $project}) DELETE ui",
+                    tenant_id=self.tenant_id,
+                    project=normalized_project,
+                ).consume()
+                session.run(
+                    "MATCH (t:MemoryTranscript {tenant_id: $tenant_id, project: $project}) DELETE t",
+                    tenant_id=self.tenant_id,
+                    project=normalized_project,
+                ).consume()
+                if node_ids:
+                    session.run(
+                        """
+                        MATCH ()-[r:MEMORY_EDGE {tenant_id: $tenant_id}]->()
+                        WHERE startNode(r).id IN $node_ids OR endNode(r).id IN $node_ids
+                        DELETE r
+                        """,
+                        tenant_id=self.tenant_id,
+                        node_ids=node_ids,
+                    ).consume()
+                    session.run(
+                        "MATCH (n:MemoryNode {tenant_id: $tenant_id}) WHERE n.id IN $node_ids DETACH DELETE n",
+                        tenant_id=self.tenant_id,
+                        node_ids=node_ids,
+                    ).consume()
+
+                if window_ids:
+                    session.run(
+                        """
+                        MATCH ()-[r:CONTEXT_WINDOW_EDGE {tenant_id: $tenant_id}]->()
+                        WHERE startNode(r).id IN $window_ids OR endNode(r).id IN $window_ids
+                        DELETE r
+                        """,
+                        tenant_id=self.tenant_id,
+                        window_ids=window_ids,
+                    ).consume()
+                    session.run(
+                        "MATCH (w:ContextWindow {tenant_id: $tenant_id}) WHERE w.id IN $window_ids DETACH DELETE w",
+                        tenant_id=self.tenant_id,
+                        window_ids=window_ids,
+                    ).consume()
+                return result
+
+            # session scope
+            session.run(
+                "MATCH (ui:GraphUIState {tenant_id: $tenant_id, session_id: $session_id}) DELETE ui",
+                tenant_id=self.tenant_id,
+                session_id=normalized_session,
+            ).consume()
+            session.run(
+                "MATCH (t:MemoryTranscript {tenant_id: $tenant_id, session_id: $session_id}) DELETE t",
+                tenant_id=self.tenant_id,
+                session_id=normalized_session,
+            ).consume()
+            if node_ids:
+                session.run(
+                    """
+                    MATCH ()-[r:MEMORY_EDGE {tenant_id: $tenant_id}]->()
+                    WHERE startNode(r).id IN $node_ids OR endNode(r).id IN $node_ids
+                    DELETE r
+                    """,
+                    tenant_id=self.tenant_id,
+                    node_ids=node_ids,
+                ).consume()
+                session.run(
+                    "MATCH (n:MemoryNode {tenant_id: $tenant_id}) WHERE n.id IN $node_ids DETACH DELETE n",
+                    tenant_id=self.tenant_id,
+                    node_ids=node_ids,
+                ).consume()
+            if window_ids:
+                session.run(
+                    """
+                    MATCH ()-[r:CONTEXT_WINDOW_EDGE {tenant_id: $tenant_id}]->()
+                    WHERE startNode(r).id IN $window_ids OR endNode(r).id IN $window_ids
+                    DELETE r
+                    """,
+                    tenant_id=self.tenant_id,
+                    window_ids=window_ids,
+                ).consume()
+                session.run(
+                    "MATCH (w:ContextWindow {tenant_id: $tenant_id}) WHERE w.id IN $window_ids DETACH DELETE w",
+                    tenant_id=self.tenant_id,
+                    window_ids=window_ids,
+                ).consume()
+
+            return result
     def list_recent_nodes(
         self,
         limit: int = 10,
