@@ -293,7 +293,7 @@ class HybridRetriever:
         }
 
     def _load_turn_pairs(self, *, project: str, agent_id: str, session_id: str) -> list[TurnPairCandidate]:
-        with self.graph._lock, self.graph._connect() as connection:
+        with self.graph._lock.read(), self.graph._pool.checkout() as connection:
             filters = ["tenant_id = ?"]
             params: list[Any] = [self.graph.tenant_id]
             if project.strip():
@@ -372,7 +372,7 @@ class HybridRetriever:
     def _rank_nodes(
         self, query_embedding: np.ndarray, *, project: str, agent_id: str, session_id: str
     ) -> list[CandidateMemory]:
-        with self.graph._lock, self.graph._connect() as connection:
+        with self.graph._lock.read(), self.graph._pool.checkout() as connection:
             filters = ["tenant_id = ?", "embedding IS NOT NULL"]
             params: list[Any] = [self.graph.tenant_id]
             if project.strip():
@@ -438,7 +438,7 @@ class HybridRetriever:
                 observed_at=pair.observed_at,
             )
         if include_nodes:
-            with self.graph._lock, self.graph._connect() as connection:
+            with self.graph._lock.read(), self.graph._pool.checkout() as connection:
                 filters = ["tenant_id = ?"]
                 params: list[Any] = [self.graph.tenant_id]
                 if project.strip():
@@ -493,7 +493,7 @@ class HybridRetriever:
         seed_node_ids = [candidate.node_ids[0] for candidate in ranked_nodes if candidate.node_ids]
         if not seed_node_ids:
             return []
-        with self.graph._lock, self.graph._connect() as connection:
+        with self.graph._lock.read(), self.graph._pool.checkout() as connection:
             edge_rows = connection.execute(
                 """
                 SELECT id, tenant_id, source_id, target_id, relationship, weight, metadata, created_at
@@ -527,7 +527,7 @@ class HybridRetriever:
                     break
             if len(visited) <= 1:
                 continue
-            with self.graph._lock, self.graph._connect() as connection:
+            with self.graph._lock.read(), self.graph._pool.checkout() as connection:
                 node_rows = connection.execute(
                     f"""
                     SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt,
