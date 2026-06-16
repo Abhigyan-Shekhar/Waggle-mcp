@@ -543,3 +543,73 @@ def test_merge_strategy_config_load_missing_file():
     assert config.default_strategy == "contradict"
     assert config.field_overrides == []
     assert config.type_overrides == []
+
+
+def test_diff_merge_with_resolved_deps_exports() -> None:
+    from waggle.abhi import build_abhi_document, diff_abhi_documents, merge_abhi_documents
+    # Base: empty or single node
+    base_snap = _make_snapshot(nodes=[
+        _node("Shared Node", "Shared content", id="shared-node-id", project="alpha")
+    ])
+
+    # Left snapshot: adds node_l (alpha) and references a target node_l_target (beta)
+    node_l = _node("Left Node", "Left content", id="left-node-id", project="alpha")
+    node_l_target = _node("Left Target Node", "Left target content", id="left-target-id", project="beta")
+    edge_l = _edge("left-node-id", "left-target-id", id="left-edge-id")
+    left_snap = _make_snapshot(
+        nodes=[
+            _node("Shared Node", "Shared content", id="shared-node-id", project="alpha"),
+            node_l,
+            node_l_target
+        ],
+        edges=[edge_l]
+    )
+
+    # Right snapshot: adds node_r (alpha) and references a target node_r_target (beta)
+    node_r = _node("Right Node", "Right content", id="right-node-id", project="alpha")
+    node_r_target = _node("Right Target Node", "Right target content", id="right-target-id", project="beta")
+    edge_r = _edge("right-node-id", "right-target-id", id="right-edge-id")
+    right_snap = _make_snapshot(
+        nodes=[
+            _node("Shared Node", "Shared content", id="shared-node-id", project="alpha"),
+            node_r,
+            node_r_target
+        ],
+        edges=[edge_r]
+    )
+
+    # Export all three documents with project="alpha" and include_deps=True
+    base_doc = build_abhi_document(base_snap, project="alpha", include_deps=True)
+    left_doc = build_abhi_document(left_snap, project="alpha", include_deps=True)
+    right_doc = build_abhi_document(right_snap, project="alpha", include_deps=True)
+
+    # Diff left against right
+    diff_res = diff_abhi_documents(left_doc, right_doc, input_path_a="left.abhi", input_path_b="right.abhi")
+    # Left_doc contains Left Node, Left Target Node. Right_doc contains Right Node, Right Target Node.
+    # So Right Node and Right Target Node should be reported as added.
+    assert "right-node-id" in diff_res.nodes_added
+    assert "right-target-id" in diff_res.nodes_added
+
+    # Merge left and right against base
+    from waggle.abhi import _merge_records
+    from waggle.models import MergeConflictRecord
+    conflict_records: list[MergeConflictRecord] = []
+    contradict_edges = []
+
+    merged_nodes = _merge_records(
+        base_doc.get("nodes", []),
+        left_doc.get("nodes", []),
+        right_doc.get("nodes", []),
+        object_type="node",
+        merge_strategy="contradict",
+        conflict_records=conflict_records,
+        contradict_edges=contradict_edges,
+    )
+
+    merged_node_ids = {n["id"] for n in merged_nodes}
+    assert "shared-node-id" in merged_node_ids
+    assert "left-node-id" in merged_node_ids
+    assert "left-target-id" in merged_node_ids
+    assert "right-node-id" in merged_node_ids
+    assert "right-target-id" in merged_node_ids
+

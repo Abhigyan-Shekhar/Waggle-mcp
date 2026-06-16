@@ -397,6 +397,96 @@ def build_abhi_document(
         session_id=session_id,
         since_date=since_date,
     )
+
+    if include_deps:
+        def _is_edge_eligible(
+            edge: dict[str, Any],
+            inc_low_conf: bool,
+            low_conf_thresh: float,
+        ) -> bool:
+            if inc_low_conf:
+                return True
+            if str(edge.get("relationship", "")).lower() == "relates_to":
+                meta = edge.get("metadata") or {}
+                if isinstance(meta, str):
+                    try:
+                        import json as _json
+                        meta = _json.loads(meta)
+                    except Exception:
+                        meta = {}
+                if not isinstance(meta, dict):
+                    meta = {}
+                try:
+                    confidence = float(meta.get("edge_confidence", 1.0))
+                except (ValueError, TypeError):
+                    confidence = 1.0
+                if confidence < low_conf_thresh:
+                    return False
+            return True
+
+        logger.info("Walking dangling edge targets to include referenced nodes.")
+
+        # Get initially selected node IDs
+        selected_node_ids = {str(n["id"]) for n in filtered.get("nodes", []) if n.get("id")}
+        # Map all nodes in the full snapshot database by ID
+        all_snap_nodes = {str(n["id"]): n for n in snapshot.get("nodes", []) if n.get("id")}
+
+        # Find target nodes of edges originating from currently selected nodes
+        queue = list(selected_node_ids)
+        visited = set(selected_node_ids)
+
+        edges_by_source = {}
+        for edge in snapshot.get("edges", []):
+            if not _is_edge_eligible(edge, include_low_confidence_edges, low_confidence_threshold):
+                continue
+            src = str(edge.get("source_id", ""))
+            tgt = str(edge.get("target_id", ""))
+            if src and tgt:
+                edges_by_source.setdefault(src, []).append((tgt, edge))
+
+        while queue:
+            curr = queue.pop(0)
+            for tgt, edge in edges_by_source.get(curr, []):
+                if tgt not in visited:
+                    if tgt in all_snap_nodes:
+                        visited.add(tgt)
+                        queue.append(tgt)
+
+        # Update filtered["nodes"] with all reachable nodes
+        new_nodes = list(filtered.get("nodes", []))
+        existing_ids = {str(n["id"]) for n in new_nodes if n.get("id")}
+        for nid in visited:
+            if nid not in existing_ids:
+                new_nodes.append(all_snap_nodes[nid])
+        filtered["nodes"] = new_nodes
+
+        # Re-filter edges to include all edges whose source and target are both in visited.
+        # This keeps the graph clean and guarantees no dangling edges are exported.
+        filtered["edges"] = [
+            edge
+            for edge in snapshot.get("edges", [])
+            if str(edge.get("source_id", "")).strip() in visited
+            and str(edge.get("target_id", "")).strip() in visited
+        ]
+
+        # Update context windows and context window edges to match the updated node set
+        selected_window_ids = {
+            str(node.get("context_window_id", "")).strip()
+            for node in filtered["nodes"]
+            if str(node.get("context_window_id", "")).strip()
+        }
+        filtered["context_windows"] = [
+            window
+            for window in snapshot.get("context_windows", [])
+            if str(window.get("id", "")).strip() in selected_window_ids
+        ]
+        filtered["context_window_edges"] = [
+            edge
+            for edge in snapshot.get("context_window_edges", [])
+            if str(edge.get("source_window_id", "")).strip() in selected_window_ids
+            and str(edge.get("target_window_id", "")).strip() in selected_window_ids
+        ]
+
     transcripts = _sorted_records(
         [_normalize_transcript(item, redact_patterns=redact_patterns) for item in filtered.get("transcripts", [])],
         "id",
@@ -512,7 +602,7 @@ def build_abhi_document(
                 "Use --include-deps or remove --strict-export."
             )
         if include_deps:
-            logger.info("Walking dangling edge targets to include referenced nodes (not yet implemented, continuing)")
+            logger.info("Resolved dangling edge targets where possible.")
         else:
             logger.warning(
                 "Export contains %d dangling edge(s): %s",
@@ -581,6 +671,7 @@ def write_abhi_document(
     signing_key_dir: str | Path | None = None,
     include_low_confidence_edges: bool = False,
     low_confidence_threshold: float = 0.7,
+    include_deps: bool = False,
 ) -> AbhiExportResult:
     destination = Path(output_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -596,6 +687,7 @@ def write_abhi_document(
         encrypted=bool(passphrase),
         include_low_confidence_edges=include_low_confidence_edges,
         low_confidence_threshold=low_confidence_threshold,
+        include_deps=include_deps,
     )
     manifest = document["manifest"]
     # Write the ZIP to a temp file first, then stream magic + ZIP to the final

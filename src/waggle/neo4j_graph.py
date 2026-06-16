@@ -2357,6 +2357,7 @@ def update_node(
         session_id: str = "",
         include_embeddings: bool = False,
         passphrase: str = "",
+        include_deps: bool = False,
     ) -> AbhiExportResult:
         with self._lock, self._session() as session:
             snapshot = self._build_backup_snapshot(session, include_embeddings=include_embeddings)
@@ -2368,7 +2369,12 @@ def update_node(
             destination = self.export_dir / f"waggle-memory-{timestamp}.abhi"
         else:
             destination = Path(output_path).expanduser()
-        return write_abhi_document(filtered, output_path=destination, passphrase=passphrase)
+        return write_abhi_document(
+            filtered,
+            output_path=destination,
+            passphrase=passphrase,
+            include_deps=include_deps,
+        )
 
     def get_graph_snapshot(
         self,

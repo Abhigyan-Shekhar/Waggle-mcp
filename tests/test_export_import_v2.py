@@ -110,3 +110,95 @@ def test_import_legacy_backup_without_hierarchy_still_works(tmp_path: Path) -> N
 
     assert imported.nodes_created == 1
     assert target.get_stats().total_nodes == 1
+
+
+def test_export_dangling_edge_resolves_referenced_target(tmp_path: Path) -> None:
+    source = make_graph(tmp_path / "source")
+    node_a = source.add_node(
+        label="Alpha Node",
+        content="This is in alpha project",
+        node_type=NodeType.FACT,
+        project="alpha",
+    ).node
+    node_b = source.add_node(
+        label="Beta Node",
+        content="This is in beta project",
+        node_type=NodeType.FACT,
+        project="beta",
+    ).node
+
+    source.add_edge(
+        source_id=node_a.id,
+        target_id=node_b.id,
+        relationship="relates_to",
+    )
+
+    export_path_with_deps = tmp_path / "export_with_deps.abhi"
+    source.export_abhi(
+        output_path=export_path_with_deps,
+        project="alpha",
+        include_deps=True,
+    )
+
+    from waggle.abhi import load_abhi_document, _find_dangling_edges
+    doc_with_deps = load_abhi_document(export_path_with_deps)
+    exported_node_ids = {node["id"] for node in doc_with_deps["nodes"]}
+    assert node_a.id in exported_node_ids
+    assert node_b.id in exported_node_ids
+    exported_edge_ids = {edge["id"] for edge in doc_with_deps["edges"]}
+    assert len(exported_edge_ids) == 1
+    assert _find_dangling_edges(doc_with_deps) == []
+
+    # Verify that the imported target graph successfully loads the exported file
+    target = make_graph(tmp_path / "target")
+    imported = target.import_abhi(input_path=export_path_with_deps)
+    assert imported.nodes_created == 2
+    assert target.get_stats().total_nodes == 2
+
+
+def test_build_abhi_document_dangling_edge_resolves_with_deps():
+    from waggle.abhi import build_abhi_document, _find_dangling_edges
+    n1 = {
+        "id": "node-1",
+        "label": "Node 1",
+        "content": "Node 1 content",
+        "node_type": "fact",
+        "tags": [],
+        "aliases": [],
+        "metadata": {},
+        "project": "alpha",
+    }
+    n2 = {
+        "id": "node-2",
+        "label": "Node 2",
+        "content": "Node 2 content",
+        "node_type": "fact",
+        "tags": [],
+        "aliases": [],
+        "metadata": {},
+        "project": "beta",
+    }
+    edge = {
+        "id": "edge-1",
+        "source_id": "node-1",
+        "target_id": "node-2",
+        "relationship": "relates_to",
+        "weight": 1.0,
+        "metadata": {},
+    }
+
+    snapshot = {
+        "tenant_id": "test",
+        "nodes": [n1, n2],
+        "edges": [edge],
+        "transcripts": [],
+        "context_windows": [],
+    }
+
+    doc = build_abhi_document(snapshot, project="alpha", include_deps=True)
+    exported_node_ids = {n["id"] for n in doc["nodes"]}
+    assert "node-1" in exported_node_ids
+    assert "node-2" in exported_node_ids
+    assert len(doc["edges"]) == 1
+    assert _find_dangling_edges(doc) == []
+

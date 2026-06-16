@@ -5107,6 +5107,7 @@ class MemoryGraph:
         signing_key_dir: str | Path | None = None,
         include_low_confidence_edges: bool = False,
         low_confidence_threshold: float = 0.7,
+        include_deps: bool = False,
     ) -> AbhiExportResult:
         with self._lock, self._pool.checkout() as connection:
             snapshot = self._build_backup_snapshot(connection, include_embeddings=include_embeddings)
@@ -5132,6 +5133,7 @@ class MemoryGraph:
             signing_key_dir=signing_key_dir,
             include_low_confidence_edges=include_low_confidence_edges,
             low_confidence_threshold=low_confidence_threshold,
+            include_deps=include_deps,
         )
         self.emit_audit_event(
             event_type="export.created",
