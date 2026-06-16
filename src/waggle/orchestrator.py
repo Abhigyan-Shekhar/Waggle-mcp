@@ -133,10 +133,6 @@ class MemoryPolicy:
         if any(user == marker for marker in self.skip_markers):
             return IngestPlan(False, "chatty acknowledgement")
 
-        last = self.last_ingest_at.get(scope)
-        if last is not None and (turn.occurred_at - last) < timedelta(seconds=self.min_turn_interval_seconds):
-            return IngestPlan(False, "ingest interval guard")
-
         combined = f"{user}\n{assistant}"
         if any(marker in combined for marker in self.durable_markers):
             return IngestPlan(True, "durable signal detected")
@@ -184,6 +180,8 @@ class AsyncMemoryOrchestrator:
         self._worker_task: asyncio.Task[None] | None = None
         self._closing = asyncio.Event()
         self._known_turn_ids: dict[str, datetime] = {}
+        if turn_id_ttl < timedelta(0):
+            raise ValueError("turn_id_ttl must be non-negative")
         self._turn_id_ttl: timedelta = turn_id_ttl
 
     async def start(self) -> None:
@@ -205,17 +203,19 @@ class AsyncMemoryOrchestrator:
         await self._queue.join()
 
     async def on_assistant_turn(self, *, scope: MemoryScope, turn: ConversationTurn) -> IngestPlan:
-        plan = self.policy.plan_ingest(turn, scope)
-        if not plan.should_ingest:
-            return plan
         turn_key = self._turn_key(scope, turn)
         self._evict_expired_turn_ids()
         if turn_key in self._known_turn_ids:
             return IngestPlan(False, "duplicate turn")
+        plan = self.policy.plan_ingest(turn, scope)
+        if not plan.should_ingest:
+            return plan
         if self._queue.full():
             LOGGER.warning("memory ingest queue full; dropping turn for session '%s'", scope.session_id)
             return IngestPlan(False, "queue full")
         self._known_turn_ids[turn_key] = datetime.now(UTC)
+        self.policy.mark_ingested(scope, datetime.now(UTC))
+        self.policy.mark_ingested(scope, datetime.now(UTC))
         await self._queue.put(IngestTask(scope=scope, turn=turn))
         return plan
 
@@ -256,7 +256,6 @@ class AsyncMemoryOrchestrator:
                     agent_id=task.scope.agent_id,
                     session_id=task.scope.session_id,
                 )
-                self.policy.mark_ingested(task.scope, task.turn.occurred_at)
             except Exception:
                 LOGGER.exception("memory ingest failed for session '%s'", task.scope.session_id)
             finally:
@@ -293,6 +292,6 @@ class AsyncMemoryOrchestrator:
 
     def _evict_expired_turn_ids(self) -> None:
         now = datetime.now(UTC)
-        expired = [k for k, added_at in self._known_turn_ids.items() if now - added_at > self._turn_id_ttl]
+        expired = [k for k, added_at in self._known_turn_ids.items() if now - added_at >= self._turn_id_ttl]
         for k in expired:
             del self._known_turn_ids[k]

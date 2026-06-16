@@ -271,8 +271,7 @@ async def test_flush_drains_all_pending_turns() -> None:
 async def test_known_turn_ids_evicted_after_ttl() -> None:
     """TTL eviction: a turn key older than the TTL is evicted and the same turn is accepted again."""
     graph = FakeGraph()
-    # Set a very short TTL so we can expire entries immediately
-    orchestrator = AsyncMemoryOrchestrator(graph, turn_id_ttl=timedelta(seconds=-1))
+    orchestrator = AsyncMemoryOrchestrator(graph, turn_id_ttl=timedelta(seconds=0))
 
     scope = MemoryScope(project="MCP", session_id="thread-ttl", agent_id="codex")
     turn = ConversationTurn(
@@ -284,7 +283,8 @@ async def test_known_turn_ids_evicted_after_ttl() -> None:
     await orchestrator.start()
     try:
         first = await orchestrator.on_assistant_turn(scope=scope, turn=turn)
-        # With TTL=0, the entry is already expired on next call — should be accepted again
+        # tiny sleep guarantees real elapsed time so TTL=0 is inclusively expired
+        await asyncio.sleep(0.01)
         second = await orchestrator.on_assistant_turn(scope=scope, turn=turn)
         await asyncio.wait_for(orchestrator.flush(), timeout=2)
     finally:
@@ -312,3 +312,10 @@ def test_known_turn_ids_dict_is_bounded_after_eviction() -> None:
     orchestrator._evict_expired_turn_ids()
 
     assert len(orchestrator._known_turn_ids) == 0
+
+
+def test_negative_turn_id_ttl_raises_value_error() -> None:
+    """Validation: a negative turn_id_ttl is rejected to prevent silently disabling dedup."""
+    graph = FakeGraph()
+    with pytest.raises(ValueError, match="turn_id_ttl must be non-negative"):
+        AsyncMemoryOrchestrator(graph, turn_id_ttl=timedelta(seconds=-1))
