@@ -95,6 +95,8 @@ def test_zero_hybrid_weights_are_allowed() -> None:
     )
 
     config.validate()
+
+
 def test_waggle_http_port_wins(monkeypatch):
     monkeypatch.setenv("WAGGLE_TRANSPORT", "stdio")
     monkeypatch.setenv("WAGGLE_HTTP_PORT", "9000")
