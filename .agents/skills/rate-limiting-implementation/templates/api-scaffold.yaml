@@ -1,10 +1,60 @@
 # API Endpoint Scaffold
 # TODO: Customize for your API framework
+#
+# Rate Limiting Headers (add to all responses):
+#   X-RateLimit-Limit:     max requests allowed in the window
+#   X-RateLimit-Remaining: requests left in current window
+#   X-RateLimit-Reset:     UTC epoch seconds when window resets
+#   Retry-After:           seconds to wait (only on 429 responses)
+#
+# Rate Limit Policy (configure per endpoint as needed):
+#   - Default: 100 req/min per API key
+#   - Write endpoints (POST/PUT/PATCH/DELETE): 20 req/min
+#   - Authenticated users: higher limits than anonymous callers
+#   - Return HTTP 429 with Retry-After when limit exceeded
 
 openapi: "3.0.3"
 info:
   title: "API Service"
   version: "1.0.0"
+
+components:
+  headers:
+    X-RateLimit-Limit:
+      description: Maximum number of requests allowed per window
+      schema:
+        type: integer
+    X-RateLimit-Remaining:
+      description: Number of requests remaining in current window
+      schema:
+        type: integer
+    X-RateLimit-Reset:
+      description: UTC epoch timestamp when the rate limit window resets
+      schema:
+        type: integer
+  responses:
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying
+          schema:
+            type: integer
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/X-RateLimit-Limit'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/X-RateLimit-Reset'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Rate limit exceeded"
+              retryAfter:
+                type: integer
+                example: 60
 
 paths:
   /api/v1/resource:
@@ -14,9 +64,28 @@ paths:
       responses:
         "200":
           description: "Success"
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+        "429":
+          $ref: '#/components/responses/TooManyRequests'
     post:
       summary: "Create resource"
       # TODO: Define request body and responses
+      # Note: write endpoints use stricter rate limits (20 req/min)
       responses:
         "201":
           description: "Created"
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/X-RateLimit-Limit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/X-RateLimit-Remaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/X-RateLimit-Reset'
+        "429":
+          $ref: '#/components/responses/TooManyRequests'

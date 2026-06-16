@@ -1,8 +1,8 @@
----
+﻿---
 title: Strategic Suspense Boundaries
 impact: HIGH
 impactDescription: faster initial paint
-tags: async, suspense, streaming, layout-shift
+tags: ["async", "suspense", "streaming", "layout-shift"]
 ---
 
 ## Strategic Suspense Boundaries

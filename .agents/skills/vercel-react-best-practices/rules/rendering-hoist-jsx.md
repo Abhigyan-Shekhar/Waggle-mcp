@@ -1,8 +1,8 @@
----
+﻿---
 title: Hoist Static JSX Elements
 impact: LOW
 impactDescription: avoids re-creation
-tags: rendering, jsx, static, optimization
+tags: ["rendering", "jsx", "static", "optimization"]
 ---
 
 ## Hoist Static JSX Elements

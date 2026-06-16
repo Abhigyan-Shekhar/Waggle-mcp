@@ -1,8 +1,8 @@
----
+﻿---
 title: Split Combined Hook Computations
 impact: MEDIUM
 impactDescription: avoids recomputing independent steps
-tags: rerender, useMemo, useEffect, dependencies, optimization
+tags: ["rerender", "useMemo", "useEffect", "dependencies", "optimization"]
 ---
 
 ## Split Combined Hook Computations

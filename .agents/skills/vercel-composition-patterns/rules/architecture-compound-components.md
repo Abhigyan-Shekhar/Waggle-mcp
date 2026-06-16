@@ -1,8 +1,8 @@
----
+﻿---
 title: Use Compound Components
 impact: HIGH
 impactDescription: enables flexible composition without prop drilling
-tags: composition, compound-components, architecture
+tags: ["composition", "compound-components", "architecture"]
 ---
 
 ## Use Compound Components

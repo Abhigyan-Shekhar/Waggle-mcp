@@ -1,8 +1,8 @@
----
+﻿---
 title: Prefer Statically Analyzable Paths
 impact: HIGH
 impactDescription: avoids accidental broad bundles and file traces
-tags: bundle, nextjs, vite, webpack, rollup, esbuild, path
+tags: ["bundle", "nextjs", "vite", "webpack", "rollup", "esbuild", "path"]
 ---
 
 ## Prefer Statically Analyzable Paths

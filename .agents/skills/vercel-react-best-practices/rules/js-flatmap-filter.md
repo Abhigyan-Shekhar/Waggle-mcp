@@ -1,13 +1,11 @@
----
+﻿---
 title: Use flatMap to Map and Filter in One Pass
 impact: LOW-MEDIUM
 impactDescription: eliminates intermediate array
-tags: javascript, arrays, flatMap, filter, performance
+tags: ["javascript", "arrays", "flatMap", "filter", "performance"]
 ---
 
 ## Use flatMap to Map and Filter in One Pass
-
-**Impact: LOW-MEDIUM (eliminates intermediate array)**
 
 Chaining `.map().filter(Boolean)` creates an intermediate array and iterates twice. Use `.flatMap()` to transform and filter in a single pass.
 

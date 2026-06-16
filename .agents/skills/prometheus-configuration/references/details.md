@@ -2,7 +2,7 @@
 
 ## Prometheus Architecture
 
-```
+```text
 ┌──────────────┐
 │ Applications │ ← Instrumented with client libraries
 └──────┬───────┘
