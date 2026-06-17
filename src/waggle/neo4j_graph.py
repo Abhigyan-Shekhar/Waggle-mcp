@@ -718,10 +718,11 @@ class Neo4jMemoryGraph:
         with self._lock, self._session() as session:
             session.run(
                 """
-                MATCH (a:GraphApiKey {api_key_id: $api_key_id})
+                MATCH (a:GraphApiKey {api_key_id: $api_key_id, tenant_id: $tenant_id})
                 SET a.status = 'revoked', a.revoked_at = $revoked_at
                 """,
                 api_key_id=api_key_id,
+                tenant_id=self.tenant_id,
                 revoked_at=utc_now().isoformat(),
             ).consume()
 
@@ -1232,46 +1233,47 @@ class Neo4jMemoryGraph:
         selected_nodes: list[str] | None = None,
     ) -> dict[str, Any]:
         key = (self.tenant_id, project.strip(), agent_id.strip(), session_id.strip())
-        current = self.get_ui_state(project=project, agent_id=agent_id, session_id=session_id)
-        merged = {
-            "positions": positions if positions is not None else current["positions"],
-            "zoom": float(zoom if zoom is not None else current["zoom"]),
-            "viewport": viewport if viewport is not None else current["viewport"],
-            "groups": groups if groups is not None else current["groups"],
-            "collapsed_groups": collapsed_groups if collapsed_groups is not None else current["collapsed_groups"],
-            "selected_nodes": selected_nodes if selected_nodes is not None else current["selected_nodes"],
-        }
-        with self._lock, self._session() as session:
-            session.run(
-                """
-                MERGE (ui:GraphUIState {
-                    tenant_id: $tenant_id,
-                    project: $project,
-                    agent_id: $agent_id,
-                    session_id: $session_id
-                })
-                SET ui.positions = $positions,
-                    ui.zoom = $zoom,
-                    ui.viewport = $viewport,
-                    ui.groups = $groups,
-                    ui.collapsed_groups = $collapsed_groups,
-                    ui.selected_nodes = $selected_nodes,
-                    ui.updated_at = $updated_at
-                """,
-                tenant_id=self.tenant_id,
-                project=project.strip(),
-                agent_id=agent_id.strip(),
-                session_id=session_id.strip(),
-                positions=_encode_metadata(merged["positions"]),
-                zoom=merged["zoom"],
-                viewport=_encode_metadata(merged["viewport"]),
-                groups=json.dumps(merged["groups"], sort_keys=True),
-                collapsed_groups=json.dumps(merged["collapsed_groups"], sort_keys=True),
-                selected_nodes=json.dumps(merged["selected_nodes"], sort_keys=True),
-                updated_at=utc_now().isoformat(),
-            ).consume()
-        _UI_STATE_CACHE[key] = json.loads(json.dumps(merged))
-        return merged
+        with self._lock:
+            current = self.get_ui_state(project=project, agent_id=agent_id, session_id=session_id)
+            merged = {
+                "positions": positions if positions is not None else current["positions"],
+                "zoom": float(zoom if zoom is not None else current["zoom"]),
+                "viewport": viewport if viewport is not None else current["viewport"],
+                "groups": groups if groups is not None else current["groups"],
+                "collapsed_groups": collapsed_groups if collapsed_groups is not None else current["collapsed_groups"],
+                "selected_nodes": selected_nodes if selected_nodes is not None else current["selected_nodes"],
+            }
+            with self._session() as session:
+                session.run(
+                    """
+                    MERGE (ui:GraphUIState {
+                        tenant_id: $tenant_id,
+                        project: $project,
+                        agent_id: $agent_id,
+                        session_id: $session_id
+                    })
+                    SET ui.positions = $positions,
+                        ui.zoom = $zoom,
+                        ui.viewport = $viewport,
+                        ui.groups = $groups,
+                        ui.collapsed_groups = $collapsed_groups,
+                        ui.selected_nodes = $selected_nodes,
+                        ui.updated_at = $updated_at
+                    """,
+                    tenant_id=self.tenant_id,
+                    project=project.strip(),
+                    agent_id=agent_id.strip(),
+                    session_id=session_id.strip(),
+                    positions=_encode_metadata(merged["positions"]),
+                    zoom=merged["zoom"],
+                    viewport=_encode_metadata(merged["viewport"]),
+                    groups=json.dumps(merged["groups"], sort_keys=True),
+                    collapsed_groups=json.dumps(merged["collapsed_groups"], sort_keys=True),
+                    selected_nodes=json.dumps(merged["selected_nodes"], sort_keys=True),
+                    updated_at=utc_now().isoformat(),
+                ).consume()
+            _UI_STATE_CACHE[key] = json.loads(json.dumps(merged))
+            return merged
 
     def ensure_repo(self, project: str = "") -> str:
         del project

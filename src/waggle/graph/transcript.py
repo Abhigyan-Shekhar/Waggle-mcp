@@ -48,7 +48,7 @@ def extract_conversation_candidates(user_message: str, assistant_response: str) 
     func = None
     if graph_mod and hasattr(graph_mod, "extract_conversation_candidates"):
         f = graph_mod.extract_conversation_candidates
-        if f is not extract_conversation_candidates:
+        if f is not extract_conversation_candidates and getattr(f, "__module__", "") not in (__name__, "waggle.graph"):
             func = f
     if func is None:
         from waggle.intelligence import extract_conversation_candidates as original_func

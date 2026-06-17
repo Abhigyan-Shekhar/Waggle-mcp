@@ -7,8 +7,10 @@ import math
 import os
 import sqlite3
 import struct
+import threading
 import time
 import zlib
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -489,3 +491,205 @@ def _encode_evidence_records(records: list[EvidenceRecord]) -> str:
 
 def _merge_scope_value(existing: str, incoming: str) -> str:
     return existing.strip() or incoming.strip()
+
+
+class _NeutralTemporalHints:
+    """Neutral temporal hints for operations without query-driven time intent."""
+
+    recency_mode: str = "none"
+    time_window_start = None
+    time_window_end = None
+
+
+class _ReadWriteLock:
+    """A pure-Python reader/writer lock implementation.
+
+    Allows concurrent reads while serialising writes. Lock upgrades (acquiring a
+    write lock while already holding a read lock on the same thread) are strictly
+    prohibited to prevent self-deadlock and will raise a RuntimeError.
+    """
+
+    def __init__(self) -> None:
+        self._cond = threading.Condition(threading.Lock())
+        self._readers: int = 0
+        self._waiting_writers: int = 0
+        self._write_owner: int | None = None
+        self._write_depth: int = 0
+        self._reader_threads: dict[int, int] = {}
+
+    def __enter__(self) -> _ReadWriteLock:
+        self._acquire_write()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self._release_write()
+
+    def _acquire_write(self) -> None:
+        tid = threading.get_ident()
+        with self._cond:
+            if self._write_owner == tid:
+                self._write_depth += 1
+                return
+            if self._reader_threads.get(tid, 0) > 0:
+                raise RuntimeError(
+                    "Cannot upgrade a read lock to a write lock on the same "
+                    "thread. Acquire the write lock from the outset instead "
+                    "of nesting it inside a read context."
+                )
+            self._waiting_writers += 1
+            try:
+                while self._readers > 0 or self._write_owner is not None:
+                    self._cond.wait()
+                self._write_owner = tid
+                self._write_depth = 1
+            finally:
+                self._waiting_writers -= 1
+
+    def _release_write(self) -> None:
+        tid = threading.get_ident()
+        with self._cond:
+            if self._write_owner != tid:
+                raise RuntimeError("Attempt to release a write lock not held by this thread.")
+            self._write_depth -= 1
+            if self._write_depth == 0:
+                self._write_owner = None
+                self._cond.notify_all()
+
+    def read(self) -> contextmanager:
+        return self._read_context()
+
+    @contextmanager
+    def _read_context(self):
+        self._acquire_read()
+        try:
+            yield self
+        finally:
+            self._release_read()
+
+    def _acquire_read(self):
+        tid = threading.get_ident()
+        with self._cond:
+            if self._write_owner == tid:
+                return
+            is_reentrant = self._reader_threads.get(tid, 0) > 0
+            while self._write_owner is not None or (self._waiting_writers > 0 and not is_reentrant):
+                self._cond.wait()
+            self._reader_threads[tid] = self._reader_threads.get(tid, 0) + 1
+            self._readers += 1
+
+    def _release_read(self) -> None:
+        tid = threading.get_ident()
+        with self._cond:
+            if self._write_owner == tid:
+                return
+            if self._reader_threads.get(tid, 0) == 0:
+                raise RuntimeError("Attempt to release a read lock not held by this thread.")
+            self._reader_threads[tid] -= 1
+            if self._reader_threads[tid] == 0:
+                del self._reader_threads[tid]
+            self._readers -= 1
+            if self._readers == 0:
+                self._cond.notify_all()
+
+
+@dataclass(frozen=True)
+class _NeutralTemporalHints:
+    """Neutral temporal hints for operations without query-driven time intent."""
+
+    recency_mode: str = "none"
+    time_window_start = None
+    time_window_end = None
+
+
+class _ReadWriteLock:
+    """A pure-Python reader/writer lock implementation.
+
+    Allows concurrent reads while serialising writes. Lock upgrades (acquiring a
+    write lock while already holding a read lock on the same thread) are strictly
+    prohibited to prevent self-deadlock and will raise a RuntimeError.
+    """
+
+    def __init__(self) -> None:
+        self._cond = threading.Condition(threading.Lock())
+        self._readers: int = 0
+        self._waiting_writers: int = 0
+        self._write_owner: int | None = None
+        self._write_depth: int = 0
+        self._reader_threads: dict[int, int] = {}
+
+    def __enter__(self) -> _ReadWriteLock:
+        self._acquire_write()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self._release_write()
+
+    def _acquire_write(self) -> None:
+        tid = threading.get_ident()
+        with self._cond:
+            if self._write_owner == tid:
+                self._write_depth += 1
+                return
+            if self._reader_threads.get(tid, 0) > 0:
+                raise RuntimeError(
+                    "Cannot upgrade a read lock to a write lock on the same "
+                    "thread. Acquire the write lock from the outset instead "
+                    "of nesting it inside a read context."
+                )
+            self._waiting_writers += 1
+            try:
+                while self._readers > 0 or self._write_owner is not None:
+                    self._cond.wait()
+                self._write_owner = tid
+                self._write_depth = 1
+            finally:
+                self._waiting_writers -= 1
+
+    def _release_write(self) -> None:
+        tid = threading.get_ident()
+        with self._cond:
+            if self._write_owner != tid:
+                raise RuntimeError("Attempt to release a write lock not held by this thread.")
+            self._write_depth -= 1
+            if self._write_depth == 0:
+                self._write_owner = None
+                self._cond.notify_all()
+
+    def read(self) -> contextmanager:
+        return self._read_context()
+
+    @contextmanager
+    def _read_context(self):
+        self._acquire_read()
+        try:
+            yield self
+        finally:
+            self._release_read()
+
+    def _acquire_read(self):
+        tid = threading.get_ident()
+        with self._cond:
+            if self._write_owner == tid:
+                return
+            is_reentrant = self._reader_threads.get(tid, 0) > 0
+            while self._write_owner is not None or (self._waiting_writers > 0 and not is_reentrant):
+                self._cond.wait()
+            self._reader_threads[tid] = self._reader_threads.get(tid, 0) + 1
+            self._readers += 1
+
+    def _release_read(self) -> None:
+        tid = threading.get_ident()
+        with self._cond:
+            if self._write_owner == tid:
+                return
+            if self._reader_threads.get(tid, 0) == 0:
+                raise RuntimeError("Attempt to release a read lock not held by this thread.")
+            self._reader_threads[tid] -= 1
+            if self._reader_threads[tid] == 0:
+                del self._reader_threads[tid]
+            self._readers -= 1
+            if self._readers == 0:
+                self._cond.notify_all()
+
+
+SCHEMA_VERSION = 7
