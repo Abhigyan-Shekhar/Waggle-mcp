@@ -891,19 +891,14 @@ class MemoryGraph:
         # Enforce foreign key constraints
         connection.execute("PRAGMA foreign_keys=ON")
 
-        # --- Performance tuning ---
-        # Map up to 256 MB of the database file into the OS page cache.
-        # Reads hit the page cache directly instead of going through read(2),
-        # cutting latency by 10-25% for read-heavy workloads.
-        connection.execute("PRAGMA mmap_size=268435456")
-
-        # Keep temp tables (sort buffers, index scans) in memory instead of
-        # spilling to a temp file on disk.  Safe because our temp tables are small.
-        connection.execute("PRAGMA temp_store=MEMORY")
-
-        # Allow SQLite to keep 32 MB of pages in its pager cache.
-        # Negative value = number of KiB; -32000 = 32 MB.
-        connection.execute("PRAGMA cache_size=-32000")
+       # Read cache size from environment variable (default: 32 MB = 32000 KB)
+        cache_kb = os.environ.get("WAGGLE_SQLITE_CACHE_KB", "-32000")
+        cursor.execute(f"PRAGMA cache_size={cache_kb}")
+    
+    # Read mmap size from environment variable (default: 256 MB, 0 to disable)
+        mmap_size = os.environ.get("WAGGLE_SQLITE_MMAP_SIZE", "268435456")
+        cursor.execute(f"PRAGMA mmap_size={mmap_size}")
+        cursor.execute("PRAGMA temp_store=MEMORY")
 
         return connection
 
