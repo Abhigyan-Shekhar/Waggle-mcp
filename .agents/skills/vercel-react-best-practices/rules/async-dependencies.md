@@ -1,4 +1,4 @@
-﻿---
+---
 title: Dependency-Based Parallelization
 impact: CRITICAL
 impactDescription: 2-10× improvement

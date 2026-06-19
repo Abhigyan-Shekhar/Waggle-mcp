@@ -1,4 +1,4 @@
-﻿---
+---
 title: Deduplicate Global Event Listeners
 impact: LOW
 impactDescription: single listener for N components

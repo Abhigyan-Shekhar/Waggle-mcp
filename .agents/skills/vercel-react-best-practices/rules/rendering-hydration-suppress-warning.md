@@ -1,4 +1,4 @@
-﻿---
+---
 title: Suppress Expected Hydration Mismatches
 impact: LOW-MEDIUM
 impactDescription: avoids noisy hydration warnings for known differences

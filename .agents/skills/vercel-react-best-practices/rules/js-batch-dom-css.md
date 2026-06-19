@@ -1,4 +1,4 @@
-﻿---
+---
 title: Avoid Layout Thrashing
 impact: MEDIUM
 impactDescription: prevents forced synchronous layouts and reduces performance bottlenecks

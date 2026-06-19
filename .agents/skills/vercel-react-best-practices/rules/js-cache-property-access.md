@@ -1,4 +1,4 @@
-﻿---
+---
 title: Cache Property Access in Loops
 impact: LOW-MEDIUM
 impactDescription: reduces lookups

@@ -1,4 +1,4 @@
-﻿---
+---
 title: React 19 API Changes
 impact: MEDIUM
 impactDescription: cleaner component definitions and context usage

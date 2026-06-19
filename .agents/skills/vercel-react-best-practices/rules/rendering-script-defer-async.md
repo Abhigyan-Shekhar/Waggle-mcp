@@ -1,4 +1,4 @@
-﻿---
+---
 title: Use defer or async on Script Tags
 impact: HIGH
 impactDescription: eliminates render-blocking

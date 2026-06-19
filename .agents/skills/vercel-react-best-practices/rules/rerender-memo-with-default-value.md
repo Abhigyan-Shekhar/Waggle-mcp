@@ -1,4 +1,4 @@
-﻿---
+---
 
 title: Extract Default Non-primitive Parameter Value from Memoized Component to Constant
 impact: MEDIUM

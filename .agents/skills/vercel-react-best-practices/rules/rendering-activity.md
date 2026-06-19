@@ -1,4 +1,4 @@
-﻿---
+---
 title: Use Activity Component for Show/Hide
 impact: MEDIUM
 impactDescription: preserves state/DOM

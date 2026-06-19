@@ -1,4 +1,4 @@
-﻿---
+---
 title: Use Compound Components
 impact: HIGH
 impactDescription: enables flexible composition without prop drilling

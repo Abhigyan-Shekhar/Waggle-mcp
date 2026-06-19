@@ -1,4 +1,4 @@
-﻿---
+---
 title: Defer Non-Critical Work with requestIdleCallback
 impact: MEDIUM
 impactDescription: keeps UI responsive during background tasks

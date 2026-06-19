@@ -1,4 +1,4 @@
-﻿---
+---
 title: Use SWR for Automatic Deduplication
 impact: MEDIUM-HIGH
 impactDescription: automatic deduplication

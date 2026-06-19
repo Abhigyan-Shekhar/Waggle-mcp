@@ -1,4 +1,4 @@
-﻿---
+---
 title: Authenticate Server Actions Like API Routes
 impact: CRITICAL
 impactDescription: prevents unauthorized access to server mutations

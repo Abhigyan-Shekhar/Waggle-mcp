@@ -1,4 +1,4 @@
-﻿---
+---
 title: Avoid Barrel File Imports
 impact: CRITICAL
 impactDescription: 200-800ms import cost, slow builds

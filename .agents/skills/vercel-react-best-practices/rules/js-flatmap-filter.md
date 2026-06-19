@@ -1,4 +1,4 @@
-﻿---
+---
 title: Use flatMap to Map and Filter in One Pass
 impact: LOW-MEDIUM
 impactDescription: eliminates intermediate array

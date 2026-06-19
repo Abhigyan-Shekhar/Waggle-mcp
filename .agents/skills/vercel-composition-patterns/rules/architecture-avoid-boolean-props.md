@@ -1,4 +1,4 @@
-﻿---
+---
 title: Avoid Boolean Prop Proliferation
 impact: CRITICAL
 impactDescription: prevents unmaintainable component variants

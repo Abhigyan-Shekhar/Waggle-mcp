@@ -1,4 +1,4 @@
-﻿---
+---
 title: Use useTransition Over Manual Loading States
 impact: LOW
 impactDescription: reduces re-renders and improves code clarity

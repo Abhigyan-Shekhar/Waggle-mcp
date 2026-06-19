@@ -1,4 +1,4 @@
-﻿---
+---
 title: Parallel Nested Data Fetching
 impact: CRITICAL
 impactDescription: eliminates server-side waterfalls

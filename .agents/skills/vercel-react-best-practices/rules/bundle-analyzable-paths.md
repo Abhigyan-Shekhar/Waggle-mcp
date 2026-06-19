@@ -1,4 +1,4 @@
-﻿---
+---
 title: Prefer Statically Analyzable Paths
 impact: HIGH
 impactDescription: avoids accidental broad bundles and file traces

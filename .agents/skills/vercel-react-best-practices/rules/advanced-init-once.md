@@ -1,4 +1,4 @@
-﻿---
+---
 title: Initialize App Once, Not Per Mount
 impact: LOW-MEDIUM
 impactDescription: avoids duplicate init in development

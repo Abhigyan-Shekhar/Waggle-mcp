@@ -1,4 +1,4 @@
-﻿---
+---
 title: Defer State Reads to Usage Point
 impact: MEDIUM
 impactDescription: avoids unnecessary subscriptions

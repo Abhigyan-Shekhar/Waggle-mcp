@@ -1,4 +1,4 @@
-﻿---
+---
 title: Defer Non-Critical Third-Party Libraries
 impact: MEDIUM
 impactDescription: loads after hydration

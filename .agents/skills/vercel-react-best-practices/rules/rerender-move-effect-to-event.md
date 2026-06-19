@@ -1,4 +1,4 @@
-﻿---
+---
 title: Put Interaction Logic in Event Handlers
 impact: MEDIUM
 impactDescription: avoids effect re-runs and duplicate side effects

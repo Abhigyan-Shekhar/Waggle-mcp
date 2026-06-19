@@ -1,4 +1,4 @@
-﻿---
+---
 title: Lift State into Provider Components
 impact: HIGH
 impactDescription: enables state sharing outside component boundaries

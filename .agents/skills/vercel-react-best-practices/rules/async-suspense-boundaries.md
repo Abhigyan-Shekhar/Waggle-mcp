@@ -1,4 +1,4 @@
-﻿---
+---
 title: Strategic Suspense Boundaries
 impact: HIGH
 impactDescription: faster initial paint

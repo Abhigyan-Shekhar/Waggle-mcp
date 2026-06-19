@@ -1,4 +1,4 @@
-﻿---
+---
 title: Split Combined Hook Computations
 impact: MEDIUM
 impactDescription: avoids recomputing independent steps

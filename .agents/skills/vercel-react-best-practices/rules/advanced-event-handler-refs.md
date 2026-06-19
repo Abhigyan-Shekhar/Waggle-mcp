@@ -1,4 +1,4 @@
-﻿---
+---
 title: Store Event Handlers in Refs
 impact: LOW
 impactDescription: stable subscriptions

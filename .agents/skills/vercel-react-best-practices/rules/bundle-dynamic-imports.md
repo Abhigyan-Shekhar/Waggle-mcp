@@ -1,4 +1,4 @@
-﻿---
+---
 title: Dynamic Imports for Heavy Components
 impact: CRITICAL
 impactDescription: directly affects TTI and LCP

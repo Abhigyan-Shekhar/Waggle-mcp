@@ -1,4 +1,4 @@
-﻿---
+---
 title: Decouple State Management from UI
 impact: MEDIUM
 impactDescription: enables swapping state implementations without changing UI

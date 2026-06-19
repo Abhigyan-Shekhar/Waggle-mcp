@@ -1,4 +1,4 @@
-﻿---
+---
 title: Use useDeferredValue for Expensive Derived Renders
 impact: MEDIUM
 impactDescription: keeps input responsive during heavy computation

@@ -1,4 +1,4 @@
-﻿---
+---
 title: Avoid Duplicate Serialization in RSC Props
 impact: LOW
 impactDescription: reduces network payload by avoiding duplicate serialization

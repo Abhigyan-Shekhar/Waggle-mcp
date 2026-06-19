@@ -1,4 +1,4 @@
-﻿---
+---
 title: Use Functional setState Updates
 impact: MEDIUM
 impactDescription: prevents stale closures and unnecessary callback recreations

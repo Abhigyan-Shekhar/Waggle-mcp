@@ -1,4 +1,4 @@
-﻿---
+---
 title: Calculate Derived State During Rendering
 impact: MEDIUM
 impactDescription: avoids redundant renders and state drift

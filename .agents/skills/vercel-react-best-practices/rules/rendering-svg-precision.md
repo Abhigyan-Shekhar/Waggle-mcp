@@ -1,4 +1,4 @@
-﻿---
+---
 title: Optimize SVG Precision
 impact: LOW
 impactDescription: reduces file size

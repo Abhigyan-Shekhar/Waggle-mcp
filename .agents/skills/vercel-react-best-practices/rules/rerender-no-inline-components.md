@@ -1,4 +1,4 @@
-﻿---
+---
 title: Don't Define Components Inside Components
 impact: HIGH
 impactDescription: prevents remount on every render

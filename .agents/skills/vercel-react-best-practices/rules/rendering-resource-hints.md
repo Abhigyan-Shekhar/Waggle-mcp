@@ -1,4 +1,4 @@
-﻿---
+---
 title: Use React DOM Resource Hints
 impact: HIGH
 impactDescription: reduces load time for critical resources
