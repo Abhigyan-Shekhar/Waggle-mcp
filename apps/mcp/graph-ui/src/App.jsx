@@ -147,11 +147,15 @@ function EdgeDialog({ edge, onCancel, onSave }) {
   );
 }
 
-function FileInputButton({ label, accept, onChange }) {
+function FileInputButton({ label, accept, onChange, disabled }) {
   return (
-    <label className="cursor-pointer rounded-xl border border-white/10 px-3 py-2 text-sm text-white">
+    <label
+      className={`rounded-xl border border-white/10 px-3 py-2 text-sm text-white ${
+        disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+      }`}
+    >
       {label}
-      <input className="hidden" type="file" accept={accept} onChange={onChange} />
+      <input className="hidden" type="file" accept={accept} onChange={onChange} disabled={disabled} />
     </label>
   );
 }
@@ -560,7 +564,7 @@ export function App() {
   };
 
   const deleteNode = async (nodeId) => {
-    if (boot.sampleMode) {
+    if (boot.sampleMode || readOnly) {
       return;
     }
     await pushHistory();
@@ -584,7 +588,15 @@ export function App() {
   };
 
   const mergeNode = async (sourceId) => {
-    if (!selectedNodeId || selectedNodeId === sourceId || boot.sampleMode) {
+    if (readOnly) {
+      setToast("Cannot modify graph in view mode.");
+      return;
+    }
+    if (boot.sampleMode) {
+      setToast("Cannot modify sample data.");
+      return;
+    }
+    if (!selectedNodeId || selectedNodeId === sourceId) {
       setToast("Select a destination graph node first.");
       return;
     }
@@ -658,7 +670,7 @@ export function App() {
   };
 
   const saveEdgeDialog = async (relationship) => {
-    if (!edgeDialog || boot.sampleMode) {
+    if (!edgeDialog || boot.sampleMode || readOnly) {
       return;
     }
     await pushHistory();
@@ -772,7 +784,7 @@ export function App() {
   };
 
   const commitImport = async () => {
-    if (!importPreview || boot.sampleMode) {
+    if (!importPreview || boot.sampleMode || readOnly) {
       return;
     }
     const payload = await apiRequest("/api/graph/import", {
@@ -790,6 +802,9 @@ export function App() {
   };
 
   const loadImportFile = async (event) => {
+    if (readOnly) {
+      return;
+    }
     const file = event.target.files?.[0];
     if (!file) {
       return;
@@ -1281,7 +1296,7 @@ export function App() {
               <button className="rounded-xl border border-white/10 px-3 py-2 text-sm" onClick={() => exportGraph("abhi")} type="button">
                 Export
               </button>
-              <FileInputButton label="Import preview" accept=".abhi,.json" onChange={(event) => loadImportFile(event).catch((error) => setToast(error.message))} />
+              <FileInputButton label="Import preview" accept=".abhi,.json" onChange={(event) => loadImportFile(event).catch((error) => setToast(error.message))} disabled={readOnly || boot.sampleMode} />
               <button className="rounded-xl border border-white/10 px-3 py-2 text-sm text-graph-muted" type="button">
                 Sync to Drive
               </button>
@@ -1301,7 +1316,7 @@ export function App() {
                   ))}
                 </div>
                 {!boot.sampleMode ? (
-                  <button className="mt-3 w-full rounded-xl bg-white px-3 py-2 text-sm font-medium text-black" onClick={() => commitImport().catch((error) => setToast(error.message))} type="button">
+                  <button className="mt-3 w-full rounded-xl bg-white px-3 py-2 text-sm font-medium text-black" onClick={() => commitImport().catch((error) => setToast(error.message))} disabled={readOnly} type="button">
                     Commit import
                   </button>
                 ) : null}

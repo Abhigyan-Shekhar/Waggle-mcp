@@ -4555,7 +4555,20 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     setup.add_argument("--dry-run", action="store_true", help="Show what would change without writing files.")
     setup.add_argument("--run-doctor", action=argparse.BooleanOptionalAction, default=True)
-    setup.add_argument("--no-hooks", action="store_true", help="Skip Claude Code hook installation.")
+    setup.add_argument(
+        "--hooks",
+        default="auto",
+        help=(
+            "Which hook-capable tools to install automatic memory hooks for: "
+            "'auto' (all detected, currently Claude Code), 'none', or a comma-separated "
+            "list (currently supported: claude-code)."
+        ),
+    )
+    setup.add_argument(
+        "--no-hooks",
+        action="store_true",
+        help="Deprecated alias for --hooks none. Skip all hook installation.",
+    )
 
     subparsers.add_parser("init", help="Interactive setup wizard — configure an MCP client to use waggle-mcp.")
     subparsers.add_parser(
@@ -5830,6 +5843,48 @@ def _setup_clients_from_args(raw_clients: str) -> list[str]:
     return _normalize_setup_clients(raw_clients)
 
 
+# ── Hook-capable tool selection ──────────────────────────────────
+# Hooks are currently Claude-Code-specific (written to ~/.claude/settings.json),
+# separate from the MCP client config writers above. This map is the extension
+# point for future hook-capable tools.
+_HOOK_TOOL_ALIASES = {
+    "claude-code": "Claude Code",
+    "claude_code": "Claude Code",
+    "claudecode": "Claude Code",
+}
+_ALL_HOOK_TOOLS = ["Claude Code"]
+
+
+def _hook_tools_from_args(raw_hooks: str, no_hooks: bool) -> list[str]:
+    """Resolve which hook-capable tools should receive automatic memory hooks.
+
+    'auto' selects all hook-capable tools (currently Claude Code); 'none' selects
+    none. --no-hooks is a deprecated alias for --hooks none. A comma-separated
+    list selects specific tools by alias.
+    """
+    raw = (raw_hooks or "auto").strip().lower()
+    if no_hooks:
+        raw = "none"
+    if raw == "none":
+        return []
+    if raw == "auto":
+        return list(_ALL_HOOK_TOOLS)
+    tools: list[str] = []
+    for part in raw.split(","):
+        key = part.strip().lower()
+        if not key:
+            continue
+        tool = _HOOK_TOOL_ALIASES.get(key)
+        if tool is None:
+            supported = ", ".join(sorted(_HOOK_TOOL_ALIASES))
+            raise ValidationFailure(f"Unsupported hook target: {part!r}. Supported values: auto, none, {supported}.")
+        if tool not in tools:
+            tools.append(tool)
+    if not tools:
+        raise ValidationFailure("No hook targets were provided.")
+    return tools
+
+
 # ── Claude Code hook constants ────────────────────────────────────────────────
 _CLAUDE_HOOKS_BLOCK_HEADER = "# >>> waggle-managed >>>"
 _CLAUDE_HOOKS_BLOCK_FOOTER = "# <<< waggle-managed <<<"
@@ -6127,6 +6182,7 @@ def _run_setup(args: argparse.Namespace) -> int:
     db_path = str(Path(db_path_raw).expanduser().resolve())
     python_exe = _python_exe()
     clients = _setup_clients_from_args(args.clients)
+    hook_tools = _hook_tools_from_args(getattr(args, "hooks", "auto"), bool(getattr(args, "no_hooks", False)))
 
     print()
     print(_c(_BOLD, "waggle-mcp setup"))
@@ -6138,6 +6194,9 @@ def _run_setup(args: argparse.Namespace) -> int:
         print("  mode: dry-run")
         for client in clients:
             _ok(f"Would configure {client}")
+        if "Claude Code" in hook_tools:
+            hooks_path = _find_claude_settings()
+            _ok(f"Would install Claude Code hooks in {hooks_path}")
         if args.project_instructions and "Codex" in clients:
             agents_path = (Path.cwd() / "AGENTS.md").resolve()
             _ok(f"Would write Codex automatic-memory instructions to {agents_path}")
@@ -6174,18 +6233,18 @@ def _run_setup(args: argparse.Namespace) -> int:
         print(f"  {_c(_CYAN, chr(0x27A1))}  {_RESTART_HINTS[client]}")
     print()
 
-    # Install Claude Code hooks if not suppressed
-    no_hooks = bool(getattr(args, "no_hooks", False))
-    if not no_hooks and not args.dry_run:
-        hook_dir = Path(__file__).resolve().parent / "hooks" / "claude_code"
-        if hook_dir.exists():
-            try:
-                hooks_path = _install_claude_hooks(hook_dir)
-                if hooks_path is not None:
-                    _ok(f"Claude Code hooks installed in {hooks_path}")
-            except OSError as exc:
-                # Non-fatal: hooks are optional
-                LOGGER.warning("claude_hooks_install_failed", extra={"error": str(exc)})
+    # Install automatic memory hooks for the selected hook-capable tools
+    if hook_tools and not args.dry_run:
+        if "Claude Code" in hook_tools:
+            hook_dir = Path(__file__).resolve().parent / "hooks" / "claude_code"
+            if hook_dir.exists():
+                try:
+                    hooks_path = _install_claude_hooks(hook_dir)
+                    if hooks_path is not None:
+                        _ok(f"Claude Code hooks installed in {hooks_path}")
+                except OSError as exc:
+                    # Non-fatal: hooks are optional
+                    LOGGER.warning("claude_hooks_install_failed", extra={"error": str(exc)})
 
     if args.run_doctor:
         doctor_config = AppConfig.from_env()

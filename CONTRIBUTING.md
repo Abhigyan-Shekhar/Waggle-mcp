@@ -73,10 +73,24 @@ The same document also defines the root layout policy. As a rule, do not add new
 
 ### Labeling guidance
 
-- Use `good first issue` for small, well-scoped tasks with clear acceptance criteria.
-- Use `help wanted` for larger tasks that are still open to external contributors.
+#### Maintainer Triage Checklist
+
+When reviewing a new issue:
+
+- Start with `needs-triage` until scope and priority are confirmed.
+- Use `good first issue` for small, well-scoped tasks with clear acceptance criteria and a limited blast radius.
+- Use `help wanted` for larger tasks that are suitable for external contributors but may require more project context.
+- Use `blocked` when progress depends on an external decision, dependency, or unresolved prerequisite.
+
+Quick checklist:
+
+- [ ] Is the issue clearly described?
+- [ ] Does it have defined acceptance criteria?
+- [ ] Should it be labeled `good first issue` or `help wanted`?
+- [ ] Does it need a domain label such as `documentation`, `graph`, `windows`, or `tooling`?
+- [ ] Is the issue currently blocked by another task or decision?
+
 - Add one domain label where possible, such as `graph`, `retrieval`, `windows`, `tooling`, or `documentation`.
-- New issues should usually start as `needs-triage` until a maintainer confirms scope and priority.
 
 Repository labels are defined in [`.github/labels.yml`](./.github/labels.yml) and synced with [`scripts/sync_github_labels.py`](./scripts/sync_github_labels.py). Use `--dry-run` first before changing live labels.
 
@@ -115,6 +129,51 @@ query_graph() / build_context()
     └─► HybridRetriever.retrieve()             ← vector + BM25 + graph
     └─► MemoryGraph._expand_node_depths()      ← graph traversal
     └─► RecursiveContextController.assemble()  ← token-budgeted pack
+```
+
+
+
+
+### Observe conversation flow
+
+```mermaid
+flowchart LR
+    A[Conversation input] --> B[observe_conversation]
+    B --> C[intelligence.extract_conversation_candidates]
+    C --> D[MemoryGraph.store_node]
+    C --> F[MemoryGraph.store_edge]
+    D --> E[Embedding generation]
+    D --> G[(SQLite or Neo4j)]
+    F --> G
+```
+
+Note: The runtime instantiates either MemoryGraph (SQLite) or Neo4jMemoryGraph based on config.backend.
+
+
+### Query graph flow
+
+```mermaid
+flowchart LR
+    A[Query input] --> B[query_graph / build_context]
+    B --> C[EmbeddingModel.embed query]
+    C --> D[HybridRetriever.retrieve]
+    D --> E[MemoryGraph._expand_node_depths]
+    E --> F[RecursiveContextController.assemble]
+    F --> G[Context returned]
+    D --> H[(SQLite or Neo4j)]
+```
+
+### Transport layer
+
+```mermaid
+flowchart TB
+    Client -->|HTTP| S[server.py]
+    Client -->|MCP| S
+    S --> OC[observe_conversation]
+    S --> QG[query_graph / build_context]
+    OC --> G[(SQLite or Neo4j)]
+    QG --> G
+
 ```
 
 ### Scoping / Tenancy
