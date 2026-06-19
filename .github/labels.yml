@@ -112,3 +112,16 @@
 - name: mentor:username
   color: "ffedd5"
   description: Replace username with a mentor handle when crediting reviewed PRs.
+- name: SSoC26
+  color: "5319e7"
+  description: Social Summer of Code 2026 program label.
+- name: easy
+  color: "0e8a16"
+  description: Easy difficulty issue for contributors.
+- name: medium
+  color: "fbca04"
+  description: Medium difficulty issue for contributors.
+- name: hard
+  color: "d93f0b"
+  description: Hard difficulty issue for contributors.
+ 
