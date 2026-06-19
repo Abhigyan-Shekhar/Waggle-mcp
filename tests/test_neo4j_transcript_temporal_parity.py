@@ -19,8 +19,10 @@ class FakeEmbeddingModel:
         return np.asarray([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
 
     def cosine_similarity(self, left: np.ndarray, right: np.ndarray) -> float:
-        del left, right
-        return 1.0
+        denominator = float(np.linalg.norm(left) * np.linalg.norm(right))
+        if denominator == 0:
+            return 0.0
+        return float(np.dot(left, right) / denominator)
 
 
 def make_mock_graph(
@@ -54,6 +56,7 @@ def transcript_record(
     session_id: str = "session-a",
     role: str = "user",
     text: str = "deployment completed",
+    embedding: list[float] | None = None,
 ) -> dict[str, object]:
     return {
         "t": {
@@ -66,7 +69,7 @@ def transcript_record(
             "turn_index": turn_index,
             "role": role,
             "transcript_text": text,
-            "embedding": [1.0, 0.0, 0.0, 0.0],
+            "embedding": (embedding if embedding is not None else [1.0, 0.0, 0.0, 0.0]),
             "metadata": "{}",
         }
     }
@@ -120,13 +123,84 @@ def test_neo4j_replay_query_pushes_scope_filters_into_cypher() -> None:
     assert "t.project = $project" in cypher
     assert "t.session_id = $session_id" in cypher
     assert "t.agent_id = $agent_id" not in cypher
-    assert "LIMIT $fetch_limit" in cypher
+    assert "ORDER BY t.observed_at" not in cypher
+    assert "LIMIT $fetch_limit" not in cypher
 
     assert params["tenant_id"] == "tenant-a"
     assert params["project"] == "project-a"
     assert params["session_id"] == "session-a"
-    assert params["fetch_limit"] == 500
+    assert "fetch_limit" not in params
     assert "agent_id" not in params
+
+
+def test_neo4j_replay_ranks_all_scoped_transcripts_before_limiting() -> None:
+    recent_irrelevant = [
+        transcript_record(
+            record_id=f"recent-{index}",
+            observed_at=datetime(
+                2026,
+                6,
+                18,
+                10,
+                0,
+                tzinfo=UTC,
+            ),
+            turn_index=100 + index,
+            text="unrelated conversation",
+            embedding=[0.0, 1.0, 0.0, 0.0],
+        )
+        for index in range(500)
+    ]
+
+    older_relevant = transcript_record(
+        record_id="older-relevant",
+        observed_at=datetime(
+            2025,
+            1,
+            1,
+            10,
+            0,
+            tzinfo=UTC,
+        ),
+        turn_index=1,
+        text="deployment completed",
+        embedding=[1.0, 0.0, 0.0, 0.0],
+    )
+
+    all_records = [*recent_irrelevant, older_relevant]
+    graph, session = make_mock_graph(all_records)
+
+    def run_replay_query(
+        cypher: str,
+        **params: object,
+    ) -> list[dict[str, object]]:
+        # Reproduce the old bug when the query contains its recency limit:
+        # the older relevant transcript is removed before semantic ranking.
+        if "LIMIT $fetch_limit" in cypher:
+            fetch_limit = int(params["fetch_limit"])
+            return recent_irrelevant[:fetch_limit]
+        return all_records
+
+    session.run.side_effect = run_replay_query
+
+    result = graph.query(
+        query="deployment",
+        retrieval_mode="verbatim",
+        max_nodes=1,
+        project="project-a",
+        session_id="session-a",
+    )
+
+    cypher = session.run.call_args.args[0]
+    params = session.run.call_args.kwargs
+
+    assert "ORDER BY t.observed_at" not in cypher
+    assert "LIMIT $fetch_limit" not in cypher
+    assert "fetch_limit" not in params
+
+    assert len(result.replay_hits) == 1
+    assert result.replay_hits[0].turn_index == 1
+    assert result.replay_hits[0].transcript_text == "deployment completed"
 
 
 def test_neo4j_replay_query_uses_agent_when_session_is_absent() -> None:

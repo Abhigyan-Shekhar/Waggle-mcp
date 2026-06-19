@@ -1748,7 +1748,6 @@ class Neo4jMemoryGraph:
         ]
         params: dict[str, Any] = {
             "tenant_id": self.tenant_id,
-            "fetch_limit": min(max(500, max_hits * 4), 5000),
         }
 
         if project.strip():
@@ -1769,8 +1768,6 @@ class Neo4jMemoryGraph:
                     MATCH (t:MemoryTranscript)
                     WHERE {" AND ".join(filters)}
                     RETURN t
-                    ORDER BY t.observed_at DESC, t.turn_index DESC
-                    LIMIT $fetch_limit
                     """,
                     **params,
                 )
