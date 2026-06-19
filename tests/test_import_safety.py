@@ -19,6 +19,16 @@ import pytest
 HEAVY_MODULES = frozenset({"sentence_transformers", "torch"})
 
 
+def _any_heavy_prefix(loaded: set[str]) -> bool:
+    """Check if *loaded* contains any module under a ``HEAVY_MODULES`` root.
+
+    Uses prefix matching so that e.g. ``torch.utils`` is caught even if the
+    bare ``torch`` root is not in the set (defence in depth against false
+    negatives from the subprocess collection).
+    """
+    return any(m.startswith(p) for m in loaded for p in HEAVY_MODULES)
+
+
 def _check_heavy_modules(code: str) -> set[str]:
     """Run *code* in a clean subprocess and return the set of heavy modules
     (sentence_transformers / torch) that were loaded after execution.
@@ -60,7 +70,7 @@ def test_import_waggle_does_not_import_heavy_modules() -> None:
         "        if m.startswith('sentence_transformers') or m.startswith('torch')}\n"
         "print(repr(heavy))"
     )
-    assert not HEAVY_MODULES.intersection(loaded), (
+    assert not _any_heavy_prefix(loaded), (
         f"Heavy modules loaded by 'import waggle': {loaded}"
     )
 
@@ -73,7 +83,7 @@ def test_import_waggle_server_does_not_import_heavy_modules() -> None:
         "        if m.startswith('sentence_transformers') or m.startswith('torch')}\n"
         "print(repr(heavy))"
     )
-    assert not HEAVY_MODULES.intersection(loaded), (
+    assert not _any_heavy_prefix(loaded), (
         f"Heavy modules loaded by 'from waggle.server import _build_parser': {loaded}"
     )
 
@@ -86,7 +96,7 @@ def test_import_waggle_graph_does_not_import_heavy_modules() -> None:
         "        if m.startswith('sentence_transformers') or m.startswith('torch')}\n"
         "print(repr(heavy))"
     )
-    assert not HEAVY_MODULES.intersection(loaded), (
+    assert not _any_heavy_prefix(loaded), (
         f"Heavy modules loaded by 'from waggle.graph import MemoryGraph': {loaded}"
     )
 
@@ -104,7 +114,7 @@ def test_embedding_deterministic_mode_does_not_import_heavy_modules() -> None:
         "        if m.startswith('sentence_transformers') or m.startswith('torch')}\n"
         "print(repr(heavy))"
     )
-    assert not HEAVY_MODULES.intersection(loaded), (
+    assert not _any_heavy_prefix(loaded), (
         f"Heavy modules loaded by deterministic EmbeddingModel setup: {loaded}"
     )
 
@@ -118,6 +128,6 @@ def test_server_forward_refs_do_not_leak_heavy_imports() -> None:
         "        if m.startswith('sentence_transformers') or m.startswith('torch')}\n"
         "print(repr(heavy))"
     )
-    assert not HEAVY_MODULES.intersection(loaded), (
+    assert not _any_heavy_prefix(loaded), (
         f"Heavy modules loaded by 'from waggle.server import main': {loaded}"
     )
