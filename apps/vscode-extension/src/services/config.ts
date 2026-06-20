@@ -79,9 +79,15 @@ export async function writeWorkspaceConfig(ctx: WaggleContext): Promise<boolean>
   currentRoot[WAGGLE_SERVER_NAME] = waggleConfig;
   existing[rootKey] = currentRoot;
 
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const serialized = `${JSON.stringify(existing, null, 2)}\n`;
-  await fs.writeFile(filePath, serialized, "utf8");
+  try {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    const serialized = `${JSON.stringify(existing, null, 2)}\n`;
+    await fs.writeFile(filePath, serialized, "utf8");
+  } catch (err) {
+    ctx.append(`Failed to write ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
+    return false;
+  }
+
   ctx.append(`Wrote ${filePath}`);
   ctx.setStatus("ready", folder.name);
   return true;
