@@ -215,7 +215,6 @@ class AsyncMemoryOrchestrator:
             return IngestPlan(False, "queue full")
         self._known_turn_ids[turn_key] = datetime.now(UTC)
         self.policy.mark_ingested(scope, datetime.now(UTC))
-        self.policy.mark_ingested(scope, datetime.now(UTC))
         await self._queue.put(IngestTask(scope=scope, turn=turn))
         return plan
 
