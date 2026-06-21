@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+
 from waggle.errors import ValidationFailure
 
 LOGGER = logging.getLogger(__name__)

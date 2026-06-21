@@ -7,13 +7,12 @@ import logging
 import os
 import re
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 from waggle.abhi import (
     build_abhi_document,
-    validate_abhi_document,
 )
 from waggle.config import AppConfig
 from waggle.embeddings import EmbeddingModel
@@ -22,7 +21,6 @@ from waggle.graph import MemoryGraph
 from waggle.models import (
     ApiKeyRecord,
     AuditEventRecord,
-    NodeType,
     RetentionPolicyRecord,
     RetentionPruneRunRecord,
 )

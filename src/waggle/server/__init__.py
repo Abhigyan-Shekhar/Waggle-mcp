@@ -2,14 +2,16 @@
 waggle.server package init.
 Proxies all attribute access and mutations to extracted submodules.
 """
+
 from __future__ import annotations
 
+import importlib
 import sys
 import types
-import importlib
 from typing import Any
 
 _SUBMODULES = ["utils", "drive", "mcp", "routes", "cli"]
+
 
 class _ServerModuleProxy(types.ModuleType):
     def _get_submodule(self, name: str) -> types.ModuleType:
@@ -66,6 +68,7 @@ class _ServerModuleProxy(types.ModuleType):
             except Exception:
                 pass
         return sorted(attrs)
+
 
 # Update the module class to the proxy class
 sys.modules[__name__].__class__ = _ServerModuleProxy

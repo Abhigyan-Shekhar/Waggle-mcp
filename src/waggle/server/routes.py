@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 import anyio
-import uvicorn
 from mcp.server.streamable_http import StreamableHTTPServerTransport
 from starlette.applications import Starlette
 from starlette.datastructures import Headers
@@ -30,7 +29,6 @@ from waggle.abhi import (
     validate_abhi_document,
 )
 from waggle.config import AppConfig
-from waggle.embeddings import STATUS_DISABLED, STATUS_READY
 from waggle.errors import (
     AuthenticationError,
     PayloadTooLargeError,
@@ -38,7 +36,6 @@ from waggle.errors import (
     ValidationFailure,
     WaggleError,
 )
-from waggle.graph import MemoryGraph
 from waggle.graph_ui import render_graph_editor_html
 from waggle.models import (
     NodeType,
@@ -50,7 +47,6 @@ from waggle.runtime_context import runtime_context
 from .mcp import WaggleServer
 from .utils import (
     WRITE_HEAVY_TOOLS,
-    _serialize_api_key_record,
     _serialize_audit_event,
     _serialize_retention_policy,
     _serialize_retention_run,

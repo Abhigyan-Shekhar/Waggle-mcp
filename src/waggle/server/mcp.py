@@ -13,23 +13,22 @@ from mcp.server.lowlevel.server import request_ctx
 from mcp.server.models import InitializationOptions
 
 from waggle import __version__
+from waggle.abhi import serialize_abhi_diff
 from waggle.config import AppConfig
 from waggle.runtime_info import SERVER_NAME, WAGGLE_SERVER_INFO
 from waggle.embeddings import EMBEDDING_FREE_TOOLS, STATUS_DISABLED, STATUS_READY
 from waggle.errors import ValidationFailure
 from waggle.metrics import MetricsRegistry
 from waggle.models import (
+    Node,
     NodeType,
     RelationType,
-    Node,
 )
-from waggle.rate_limit import RateLimiter
 from waggle.recursive_context import (
     RECURSIVE_CONTEXT_ENABLED,
     RecursiveContextController,
 )
 from waggle.runtime_context import runtime_context
-from waggle.abhi import serialize_abhi_diff
 from waggle.serializer import (
     serialize_abhi_chunk_load,
     serialize_abhi_inspect,
@@ -51,7 +50,6 @@ from waggle.serializer import (
 )
 
 from .utils import (
-    WRITE_HEAVY_TOOLS,
     _assert_export_safe,
     _build_backend,
     _object_input_schema,
@@ -129,7 +127,6 @@ class WaggleServer:
         config: AppConfig | None = None,
         metrics: MetricsRegistry | None = None,
     ) -> None:
-        from starlette.requests import Request
         self.config = config or AppConfig.from_env()
         self.metrics = metrics or MetricsRegistry()
         self._static_graph = graph
@@ -1165,6 +1162,7 @@ class WaggleServer:
 
     def _get_request(self) -> Any:
         from starlette.requests import Request
+
         try:
             current = request_ctx.get()
         except LookupError:
@@ -1966,6 +1964,7 @@ class WaggleServer:
 
     def _error_result(self, exc: Exception) -> types.CallToolResult:
         from waggle.errors import WaggleError
+
         if isinstance(exc, WaggleError):
             return types.CallToolResult(
                 content=[types.TextContent(type="text", text=f"Error [{exc.code}]: {exc}")],
@@ -2365,6 +2364,7 @@ class WaggleServer:
         size = len(str(value).encode("utf-8"))
         if size > limit:
             from waggle.errors import PayloadTooLargeError
+
             raise PayloadTooLargeError(f"{field_name} exceeds the configured payload limit.")
 
     def _record_graph_size(self, graph: Any) -> None:

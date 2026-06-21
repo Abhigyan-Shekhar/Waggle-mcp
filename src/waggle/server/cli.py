@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import base64
 import json
 import logging
 import os
@@ -12,13 +11,14 @@ import tempfile
 import threading
 import webbrowser
 from contextlib import suppress
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 import uvicorn
 
 from waggle import __version__
+from waggle.abhi import build_abhi_document, load_abhi_document
 from waggle.config import DEFAULT_DB_PATH, AppConfig
 from waggle.embeddings import EmbeddingModel
 from waggle.errors import ValidationFailure, WaggleError
@@ -766,6 +766,7 @@ def _run_graph_editor_command(config: AppConfig, args: argparse.Namespace) -> in
     print("Use Ctrl+C in this terminal to stop the editor server.")
 
     if should_open:
+
         def _open_browser() -> None:
             try:
                 webbrowser.open(url)
@@ -1166,6 +1167,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             reembed_on_mismatch=bool(getattr(args, "reembed_on_mismatch", False)),
         )
         from waggle.models import DrivePullResult
+
         result = DrivePullResult(
             remote_file_id=remote_file_id,
             remote_name=resolved_name or remote_name,
@@ -1228,6 +1230,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         return 0
     if args.command == "backfill-windows":
         from waggle.backfill import backfill_context_windows
+
         if not isinstance(backend, MemoryGraph):
             raise ValidationFailure("backfill-windows is currently supported only for the SQLite backend.")
         stats = backfill_context_windows(backend, dry_run=bool(args.dry_run))
@@ -1268,7 +1271,8 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
         if not json_output:
             _fail(message)
 
-    from .utils import _BOLD, _CYAN, _CYAN, _GREEN, _RED
+    from .utils import _BOLD, _CYAN, _GREEN, _RED
+
     emit()
     emit(_c(_BOLD, "waggle-mcp doctor"))
     emit(_c(_CYAN, "─" * 50))
@@ -1300,7 +1304,10 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
             except Exception:
                 emit(f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [exists, could not parse]")
         elif (
-            (sys.platform == "darwin" and ("macOS" in label or "Cursor" in label or "Antigravity" in label or "Codex" in label))
+            (
+                sys.platform == "darwin"
+                and ("macOS" in label or "Cursor" in label or "Antigravity" in label or "Codex" in label)
+            )
             or (sys.platform == "win32" and "Windows" in label)
             or (sys.platform.startswith("linux") and ("Linux" in label or "Cursor" in label))
         ):
@@ -1308,7 +1315,10 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
 
         is_plausible = (
             exists
-            or (sys.platform == "darwin" and ("macOS" in label or "Cursor" in label or "Antigravity" in label or "Codex" in label))
+            or (
+                sys.platform == "darwin"
+                and ("macOS" in label or "Cursor" in label or "Antigravity" in label or "Codex" in label)
+            )
             or (sys.platform == "win32" and "Windows" in label)
             or (sys.platform.startswith("linux") and ("Linux" in label or "Cursor" in label))
         )
@@ -1602,6 +1612,7 @@ def _run_ingest_transcript_handoff(config: AppConfig, args: argparse.Namespace) 
 
 def _prompt_choice(question: str, choices: list[str]) -> str:
     from .utils import _BOLD, _CYAN, _GREEN, _RED
+
     print(f"\n{_c(_BOLD, question)}")
     for i, choice in enumerate(choices, 1):
         print(f"  {_c(_CYAN, str(i) + '.')} {choice}")
@@ -1616,6 +1627,7 @@ def _prompt_choice(question: str, choices: list[str]) -> str:
 
 def _prompt_path(question: str, default: str) -> str:
     from .utils import _BOLD, _GREEN
+
     print(f"\n{_c(_BOLD, question)}")
     raw = input(f"  [{default}]: ").strip()
     result = raw or default
@@ -2098,6 +2110,7 @@ def _run_demo(args: argparse.Namespace) -> int:
     demo_db = tmp_dir / "demo.db"
 
     from .utils import _BOLD, _CYAN
+
     print()
     print(_c(_BOLD, "waggle-mcp demo"))
     print(_c(_CYAN, "─" * 50))
@@ -2186,6 +2199,7 @@ def _run_demo(args: argparse.Namespace) -> int:
     except Exception as exc:
         _fail(f"Demo failed: {exc}")
         import traceback
+
         traceback.print_exc()
         return 1
 
@@ -2204,6 +2218,7 @@ def _run_setup(args: argparse.Namespace) -> int:
     hook_tools = _hook_tools_from_args(getattr(args, "hooks", "auto"), bool(getattr(args, "no_hooks", False)))
 
     from .utils import _BOLD, _CYAN
+
     print()
     print(_c(_BOLD, "waggle-mcp setup"))
     print(_c(_CYAN, "─" * 40))
@@ -2279,6 +2294,7 @@ def _run_setup(args: argparse.Namespace) -> int:
 
 def _run_init() -> int:
     from .utils import _BOLD, _CYAN
+
     print()
     print(_c(_BOLD, "waggle-mcp setup wizard"))
     print(_c(_CYAN, "─" * 40))
@@ -2353,6 +2369,7 @@ async def run_stdio(config: AppConfig) -> None:
             extra={"status": getattr(em, "warmup_status", "unknown"), "error": getattr(em, "warmup_error", "")},
         )
     import mcp.server.stdio
+
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await app.server.run(read_stream, write_stream, app.initialization_options())
 
@@ -2373,6 +2390,7 @@ def main() -> None:
         except Exception:
             pass
     from .utils import _assert_runtime_feature_parity
+
     _assert_runtime_feature_parity()
     parser = _build_parser()
     args = parser.parse_args()
@@ -2407,6 +2425,7 @@ def main() -> None:
         config.validate()
     log_stream = sys.stderr if config.transport == "stdio" else sys.stdout
     from waggle.logging_utils import configure_logging
+
     configure_logging(config.log_level, stream=log_stream)
     LOGGER.info("waggle_startup")
     if command in {"edit-graph", "view-graph", "ui", "graph-studio", "open-studio"}:
