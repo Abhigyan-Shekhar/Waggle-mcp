@@ -1,49 +1,57 @@
 name: Package Claude Desktop Extension
 
 on:
-  push:
-    tags:
-      - "v*"
+  release:
+    types: [published]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  package-mcpb:
+  package:
     runs-on: ubuntu-latest
+
     defaults:
       run:
         working-directory: apps/mcp/claude-desktop-extension
 
     steps:
-      - name: Checkout source
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: '20'
+          cache: 'npm'
           cache-dependency-path: apps/mcp/claude-desktop-extension/package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Validate MCPB bundle
-        run: npm run validate
+      - name: Validate package.json
+        run: |
+          if [ ! -f package.json ]; then
+            echo "Error: package.json not found"
+            exit 1
+          fi
+          echo "package.json validated successfully"
 
-      - name: Pack MCPB bundle
-        run: npm run pack
+      - name: Validate package-lock.json
+        run: |
+          if [ ! -f package-lock.json ]; then
+            echo "Error: package-lock.json not found"
+            exit 1
+          fi
+          echo "package-lock.json validated successfully"
 
-      - name: Upload MCPB artifact
+      - name: Build extension
+        run: npm run build --if-present
+
+      - name: Package extension
+        run: npm pack
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: waggle-claude-desktop-extension
-          path: apps/mcp/claude-desktop-extension/*.mcpb
-
-      - name: Upload MCPB to GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
-        with:
-          files: apps/mcp/claude-desktop-extension/*.mcpb
+          name: claude-desktop-extension
+          path: apps/mcp/claude-desktop-extension/*.tgz
+          if-no-files-found: error
