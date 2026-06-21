@@ -275,7 +275,8 @@ def test_parser_accepts_graph_editor_commands() -> None:
 
 
 def test_run_doctor_has_single_invocation_site() -> None:
-    tree = ast.parse(inspect.getsource(server_module))
+    mod = getattr(server_module, "cli", server_module)
+    tree = ast.parse(inspect.getsource(mod))
 
     calls = [
         node
