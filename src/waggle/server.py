@@ -94,6 +94,7 @@ from waggle.recursive_context import (
 )
 from waggle.runtime_context import runtime_context
 from waggle.runtime_info import SERVER_NAME, WAGGLE_SERVER_INFO
+from waggle.secure_temp import secure_temp_path, write_secure_temp
 from waggle.serializer import (
     serialize_abhi_chunk_load,
     serialize_abhi_inspect,
@@ -3646,13 +3647,12 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         content = str(payload.get("content", ""))
         content_base64 = str(payload.get("content_base64", ""))
         suffix = ".abhi" if import_format == "abhi" else ".json"
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
-            temp_path = Path(handle.name)
+        if import_format == "abhi" and content_base64:
+            data = base64.b64decode(content_base64)
+        else:
+            data = content.encode("utf-8")
+        temp_path = write_secure_temp(data, suffix=suffix)
         try:
-            if import_format == "abhi" and content_base64:
-                temp_path.write_bytes(base64.b64decode(content_base64))
-            else:
-                temp_path.write_text(content, encoding="utf-8")
             graph, _ = _require_http_scope(request, "graph:write")
             imported_node_ids: list[str] = []
             if import_format == "abhi":
@@ -3683,13 +3683,12 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         content = str(payload.get("content", ""))
         content_base64 = str(payload.get("content_base64", ""))
         suffix = ".abhi" if import_format == "abhi" else ".json"
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
-            temp_path = Path(handle.name)
+        if import_format == "abhi" and content_base64:
+            data = base64.b64decode(content_base64)
+        else:
+            data = content.encode("utf-8")
+        temp_path = write_secure_temp(data, suffix=suffix)
         try:
-            if import_format == "abhi" and content_base64:
-                temp_path.write_bytes(base64.b64decode(content_base64))
-            else:
-                temp_path.write_text(content, encoding="utf-8")
             graph, _ = _require_http_scope(request, "graph:read")
             if import_format == "abhi":
                 validation = graph.validate_abhi(input_path=temp_path)
@@ -3740,19 +3739,21 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         content_b = str(payload.get("content_b", ""))
         content_a_base64 = str(payload.get("content_a_base64", ""))
         content_b_base64 = str(payload.get("content_b_base64", ""))
-        with tempfile.NamedTemporaryFile(suffix=".abhi", delete=False) as handle_a:
-            path_a = Path(handle_a.name)
-        with tempfile.NamedTemporaryFile(suffix=".abhi", delete=False) as handle_b:
-            path_b = Path(handle_b.name)
+        if content_a_base64:
+            data_a = base64.b64decode(content_a_base64)
+        else:
+            data_a = content_a.encode("utf-8")
+        if content_b_base64:
+            data_b = base64.b64decode(content_b_base64)
+        else:
+            data_b = content_b.encode("utf-8")
+        path_a = write_secure_temp(data_a, suffix=".abhi")
         try:
-            if content_a_base64:
-                path_a.write_bytes(base64.b64decode(content_a_base64))
-            else:
-                path_a.write_text(content_a, encoding="utf-8")
-            if content_b_base64:
-                path_b.write_bytes(base64.b64decode(content_b_base64))
-            else:
-                path_b.write_text(content_b, encoding="utf-8")
+            path_b = write_secure_temp(data_b, suffix=".abhi")
+        except BaseException:
+            path_a.unlink(missing_ok=True)
+            raise
+        try:
             graph, _ = _require_http_scope(request, "graph:read")
             diff = graph.diff_abhi(input_path_a=path_a, input_path_b=path_b)
             snapshot_a = abhi_to_snapshot(load_abhi_document(path_a), fallback_tenant_id=graph.tenant_id)
@@ -4786,20 +4787,18 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             export_dir=config.export_dir,
         )
         target = backend.for_tenant(args.tenant_id)
-        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as handle:
-            temp_path = Path(handle.name)
-        backup = source.export_graph_backup(output_path=temp_path)
-        imported = target.import_graph_backup(input_path=temp_path)
-        print(
-            json.dumps(
-                {
-                    "backup": backup.model_dump(),
-                    "import": imported.model_dump(),
-                },
-                indent=2,
+        with secure_temp_path(suffix=".json") as temp_path:
+            backup = source.export_graph_backup(output_path=temp_path)
+            imported = target.import_graph_backup(input_path=temp_path)
+            print(
+                json.dumps(
+                    {
+                        "backup": backup.model_dump(),
+                        "import": imported.model_dump(),
+                    },
+                    indent=2,
+                )
             )
-        )
-        temp_path.unlink(missing_ok=True)
         return 0
     if args.command == "export":
         _assert_export_safe(
