@@ -90,3 +90,20 @@ Status:
 - Use `good first issue` only for tasks with clear acceptance criteria, a small blast radius, and obvious files to change.
 - Use `help wanted` for larger tasks that are still open to outside contribution but need more codebase context.
 - Pair broad labels with domain labels. Example: `bug` + `graph`, or `documentation` + `windows`.
+
+## Label Source of Truth
+
+Repository labels are managed through `.github/labels.yml`.
+
+This file serves as the canonical source of truth for repository labels,
+including community program labels.
+
+Current community labels include:
+
+- SSoC26
+- easy
+- medium
+- hard
+
+Changes to labels should be made in `.github/labels.yml` and synchronized
+using `scripts/sync_github_labels.py`.

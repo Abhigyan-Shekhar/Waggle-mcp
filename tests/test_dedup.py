@@ -322,15 +322,20 @@ class TestCanonicalizeNode:
             content="We use Python for backend",
             node_type=NodeType.ENTITY,
         )
+        node4 = graph.add_node(
+            label="Framework",
+            content="We use Django",
+            node_type=NodeType.ENTITY,
+        )
 
         # Create edges pointing to node2
         graph.add_edge(
-            source_id=node1.node.id,
+            source_id=node3.node.id,
             target_id=node2.node.id,
             relationship="relates_to",
         )
         graph.add_edge(
-            source_id=node3.node.id,
+            source_id=node4.node.id,
             target_id=node2.node.id,
             relationship="relates_to",
         )
