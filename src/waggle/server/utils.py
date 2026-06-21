@@ -328,6 +328,7 @@ def _build_backend(config: AppConfig) -> Any:
         database=config.neo4j_database or None,
         embedding_model=embedding_model,
         tenant_id=config.default_tenant_id,
+        dedup_similarity_threshold=config.dedup_threshold,
         export_dir=config.export_dir,
         api_key_environment=config.api_key_environment,
     )

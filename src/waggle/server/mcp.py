@@ -15,7 +15,6 @@ from mcp.server.models import InitializationOptions
 from waggle import __version__
 from waggle.abhi import serialize_abhi_diff
 from waggle.config import AppConfig
-from waggle.runtime_info import SERVER_NAME, WAGGLE_SERVER_INFO
 from waggle.embeddings import EMBEDDING_FREE_TOOLS, STATUS_DISABLED, STATUS_READY
 from waggle.errors import ValidationFailure
 from waggle.metrics import MetricsRegistry
@@ -29,6 +28,7 @@ from waggle.recursive_context import (
     RecursiveContextController,
 )
 from waggle.runtime_context import runtime_context
+from waggle.runtime_info import SERVER_NAME, WAGGLE_SERVER_INFO
 from waggle.serializer import (
     serialize_abhi_chunk_load,
     serialize_abhi_inspect,

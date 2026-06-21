@@ -8,6 +8,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from copy import deepcopy
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -164,6 +165,13 @@ class MCPHttpApp:
                     with anyio.fail_after(self.config.request_timeout_seconds):
                         assert self.transport is not None
                         await self.transport.handle_request(scope, receive_callable, send_wrapper)
+        except TimeoutError:
+            LOGGER.warning("http_request_timeout", extra={"timeout": self.config.request_timeout_seconds})
+            self.metrics.increment("waggle_http_timeouts_total")
+            await JSONResponse({"error": "gateway_timeout", "message": "Request timed out."}, status_code=504)(
+                scope, receive, send
+            )
+            status_holder["status"] = 504
         except WaggleError as exc:
             LOGGER.warning("http_request_failed", extra={"error_code": exc.code, "status_code": exc.status_code})
             if isinstance(exc, AuthenticationError):
@@ -333,7 +341,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         existing: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         current = existing or {}
-        now = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+        now = datetime.now(UTC).isoformat()
         return {
             "id": str(current.get("id") or payload.get("id") or f"preview-{uuid.uuid4()}").strip(),
             "tenant_id": str(snapshot.get("tenant_id", "")),
@@ -366,7 +374,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         existing: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         current = existing or {}
-        now = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+        now = datetime.now(UTC).isoformat()
         return {
             "id": str(current.get("id") or payload.get("id") or f"preview-{uuid.uuid4()}").strip(),
             "tenant_id": str(snapshot.get("tenant_id", "")),
@@ -439,8 +447,11 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def graph_transcripts(request: Request) -> Response:
         scope = _scope_from_request(request)
-        limit = int(request.query_params.get("limit", "200") or "200")
-        offset = int(request.query_params.get("offset", "0") or "0")
+        try:
+            limit = int(request.query_params.get("limit", "200") or "200")
+            offset = int(request.query_params.get("offset", "0") or "0")
+        except ValueError:
+            raise ValidationFailure("limit and offset query parameters must be integers.")
         query_text = request.query_params.get("query", "").strip()
         graph, _ = _require_http_scope(request, "graph:read")
         if query_text and hasattr(graph, "search_transcript_records"):
@@ -492,8 +503,11 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         query_text = str(payload.get("query", "")).strip()
         if not query_text:
             raise ValidationFailure("query is required.")
-        max_nodes = int(payload.get("max_nodes", 8) or 8)
-        max_depth = int(payload.get("max_depth", 1) or 1)
+        try:
+            max_nodes = int(payload.get("max_nodes", 8) or 8)
+            max_depth = int(payload.get("max_depth", 1) or 1)
+        except ValueError:
+            raise ValidationFailure("max_nodes and max_depth must be integers.")
         graph, _ = _require_http_scope(request, "graph:read")
         debug = graph.debug_retrieval(
             query=query_text, max_nodes=max_nodes, max_depth=max_depth, retrieval_mode="hybrid", **scope
@@ -630,12 +644,18 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
     async def graph_save_ui(request: Request) -> Response:
         payload = await request.json()
         graph, _ = _require_http_scope(request, "graph:write")
+        zoom_val = None
+        if "zoom" in payload and payload.get("zoom") is not None:
+            try:
+                zoom_val = float(payload["zoom"])
+            except ValueError:
+                raise ValidationFailure("zoom must be a float number.")
         saved = graph.save_ui_state(
             project=str(payload.get("project", "")).strip(),
             agent_id=str(payload.get("agent_id", "")).strip(),
             session_id=str(payload.get("session_id", "")).strip(),
             positions=payload.get("positions"),
-            zoom=float(payload["zoom"]) if "zoom" in payload and payload.get("zoom") is not None else None,
+            zoom=zoom_val,
             viewport=payload.get("viewport"),
             groups=payload.get("groups"),
             collapsed_groups=payload.get("collapsed_groups"),
@@ -704,31 +724,48 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
         for edge_id, edge_payload in desired_edges.items():
             if edge_id in current_edges:
+                try:
+                    weight_val = (
+                        float(edge_payload["weight"])
+                        if "weight" in edge_payload and edge_payload.get("weight") is not None
+                        else None
+                    )
+                except ValueError:
+                    raise ValidationFailure("weight must be a float number.")
                 graph.update_edge(
                     edge_id=edge_id,
                     source_id=str(edge_payload.get("source_id", "")).strip() or None,
                     target_id=str(edge_payload.get("target_id", "")).strip() or None,
                     relationship=str(edge_payload.get("relationship", "")).strip() or None,
-                    weight=float(edge_payload["weight"])
-                    if "weight" in edge_payload and edge_payload.get("weight") is not None
-                    else None,
+                    weight=weight_val,
                 )
                 continue
+            edge_id = str(edge_payload.get("id") or f"preview-{uuid.uuid4()}").strip()
+            try:
+                weight_val = float(edge_payload.get("weight", 1.0))
+            except ValueError:
+                raise ValidationFailure("weight must be a float number.")
             graph.add_edge(
                 edge_id=edge_id,
                 source_id=str(edge_payload.get("source_id", "")).strip(),
                 target_id=str(edge_payload.get("target_id", "")).strip(),
                 relationship=str(edge_payload.get("relationship", "")).strip(),
-                weight=float(edge_payload.get("weight", 1.0)),
+                weight=weight_val,
             )
 
         ui = payload.get("ui", {}) or {}
+        zoom_val = None
+        if "zoom" in ui and ui.get("zoom") is not None:
+            try:
+                zoom_val = float(ui["zoom"])
+            except ValueError:
+                raise ValidationFailure("zoom must be a float number.")
         saved = graph.save_ui_state(
             project=scope["project"],
             agent_id=scope["agent_id"],
             session_id=scope["session_id"],
             positions=ui.get("positions"),
-            zoom=float(ui["zoom"]) if "zoom" in ui and ui.get("zoom") is not None else None,
+            zoom=zoom_val,
             viewport=ui.get("viewport"),
             groups=ui.get("groups"),
             collapsed_groups=ui.get("collapsed_groups"),
@@ -860,9 +897,9 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         return JSONResponse(edge.model_dump(mode="json"))
 
     async def graph_export(request: Request) -> Response:
+        graph, _ = _require_http_scope(request, "graph:read")
         scope = _scope_from_request(request)
         export_format = request.query_params.get("format", "abhi").strip().lower()
-        graph = app_server.graph
         if export_format == "abhi":
             exported = graph.export_abhi(**scope)
             content = Path(exported.output_path).read_bytes()
