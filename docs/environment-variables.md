@@ -21,13 +21,13 @@ Boolean values are enabled only when set to the lowercase string `true`. Integer
 
 Supported values:
 
-* `test` → Generates non-production API keys with the `sk_test_` prefix (default)
-* `local` → Generates API keys for local development
-* `live` → Generates production API keys with the `sk_live_` prefix
+- `test` → generates API keys with the `sk_test_` prefix (default)
+- `local` → generates API keys with the `sk_local_` prefix
+- `live` → generates API keys with the `sk_live_` prefix
 
 For production deployments, set this to `live` so it’s easy to distinguish production keys from test or local keys.
 
-For more details on production setup and security best practices, see Production Deployment (`deployment/production.md`).
+For more details on production setup and security best practices, see [Production Deployment](`deployment/production.md`).
 
 
 ## SQLite storage
