@@ -48,6 +48,7 @@ audit log sink / file / database
   - `nginx`
 
 ## Environment variables
+For a complete reference of all supported environment variables, see [Environment Variables](../environment-variables.md).
 
 Core application settings:
 

@@ -14,6 +14,21 @@ Boolean values are enabled only when set to the lowercase string `true`. Integer
 | `WAGGLE_DEFAULT_TENANT_ID` | `local-default` | string | Always. Used when a request does not provide a tenant. Must not be empty. | `workspace-default` |
 | `WAGGLE_LOG_LEVEL` | `INFO` | string | Always. Configures application logging verbosity. | `DEBUG` |
 | `WAGGLE_STARTUP_MODE` | `normal` | string enum: `fast`, `normal`, `strict` | Always. Controls startup/warmup behavior. | `strict` |
+| `WAGGLE_API_KEY_ENVIRONMENT` | `test` | string enum: `test`, `local`, `live` | Always. Controls generated API key prefixes for issued API keys. | `live` |
+### API Key Environment
+
+`WAGGLE_API_KEY_ENVIRONMENT` decides what prefix is used when new API keys are generated.
+
+Supported values:
+
+* `test` → Generates non-production API keys with the `sk_test_` prefix (default)
+* `local` → Generates API keys for local development
+* `live` → Generates production API keys with the `sk_live_` prefix
+
+For production deployments, set this to `live` so it’s easy to distinguish production keys from test or local keys.
+
+For more details on production setup and security best practices, see Production Deployment (`deployment/production.md`).
+
 
 ## SQLite storage
 
