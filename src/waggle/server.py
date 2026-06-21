@@ -93,6 +93,7 @@ from waggle.recursive_context import (
     RecursiveContextController,
 )
 from waggle.runtime_context import runtime_context
+from waggle.runtime_info import SERVER_NAME, WAGGLE_SERVER_INFO
 from waggle.serializer import (
     serialize_abhi_chunk_load,
     serialize_abhi_inspect,
@@ -1673,10 +1674,11 @@ class WaggleServer:
 
     def initialization_options(self) -> InitializationOptions:
         return InitializationOptions(
-            server_name="waggle",
-            server_version="0.2.0",
+            server_name=SERVER_NAME,
+            server_version=__version__,
             capabilities=self.server.get_capabilities(
-                notification_options=NotificationOptions(), experimental_capabilities={}
+                notification_options=NotificationOptions(),
+                experimental_capabilities={"waggle_server_info": WAGGLE_SERVER_INFO},
             ),
         )
 
@@ -3944,7 +3946,13 @@ async def run_stdio(config: AppConfig) -> None:
     app = get_app(config)
     graph = app._root_graph
     em = graph.embedding_model
-    if not config.is_fast_mode and hasattr(em, "start_background_warmup") and not getattr(em, "_warmup_started", False):
+    is_bundled_runtime = os.environ.get("WAGGLE_BUNDLED_RUNTIME", "").strip() in {"1", "true", "yes"}
+    if (
+        not is_bundled_runtime
+        and not config.is_fast_mode
+        and hasattr(em, "start_background_warmup")
+        and not getattr(em, "_warmup_started", False)
+    ):
         # Kick off background warmup so the first semantic call is fast.
         em.start_background_warmup()
     if config.is_strict_mode:
