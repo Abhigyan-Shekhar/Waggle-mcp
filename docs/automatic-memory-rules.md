@@ -8,7 +8,28 @@ This is the recommended setup for:
 
 `waggle-mcp setup --yes` and `waggle-mcp init` write this rule into a managed `AGENTS.md` block automatically when run from a Codex workspace.
 
+## Managed Block in AGENTS.md
+
+The automatic memory rules are placed inside `AGENTS.md` using a dedicated block structured as follows:
+
+```markdown
+<!-- waggle:auto-memory:start -->
+## Waggle Automatic Memory
+
+Use Waggle automatically for conversational memory.
+...
+<!-- waggle:auto-memory:end -->
+```
+
+### Purpose of the Block
+AI coding assistants such as Codex and Antigravity process instructions specified in `AGENTS.md` automatically. By embedding these rules directly in the repository's configuration files, contributors and team members don't need to manually configure agent memory rules in their personal client configurations.
+
+### Customization Guidelines for Maintainers
+* **Do Not Modify Inside the Block**: The content inside the `<!-- waggle:auto-memory:start -->` and `<!-- waggle:auto-memory:end -->` comment markers is strictly managed by `waggle-mcp`. Any edits within these boundaries will be overridden during subsequent setups or initialization calls.
+* **Adding Custom Repository Rules**: Maintainers can safely add custom developer guidelines, style guidelines, project architecture overview, or other prompt rules *outside* the managed block. Waggle's automatic management leaves anything above or below the delimiters untouched.
+
 ## Rule Text
+
 
 ```text
 Use Waggle automatically for conversational memory.
