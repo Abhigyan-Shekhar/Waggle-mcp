@@ -845,6 +845,27 @@ class WaggleServer:
                 ),
             ),
             types.Tool(
+                name="shortest_path",
+                description=(
+                    "Find the shortest path between two memory nodes. Use when you have two node IDs and want to "
+                    "understand how they are connected through the graph. Returns the chain of nodes and edges "
+                    "along the path, or an empty result if no path exists within max_depth hops."
+                ),
+                inputSchema=_object_input_schema(
+                    {
+                        "source_id": {"type": "string", "description": "ID of the starting node."},
+                        "target_id": {"type": "string", "description": "ID of the destination node."},
+                        "max_depth": {
+                            "type": "integer",
+                            "default": 5,
+                            "minimum": 1,
+                            "description": "Maximum number of hops allowed. Paths longer than this return empty.",
+                        },
+                    },
+                    required=["source_id", "target_id"],
+                ),
+            ),
+            types.Tool(
                 name="get_node_history",
                 description=(
                     "Inspect one memory node's evidence, validity window, and connected context. Use when auditing "
@@ -1186,6 +1207,33 @@ class WaggleServer:
                 inputSchema=_object_input_schema(_scope_properties()),
             ),
             types.Tool(
+                name="get_communities",
+                description=(
+                    "List persisted community clusters with member counts and labels. Communities are computed by "
+                    "recompute_communities and stored on each node. Use to see how memory groups into themes. "
+                    "Returns one entry per cluster with its id, label, and member_count."
+                ),
+                inputSchema=_object_input_schema(),
+            ),
+            types.Tool(
+                name="recompute_communities",
+                description=(
+                    "Run community detection (Louvain) across the full tenant graph and persist cluster IDs and "
+                    "labels onto every node. Run this after substantial memory growth to refresh clustering. "
+                    "Returns the cluster count, largest cluster size, and number of nodes updated."
+                ),
+                inputSchema=_object_input_schema(
+                    {
+                        "resolution": {
+                            "type": "number",
+                            "default": 1.0,
+                            "minimum": 0.1,
+                            "description": "Granularity tuning. Higher values produce more, smaller communities.",
+                        },
+                    },
+                ),
+            ),
+            types.Tool(
                 name="get_stats",
                 description=(
                     "Return high-level statistics about the current memory graph. Use for health checks or quick summaries. "
@@ -1211,6 +1259,40 @@ class WaggleServer:
                             "description": "Whether the visualization should use physics-based node layout.",
                         },
                     },
+                ),
+            ),
+            types.Tool(
+                name="export_cypher",
+                description=(
+                    "Export the memory graph as Neo4j Cypher statements (CREATE for nodes, MATCH+CREATE for edges). "
+                    "Use to load Waggle memory into Neo4j for advanced graph queries. Returns the output path and counts."
+                ),
+                inputSchema=_object_input_schema(
+                    {
+                        "output_path": {
+                            "type": "string",
+                            "description": "Optional destination .cypher file path. If omitted, Waggle chooses an export path.",
+                        },
+                        **_scope_properties(),
+                    },
+                ),
+            ),
+            types.Tool(
+                name="import_graphify",
+                description=(
+                    "Import a Graphify graph.json (codebase knowledge graph) into Waggle memory. Code entities become "
+                    "ENTITY nodes, docs become CONCEPT nodes, and Graphify confidence tags map to edge confidence. "
+                    "Use to combine code structure with conversation memory. Returns created/reused node and edge counts."
+                ),
+                inputSchema=_object_input_schema(
+                    {
+                        "input_path": {
+                            "type": "string",
+                            "description": "Path to the Graphify graph.json file to import.",
+                        },
+                        **_scope_properties(),
+                    },
+                    required=["input_path"],
                 ),
             ),
             types.Tool(
@@ -1976,6 +2058,18 @@ class WaggleServer:
                         node_id=arguments["node_id"], max_depth=int(arguments.get("max_depth", 2))
                     )
                     result = self._tool_result(serialize_subgraph(subgraph), self._subgraph_payload(subgraph))
+                elif name == "shortest_path":
+                    subgraph = graph.shortest_path(
+                        source_id=arguments["source_id"],
+                        target_id=arguments["target_id"],
+                        max_depth=int(arguments.get("max_depth", 5)),
+                    )
+                    if subgraph.nodes:
+                        path_labels = " → ".join(n.label for n in subgraph.nodes)
+                        summary = f"Path ({len(subgraph.nodes)} nodes): {path_labels}"
+                    else:
+                        summary = f"No path found between the two nodes within {arguments.get('max_depth', 5)} hops."
+                    result = self._tool_result(summary, self._subgraph_payload(subgraph))
                 elif name == "get_node_history":
                     history = graph.get_node_history(
                         node_id=arguments["node_id"], max_depth=int(arguments.get("max_depth", 2))
@@ -2089,6 +2183,23 @@ class WaggleServer:
                     # topic detection runs across the full tenant graph.
                     topics = graph.get_topics()
                     result = self._tool_result(serialize_topics(topics), self._topic_payload(topics))
+                elif name == "get_communities":
+                    communities = graph.get_communities()
+                    if communities:
+                        lines = "\n".join(
+                            f"  [{c['community_id']}] {c['label']} — {c['member_count']} nodes" for c in communities
+                        )
+                        summary = f"{len(communities)} communities:\n{lines}"
+                    else:
+                        summary = "No communities found. Run recompute_communities first."
+                    result = self._tool_result(summary, {"communities": communities})
+                elif name == "recompute_communities":
+                    stats = graph.recompute_communities(resolution=float(arguments.get("resolution", 1.0)))
+                    summary = (
+                        f"Recomputed communities: {stats['cluster_count']} clusters across "
+                        f"{stats['nodes_updated']} nodes (largest: {stats['largest_cluster_size']})."
+                    )
+                    result = self._tool_result(summary, stats)
                 elif name == "get_stats":
                     stats = graph.get_stats()
                     em = graph.embedding_model
@@ -2120,6 +2231,33 @@ class WaggleServer:
                             "total_nodes": stats.total_nodes,
                             "total_edges": stats.total_edges,
                         },
+                    )
+                elif name == "export_cypher":
+                    cypher_result = graph.export_cypher(
+                        output_path=arguments.get("output_path"),
+                        project=arguments.get("project", ""),
+                        agent_id=arguments.get("agent_id", ""),
+                        session_id=arguments.get("session_id", ""),
+                    )
+                    result = self._tool_result(
+                        f"Exported {cypher_result['node_count']} nodes and {cypher_result['edge_count']} edges "
+                        f"as Cypher to {cypher_result['output_path']}.",
+                        cypher_result,
+                    )
+                elif name == "import_graphify":
+                    from waggle.graphify_bridge import import_graphify_json
+
+                    imported = import_graphify_json(
+                        graph,
+                        arguments["input_path"],
+                        project=arguments.get("project", ""),
+                        agent_id=arguments.get("agent_id", ""),
+                        session_id=arguments.get("session_id", ""),
+                    )
+                    result = self._tool_result(
+                        f"Imported Graphify graph: {imported.nodes_created} nodes created, "
+                        f"{imported.nodes_updated} reused, {imported.edges_created} edges created.",
+                        imported.model_dump(mode="json"),
                     )
                 elif name == "window_graph_viz":
                     output_path = graph.export_window_graph_html(
@@ -2469,6 +2607,7 @@ class WaggleServer:
             "target_id": edge.target_id,
             "relationship": edge.relationship,
             "weight": edge.weight,
+            "confidence": getattr(edge, "confidence", "explicit"),
             "metadata": edge.metadata,
             "created_at": edge.created_at.isoformat(),
         }
@@ -3614,6 +3753,79 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         edge = graph.delete_edge(edge_id=edge_id)
         return JSONResponse(edge.model_dump(mode="json"))
 
+    async def graph_hub_analysis(request: Request) -> Response:
+        graph, _ = _require_http_scope(request, "graph:read")
+        top_n = int(request.query_params.get("top_n", 10))
+        min_degree = int(request.query_params.get("min_degree", 2))
+        hubs = graph.hub_analysis(top_n=top_n, min_degree=min_degree)
+        return JSONResponse({"hubs": hubs, "count": len(hubs)})
+
+    async def graph_communities(request: Request) -> Response:
+        graph, _ = _require_http_scope(request, "graph:read")
+        communities = graph.get_communities()
+        return JSONResponse({"communities": communities, "count": len(communities)})
+
+    async def graph_recompute_communities(request: Request) -> Response:
+        graph, _ = _require_http_scope(request, "graph:write")
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = {}
+        resolution = float(payload.get("resolution", 1.0)) if isinstance(payload, dict) else 1.0
+        stats = graph.recompute_communities(resolution=resolution)
+        _emit_http_audit(
+            request,
+            event_type="graph.communities.recomputed",
+            resource_type="graph",
+            resource_id="communities",
+            action="recompute",
+            metadata=stats,
+        )
+        return JSONResponse(stats)
+
+    async def graph_shortest_path(request: Request) -> Response:
+        payload = await request.json()
+        graph, _ = _require_http_scope(request, "graph:read")
+        source_id = str(payload.get("source_id", "")).strip()
+        target_id = str(payload.get("target_id", "")).strip()
+        max_depth = int(payload.get("max_depth", 5))
+        if not source_id or not target_id:
+            raise ValidationFailure("source_id and target_id are required.")
+        subgraph = graph.shortest_path(source_id=source_id, target_id=target_id, max_depth=max_depth)
+        _emit_http_audit(
+            request,
+            event_type="graph.path.queried",
+            resource_type="graph",
+            resource_id=f"{source_id}->{target_id}",
+            action="shortest_path",
+            metadata={
+                "source_id": source_id,
+                "target_id": target_id,
+                "max_depth": max_depth,
+                "found": bool(subgraph.nodes),
+            },
+        )
+        return JSONResponse(
+            {
+                "source_id": source_id,
+                "target_id": target_id,
+                "found": bool(subgraph.nodes),
+                "hop_count": max(0, len(subgraph.nodes) - 1),
+                "nodes": [n.model_dump(mode="json") for n in subgraph.nodes],
+                "edges": [
+                    {
+                        "id": e.id,
+                        "source_id": e.source_id,
+                        "target_id": e.target_id,
+                        "relationship": e.relationship,
+                        "weight": e.weight,
+                        "confidence": e.confidence,
+                    }
+                    for e in subgraph.edges
+                ],
+            }
+        )
+
     async def graph_export(request: Request) -> Response:
         scope = _scope_from_request(request)
         export_format = request.query_params.get("format", "abhi").strip().lower()
@@ -3648,7 +3860,23 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 media_type="application/json",
                 headers={"Content-Disposition": 'attachment; filename="waggle-backup.json"'},
             )
-        raise ValidationFailure("format must be one of: abhi, json.")
+        if export_format == "cypher":
+            exported = graph.export_cypher(**scope)
+            content = Path(exported["output_path"]).read_text(encoding="utf-8")
+            _emit_http_audit(
+                request,
+                event_type="export.downloaded",
+                resource_type="cypher",
+                resource_id=exported["output_path"],
+                action="download",
+                metadata={"format": "cypher", "project": scope["project"]},
+            )
+            return Response(
+                content,
+                media_type="text/plain",
+                headers={"Content-Disposition": 'attachment; filename="waggle-memory.cypher"'},
+            )
+        raise ValidationFailure("format must be one of: abhi, json, cypher.")
 
     async def graph_import(request: Request) -> Response:
         payload = await request.json()
@@ -3683,6 +3911,36 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             else:
                 raise ValidationFailure("format must be one of: abhi, json.")
             return JSONResponse({**imported.model_dump(mode="json"), "imported_node_ids": imported_node_ids})
+        finally:
+            temp_path.unlink(missing_ok=True)
+
+    async def graph_import_graphify(request: Request) -> Response:
+        from waggle.graphify_bridge import import_graphify_json
+
+        payload = await request.json()
+        content = str(payload.get("content", ""))
+        if not content.strip():
+            raise ValidationFailure("content (Graphify graph.json text) is required.")
+        scope = {
+            "project": str(payload.get("project", "")).strip(),
+            "agent_id": str(payload.get("agent_id", "")).strip(),
+            "session_id": str(payload.get("session_id", "")).strip(),
+        }
+        graph, _ = _require_http_scope(request, "graph:write")
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as handle:
+            temp_path = Path(handle.name)
+        try:
+            temp_path.write_text(content, encoding="utf-8")
+            imported = import_graphify_json(graph, temp_path, **scope)
+            _emit_http_audit(
+                request,
+                event_type="graph.graphify.imported",
+                resource_type="graph",
+                resource_id="graphify-import",
+                action="import",
+                metadata={"nodes_created": imported.nodes_created, "edges_created": imported.edges_created},
+            )
+            return JSONResponse(imported.model_dump(mode="json"))
         finally:
             temp_path.unlink(missing_ok=True)
 
@@ -3886,8 +4144,13 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             Route("/api/graph/edges", graph_create_edge, methods=["POST"]),
             Route("/api/graph/edges/{edge_id:str}", graph_update_edge, methods=["PATCH"]),
             Route("/api/graph/edges/{edge_id:str}", graph_delete_edge, methods=["DELETE"]),
+            Route("/api/graph/shortest-path", graph_shortest_path, methods=["POST"]),
+            Route("/api/graph/hubs", graph_hub_analysis, methods=["GET"]),
+            Route("/api/graph/communities", graph_communities, methods=["GET"]),
+            Route("/api/graph/communities/recompute", graph_recompute_communities, methods=["POST"]),
             Route("/api/graph/export", graph_export, methods=["GET"]),
             Route("/api/graph/import", graph_import, methods=["POST"]),
+            Route("/api/graph/import-graphify", graph_import_graphify, methods=["POST"]),
             Route("/api/admin/retention", admin_retention_status, methods=["GET"]),
             Route("/api/admin/retention", admin_retention_update, methods=["PUT", "PATCH"]),
             Route("/api/admin/retention/prune", admin_retention_prune, methods=["POST"]),

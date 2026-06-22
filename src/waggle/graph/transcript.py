@@ -250,15 +250,98 @@ class TranscriptMixin(MemoryGraphBase):
                     key = (from_id, to_id, relationship.value)
                     if key in created_pairs:
                         continue
+                    # Map numeric confidence to the categorical field:
+                    # entity-mention and high-cosine get "inferred"; low-signal gets "weak"
+                    conf_label = "weak" if confidence < 0.6 else "inferred"
                     self.add_edge(
                         source_id=from_id,
                         target_id=to_id,
                         relationship=relationship,
+                        confidence=conf_label,
                         metadata={"origin": edge_origin, "inferred": reason, "edge_confidence": confidence},
                         connection=connection,
                     )
                     created_pairs.add(key)
         return len(created_pairs)
+
+    def _extract_and_link_code_entities(
+        self,
+        *,
+        transcript: str,
+        context_nodes: list[Node],
+        agent_id: str,
+        project: str,
+        session_id: str,
+        connection: sqlite3.Connection,
+    ) -> int:
+        """Parse fenced code blocks, store code entities, and link them to context.
+
+        For each function/class found in a code block: reuse an existing ENTITY
+        node with the same label if one exists (e.g. a Graphify-imported symbol),
+        otherwise create a new ENTITY node tagged ``code``.  Each code entity is
+        linked to the conversation's extracted nodes with a RELATES_TO edge so a
+        later query can traverse from "what we discussed" to "the code involved".
+
+        Returns the number of code entities processed.  No-op (returns 0) when
+        the transcript contains no fenced code blocks.
+        """
+        from waggle.code_extraction import extract_code_entities
+
+        entities = extract_code_entities(transcript)
+        if not entities:
+            return 0
+
+        # Index existing ENTITY nodes by lowercased label for reuse.
+        existing_rows = connection.execute(
+            "SELECT id, label FROM nodes WHERE tenant_id = ? AND node_type = ?",
+            (self.tenant_id, NodeType.ENTITY.value),
+        ).fetchall()
+        existing_by_label = {str(row["label"]).strip().lower(): row["id"] for row in existing_rows}
+
+        # Cap links per code entity to avoid edge explosion on large turns.
+        link_targets = list(context_nodes)[:5]
+
+        processed = 0
+        for entity in entities:
+            label = entity.name.strip()
+            if not label:
+                continue
+            existing_id = existing_by_label.get(label.lower())
+            if existing_id is not None:
+                code_node_id = existing_id
+            else:
+                stored = self.add_node(
+                    label=label[:200],
+                    content=f"{entity.entity_type} {entity.name} ({entity.language})\n{entity.snippet}",
+                    node_type=NodeType.ENTITY,
+                    tags=["code", entity.language],
+                    agent_id=agent_id,
+                    project=project,
+                    session_id=session_id,
+                    metadata={
+                        "code_entity": True,
+                        "code_entity_type": entity.entity_type,
+                        "code_language": entity.language,
+                    },
+                    connection=connection,
+                )
+                code_node_id = stored.node.id
+                existing_by_label[label.lower()] = code_node_id
+
+            for context_node in link_targets:
+                if context_node.id == code_node_id:
+                    continue
+                self.add_edge(
+                    source_id=context_node.id,
+                    target_id=code_node_id,
+                    relationship=RelationType.RELATES_TO,
+                    confidence="inferred",
+                    metadata={"origin": "code_extraction", "code_entity_type": entity.entity_type},
+                    connection=connection,
+                )
+            processed += 1
+
+        return processed
 
     def observe_conversation(
         self,
@@ -388,6 +471,31 @@ class TranscriptMixin(MemoryGraphBase):
                             f"Candidate storage exception: {type(candidate_err).__name__}: {candidate_err!s}"
                         )
                         # Continue: verbatim persists regardless
+
+                # ===== STEP 3.5: CODE ENTITY EXTRACTION (ADDITIVE, NO-OP FOR PROSE) =====
+                # Only fires when the turn contains fenced code blocks; otherwise a no-op.
+                try:
+                    connection.execute("SAVEPOINT extract_code")
+                    try:
+                        result.code_entities_extracted = self._extract_and_link_code_entities(
+                            transcript=transcript,
+                            context_nodes=list(result.stored_nodes),
+                            agent_id=agent_id,
+                            project=project,
+                            session_id=session_id,
+                            connection=connection,
+                        )
+                        connection.execute("RELEASE SAVEPOINT extract_code")
+                    except Exception as e:
+                        connection.execute("ROLLBACK TO SAVEPOINT extract_code")
+                        raise e
+                except Exception as code_err:
+                    logger.warning(
+                        "Code entity extraction failed for turn %s: %s",
+                        turn_pair_id,
+                        code_err,
+                    )
+                    result.extraction_errors.append(f"Code extraction error: {code_err!s}")
 
                 # ===== STEP 4: WINDOW CONTEXT AND EDGES (SAME AS BEFORE) =====
                 try:

@@ -75,6 +75,10 @@ class Node(BaseModel):
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
     access_count: int = 0
+    # Persisted community-detection results (populated by recompute_communities).
+    # None until communities have been computed at least once.
+    community_id: int | None = None
+    community_label: str = ""
     similarity_score: float | None = None
     recency_score: float | None = None
     edge_score: float | None = None
@@ -159,6 +163,10 @@ class Edge(BaseModel):
     target_id: str
     relationship: str
     weight: float = Field(default=1.0, ge=0.0, le=1.0)
+    # "explicit" = user-created via store_edge or Graph Studio
+    # "inferred" = extracted from conversation context
+    # "weak"     = low-signal extraction (single shared token, low cosine similarity)
+    confidence: str = "explicit"
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=utc_now)
 
@@ -489,6 +497,7 @@ class ObservationResult(BaseModel):
     verbatim_stored: bool = True  # Whether the raw turn was successfully persisted
     nodes_extracted: int = 0  # Number of nodes successfully extracted and stored
     edges_inferred: int = 0  # Number of edges inferred between extracted nodes
+    code_entities_extracted: int = 0  # Number of code symbols (functions/classes) parsed from fenced code blocks
     extraction_errors: list[str] = Field(default_factory=list)  # Non-fatal extraction errors logged for diagnostics
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import re
 import sqlite3
 import threading
 from collections.abc import Iterable
@@ -197,7 +198,9 @@ CREATE TABLE IF NOT EXISTS nodes (
     valid_to TEXT DEFAULT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    access_count INTEGER DEFAULT 0
+    access_count INTEGER DEFAULT 0,
+    community_id INTEGER DEFAULT NULL,
+    community_label TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS repos (
@@ -255,6 +258,7 @@ CREATE TABLE IF NOT EXISTS edges (
     target_id TEXT NOT NULL,
     relationship TEXT NOT NULL,
     weight REAL DEFAULT 1.0,
+    confidence TEXT DEFAULT 'explicit',
     metadata TEXT DEFAULT '{}',
     created_at TEXT NOT NULL,
     FOREIGN KEY (source_id) REFERENCES nodes(id) ON DELETE CASCADE,
@@ -1227,9 +1231,15 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             connection.execute("ALTER TABLE nodes ADD COLUMN source_turn_pair_id TEXT DEFAULT ''")
         if "aliases" not in node_columns:
             connection.execute("ALTER TABLE nodes ADD COLUMN aliases TEXT DEFAULT '[]'")
+        if "community_id" not in node_columns:
+            connection.execute("ALTER TABLE nodes ADD COLUMN community_id INTEGER DEFAULT NULL")
+        if "community_label" not in node_columns:
+            connection.execute("ALTER TABLE nodes ADD COLUMN community_label TEXT DEFAULT ''")
         if "tenant_id" not in edge_columns:
             connection.execute(f"ALTER TABLE edges ADD COLUMN tenant_id TEXT NOT NULL DEFAULT '{self.tenant_id}'")
             connection.execute("UPDATE edges SET tenant_id = ? WHERE tenant_id = ''", (self.tenant_id,))
+        if "confidence" not in edge_columns:
+            connection.execute("ALTER TABLE edges ADD COLUMN confidence TEXT DEFAULT 'explicit'")
         transcript_columns = {
             row["name"] for row in connection.execute("PRAGMA table_info(transcript_records)").fetchall()
         }
@@ -2242,7 +2252,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 """
                 SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type,
                        tags, source_prompt, metadata, evidence_records, valid_from, valid_to,
-                       created_at, updated_at, access_count, tenant_id
+                       created_at, updated_at, access_count, community_id, community_label, tenant_id
                 FROM nodes
                 WHERE tenant_id = ? AND context_window_id IS NULL
                 ORDER BY updated_at ASC
@@ -2310,7 +2320,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         query = """
             SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type,
                    tags, source_prompt, metadata, evidence_records, valid_from, valid_to,
-                   created_at, updated_at, access_count, tenant_id
+                   created_at, updated_at, access_count, community_id, community_label, tenant_id
             FROM nodes
             WHERE tenant_id = ? AND context_window_id = ?
         """
@@ -2737,7 +2747,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata, evidence_records, valid_from, valid_to,
-                       created_at, updated_at, access_count, tenant_id
+                       created_at, updated_at, access_count, community_id, community_label, tenant_id
                 FROM nodes
                 WHERE tenant_id = ?
                 ORDER BY updated_at DESC, created_at DESC
@@ -3079,6 +3089,116 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         )
         return result
 
+    @staticmethod
+    def _cypher_escape(value: Any) -> str:
+        """Escape a value for embedding in a single-quoted Cypher string literal."""
+        text = str(value)
+        return text.replace("\\", "\\\\").replace("'", "\\'")
+
+    @staticmethod
+    def _cypher_label(node_type: str) -> str:
+        """Map a node_type to a CamelCase Neo4j label (e.g. 'fact' -> 'Fact')."""
+        cleaned = re.sub(r"[^0-9a-zA-Z]+", " ", str(node_type)).strip()
+        return "".join(part.capitalize() for part in cleaned.split()) or "Node"
+
+    @staticmethod
+    def _cypher_rel_type(relationship: str) -> str:
+        """Map a relationship to an UPPER_SNAKE Neo4j relationship type."""
+        cleaned = re.sub(r"[^0-9a-zA-Z]+", "_", str(relationship)).strip("_").upper()
+        if not cleaned or cleaned[0].isdigit():
+            cleaned = f"REL_{cleaned}" if cleaned else "RELATES_TO"
+        return cleaned
+
+    def export_cypher(
+        self,
+        *,
+        output_path: str | Path | None = None,
+        project: str = "",
+        agent_id: str = "",
+        session_id: str = "",
+    ) -> dict[str, Any]:
+        """Export the graph as Neo4j Cypher CREATE/MATCH statements.
+
+        Produces a ``.cypher`` script: a uniqueness constraint on ``:Memory(id)``,
+        one ``CREATE`` per node (labelled ``:Memory:{NodeType}``), and one
+        ``MATCH ... CREATE`` per edge.  Node ``id`` values are used to wire edges
+        so the script is order-independent.  Returns a dict with the output path
+        and node/edge counts.
+        """
+        snapshot = self.get_graph_snapshot(project=project, agent_id=agent_id, session_id=session_id)
+        nodes = snapshot.get("nodes", [])
+        edges = snapshot.get("edges", [])
+
+        lines: list[str] = [
+            "// Waggle memory graph — Neo4j Cypher export",
+            f"// tenant={self.tenant_id} nodes={len(nodes)} edges={len(edges)}",
+            "CREATE CONSTRAINT waggle_memory_id IF NOT EXISTS FOR (n:Memory) REQUIRE n.id IS UNIQUE;",
+            "",
+        ]
+
+        for node in nodes:
+            label = self._cypher_label(node.get("node_type", "note"))
+            props = {
+                "id": node.get("id", ""),
+                "label": node.get("label", ""),
+                "content": node.get("content", ""),
+                "node_type": node.get("node_type", ""),
+                "project": node.get("project", ""),
+                "agent_id": node.get("agent_id", ""),
+                "session_id": node.get("session_id", ""),
+                "created_at": node.get("created_at", ""),
+            }
+            if node.get("community_id") is not None:
+                props["community_id"] = node["community_id"]
+                props["community_label"] = node.get("community_label", "")
+            prop_parts = []
+            for key, val in props.items():
+                if isinstance(val, (int, float)) and not isinstance(val, bool):
+                    prop_parts.append(f"{key}: {val}")
+                else:
+                    prop_parts.append(f"{key}: '{self._cypher_escape(val)}'")
+            lines.append(f"CREATE (:Memory:{label} {{{', '.join(prop_parts)}}});")
+
+        lines.append("")
+
+        for edge in edges:
+            rel_type = self._cypher_rel_type(edge.get("relationship", "relates_to"))
+            weight = float(edge.get("weight", 1.0))
+            confidence = self._cypher_escape(edge.get("confidence", "explicit"))
+            source = self._cypher_escape(edge.get("source_id", ""))
+            target = self._cypher_escape(edge.get("target_id", ""))
+            lines.append(
+                f"MATCH (a:Memory {{id: '{source}'}}), (b:Memory {{id: '{target}'}}) "
+                f"CREATE (a)-[:{rel_type} {{weight: {weight}, confidence: '{confidence}'}}]->(b);"
+            )
+
+        content = "\n".join(lines) + "\n"
+
+        if output_path is None:
+            self.export_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = utc_now().strftime("%Y%m%d-%H%M%S")
+            destination = self.export_dir / f"waggle-memory-{timestamp}.cypher"
+        else:
+            destination = Path(output_path).expanduser()
+            destination.parent.mkdir(parents=True, exist_ok=True)
+
+        destination.write_text(content, encoding="utf-8")
+        result = {
+            "output_path": str(destination),
+            "tenant_id": self.tenant_id,
+            "node_count": len(nodes),
+            "edge_count": len(edges),
+            "format": "cypher",
+        }
+        self.emit_audit_event(
+            event_type="export.created",
+            resource_type="cypher",
+            resource_id=result["output_path"],
+            action="export",
+            metadata={"format": "cypher", "node_count": len(nodes), "edge_count": len(edges)},
+        )
+        return result
+
     def export_abhi(
         self,
         *,
@@ -3219,7 +3339,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 node_rows = connection.execute(
                     """
                     SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata,
-                           evidence_records, valid_from, valid_to, created_at, updated_at, access_count, tenant_id
+                           evidence_records, valid_from, valid_to, created_at, updated_at, access_count, community_id, community_label, tenant_id
                     FROM nodes
                     WHERE tenant_id = ?
                     ORDER BY updated_at DESC, created_at DESC
@@ -3302,7 +3422,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             node_rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata,
-                       evidence_records, valid_from, valid_to, created_at, updated_at, access_count, tenant_id
+                       evidence_records, valid_from, valid_to, created_at, updated_at, access_count, community_id, community_label, tenant_id
                 FROM nodes
                 WHERE tenant_id = ?
                 ORDER BY updated_at DESC, created_at DESC
@@ -3311,7 +3431,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             ).fetchall()
             edge_rows = connection.execute(
                 """
-                SELECT id, source_id, target_id, relationship, weight, metadata, created_at, tenant_id
+                SELECT id, source_id, target_id, relationship, weight, confidence, metadata, created_at, tenant_id
                 FROM edges
                 WHERE tenant_id = ?
                 ORDER BY created_at ASC
@@ -3374,7 +3494,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             all_rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata,
-                       evidence_records, valid_from, valid_to, created_at, updated_at, access_count, tenant_id
+                       evidence_records, valid_from, valid_to, created_at, updated_at, access_count, community_id, community_label, tenant_id
                 FROM nodes
                 WHERE tenant_id = ?
                 """,
@@ -3730,6 +3850,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                     source_id=node.id,
                     target_id=context_node.id,
                     relationship=RelationType.PART_OF,
+                    confidence="inferred",
                     metadata={"origin": "decomposition"},
                 )
 
@@ -3750,6 +3871,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                     source_id=previous.id,
                     target_id=node.id,
                     relationship=rel_type,
+                    confidence="weak" if confidence < 0.6 else "inferred",
                     metadata={"origin": "decomposition", "edge_confidence": confidence},
                 )
 
@@ -3775,7 +3897,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 for row in connection.execute(
                     """
                 SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata, evidence_records, valid_from, valid_to,
-                       created_at, updated_at, access_count, tenant_id
+                       created_at, updated_at, access_count, community_id, community_label, tenant_id
                 FROM nodes
                 WHERE tenant_id = ? AND created_at >= ?
                     ORDER BY created_at DESC
@@ -3788,7 +3910,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 for row in connection.execute(
                     """
                     SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata, evidence_records, valid_from, valid_to,
-                           created_at, updated_at, access_count, tenant_id
+                           created_at, updated_at, access_count, community_id, community_label, tenant_id
                     FROM nodes
                     WHERE tenant_id = ?
                       AND updated_at >= ?
@@ -3880,7 +4002,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             node_rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata, evidence_records, valid_from, valid_to,
-                       created_at, updated_at, access_count, embedding, tenant_id
+                       created_at, updated_at, access_count, community_id, community_label, embedding, tenant_id
                 FROM nodes
                 WHERE tenant_id = ? AND embedding IS NOT NULL
                 """,
@@ -3994,7 +4116,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         return connection.execute(
             """
             SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, aliases, source_prompt, embedding_model_id, embedding_dim, source_turn_pair_id, metadata, evidence_records, valid_from, valid_to,
-                   created_at, updated_at, access_count, embedding, tenant_id
+                   created_at, updated_at, access_count, community_id, community_label, embedding, tenant_id
             FROM nodes
             WHERE id = ? AND tenant_id = ?
             """,
@@ -4012,7 +4134,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         rows = connection.execute(
             f"""
             SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, aliases, source_prompt, embedding_model_id, embedding_dim, source_turn_pair_id, metadata, evidence_records, valid_from, valid_to,
-                   created_at, updated_at, access_count, tenant_id
+                   created_at, updated_at, access_count, community_id, community_label, tenant_id
             FROM nodes
             WHERE tenant_id = ? AND id IN ({placeholders})
             """,
@@ -4048,6 +4170,10 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             created_at=_parse_datetime(row["created_at"]),
             updated_at=_parse_datetime(row["updated_at"]),
             access_count=int(row["access_count"] or 0),
+            community_id=int(row["community_id"])
+            if "community_id" in row_keys and row["community_id"] is not None
+            else None,
+            community_label=row["community_label"] if "community_label" in row_keys and row["community_label"] else "",
         )
 
     def _row_to_context_window(self, row: sqlite3.Row) -> ContextWindow:
@@ -4089,6 +4215,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             target_id=row["target_id"],
             relationship=row["relationship"],
             weight=float(row["weight"]),
+            confidence=str(row["confidence"]) if "confidence" in row_keys and row["confidence"] else "explicit",
             metadata=json.loads(row["metadata"] or "{}"),
             created_at=_parse_datetime(row["created_at"]),
         )
@@ -4345,7 +4472,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
     def _fetch_edge_row(self, connection: sqlite3.Connection, edge_id: str) -> sqlite3.Row | None:
         return connection.execute(
             """
-            SELECT id, source_id, target_id, relationship, weight, metadata, created_at, tenant_id
+            SELECT id, source_id, target_id, relationship, weight, confidence, metadata, created_at, tenant_id
             FROM edges
             WHERE id = ? AND tenant_id = ?
             """,
@@ -4359,7 +4486,8 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             """
             SELECT id, tenant_id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt,
                    embedding_model_id, embedding_dim, source_turn_pair_id, metadata,
-                   evidence_records, valid_from, valid_to, created_at, updated_at, access_count, embedding
+                   evidence_records, valid_from, valid_to, created_at, updated_at, access_count,
+                   community_id, community_label, embedding
             FROM nodes
             WHERE tenant_id = ?
             ORDER BY created_at ASC
@@ -4368,7 +4496,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         ).fetchall()
         edge_rows = connection.execute(
             """
-            SELECT id, tenant_id, source_id, target_id, relationship, weight, metadata, created_at
+            SELECT id, tenant_id, source_id, target_id, relationship, weight, confidence, metadata, created_at
             FROM edges
             WHERE tenant_id = ?
             ORDER BY created_at ASC
@@ -4484,6 +4612,8 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                     "created_at": row["created_at"],
                     "updated_at": row["updated_at"],
                     "access_count": int(row["access_count"] or 0),
+                    "community_id": int(row["community_id"]) if row["community_id"] is not None else None,
+                    "community_label": row["community_label"] or "",
                     "embedding": row["embedding"] if include_embeddings else None,
                 }
                 for row in node_rows
@@ -4496,6 +4626,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                     "target_id": row["target_id"],
                     "relationship": row["relationship"],
                     "weight": float(row["weight"]),
+                    "confidence": str(row["confidence"]) if row["confidence"] else "explicit",
                     "metadata": json.loads(row["metadata"] or "{}"),
                     "created_at": row["created_at"],
                 }
@@ -4804,8 +4935,8 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         self._require_node(connection, raw_edge["target_id"])
         connection.execute(
             """
-            INSERT INTO edges (id, tenant_id, source_id, target_id, relationship, weight, metadata, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO edges (id, tenant_id, source_id, target_id, relationship, weight, confidence, metadata, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 raw_edge["id"],
@@ -4814,6 +4945,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 raw_edge["target_id"],
                 raw_edge["relationship"],
                 float(raw_edge.get("weight", 1.0)),
+                str(raw_edge.get("confidence", "explicit")),
                 json.dumps(raw_edge.get("metadata", {})),
                 raw_edge["created_at"],
             ),
@@ -4825,7 +4957,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         connection.execute(
             """
             UPDATE edges
-            SET tenant_id = ?, source_id = ?, target_id = ?, relationship = ?, weight = ?, metadata = ?, created_at = ?
+            SET tenant_id = ?, source_id = ?, target_id = ?, relationship = ?, weight = ?, confidence = ?, metadata = ?, created_at = ?
             WHERE id = ? AND tenant_id = ?
             """,
             (
@@ -4834,6 +4966,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 raw_edge["target_id"],
                 raw_edge["relationship"],
                 float(raw_edge.get("weight", 1.0)),
+                str(raw_edge.get("confidence", "explicit")),
                 json.dumps(raw_edge.get("metadata", {})),
                 raw_edge["created_at"],
                 raw_edge["id"],

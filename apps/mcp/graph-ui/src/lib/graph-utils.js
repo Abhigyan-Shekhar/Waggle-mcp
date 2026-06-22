@@ -4,8 +4,35 @@ const SOURCE_RULES = [
   { id: "cursor", label: "Cursor", color: "#b696ff", matchers: ["cursor"] },
   { id: "chatgpt", label: "ChatGPT", color: "#79f2a0", matchers: ["chatgpt", "openai"] },
   { id: "gemini", label: "Gemini", color: "#ff9f7d", matchers: ["gemini", "google"] },
+  { id: "graphify", label: "Graphify", color: "#22d3ee", matchers: ["graphify"] },
   { id: "imported", label: "Imported", color: "#ff8bd1", matchers: ["imported"] }
 ];
+
+// Palette cycled for community coloring. Index by (community_id % length).
+const COMMUNITY_COLORS = [
+  "#6bdcff",
+  "#f4c06c",
+  "#79f2a0",
+  "#ff9f7d",
+  "#b696ff",
+  "#ff8bd1",
+  "#94e2d5",
+  "#fca5a5",
+  "#a5b4fc",
+  "#fcd34d"
+];
+
+export function communitySource(communityId, communityLabel) {
+  if (communityId === null || communityId === undefined) {
+    return { id: "community:none", label: "Unclustered", color: "#7f8ea3" };
+  }
+  const color = COMMUNITY_COLORS[communityId % COMMUNITY_COLORS.length];
+  return {
+    id: `community:${communityId}`,
+    label: communityLabel || `Cluster ${communityId}`,
+    color
+  };
+}
 
 export const GRAPH_TOKENS = {
   colors: {
@@ -55,14 +82,22 @@ export function inferSource(node) {
   return match || { id: "waggle", label: "Waggle", color: "#7f8ea3" };
 }
 
-export function normalizeGraph(snapshot, importedNodeIds = []) {
+export function normalizeGraph(snapshot, importedNodeIds = [], colorMode = "source") {
   const importedSet = new Set(importedNodeIds);
   const nodes = (snapshot.nodes || []).map((node) => {
     const imported = importedSet.has(node.id) || (node.tags || []).includes("imported");
+    let source;
+    if (colorMode === "community") {
+      source = communitySource(node.community_id, node.community_label);
+    } else if (imported) {
+      source = SOURCE_RULES.find((rule) => rule.id === "imported");
+    } else {
+      source = inferSource(node);
+    }
     return {
       ...node,
       imported,
-      source: imported ? SOURCE_RULES.find((rule) => rule.id === "imported") : inferSource(node)
+      source
     };
   });
   const degree = Object.fromEntries(nodes.map((node) => [node.id, 0]));
@@ -331,7 +366,8 @@ export function buildLayerGraph({ graph, transcriptPairs, layerMode, highlighted
         target: edge.target_id,
         label: edge.relationship,
         edgeKind: edge.relationship === "derived_from" ? "derived_from" : "semantic",
-        relationship: edge.relationship
+        relationship: edge.relationship,
+        confidence: edge.confidence || "explicit"
       }
     }));
 
