@@ -47,6 +47,7 @@ from waggle.errors import AuthenticationError, ValidationFailure
 from waggle.evidence import merge_evidence_records, merge_validity_windows
 from waggle.intelligence import (
     canonical_concept_overlap,
+    code_entity_boost,
     compatible_node_types,
     contains_conflicting_months,
     contains_conflicting_numbers,
@@ -440,7 +441,7 @@ class TraversalMixin(MemoryGraphBase):
                 """
                 SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type,
                        tags, source_prompt, metadata, evidence_records, valid_from, valid_to,
-                       created_at, updated_at, access_count, embedding, tenant_id
+                       created_at, updated_at, access_count, community_id, community_label, embedding, tenant_id
                 FROM nodes
                 WHERE tenant_id = ? AND context_window_id IN ({})
                   AND embedding IS NOT NULL
@@ -1223,7 +1224,7 @@ class TraversalMixin(MemoryGraphBase):
             node_rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata, evidence_records, valid_from, valid_to,
-                       created_at, updated_at, access_count, tenant_id
+                       created_at, updated_at, access_count, community_id, community_label, tenant_id
                 FROM nodes
                 WHERE tenant_id = ?
                 """,
@@ -1243,8 +1244,19 @@ class TraversalMixin(MemoryGraphBase):
 
             edges = self._fetch_edges_for_nodes(connection, [node.id for node in ordered_nodes])
             now = time.time()
+            # Distance is measured on the undirected view: _expand_node_depths
+            # reaches predecessors too, so a directed shortest_path_length would
+            # raise NetworkXNoPath for nodes connected only by a reverse edge
+            # (e.g. a derived_from edge from a Graphify import).
+            undirected_graph = graph.to_undirected(as_view=True)
             for node in ordered_nodes:
-                distance = 0 if node.id == node_id else nx.shortest_path_length(graph, source=node_id, target=node.id)
+                if node.id == node_id:
+                    distance = 0
+                else:
+                    try:
+                        distance = nx.shortest_path_length(undirected_graph, source=node_id, target=node.id)
+                    except (nx.NetworkXNoPath, nx.NodeNotFound):
+                        distance = max_depth + 1
                 edge_weight = self._strongest_edge_weight(node.id, edges)
                 similarity = max(0.0, 1.0 - (0.25 * distance))
                 self._apply_node_score(node, similarity=similarity, edge_weight=edge_weight, now=now)
@@ -1266,6 +1278,143 @@ class TraversalMixin(MemoryGraphBase):
                 query=f"related:{node_id}",
                 total_nodes_in_graph=len(nodes_by_id),
             )
+
+    def shortest_path(
+        self,
+        *,
+        source_id: str,
+        target_id: str,
+        max_depth: int = 5,
+    ) -> SubgraphResult:
+        """Return the shortest path between two memory nodes.
+
+        Searches for the shortest directed path from ``source_id`` to
+        ``target_id``, then falls back to an undirected search so that
+        relationships traversed in either direction are considered.  If no
+        path exists within ``max_depth`` hops an empty SubgraphResult is
+        returned (no exception).
+        """
+        if max_depth < 1:
+            raise ValueError("max_depth must be at least 1.")
+
+        with self._lock, self._pool.checkout() as connection:
+            self._require_node(connection, source_id)
+            self._require_node(connection, target_id)
+
+            node_rows = connection.execute(
+                """
+                SELECT id, agent_id, project, session_id, label, content, node_type, tags,
+                       source_prompt, metadata, evidence_records, valid_from, valid_to,
+                       created_at, updated_at, access_count, community_id, community_label, tenant_id
+                FROM nodes
+                WHERE tenant_id = ?
+                """,
+                (self.tenant_id,),
+            ).fetchall()
+            nodes_by_id = {row["id"]: self._row_to_node(row) for row in node_rows}
+
+            digraph = self._load_graph(connection, node_ids=nodes_by_id.keys())
+
+            path_ids: list[str] = []
+            try:
+                path_ids = nx.shortest_path(digraph, source=source_id, target=target_id)
+            except (nx.NetworkXNoPath, nx.NodeNotFound):
+                try:
+                    path_ids = nx.shortest_path(digraph.to_undirected(), source=source_id, target=target_id)
+                except (nx.NetworkXNoPath, nx.NodeNotFound):
+                    path_ids = []
+
+            if len(path_ids) - 1 > max_depth:
+                path_ids = []
+
+            if not path_ids:
+                return SubgraphResult(
+                    nodes=[],
+                    edges=[],
+                    query=f"path:{source_id}->{target_id}",
+                    total_nodes_in_graph=len(nodes_by_id),
+                )
+
+            path_nodes = [nodes_by_id[nid] for nid in path_ids if nid in nodes_by_id]
+            edges = self._fetch_edges_for_nodes(connection, [n.id for n in path_nodes])
+
+            now = time.time()
+            for i, node in enumerate(path_nodes):
+                edge_weight = self._strongest_edge_weight(node.id, edges)
+                similarity = max(0.0, 1.0 - (0.2 * i))
+                self._apply_node_score(node, similarity=similarity, edge_weight=edge_weight, now=now)
+
+            self._increment_access_counts(connection, [n.id for n in path_nodes])
+            for node in path_nodes:
+                node.access_count += 1
+
+        return SubgraphResult(
+            nodes=path_nodes,
+            edges=edges,
+            query=f"path:{source_id}->{target_id}",
+            total_nodes_in_graph=len(nodes_by_id),
+        )
+
+    def hub_analysis(self, *, top_n: int = 10, min_degree: int = 2) -> list[dict[str, Any]]:
+        """Return the most-connected nodes (hubs) by degree and betweenness centrality.
+
+        ``top_n`` controls how many hubs are returned.  ``min_degree`` filters
+        out isolated or lightly connected nodes so only meaningful hubs are
+        surfaced.  Results are sorted by degree descending.
+        """
+        with self._lock, self._pool.checkout() as connection:
+            node_rows = connection.execute(
+                """
+                SELECT id, label, node_type, access_count, updated_at
+                FROM nodes
+                WHERE tenant_id = ?
+                """,
+                (self.tenant_id,),
+            ).fetchall()
+            if not node_rows:
+                return []
+
+            node_ids = [row["id"] for row in node_rows]
+            node_meta = {
+                row["id"]: {
+                    "label": row["label"],
+                    "node_type": row["node_type"],
+                    "access_count": int(row["access_count"] or 0),
+                }
+                for row in node_rows
+            }
+
+            digraph = self._load_graph(connection, node_ids=node_ids)
+
+        undirected = digraph.to_undirected()
+        total_edges = undirected.number_of_edges()
+
+        degree_map = dict(undirected.degree())
+        if undirected.number_of_nodes() <= 2000:
+            betweenness = nx.betweenness_centrality(undirected, normalized=True)
+        else:
+            betweenness = dict.fromkeys(node_ids, 0.0)
+
+        hubs = []
+        for node_id in node_ids:
+            degree = degree_map.get(node_id, 0)
+            if degree < min_degree:
+                continue
+            meta = node_meta[node_id]
+            hubs.append(
+                {
+                    "node_id": node_id,
+                    "label": meta["label"],
+                    "node_type": meta["node_type"],
+                    "degree": degree,
+                    "pct_of_edges": round(degree / (2 * total_edges), 4) if total_edges > 0 else 0.0,
+                    "betweenness_centrality": round(betweenness.get(node_id, 0.0), 4),
+                    "access_count": meta["access_count"],
+                }
+            )
+
+        hubs.sort(key=lambda h: (-h["degree"], -h["betweenness_centrality"]))
+        return hubs[:top_n]
 
     def get_stats(self) -> GraphStats:
         with self._lock, self._pool.checkout() as connection:
@@ -1384,7 +1533,7 @@ class TraversalMixin(MemoryGraphBase):
             node_rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata,
-                       evidence_records, valid_from, valid_to, created_at, updated_at, access_count, tenant_id
+                       evidence_records, valid_from, valid_to, created_at, updated_at, access_count, community_id, community_label, tenant_id
                 FROM nodes
                 WHERE tenant_id = ?
                 """,
@@ -1421,6 +1570,91 @@ class TraversalMixin(MemoryGraphBase):
                 )
             )
         return TopicResult(clusters=clusters, total_clusters=len(clusters))
+
+    def recompute_communities(self, *, resolution: float = 1.0) -> dict[str, Any]:
+        """Run community detection and persist cluster IDs/labels onto each node.
+
+        Uses the Louvain algorithm (via python-louvain) with a greedy-modularity
+        fallback.  ``resolution`` tunes granularity: higher values yield more,
+        smaller communities.  Cluster IDs are renumbered densely from 0 in order
+        of descending size so the largest community is always 0.  Returns a
+        summary with cluster count, largest cluster size, and nodes updated.
+        """
+        if resolution <= 0:
+            raise ValueError("resolution must be positive.")
+
+        with self._lock, self._pool.checkout() as connection:
+            node_rows = connection.execute(
+                """
+                SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata,
+                       evidence_records, valid_from, valid_to, created_at, updated_at, access_count, community_id, community_label, tenant_id
+                FROM nodes
+                WHERE tenant_id = ?
+                """,
+                (self.tenant_id,),
+            ).fetchall()
+            if not node_rows:
+                return {"cluster_count": 0, "largest_cluster_size": 0, "nodes_updated": 0}
+
+            nodes = [self._row_to_node(row) for row in node_rows]
+            undirected = self._load_graph(connection, node_ids=[node.id for node in nodes]).to_undirected()
+            partition = self._build_topic_partition(undirected, nodes, resolution=resolution)
+
+            members_by_cluster: dict[int, list[Node]] = {}
+            for node in nodes:
+                raw_cluster = int(partition.get(node.id, 0))
+                members_by_cluster.setdefault(raw_cluster, []).append(node)
+
+            ordered_clusters = sorted(members_by_cluster.values(), key=lambda members: (-len(members), members[0].id))
+
+            updated = 0
+            largest = 0
+            for dense_id, members in enumerate(ordered_clusters):
+                label, _ = summarize_topic(members)
+                largest = max(largest, len(members))
+                for node in members:
+                    connection.execute(
+                        "UPDATE nodes SET community_id = ?, community_label = ? WHERE id = ? AND tenant_id = ?",
+                        (dense_id, label, node.id, self.tenant_id),
+                    )
+                    updated += 1
+
+        return {
+            "cluster_count": len(ordered_clusters),
+            "largest_cluster_size": largest,
+            "nodes_updated": updated,
+        }
+
+    def get_communities(self) -> list[dict[str, Any]]:
+        """Return persisted community clusters with member counts and labels.
+
+        Reads the stored ``community_id``/``community_label`` columns (populated
+        by ``recompute_communities``).  Nodes that have not been assigned a
+        community are grouped under a synthetic ``-1`` "unclustered" bucket.
+        """
+        with self._lock, self._pool.checkout() as connection:
+            rows = connection.execute(
+                """
+                SELECT community_id, community_label, COUNT(*) AS member_count
+                FROM nodes
+                WHERE tenant_id = ?
+                GROUP BY community_id, community_label
+                ORDER BY member_count DESC
+                """,
+                (self.tenant_id,),
+            ).fetchall()
+
+        communities: list[dict[str, Any]] = []
+        for row in rows:
+            cid = row["community_id"]
+            communities.append(
+                {
+                    "community_id": int(cid) if cid is not None else -1,
+                    "label": row["community_label"] or ("unclustered" if cid is None else f"cluster-{cid}"),
+                    "member_count": int(row["member_count"]),
+                }
+            )
+        return communities
 
     def _build_prime_summary(
         self,
@@ -1796,10 +2030,13 @@ class TraversalMixin(MemoryGraphBase):
     def _lexical_score_for_node(self, query: str, node: Node) -> float:
         tag_text = " ".join(tag.replace(":", " ").replace("_", " ").replace("-", " ") for tag in node.tags)
         content_score = lexical_overlap(query, node.label, node.content)
-        if not tag_text:
-            return content_score
-        tag_score = lexical_overlap(query, tag_text, "")
-        return max(content_score, tag_score)
+        if tag_text:
+            tag_score = lexical_overlap(query, tag_text, "")
+            content_score = max(content_score, tag_score)
+        # Unified code+conversation retrieval: lift code-entity nodes (from code
+        # extraction or Graphify import) when the query references code.
+        boosted = content_score + code_entity_boost(query, node)
+        return min(boosted, 1.0)
 
     def _diversify_multi_intent_nodes(
         self,
@@ -2034,15 +2271,15 @@ class TraversalMixin(MemoryGraphBase):
 
         return selected_nodes + coverage_nodes[: max_nodes - len(selected_nodes)]
 
-    def _build_topic_partition(self, graph: nx.Graph, nodes: list[Node]) -> dict[str, int]:
+    def _build_topic_partition(self, graph: nx.Graph, nodes: list[Node], *, resolution: float = 1.0) -> dict[str, int]:
         if graph.number_of_edges() == 0:
             return {node.id: index for index, node in enumerate(nodes)}
         try:
             import community  # type: ignore[import-not-found]
 
-            return community.best_partition(graph)
+            return community.best_partition(graph, resolution=resolution)
         except ImportError:  # pragma: no cover
-            communities = nx.algorithms.community.greedy_modularity_communities(graph)
+            communities = nx.algorithms.community.greedy_modularity_communities(graph, resolution=resolution)
             partition: dict[str, int] = {}
             for cluster_id, members in enumerate(communities):
                 for member in members:
@@ -2061,7 +2298,7 @@ class TraversalMixin(MemoryGraphBase):
         # whose source OR target is in the current seed set.
         rows = connection.execute(
             f"""
-            SELECT id, source_id, target_id, relationship, weight, metadata, created_at, tenant_id
+            SELECT id, source_id, target_id, relationship, weight, confidence, metadata, created_at, tenant_id
             FROM edges
             WHERE tenant_id = ?
               AND (source_id IN ({placeholders}) OR target_id IN ({placeholders}))
@@ -2116,7 +2353,7 @@ class TraversalMixin(MemoryGraphBase):
         rows = connection.execute(
             """
             SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata,
-                   evidence_records, valid_from, valid_to, created_at, updated_at, access_count, tenant_id
+                   evidence_records, valid_from, valid_to, created_at, updated_at, access_count, community_id, community_label, tenant_id
             FROM nodes
             WHERE tenant_id = ?
             ORDER BY updated_at DESC

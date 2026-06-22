@@ -229,6 +229,7 @@ class MutationMixin(MemoryGraphBase):
         target_id: str,
         relationship: str | RelationType,
         weight: float = 1.0,
+        confidence: str = "explicit",
         metadata: dict[str, Any] | None = None,
         connection: sqlite3.Connection | None = None,
     ) -> Edge:
@@ -242,6 +243,7 @@ class MutationMixin(MemoryGraphBase):
             target_id=target_id,
             relationship=relationship,
             weight=weight,
+            confidence=confidence,
             metadata=metadata or {},
         )
 
@@ -265,9 +267,9 @@ class MutationMixin(MemoryGraphBase):
             active_connection.execute(
                 """
                 INSERT INTO edges (
-                    id, tenant_id, source_id, target_id, relationship, weight, metadata, created_at
+                    id, tenant_id, source_id, target_id, relationship, weight, confidence, metadata, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     edge.id,
@@ -276,6 +278,7 @@ class MutationMixin(MemoryGraphBase):
                     edge.target_id,
                     edge.relationship,
                     edge.weight,
+                    edge.confidence,
                     json.dumps(edge.metadata),
                     edge.created_at.isoformat(),
                 ),
@@ -303,7 +306,7 @@ class MutationMixin(MemoryGraphBase):
         with self._lock, self._pool.checkout() as connection:
             edge_rows = connection.execute(
                 """
-                SELECT id, source_id, target_id, relationship, weight, metadata, created_at, tenant_id
+                SELECT id, source_id, target_id, relationship, weight, confidence, metadata, created_at, tenant_id
                 FROM edges
                 WHERE tenant_id = ?
                   AND relationship IN (?, ?)
@@ -330,7 +333,7 @@ class MutationMixin(MemoryGraphBase):
         with self._lock, self._pool.checkout() as connection:
             row = connection.execute(
                 """
-                SELECT id, source_id, target_id, relationship, weight, metadata, created_at, tenant_id
+                SELECT id, source_id, target_id, relationship, weight, confidence, metadata, created_at, tenant_id
                 FROM edges
                 WHERE tenant_id = ? AND id = ?
                 LIMIT 1
@@ -582,6 +585,7 @@ class MutationMixin(MemoryGraphBase):
                 target_id=target_id if target_id is not None else edge.target_id,
                 relationship=relationship if relationship is not None else edge.relationship,
                 weight=weight if weight is not None else edge.weight,
+                confidence=edge.confidence,
                 metadata=metadata if metadata is not None else edge.metadata,
                 created_at=edge.created_at,
             )
@@ -939,7 +943,7 @@ class MutationMixin(MemoryGraphBase):
         rows = connection.execute(
             f"""
             SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt, metadata, evidence_records,
-                   valid_from, valid_to, created_at, updated_at, access_count, embedding, tenant_id
+                   valid_from, valid_to, created_at, updated_at, access_count, community_id, community_label, embedding, tenant_id
             FROM nodes
             WHERE {" AND ".join(filters)}
             """,
@@ -1377,7 +1381,7 @@ class MutationMixin(MemoryGraphBase):
         rows = connection.execute(
             f"""
             SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt, metadata,
-                   evidence_records, valid_from, valid_to, created_at, updated_at, access_count, embedding, tenant_id
+                   evidence_records, valid_from, valid_to, created_at, updated_at, access_count, community_id, community_label, embedding, tenant_id
             FROM nodes
             WHERE {" AND ".join(filters)}
             """,
@@ -1520,9 +1524,9 @@ class MutationMixin(MemoryGraphBase):
         connection.execute(
             """
             INSERT INTO edges (
-                id, tenant_id, source_id, target_id, relationship, weight, metadata, created_at
+                id, tenant_id, source_id, target_id, relationship, weight, confidence, metadata, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 edge.id,
@@ -1531,6 +1535,7 @@ class MutationMixin(MemoryGraphBase):
                 edge.target_id,
                 edge.relationship,
                 edge.weight,
+                edge.confidence,
                 _encode_metadata(edge.metadata),
                 edge.created_at.isoformat(),
             ),
@@ -1572,7 +1577,7 @@ class MutationMixin(MemoryGraphBase):
     ) -> Edge | None:
         row = connection.execute(
             """
-            SELECT id, source_id, target_id, relationship, weight, metadata, created_at, tenant_id
+            SELECT id, source_id, target_id, relationship, weight, confidence, metadata, created_at, tenant_id
             FROM edges
             WHERE tenant_id = ? AND source_id = ? AND target_id = ? AND relationship = ?
             LIMIT 1

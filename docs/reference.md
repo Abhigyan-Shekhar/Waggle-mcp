@@ -470,6 +470,7 @@ When an API key is presented:
 | `store_node` | Manually save a fact, preference, decision, or note |
 | `store_edge` | Link two nodes with a typed relationship |
 | `get_related` | Traverse edges from a specific node |
+| `shortest_path` | Find the shortest path between two nodes |
 | `get_node_history` | Inspect evidence, validity window, and related context |
 | `list_context_scopes` | Enumerate stored `agent_id`, `project`, and `session_id` scopes |
 | `timeline` | Build a chronological memory view |
@@ -480,14 +481,77 @@ When an API key is presented:
 | `decompose_and_store` | Break long content into atomic nodes automatically |
 | `graph_diff` | See what changed in the last N hours |
 | `prime_context` | Generate a compact brief for a new conversation |
-| `get_topics` | Detect topic clusters via community detection |
+| `get_topics` | Detect topic clusters via community detection (read-time) |
+| `get_communities` | List persisted community clusters with labels and member counts |
+| `recompute_communities` | Run Louvain clustering and persist cluster IDs onto nodes |
 | `get_stats` | Node/edge counts and most-connected nodes |
 | `export_graph_html` | Interactive browser visualization |
 | `export_graph_backup` | Portable JSON backup |
+| `export_cypher` | Export the graph as Neo4j Cypher statements |
 | `import_graph_backup` | Restore from a JSON backup |
+| `import_graphify` | Import a Graphify `graph.json` codebase knowledge graph |
 | `export_context_bundle` | Export Markdown/JSON context packs for another AI |
 | `export_markdown_vault` | Export one-file-per-node Markdown vaults |
 | `import_markdown_vault` | Re-import edited Markdown vault files |
+
+## Graph analysis and interoperability
+
+These tools support graph navigation, clustering, and exchange with external
+graph tools. Each is exposed both as an MCP tool and an HTTP endpoint.
+
+### Paths and hubs
+
+- `shortest_path(source_id, target_id, max_depth=5)` returns the chain of nodes
+  and edges connecting two memories. The search is directed first, then falls
+  back to an undirected search, so relationships traversed in either direction
+  are found. Returns an empty result (no error) when no path exists within
+  `max_depth` hops. HTTP: `POST /api/graph/shortest-path`.
+- Hub analysis ranks the most-connected nodes by degree and betweenness
+  centrality, surfacing over-broad memories worth splitting. HTTP:
+  `GET /api/graph/hubs?top_n=10&min_degree=2`.
+
+### Edge confidence
+
+Every edge carries a `confidence` field: `explicit` (created by a user via
+`store_edge` or Graph Studio), `inferred` (extracted from conversation), or
+`weak` (low-signal extraction). Graph Studio renders weak edges dashed and shows
+the confidence in the edge inspector.
+
+### Communities
+
+- `recompute_communities(resolution=1.0)` runs Louvain community detection
+  (greedy-modularity fallback) across the full tenant graph and persists a
+  `community_id` and `community_label` onto each node. Higher `resolution` yields
+  more, smaller clusters. Clusters are numbered by size, largest first (id `0`).
+  HTTP: `POST /api/graph/communities/recompute`.
+- `get_communities()` returns the persisted clusters with member counts. HTTP:
+  `GET /api/graph/communities`. Graph Studio can color the graph by community.
+
+### Neo4j Cypher export
+
+`export_cypher(output_path=None, **scope)` writes a `.cypher` script: a
+uniqueness constraint on `:Memory(id)`, one `CREATE` per node (labelled
+`:Memory:{NodeType}`), and a `MATCH ... CREATE` per edge (carrying `weight` and
+`confidence`). Load it into Neo4j for Cypher queries. HTTP:
+`GET /api/graph/export?format=cypher`.
+
+### Graphify import
+
+`import_graphify(input_path, **scope)` imports a [Graphify](https://github.com/safishamsi/graphify)
+`graph.json` (a codebase knowledge graph). Code entities become `entity` nodes,
+docs become `concept` nodes, and Graphify's EXTRACTED/INFERRED/AMBIGUOUS tags map
+to edge confidence `explicit`/`inferred`/`weak`. Imported items are tagged
+`graphify` for provenance and de-duplicated against existing nodes. HTTP:
+`POST /api/graph/import-graphify` with `{"content": "<graph.json text>"}`.
+
+### Code-aware memory
+
+When a conversation turn contains fenced code blocks, `observe_conversation`
+extracts function and class names and stores them as `entity` nodes linked to the
+turn's memories. Parsing uses tree-sitter when the optional `code-analysis` extra
+is installed (`pip install waggle-mcp[code-analysis]`), falling back to regex
+otherwise. Code-referencing queries (e.g. "how does `authenticate()` work") boost
+these code entities so they surface alongside conversation memory.
 
 ## Architecture snapshot
 

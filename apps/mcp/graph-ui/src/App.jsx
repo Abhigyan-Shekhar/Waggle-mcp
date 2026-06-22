@@ -215,8 +215,15 @@ export function App() {
   const [importPreview, setImportPreview] = useState(null);
   const [abhiDiff, setAbhiDiff] = useState(null);
   const [showMisses, setShowMisses] = useState(false);
+  const [hubNodes, setHubNodes] = useState([]);
+  const [showHubs, setShowHubs] = useState(false);
+  const [communities, setCommunities] = useState([]);
+  const [colorMode, setColorMode] = useState("source");
 
-  const graph = useMemo(() => normalizeGraph(snapshot, importedNodeIds), [snapshot, importedNodeIds]);
+  const graph = useMemo(
+    () => normalizeGraph(snapshot, importedNodeIds, colorMode),
+    [snapshot, importedNodeIds, colorMode]
+  );
   const visibleGraph = useMemo(() => filterGraph(graph, filters), [graph, filters]);
   const transcriptPairs = useMemo(() => buildTranscriptPairs(transcriptRecords, graph.nodes), [transcriptRecords, graph.nodes]);
   const extractionHealth = useMemo(() => buildExtractionHealth(transcriptPairs), [transcriptPairs]);
@@ -246,14 +253,18 @@ export function App() {
     if (boot.sampleMode) {
       return;
     }
-    const [graphData, transcriptData] = await Promise.all([
+    const [graphData, transcriptData, hubData, communityData] = await Promise.all([
       apiRequest(`/api/graph${buildScopeQuery(nextScope)}${buildScopeQuery(nextScope) ? "&" : "?"}include_source_prompt=true`),
-      apiRequest(`/api/graph/transcripts${buildScopeQuery(nextScope)}`)
+      apiRequest(`/api/graph/transcripts${buildScopeQuery(nextScope)}`),
+      apiRequest("/api/graph/hubs?top_n=10&min_degree=2").catch(() => ({ hubs: [] })),
+      apiRequest("/api/graph/communities").catch(() => ({ communities: [] }))
     ]);
     setSnapshot(graphData);
     setTranscriptRecords(transcriptData.records || []);
     setTranscriptOffset(transcriptData.pagination?.offset ?? 0);
     setTranscriptTotalCount(transcriptData.pagination?.total_count ?? 0);
+    setHubNodes(hubData.hubs || []);
+    setCommunities(communityData.communities || []);
     setSelectedNodeId("");
     setSelectedEdgeId("");
     setHoverNodeId("");
@@ -262,6 +273,19 @@ export function App() {
   useEffect(() => {
     loadSnapshot(boot.scope).catch((error) => setToast(error.message));
   }, []);
+
+  const recomputeCommunities = async () => {
+    if (boot.sampleMode || readOnly) {
+      return;
+    }
+    const stats = await apiRequest("/api/graph/communities/recompute", {
+      method: "POST",
+      body: JSON.stringify({ resolution: 1.0 })
+    });
+    setToast(`Found ${stats.cluster_count} communities across ${stats.nodes_updated} nodes.`);
+    await loadSnapshot(scope);
+    setColorMode("community");
+  };
 
   const pushHistory = async () => {
     const restorePayload = buildRestorePayload(graph, scope);
@@ -397,6 +421,14 @@ export function App() {
             "line-style": "dotted",
             "target-arrow-shape": "none",
             "line-color": "rgba(139,162,191,0.46)"
+          }
+        },
+        {
+          selector: 'edge[confidence = "weak"]',
+          style: {
+            "line-style": "dashed",
+            opacity: 0.45,
+            "line-color": "rgba(196,205,219,0.18)"
           }
         },
         { selector: ".faded", style: { opacity: 0.14 } },
@@ -1014,6 +1046,78 @@ export function App() {
               </div>
             ) : null}
           </Section>
+
+          {hubNodes.length > 0 ? (
+            <Section title="Hub nodes" extra={<span className="text-xs text-graph-muted">{hubNodes.length} most connected</span>}>
+              <p className="text-sm text-graph-muted">Nodes with the most connections. High-degree nodes often represent over-broad memories worth splitting.</p>
+              <button
+                className="mt-3 rounded-xl border border-white/10 px-3 py-2 text-sm"
+                onClick={() => setShowHubs((v) => !v)}
+                type="button"
+              >
+                {showHubs ? "Hide list" : "Show list"}
+              </button>
+              {showHubs ? (
+                <div className="mt-3 max-h-48 space-y-2 overflow-auto scrollbar-thin">
+                  {hubNodes.map((hub) => (
+                    <button
+                      key={hub.node_id}
+                      className="block w-full rounded-xl border border-white/8 bg-black/15 px-3 py-2 text-left text-xs"
+                      onClick={() => {
+                        setSelectedNodeId(hub.node_id);
+                        setActiveTab("graph");
+                      }}
+                      type="button"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-white">{hub.label}</span>
+                        <span className="rounded-full bg-graph-cyan/20 px-2 py-0.5 text-graph-cyan">{hub.degree} edges</span>
+                      </div>
+                      <div className="mt-0.5 text-graph-muted">{hub.node_type} · {(hub.pct_of_edges * 100).toFixed(1)}% of graph</div>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </Section>
+          ) : null}
+
+          <Section title="Communities" extra={<span className="text-xs text-graph-muted">{communities.length || "—"}</span>}>
+            <p className="text-sm text-graph-muted">Group memories into clusters detected from the edge structure, then color the graph by cluster.</p>
+            <div className="mt-3 flex gap-2">
+              <button
+                className={`rounded-xl border px-3 py-2 text-xs ${colorMode === "source" ? "border-white/30 bg-white/10 text-white" : "border-white/10 text-graph-muted"}`}
+                onClick={() => setColorMode("source")}
+                type="button"
+              >
+                Color: source
+              </button>
+              <button
+                className={`rounded-xl border px-3 py-2 text-xs ${colorMode === "community" ? "border-white/30 bg-white/10 text-white" : "border-white/10 text-graph-muted"}`}
+                onClick={() => setColorMode("community")}
+                type="button"
+              >
+                Color: community
+              </button>
+            </div>
+            <button
+              className="mt-2 w-full rounded-xl border border-white/10 px-3 py-2 text-sm disabled:opacity-40"
+              disabled={readOnly || boot.sampleMode}
+              onClick={() => recomputeCommunities().catch((error) => setToast(error.message))}
+              type="button"
+            >
+              Recompute communities
+            </button>
+            {communities.length > 0 ? (
+              <div className="mt-3 max-h-48 space-y-2 overflow-auto scrollbar-thin">
+                {communities.map((community) => (
+                  <div key={community.community_id} className="flex items-center justify-between rounded-xl border border-white/8 bg-black/15 px-3 py-2 text-xs">
+                    <span className="text-white">{community.label}</span>
+                    <span className="text-graph-muted">{community.member_count} nodes</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </Section>
         </div>
 
         <section className="relative h-[720px] min-h-[720px] overflow-hidden rounded-[22px] border border-white/8 bg-black/20 panel-shell max-[1280px]:h-[680px] max-[1280px]:min-h-[680px]">
@@ -1265,8 +1369,20 @@ export function App() {
             ) : selectedEdge ? (
               <div className="space-y-3 text-sm text-graph-muted">
                 <div className="rounded-2xl border border-white/8 bg-black/15 p-3">
-                  <div className="text-white">{selectedEdge.relationship}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white">{selectedEdge.relationship}</span>
+                    {selectedEdge.confidence === "explicit" ? (
+                      <span className="rounded-full bg-green-500/20 px-2 py-0.5 text-xs text-green-400">explicit</span>
+                    ) : selectedEdge.confidence === "weak" ? (
+                      <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-xs text-red-400">weak</span>
+                    ) : (
+                      <span className="rounded-full bg-yellow-500/20 px-2 py-0.5 text-xs text-yellow-400">inferred</span>
+                    )}
+                  </div>
                   <div className="mt-1 break-all text-xs">Edge ID: {selectedEdge.id}</div>
+                  {selectedEdge.metadata?.inferred ? (
+                    <div className="mt-1 text-xs text-graph-muted">Reason: {selectedEdge.metadata.inferred}</div>
+                  ) : null}
                 </div>
                 <button className="rounded-xl bg-white px-3 py-2 text-sm font-medium text-black" disabled={readOnly || boot.sampleMode} onClick={() => setEdgeDialog(selectedEdge)} type="button">
                   Edit edge label

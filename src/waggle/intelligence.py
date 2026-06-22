@@ -1307,3 +1307,97 @@ def _dedupe_preserve_order(values: list[str]) -> list[str]:
         seen.add(normalized)
         ordered.append(value)
     return ordered
+
+
+# ---------------------------------------------------------------------------
+# Code-aware query support (unified code + conversation retrieval)
+# ---------------------------------------------------------------------------
+
+# camelCase, snake_case, dotted access, or a call like foo()
+_CODE_IDENTIFIER_RE = re.compile(
+    r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+|[A-Za-z_][A-Za-z0-9_]*\(\)|[a-z]+(?:_[a-z0-9]+)+|[a-z]+[A-Z][A-Za-z0-9]*"
+)
+# Words that signal the user is asking about code.
+_CODE_QUERY_HINTS = {
+    "function",
+    "func",
+    "method",
+    "class",
+    "module",
+    "import",
+    "variable",
+    "call",
+    "calls",
+    "implementation",
+    "endpoint",
+    "api",
+    "parameter",
+    "argument",
+    "return",
+    "def",
+}
+
+
+def is_code_query(query: str) -> bool:
+    """Heuristically decide whether a query references code.
+
+    True when the query contains a code-shaped identifier (camelCase,
+    snake_case, dotted access, or ``name()``) or an explicit code keyword
+    such as "function" or "class".
+    """
+    text = str(query).strip()
+    if not text:
+        return False
+    if _CODE_IDENTIFIER_RE.search(text):
+        return True
+    lowered_tokens = {tok for tok in re.split(r"[^A-Za-z0-9_]+", text.lower()) if tok}
+    return bool(lowered_tokens & _CODE_QUERY_HINTS)
+
+
+def code_query_identifiers(query: str) -> set[str]:
+    """Extract candidate code identifiers from a query, lowercased.
+
+    Includes code-shaped tokens (camelCase/snake_case/dotted/``name()``) and,
+    for dotted or call forms, their bare final segment (so ``db.connect()``
+    also yields ``connect``).
+    """
+    identifiers: set[str] = set()
+    for match in _CODE_IDENTIFIER_RE.finditer(query):
+        token = match.group(0).rstrip("()").lower()
+        if not token:
+            continue
+        identifiers.add(token)
+        if "." in token:
+            identifiers.add(token.rsplit(".", 1)[-1])
+    return identifiers
+
+
+def is_code_entity_node(node: Node) -> bool:
+    """True when a node represents a code symbol (from code extraction or Graphify)."""
+    metadata = node.metadata or {}
+    if metadata.get("code_entity") or metadata.get("graphify_source"):
+        return True
+    tags = {str(tag).lower() for tag in (node.tags or [])}
+    return "code" in tags or "graphify" in tags
+
+
+def code_entity_boost(query: str, node: Node, *, boost: float = 0.35) -> float:
+    """Return a score boost for a code-entity node matching a code query.
+
+    Returns 0.0 unless the query is code-like, the node is a code entity, and
+    the node's label (or a word in it) matches one of the query's code
+    identifiers.  This lets code symbols surface alongside conversation memory
+    for queries like "what did we decide about authenticate()".
+    """
+    if not is_code_entity_node(node):
+        return 0.0
+    if not is_code_query(query):
+        return 0.0
+    identifiers = code_query_identifiers(query)
+    if not identifiers:
+        return 0.0
+    label_lower = node.label.strip().lower()
+    label_words = {tok for tok in re.split(r"[^A-Za-z0-9_]+", label_lower) if tok}
+    if label_lower in identifiers or (label_words & identifiers):
+        return boost
+    return 0.0

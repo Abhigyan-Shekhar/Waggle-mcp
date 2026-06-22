@@ -30,7 +30,7 @@ async def test_server_stdio_initialize_and_basic_calls(tmp_path: Path) -> None:
         assert init_result.serverInfo.name == "waggle"
 
         tools_result = await session.list_tools()
-        assert len(tools_result.tools) == 41
+        assert len(tools_result.tools) == 46
         assert {tool.name for tool in tools_result.tools} >= {
             "store_node",
             "query_graph",
@@ -66,6 +66,12 @@ async def test_server_stdio_initialize_and_basic_calls(tmp_path: Path) -> None:
             "import_markdown_vault",
             # recursive context assembly
             "build_context",
+            # graphify-inspired features
+            "shortest_path",
+            "get_communities",
+            "recompute_communities",
+            "export_cypher",
+            "import_graphify",
         }
 
         resources_result = await session.list_resources()
