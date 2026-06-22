@@ -40,6 +40,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 import waggle
+from waggle import __version__
 from waggle.abhi import (
     ABHI_MERGE_STRATEGIES,
     DEFAULT_ABHI_MERGE_STRATEGY,
