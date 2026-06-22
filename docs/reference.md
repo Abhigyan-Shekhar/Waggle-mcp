@@ -295,44 +295,25 @@ Automation and bug reports can request structured output:
 waggle-mcp doctor --json
 ```
 
+`--json` (alias `--as-json`) suppresses the human-readable report and prints a single JSON object to stdout. The exit code is unchanged: `0` if no check has status `fail`, `1` otherwise.
+
 Example output:
 
 ```json
 {
-  "fix_requested": false,
-  "issues": [
-    "No MCP client config file contains a 'waggle' server entry. Run 'waggle-mcp setup --yes' to create one, or add it manually."
-  ],
-  "platform": "linux",
-  "schema_version": 1,
-  "status": "issues_found",
-  "successful_checks": [
-    "DB directory writable",
-    "Deterministic model — no download needed",
-    "Embedding store model IDs consistent",
-    "Startup mode: normal"
-  ],
-  "warnings": []
-}
-```
-
-Successful runs use the same schema:
-
-```json
-{
-  "fix_requested": false,
-  "issues": [],
-  "platform": "linux",
-  "schema_version": 1,
-  "status": "ok",
-  "successful_checks": [
-    "Waggle found in: Codex",
-    "DB directory writable",
-    "Deterministic model — no download needed",
-    "Embedding store model IDs consistent",
-    "Startup mode: normal"
-  ],
-  "warnings": []
+  "version": "0.0.1",
+  "checks": {
+    "db_connection": {"status": "ok", "path": "/home/user/.waggle/waggle.db"},
+    "embedding_model": {"status": "ok", "model_id": "deterministic"},
+    "graph_schema": {"status": "ok"},
+    "mcp_config": {
+      "status": "fail",
+      "reason": "No MCP client config file contains a 'waggle' server entry."
+    },
+    "startup_mode": {"status": "ok", "mode": "normal"},
+    "stdout_encoding": {"status": "ok"}
+  },
+  "summary": {"ok": 5, "warn": 0, "fail": 1}
 }
 ```
 
@@ -340,13 +321,20 @@ Doctor JSON fields:
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `schema_version` | integer | Version of the doctor JSON contract. The initial schema is `1`. |
-| `platform` | string | Python `sys.platform` value for the host that produced the report. |
-| `status` | string | `ok` when no issues or warnings were found, `warnings` when non-blocking warnings were found, otherwise `issues_found`. |
-| `issues` | string array | Blocking problems that should be fixed before relying on the installation. |
-| `warnings` | string array | Non-blocking conditions such as an uncached embedding model that can slow the first semantic call. |
-| `successful_checks` | string array | Human-readable names of checks that passed. The exact list can vary by platform. |
-| `fix_requested` | boolean | Whether the `--fix` flag was passed for this run. |
+| `version` | string | The installed `waggle-mcp` package version. |
+| `checks` | object | One key per check. Each value has a `status` of `"ok"`, `"warn"`, or `"fail"`, plus check-specific fields such as `reason`, `model_id`, `path`, `mode`, or `found_in`. |
+| `summary` | object | Counts of checks by status: `{"ok": int, "warn": int, "fail": int}`. |
+
+Checks performed:
+
+| Check | Description |
+| --- | --- |
+| `mcp_config` | Whether any known MCP client config file has a `waggle` server entry. |
+| `db_connection` | Whether the configured database file or its parent directory exists. |
+| `embedding_model` | Whether the configured embedding model is deterministic or already cached locally. |
+| `graph_schema` | Whether the embedding store's `embedding_model_id` values are consistent (no mixed models). |
+| `startup_mode` | The configured `WAGGLE_STARTUP_MODE` (`fast`, `strict`, or `normal`). Always `ok`. |
+| `stdout_encoding` | Whether stdout is UTF-8 encoded. The check only runs on Windows; on other platforms this is always `ok`. |
 
 ## Automatic memory orchestration
 

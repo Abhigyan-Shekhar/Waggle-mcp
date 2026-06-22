@@ -15,8 +15,24 @@ pipx install waggle-mcp
 waggle-mcp setup --yes
 ```
 
-`waggle-mcp setup --yes` writes a managed Waggle memory block into `AGENTS.md` in
-the current workspace so Codex can use Waggle from that repo.
+`waggle-mcp setup --yes` writes a managed Waggle memory block into `AGENTS.md` in the current workspace so Codex can use Waggle from that repo.
+
+### Managed `AGENTS.md` Block
+
+When run inside a workspace, the setup command inserts a managed section inside the `AGENTS.md` file wrapped in specific HTML comment delimiters:
+
+```markdown
+<!-- waggle:auto-memory:start -->
+## Waggle Automatic Memory
+...
+<!-- waggle:auto-memory:end -->
+```
+
+* **What it is for**: This block provides instructions telling AI agents (like Codex or Antigravity) to automatically call Waggle tools (`prime_context`, `query_graph`, `observe_conversation`) during active chat threads rather than requiring manual user actions.
+* **Do not edit manually**: Do not manually modify any text inside the `<!-- waggle:auto-memory:start -->` and `<!-- waggle:auto-memory:end -->` delimiters. Any manual changes inside this block will be overwritten when `waggle-mcp setup --yes` or `waggle-mcp init` is run again.
+* **What is safe to customize**: You can add your own custom rules, project descriptions, or team conventions anywhere *outside* this block (either above the start marker or below the end marker). These custom instructions are completely safe and will not be touched by Waggle.
+
+For more details on how these rules govern agent behavior, see the [Automatic Memory Rules Guide](../automatic-memory-rules.md).
 
 ## Codex app plugin
 

@@ -5142,6 +5142,7 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     issues: list[str] = []
     warnings: list[str] = []
     ok_items: list[str] = []
+    checks: dict[str, dict[str, Any]] = {}
 
     def emit(*args: object, **kwargs: object) -> None:
         if not json_output:
@@ -5162,13 +5163,11 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     # ── 1. Config file locations ─────────────────────────────────────────────
     emit(_c(_BOLD, "\n[1] MCP client config files"))
     waggle_found_in: list[str] = []
-    config_files_data = []
     for label, template in _KNOWN_CONFIG_PATHS:
         raw = template.replace("%APPDATA%", os.environ.get("APPDATA", "")).replace("%USERPROFILE%", str(Path.home()))
         path = Path(raw).expanduser()
         exists = path.exists()
         has_waggle = False
-        parsed = False
         if exists:
             try:
                 raw_text = path.read_text(encoding="utf-8", errors="replace")
@@ -5178,7 +5177,6 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
                     data = json.loads(raw_text)
                     servers = data.get("mcpServers", data.get("tools", {}) if isinstance(data, dict) else {})
                     has_waggle = isinstance(servers, dict) and "waggle" in servers
-                parsed = True
                 if has_waggle:
                     waggle_found_in.append(label)
                     ok(f"{label}\n     {path}  [waggle entry found]")
@@ -5197,27 +5195,18 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
         ):
             emit(f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [not found]")
 
-        is_plausible = (
-            exists
-            or (
-                sys.platform == "darwin"
-                and ("macOS" in label or "Cursor" in label or "Antigravity" in label or "Codex" in label)
-            )
-            or (sys.platform == "win32" and "Windows" in label)
-            or (sys.platform.startswith("linux") and ("Linux" in label or "Cursor" in label))
-        )
-        if exists or is_plausible:
-            config_files_data.append(
-                {"label": label, "path": str(path), "exists": exists, "has_waggle": has_waggle, "parsed": parsed}
-            )
-
     if not waggle_found_in:
         issues.append(
             "No MCP client config file contains a 'waggle' server entry. "
             "Run 'waggle-mcp setup --yes' to create one, or add it manually."
         )
+        checks["mcp_config"] = {
+            "status": "fail",
+            "reason": "No MCP client config file contains a 'waggle' server entry.",
+        }
     else:
         ok_items.append(f"Waggle found in: {', '.join(waggle_found_in)}")
+        checks["mcp_config"] = {"status": "ok", "found_in": waggle_found_in}
 
     # ── 2. DB path ───────────────────────────────────────────────────────────
     emit(_c(_BOLD, "\n[2] Database path"))
@@ -5228,12 +5217,18 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     if db_exists:
         ok(f"DB file exists: {db_path}")
         ok_items.append("DB file found")
+        checks["db_connection"] = {"status": "ok", "path": str(db_path)}
     elif db_dir_exists:
         ok(f"DB directory exists (file will be created on first run): {db_path}")
         ok_items.append("DB directory writable")
+        checks["db_connection"] = {"status": "ok", "path": str(db_path)}
     else:
         issues.append(f"DB directory does not exist: {db_dir}. Create it with: mkdir -p <dir>")
         fail(f"DB directory missing: {db_dir}")
+        checks["db_connection"] = {
+            "status": "fail",
+            "reason": f"DB directory does not exist: {db_dir}. Create it with: mkdir -p <dir>",
+        }
 
     # ── 3. Embedding model ───────────────────────────────────────────────────
     emit(_c(_BOLD, "\n[3] Embedding model"))
@@ -5250,6 +5245,7 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     if is_deterministic:
         ok(f"Model: {model_name!r}  (deterministic — no download, always offline-safe)")
         ok_items.append("Deterministic model — no download needed")
+        checks["embedding_model"] = {"status": "ok", "model_id": model_name}
     else:
         # Heuristic: look for a cached sentence-transformers directory
         safe_name = model_name.replace("/", "_").replace("\\", "_")
@@ -5262,6 +5258,7 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
         if is_cached:
             ok(f"Model: {model_name!r}  (cached locally — fast startup)")
             ok_items.append("Embedding model cached")
+            checks["embedding_model"] = {"status": "ok", "model_id": model_name}
         else:
             emit(
                 f"  {_c(_CYAN, chr(0x2139))} Model: {model_name!r}  — NOT found in local cache.\n"
@@ -5269,17 +5266,17 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
                 f"    To avoid: set WAGGLE_MODEL=deterministic, or pre-download with:\n"
                 f"      python -c \"from sentence_transformers import SentenceTransformer; SentenceTransformer('{model_name}')\""
             )
-            warnings.append(
+            reason = (
                 f"Embedding model '{model_name}' not found in cache. "
                 "First semantic call will block for a network download. "
                 "Set WAGGLE_MODEL=deterministic for offline-safe mode."
             )
-
-    embedding_model_data = {"model_name": model_name, "cached": is_cached, "deterministic": is_deterministic}
+            warnings.append(reason)
+            checks["embedding_model"] = {"status": "warn", "model_id": model_name, "reason": reason}
 
     # ── 4. WAGGLE_STARTUP_MODE ───────────────────────────────────────────────
     emit(_c(_BOLD, "\n[4] Embedding store"))
-    embedding_store_data = None
+    checks["graph_schema"] = {"status": "ok"}
     try:
         graph = _default_graph(config)
         if isinstance(graph, MemoryGraph):
@@ -5302,22 +5299,18 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
             if store_health["mixed_models"]:
                 issues.append("Mixed embedding_model_id values detected in the store.")
                 fail("Mixed embedding model IDs detected across transcript_records/nodes.")
+                checks["graph_schema"] = {
+                    "status": "fail",
+                    "reason": "Mixed embedding_model_id values detected across transcript_records/nodes.",
+                }
             else:
                 ok("Store model IDs are consistent.")
                 ok_items.append("Embedding store model IDs consistent")
-
-            embedding_store_data = {
-                "current_model_id": store_health["current_model_id"],
-                "transcript_model_counts": transcript_models,
-                "node_model_counts": node_models,
-                "transcript_stale_rows": store_health["transcript_stale_rows"],
-                "node_stale_rows": store_health["node_stale_rows"],
-                "mixed_models": store_health["mixed_models"],
-            }
     except Exception as exc:
         message = f"Embedding store check failed: {type(exc).__name__}: {exc}"
         issues.append(message)
         fail(message)
+        checks["graph_schema"] = {"status": "fail", "reason": message}
 
     # ── 5. WAGGLE_STARTUP_MODE ───────────────────────────────────────────────
     emit(_c(_BOLD, "\n[5] Startup mode"))
@@ -5325,15 +5318,17 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     if config.is_fast_mode:
         ok("fast mode: zero ML overhead. Schema/tool listing only. Semantic tools return 'unavailable'.")
         ok_items.append("Startup mode: fast")
+        checks["startup_mode"] = {"status": "ok", "mode": "fast"}
     elif config.is_strict_mode:
         ok("strict mode: server blocks on startup until embedding model is ready.")
         ok_items.append("Startup mode: strict")
+        checks["startup_mode"] = {"status": "ok", "mode": "strict"}
     else:
         ok("normal mode: embedding loads in background. First semantic call may wait up to ~30 s.")
         ok_items.append("Startup mode: normal")
+        checks["startup_mode"] = {"status": "ok", "mode": "normal"}
 
     # ── 6. Windows stdout encoding ───────────────────────────────────────────
-    stdout_encoding_data = None
     if sys.platform == "win32":
         emit(_c(_BOLD, "\n[6] Windows stdout encoding"))
         enc = getattr(sys.stdout, "encoding", "unknown")
@@ -5341,6 +5336,7 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
         if is_utf8:
             ok(f"stdout encoding: {enc}")
             ok_items.append("Windows stdout is UTF-8")
+            checks["stdout_encoding"] = {"status": "ok", "encoding": enc}
         else:
             fail(
                 f"stdout encoding is {enc!r} (not UTF-8). "
@@ -5348,8 +5344,11 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
                 "    Fix: run with 'python -X utf8' or add at script top:\n"
                 "      import sys; sys.stdout.reconfigure(encoding='utf-8')"
             )
-            issues.append(f"Windows stdout encoding is {enc!r} — set PYTHONUTF8=1 or use python -X utf8.")
-        stdout_encoding_data = {"encoding": enc, "is_utf8": is_utf8}
+            reason = f"Windows stdout encoding is {enc!r} — set PYTHONUTF8=1 or use python -X utf8."
+            issues.append(reason)
+            checks["stdout_encoding"] = {"status": "fail", "encoding": enc, "reason": reason}
+    else:
+        checks["stdout_encoding"] = {"status": "ok"}
 
     # ── 7. Known gotchas ─────────────────────────────────────────────────────
     emit(_c(_BOLD, "\n[7] Known API gotchas"))
@@ -5357,26 +5356,16 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
 
     # ── Summary ──────────────────────────────────────────────────────────────
     if json_output:
-        status = "issues_found" if issues else "warnings" if warnings else "ok"
+        summary = {"ok": 0, "warn": 0, "fail": 0}
+        for check in checks.values():
+            summary[check["status"]] += 1
         result = {
-            "schema_version": 1,
-            "platform": sys.platform,
-            "status": status,
-            "issues": issues,
-            "warnings": warnings,
-            "successful_checks": ok_items,
-            "fix_requested": bool(fix),
-            # Detailed audit trail fields:
-            "ok": not issues,
-            "config_files": config_files_data,
-            "database": {"path": str(db_path), "exists": db_exists, "parent_exists": db_dir_exists},
-            "embedding_model": embedding_model_data,
-            "embedding_store": embedding_store_data,
-            "startup_mode": config.startup_mode,
-            "stdout_encoding": stdout_encoding_data,
+            "version": __version__,
+            "checks": checks,
+            "summary": summary,
         }
         print(json.dumps(result, indent=2, sort_keys=True))
-        return 1 if issues else 0
+        return 1 if summary["fail"] else 0
 
     print(_c(_BOLD, "─" * 50))
     if issues:
