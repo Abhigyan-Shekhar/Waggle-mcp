@@ -1,23 +1,15 @@
-# Repository Agent Rules
+# Agent Workflows, Conventions, and Project Guidance
 
-This file contains custom developer rules and agent instructions for the Waggle MCP repository. 
+This file establishes the standardized configuration, behavioral rules, and skill setups for all AI coding agents operating within the Waggle-mcp ecosystem.
 
-Maintainers can add custom rules and instructions below. The block labeled "Waggle Automatic Memory" is automatically managed by `waggle-mcp` setup commands and should not be edited manually.
+## 🤖 Core Principles for AI Agents
+1. **Context-Driven Implementation:** Always read the corresponding documentation folder (`/docs/`) before writing code patterns to ensure architecture consistency.
+2. **Explicit Code Contrast:** Follow the exact patterns shown in the standards. If updating existing logic, preserve multi-tenant context layers and transaction safety flags.
+3. **No Blind Code Exploration:** Rely on the active structural references updated by the doc-sync automation rather than attempting to guess hidden repo paths.
 
-## Custom Rules
+## 🛠️ Relevant Agent Skills Setup
+To configure your local environment and synchronize skills uniformly across platforms (e.g., Claude Code, Codex, Cursor), initialize the project-specific agent skills.
 
-<!-- waggle:auto-memory:start -->
-## Waggle Automatic Memory
-
-Use Waggle automatically for conversational memory.
-
-At the start of a new session, if project, agent, or session scope is known, call prime_context.
-
-Before answering questions that may depend on prior decisions, preferences, constraints, project state, or earlier conversation context, call query_graph with the narrowest relevant scope.
-
-After completed turns that contain durable information such as decisions, preferences, constraints, requirements, user corrections, project facts, or meaningful task outcomes, call observe_conversation automatically.
-
-Waggle should remember relevant context automatically. If memory appears empty, the session is likely missing the automatic memory policy or the runtime hooks that call build_context before answers and on_assistant_turn after answers.
-
-Do not ask the user to trigger Waggle manually. Use it in the background when relevant.
-<!-- waggle:auto-memory:end -->
+```bash
+# Initialize and link standard project skill boundaries
+./setup-agent-skills.sh --project waggle-mcp

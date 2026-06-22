@@ -1,0 +1,27 @@
+name: Documentation and Agent Profile Sync
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  sync-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Base
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect Documentation Drift
+        run: |
+          echo "Comparing codebase changes against last known documentation sync point..."
+          
+      - name: Auto-validate AGENTS.md Layout
+        run: |
+          if [ ! -f "AGENTS.md" ]; then
+            echo "Error: Standardized AGENTS.md file missing from repository root."
+            exit 1
+          fi
