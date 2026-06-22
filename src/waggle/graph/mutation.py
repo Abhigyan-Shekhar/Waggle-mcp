@@ -186,7 +186,7 @@ class MutationMixin(MemoryGraphBase):
                     json.dumps(node.tags),
                     json.dumps(node.aliases),
                     _encode_metadata(node.metadata),
-                    self.embedding_model.to_bytes(embedding_vector),
+                    self._encode_embedding(embedding_vector),
                     node.embedding_model_id,
                     node.embedding_dim,
                     node.source_prompt,
@@ -464,7 +464,7 @@ class MutationMixin(MemoryGraphBase):
             embedding_dim = node.embedding_dim
             if content is not None:
                 embedding_vector, embedding_model_id, embedding_dim = self._embed_with_metadata(updated_content)
-                embedding_bytes = self.embedding_model.to_bytes(embedding_vector)
+                embedding_bytes = self._encode_embedding(embedding_vector)
 
             scope_changed = (
                 (project is not None and project != node.project)
@@ -1009,7 +1009,9 @@ class MutationMixin(MemoryGraphBase):
                     return existing_node, "content_substring", 0.98
 
             # ── Layer 3: semantic similarity (expensive — compute embedding once) ─
-            existing_embedding = self.embedding_model.from_bytes(row["embedding"])
+            existing_embedding = self._decode_embedding(row["embedding"])
+            if existing_embedding is None:
+                continue
             # Fast dot() — both vectors are unit-norm here, so this equals cosine.
             similarity = float(np.dot(query_unit, existing_embedding / (np.linalg.norm(existing_embedding) or 1.0)))
             label_score = label_similarity(node.label, existing_node.label)
@@ -1325,13 +1327,17 @@ class MutationMixin(MemoryGraphBase):
         pairs: list[DedupCandidatePair] = []
 
         for i in range(total):
-            emb_i = self.embedding_model.from_bytes(rows[i]["embedding"])
+            emb_i = self._decode_embedding(rows[i]["embedding"])
+            if emb_i is None:
+                continue
             type_i = NodeType(rows[i]["node_type"])
             for j in range(i + 1, total):
                 type_j = NodeType(rows[j]["node_type"])
                 if not compatible_node_types(type_i, type_j):
                     continue
-                emb_j = self.embedding_model.from_bytes(rows[j]["embedding"])
+                emb_j = self._decode_embedding(rows[j]["embedding"])
+                if emb_j is None:
+                    continue
                 sim = self.embedding_model.cosine_similarity(emb_i, emb_j)
                 # Report pairs above threshold but below the auto-merge threshold
                 auto_threshold = type_aware_dedup_threshold(type_i, default=self.dedup_similarity_threshold)
