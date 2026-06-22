@@ -1,7 +1,9 @@
 .venv/
+.runtime-build-venv/
 .pytest_cache/
 __pycache__/
 .DS_Store
+.claude/
 *.pyc
 *.pyo
 *.pyd
@@ -29,6 +31,7 @@ docs/evaluation-plan.md
 docs/context_assembly_failure_analysis.json
 docs/context-handoff-dogfood.md
 graph-ui/node_modules/
+apps/mcp/graph-ui/node_modules/
 graph-ui/dist/
 graph-ui/screenshots-*.png
 graph-ui/shot-*.png
@@ -53,3 +56,4 @@ antigravity-waggle-export.md
 PAPER_SUMMARY.md
 waggle_complete_paper.tex
 onnx_model_export/
+waggle-server.spec
