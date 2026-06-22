@@ -95,6 +95,15 @@ jobs:
           pip install twine
           twine check dist/*
 
+  codex-plugin-runtime:
+    name: Codex plugin runtime layout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate bundled runtime layout
+        run: python scripts/build_codex_plugin_runtime.py
+
   # ── VS Code extension ────────────────────────────────────────────────────
   vscode-extension:
     name: VS Code extension validation

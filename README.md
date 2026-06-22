@@ -767,17 +767,51 @@ Controls the cosine similarity threshold for automatic node deduplication at wri
 
 ## Troubleshooting
 
-Run `waggle-mcp doctor` first — it catches the most common issues automatically.
+Run `waggle-mcp doctor` first — it usually identifies the actual failure mode.
 
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| `waggle-mcp: command not found` | `pipx` bin dir not on PATH | `pipx ensurepath` then restart terminal |
-| `store_node` / `query_graph` hangs | Embedding model downloading (~420 MB) | Set `WAGGLE_MODEL=deterministic` for instant offline mode |
-| `UnicodeEncodeError: 'charmap' codec` | Windows stdout not UTF-8 | `python -X utf8` or set `PYTHONUTF8=1` |
-| `Additional properties not allowed ('user_text', 'assistant_text')` | Old pre-v0.2 field names | Use `user_message` + `assistant_response` |
-| Waggle registered but agent doesn't see it (Antigravity) | Wrong config file | Agent reads `~/.gemini/antigravity/mcp_config.json`, not the VS Code extension file |
-| `ModuleNotFoundError: No module named 'mcp'` | Wrong Python environment | Use `pipx install waggle-mcp` and run via `waggle-mcp ...` |
-| `pipx install` fails building `sentence-transformers` | Python/OS wheel mismatch | Use Python 3.11+; upgrade: `python3 -m pip install -U pip setuptools wheel` |
+### Diagnostics
+
+- `waggle-mcp doctor`
+- `waggle-mcp doctor --fix`
+- `which waggle-mcp`
+- `python3 -m pip show waggle-mcp`
+- `env | grep WAGGLE`
+- `lsof -i :8080`
+- `sqlite3 "$WAGGLE_DB_PATH" "PRAGMA integrity_check;"`
+
+### Common failure modes
+
+**Missing `waggle` module**
+- Cause: the package is not installed in the active Python environment.
+- Fix: install from the repo root with `pip install -e ".[dev]"` and confirm `which python` points at the activated venv.
+
+**Slow first start / stuck on loading model**
+- Cause: `all-MiniLM-L6-v2` downloads on first use (~420 MB).
+- Fix: wait for the one-time model download, or use `WAGGLE_MODEL=deterministic` for instant offline startup.
+
+**`OSError: [Errno 98] Address already in use`**
+- Cause: port `8080` or the configured `WAGGLE_HTTP_PORT` is already bound.
+- Fix: run `WAGGLE_HTTP_PORT=18080 waggle-mcp serve` or stop the conflicting process.
+
+**`sqlite3.OperationalError: database is locked`**
+- Cause: another Waggle process holds the SQLite write lock.
+- Fix: ensure only one server is running and remove any stale lock file at the configured DB path.
+
+**`AuthenticationError: Invalid API key`**
+- Cause: HTTP transport requires a valid API key header.
+- Fix: send `X-API-Key: <your_key>` and generate one with `waggle-mcp keys create`; see `docs/reference.md`.
+
+**Client cannot see tools**
+- Cause: the client is not connected to the correct MCP server.
+- Fix: verify the client config points to `waggle-mcp serve --transport stdio`, restart the client, and confirm the MCP entry is enabled.
+
+**Database path permissions**
+- Cause: the configured database path is not writable.
+- Fix: set `WAGGLE_DB_PATH` to a writable location and rerun `waggle-mcp doctor`.
+
+**Mixed embedding model IDs after model change**
+- Cause: an existing database was created with a different embedding model.
+- Fix: run `waggle-mcp doctor` and then `waggle-mcp doctor --fix` if mixed `embedding_model_id` values are reported.
 
 ---
 
@@ -785,7 +819,7 @@ Run `waggle-mcp doctor` first — it catches the most common issues automaticall
 
 - **Environment variables, full tool surface, admin commands, Docker setup:** `waggle-mcp --help` or `docs/reference.md`
 - **Production deployment:** `deploy/kubernetes/README.md`
-- **Operations and troubleshooting:** `docs/runbooks/`
+- **Operations and troubleshooting:** `docs/install/troubleshooting.md`
 - **Automatic memory rules (copy-pasteable):** `docs/automatic-memory-rules.md`
 - **Hook integration details:** `docs/hooks.md`
 - **.abhi format spec:** `docs/abhi-format-v2.md`

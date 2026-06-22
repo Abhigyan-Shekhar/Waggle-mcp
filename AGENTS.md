@@ -1,3 +1,11 @@
+# Repository Agent Rules
+
+This file contains custom developer rules and agent instructions for the Waggle MCP repository. 
+
+Maintainers can add custom rules and instructions below. The block labeled "Waggle Automatic Memory" is automatically managed by `waggle-mcp` setup commands and should not be edited manually.
+
+## Custom Rules
+
 <!-- waggle:auto-memory:start -->
 ## Waggle Automatic Memory
 
