@@ -27,7 +27,7 @@ Supported values:
 
 For production deployments, set this to `live` so it’s easy to distinguish production keys from test or local keys.
 
-For more details on production setup and security best practices, see [Production Deployment](`deployment/production.md`).
+For more details on production setup and security best practices, see [Production Deployment](deployment/production.md).
 
 
 ## SQLite storage
