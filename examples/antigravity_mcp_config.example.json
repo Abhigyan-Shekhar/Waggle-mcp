@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "waggle": {
+      "command": "waggle-mcp",
+      "args": [
+        "serve",
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "WAGGLE_BACKEND": "sqlite",
+        "WAGGLE_DB_PATH": "~/.waggle/waggle.db",
+        "WAGGLE_DEFAULT_TENANT_ID": "local-default",
+        "WAGGLE_MODEL": "all-MiniLM-L6-v2"
+      }
+    }
+  }
+}

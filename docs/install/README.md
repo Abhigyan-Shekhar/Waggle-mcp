@@ -21,10 +21,16 @@ No cloud account. No API key. Local by default.
 
 ## One-line install
 
+For Cursor, Antigravity, Claude, generic MCP clients, and direct Codex CLI
+configuration:
+
 ```bash
 pipx install waggle-mcp
 waggle-mcp doctor
 ```
+
+The Codex app plugin bundles a plugin-local server runtime and does not require
+a separate PyPI installation.
 
 ## Universal stdio config
 

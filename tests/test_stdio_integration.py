@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 from pathlib import Path
@@ -11,13 +12,20 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 
 @pytest.mark.asyncio
 async def test_server_stdio_initialize_and_basic_calls(tmp_path: Path) -> None:
+    await asyncio.wait_for(_run_stdio_initialize_and_basic_calls(tmp_path), timeout=30.0)
+
+
+async def _run_stdio_initialize_and_basic_calls(tmp_path: Path) -> None:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
     env["WAGGLE_DB_PATH"] = str(tmp_path / "integration-memory.db")
+    env["WAGGLE_MODEL"] = "deterministic"
+    env["WAGGLE_STARTUP_MODE"] = "fast"
+    env["WAGGLE_BUNDLED_RUNTIME"] = "1"
 
     server_params = StdioServerParameters(
         command=sys.executable,
-        args=["-m", "waggle.server"],
+        args=["-m", "waggle.entrypoints.server_only", "serve", "--transport", "stdio"],
         cwd=str(Path(__file__).resolve().parents[1]),
         env=env,
     )

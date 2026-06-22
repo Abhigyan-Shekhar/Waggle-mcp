@@ -1,0 +1,157 @@
+name: Release Codex Plugin Runtime and Bundle
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-runtime:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            target: darwin-arm64
+            artifact: waggle-server
+          - runner: macos-15-intel
+            target: darwin-x86_64
+            artifact: waggle-server
+          - runner: ubuntu-latest
+            target: linux-x86_64
+            artifact: waggle-server
+          - runner: ubuntu-24.04-arm
+            target: linux-aarch64
+            artifact: waggle-server
+          - runner: windows-latest
+            target: win32-x86_64
+            artifact: waggle-server.exe
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install . pyinstaller
+
+      - name: Build current runtime
+        run: python scripts/build_codex_plugin_runtime.py --build-current --probe
+
+      - name: Sign macOS runtime
+        if: startsWith(matrix.target, 'darwin-')
+        env:
+          APPLE_DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
+        run: |
+          if [ -z "$APPLE_DEVELOPER_ID" ] || [ -z "$APPLE_ID" ] || [ -z "$APPLE_TEAM_ID" ] || [ -z "$APPLE_NOTARY_PASSWORD" ]; then
+            echo "APPLE_DEVELOPER_ID, APPLE_ID, APPLE_TEAM_ID, and APPLE_NOTARY_PASSWORD are required for macOS runtime signing."
+            exit 1
+          fi
+          codesign --force --deep --timestamp --options runtime \
+            --sign "$APPLE_DEVELOPER_ID" \
+            "plugins/waggle/runtime/${{ matrix.target }}/${{ matrix.artifact }}"
+          ditto -c -k --keepParent \
+            "plugins/waggle/runtime/${{ matrix.target }}" \
+            "codex-plugin-runtime-${{ matrix.target }}.zip"
+          xcrun notarytool submit "codex-plugin-runtime-${{ matrix.target }}.zip" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_NOTARY_PASSWORD" \
+            --wait
+          xcrun stapler staple "plugins/waggle/runtime/${{ matrix.target }}/${{ matrix.artifact }}" || true
+
+      - name: Sign Windows runtime
+        if: startsWith(matrix.target, 'win32-')
+        env:
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERT_BASE64)) {
+            throw "WINDOWS_CERT_BASE64 is required for Windows runtime signing."
+          }
+          $certPath = "$env:RUNNER_TEMP\codesign.pfx"
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
+          & signtool sign /f $certPath /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 "plugins/waggle/runtime/${{ matrix.target }}/${{ matrix.artifact }}"
+          Remove-Item $certPath
+
+      - name: Validate runtime artifact
+        run: python scripts/build_codex_plugin_runtime.py --probe --verify-signatures
+
+      - name: Upload runtime artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: codex-plugin-runtime-${{ matrix.target }}
+          path: plugins/waggle/runtime/${{ matrix.target }}/
+
+  assemble-runtime:
+    name: Assemble runtime layout
+    runs-on: ubuntu-latest
+    needs: build-runtime
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
+      - name: Download runtime artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: codex-plugin-runtime-*
+          path: plugins/waggle/runtime
+          merge-multiple: false
+
+      - name: Move artifacts into runtime layout
+        shell: bash
+        run: |
+          for artifact_dir in plugins/waggle/runtime/codex-plugin-runtime-*; do
+            target="${artifact_dir##*codex-plugin-runtime-}"
+            mkdir -p "plugins/waggle/runtime/${target}"
+            find "$artifact_dir" -mindepth 1 -maxdepth 1 -exec mv {} "plugins/waggle/runtime/${target}/" \;
+            rmdir "$artifact_dir"
+          done
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11"
+
+      - name: Validate assembled runtime layout
+        run: python scripts/build_codex_plugin_runtime.py --require-artifacts
+
+      - name: Package Codex plugin bundles
+        env:
+          BUNDLE_VERSION: ${{ github.ref_name }}
+        run: |
+          python scripts/package_codex_plugin.py \
+            --bundle-version "$BUNDLE_VERSION" \
+            --output-dir dist/codex-plugin
+
+      - name: Upload Codex plugin bundle artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: waggle-codex-plugin-bundles
+          path: dist/codex-plugin/*
+
+      - name: Upload Codex plugin bundles to GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          files: dist/codex-plugin/*
