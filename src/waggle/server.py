@@ -3907,8 +3907,8 @@ def _run_graph_editor_command(config: AppConfig, args: argparse.Namespace) -> in
     http_app = create_http_application(app_server, config)
     url = f"http://{host}:{port}/graph?mode={page_mode}"
 
-    print(f"Launching Waggle Graph Studio at {url}")
-    print("Use Ctrl+C in this terminal to stop the editor server.")
+    print(f"Launching Waggle Graph Studio at {url}")  # CLI output, intentionally bypasses logger
+    print("Use Ctrl+C in this terminal to stop the editor server.")  # CLI output, intentionally bypasses logger
 
     if should_open:
 
@@ -4644,7 +4644,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
     backend = _build_backend(config)
     if args.command == "create-tenant":
         tenant = backend.ensure_tenant(args.tenant_id, args.name)
-        print(json.dumps(tenant.model_dump(), indent=2))
+        print(json.dumps(tenant.model_dump(), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "create-api-key":
         expires_in_days = int(getattr(args, "expires_in_days", 0) or 0)
@@ -4671,7 +4671,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
                 "scopes": created.record.scopes,
             },
         )
-        print(
+        print(  # CLI output, intentionally bypasses logger
             json.dumps(
                 {
                     "api_key_id": created.record.api_key_id,
@@ -4689,7 +4689,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         )
         return 0
     if args.command == "list-api-keys":
-        print(
+        print(  # CLI output, intentionally bypasses logger
             json.dumps(
                 [_serialize_api_key_record(record) for record in backend.list_api_keys(args.tenant_id)], indent=2
             )
@@ -4706,7 +4706,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             resource_id=args.api_key_id,
             action="revoke",
         )
-        print(json.dumps({"revoked": args.api_key_id}))
+        print(json.dumps({"revoked": args.api_key_id}))  # CLI output, intentionally bypasses logger
         return 0
     if args.command in {
         "retention-status",
@@ -4727,7 +4727,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             payload["recent_runs"] = [
                 _serialize_retention_run(run) for run in retention_backend.list_retention_runs(limit=5)
             ]
-            print(json.dumps(payload, indent=2))
+            print(json.dumps(payload, indent=2))  # CLI output, intentionally bypasses logger
             return 0
         if args.command == "set-retention":
             policy = retention_backend.update_retention_policy(
@@ -4749,7 +4749,9 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
                     "prune_interval_hours": policy.prune_interval_hours,
                 },
             )
-            print(json.dumps(_serialize_retention_policy(policy), indent=2))
+            print(  # CLI output, intentionally bypasses logger
+                json.dumps(_serialize_retention_policy(policy), indent=2)
+            )
             return 0
         if args.command == "prune-retention":
             run = retention_backend.prune_retention(
@@ -4758,7 +4760,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             )
             payload = _serialize_retention_run(run)
             payload["policy"] = _serialize_retention_policy(retention_backend.get_retention_policy(**policy_kwargs))
-            print(json.dumps(payload, indent=2))
+            print(json.dumps(payload, indent=2))  # CLI output, intentionally bypasses logger
             return 0
         if args.command == "list-audit-events":
             events = retention_backend.list_audit_events(
@@ -4769,10 +4771,14 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
                 resource_type=getattr(args, "resource_type", ""),
                 status=getattr(args, "status", ""),
             )
-            print(json.dumps([_serialize_audit_event(event) for event in events], indent=2))
+            print(  # CLI output, intentionally bypasses logger
+                json.dumps([_serialize_audit_event(event) for event in events], indent=2)
+            )
             return 0
         runs = retention_backend.list_retention_runs(limit=getattr(args, "limit", 20))
-        print(json.dumps([_serialize_retention_run(run) for run in runs], indent=2))
+        print(  # CLI output, intentionally bypasses logger
+            json.dumps([_serialize_retention_run(run) for run in runs], indent=2)
+        )
         return 0
     if args.command == "migrate-sqlite":
         if config.backend != "neo4j":
@@ -4790,7 +4796,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         with secure_temp_path(suffix=".json") as temp_path:
             backup = source.export_graph_backup(output_path=temp_path)
             imported = target.import_graph_backup(input_path=temp_path)
-            print(
+            print( # CLI output, intentionally bypasses logger
                 json.dumps(
                     {
                         "backup": backup.model_dump(),
@@ -4823,7 +4829,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             sign=bool(getattr(args, "sign", False)),
             signing_key_dir=getattr(args, "signing_key_dir", "~/.waggle/keys"),
         )
-        print(json.dumps(exported.model_dump(mode="json"), indent=2))
+        print(json.dumps(exported.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "checkpoint-context":
         scope = getattr(args, "scope", "") or ""
@@ -4860,28 +4866,28 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         )
         payload = exported.model_dump(mode="json")
         payload["checkpoint_scope"] = scope
-        print(json.dumps(payload, indent=2))
+        print(json.dumps(payload, indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "clear-session":
         dry_run = bool(getattr(args, "dry_run", False))
         if not dry_run and not bool(getattr(args, "yes", False)):
             raise ValidationFailure("clear-session is destructive and requires --yes.")
         cleared = backend.clear_session(session_id=args.session_id, dry_run=dry_run)
-        print(json.dumps(cleared.model_dump(mode="json"), indent=2))
+        print(json.dumps(cleared.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "clear-project":
         dry_run = bool(getattr(args, "dry_run", False))
         if not dry_run and not bool(getattr(args, "yes", False)):
             raise ValidationFailure("clear-project is destructive and requires --yes.")
         cleared = backend.clear_project(project=args.project, dry_run=dry_run)
-        print(json.dumps(cleared.model_dump(mode="json"), indent=2))
+        print(json.dumps(cleared.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "clear-all":
         dry_run = bool(getattr(args, "dry_run", False))
         if not dry_run and not bool(getattr(args, "yes", False)):
             raise ValidationFailure("clear-all is destructive and requires --yes.")
         cleared = backend.clear_all(dry_run=dry_run)
-        print(json.dumps(cleared.model_dump(mode="json"), indent=2))
+        print(json.dumps(cleared.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "import":
         input_path = getattr(args, "input_path", None) or getattr(args, "input_path_flag", "")
@@ -4894,21 +4900,21 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             read_only=bool(getattr(args, "read_only", False)),
             reembed_on_mismatch=bool(getattr(args, "reembed_on_mismatch", False)),
         )
-        print(json.dumps(imported.model_dump(mode="json"), indent=2))
+        print(json.dumps(imported.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "validate":
         validation = backend.validate_abhi(input_path=args.input_path, passphrase=_resolve_passphrase(args))
-        print(json.dumps(validation.model_dump(mode="json"), indent=2))
+        print(json.dumps(validation.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0 if validation.valid else 1
     if args.command == "inspect":
         inspected = backend.inspect_abhi(input_path=args.input_path, passphrase=_resolve_passphrase(args))
-        print(json.dumps(inspected.model_dump(mode="json"), indent=2))
+        print(json.dumps(inspected.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "diff":
         input_path_a = getattr(args, "input_path_a", None) or getattr(args, "input_path_a_flag", "")
         input_path_b = getattr(args, "input_path_b", None) or getattr(args, "input_path_b_flag", "")
         diff = backend.diff_abhi(input_path_a=input_path_a, input_path_b=input_path_b)
-        print(json.dumps(diff.model_dump(mode="json"), indent=2))
+        print(json.dumps(diff.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "merge":
         left_input_path = getattr(args, "left_input_path_flag", "") or args.left_input_path
@@ -4920,7 +4926,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             output_path=args.output_path,
             merge_strategy=args.merge_strategy,
         )
-        print(json.dumps(merged.model_dump(mode="json"), indent=2))
+        print(json.dumps(merged.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "query":
         queried = backend.query_abhi(
@@ -4929,7 +4935,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             query_text=getattr(args, "query_text", ""),
             passphrase=_resolve_passphrase(args),
         )
-        print(json.dumps(queried.model_dump(mode="json"), indent=2))
+        print(json.dumps(queried.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "load-chunks":
         loaded = backend.load_abhi_chunks(
@@ -4939,7 +4945,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             query_text=getattr(args, "query_text", ""),
             passphrase=_resolve_passphrase(args),
         )
-        print(json.dumps(loaded.model_dump(mode="json"), indent=2))
+        print(json.dumps(loaded.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "push":
         _require_drive_sync()
@@ -4975,7 +4981,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             remote_name=str(getattr(args, "remote_name", "") or ""),
             encrypted=bool(passphrase),
         )
-        print(json.dumps(pushed.model_dump(mode="json"), indent=2))
+        print(json.dumps(pushed.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "pull":
         _require_drive_sync()
@@ -5024,7 +5030,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             edges_created=imported.edges_created,
             edges_updated=imported.edges_updated,
         )
-        print(json.dumps(result.model_dump(mode="json"), indent=2))
+        print(json.dumps(result.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "share":
         _require_drive_sync()
@@ -5039,7 +5045,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             folder_id=str(getattr(args, "folder_id", "") or ""),
         )
         shared = share_drive_file(file_id=remote_file_id, credentials=credentials)
-        print(json.dumps(shared.model_dump(mode="json"), indent=2))
+        print(json.dumps(shared.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "export-context-bundle":
         exported = backend.export_context_bundle(
@@ -5058,7 +5064,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             include_source_prompt=args.include_source_prompt,
             audience=args.audience,
         )
-        print(json.dumps(exported.model_dump(mode="json"), indent=2))
+        print(json.dumps(exported.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "export-markdown-vault":
         exported = backend.export_markdown_vault(
@@ -5067,11 +5073,11 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             agent_id=getattr(args, "agent_id", ""),
             session_id=getattr(args, "session_id", ""),
         )
-        print(json.dumps(exported.model_dump(mode="json"), indent=2))
+        print(json.dumps(exported.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "import-markdown-vault":
         imported = backend.import_markdown_vault(root_path=args.root_path)
-        print(json.dumps(imported.model_dump(mode="json"), indent=2))
+        print(json.dumps(imported.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "backfill-windows":
         from waggle.backfill import backfill_context_windows
@@ -5079,12 +5085,12 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         if not isinstance(backend, MemoryGraph):
             raise ValidationFailure("backfill-windows is currently supported only for the SQLite backend.")
         stats = backfill_context_windows(backend, dry_run=bool(args.dry_run))
-        print(json.dumps(stats.model_dump(mode="json"), indent=2))
+        print(json.dumps(stats.model_dump(mode="json"), indent=2))  # CLI output, intentionally bypasses logger
         return 1 if stats.errors else 0
     if args.command == "ingest-transcript-handoff":
         return _run_ingest_transcript_handoff(config, args)
     if args.command == "features":
-        print(_FEATURES_GUIDE)
+        print(_FEATURES_GUIDE)  # CLI output, intentionally bypasses logger
         return 0
     if args.command == "doctor":
         return _run_doctor_command(config, args)
@@ -5145,7 +5151,7 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
 
     def emit(*args: object, **kwargs: object) -> None:
         if not json_output:
-            print(*args, **kwargs)
+            print(*args, **kwargs)  # CLI output, intentionally bypasses logger
 
     def ok(message: str) -> None:
         if not json_output:
@@ -5461,30 +5467,32 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
             "checks": checks,
             "summary": summary,
         }
-        print(json.dumps(result, indent=2, sort_keys=True))
+        print(json.dumps(result, indent=2, sort_keys=True))  # CLI output, intentionally bypasses logger
         return 1 if summary["fail"] else 0
 
-    print(_c(_BOLD, "─" * 50))
+    print(_c(_BOLD, "─" * 50))  # CLI output, intentionally bypasses logger
     if issues:
-        print(_c(_RED, f"Found {len(issues)} issue(s):"))
+        print(_c(_RED, f"Found {len(issues)} issue(s):"))  # CLI output, intentionally bypasses logger
         for i, issue in enumerate(issues, 1):
-            print(f"  {i}. {issue}")
+            print(f"  {i}. {issue}")  # CLI output, intentionally bypasses logger
         if warnings:
-            print()
-            print(_c(_CYAN, f"Warnings ({len(warnings)}):"))
+            print()  # CLI output, intentionally bypasses logger
+            print(_c(_CYAN, f"Warnings ({len(warnings)}):"))  # CLI output, intentionally bypasses logger
             for i, warning in enumerate(warnings, 1):
-                print(f"  {i}. {warning}")
-        print()
+                print(f"  {i}. {warning}")  # CLI output, intentionally bypasses logger
+        print()  # CLI output, intentionally bypasses logger
         return 1
     if warnings:
-        print(_c(_CYAN, f"Warnings ({len(warnings)}):"))
+        print(_c(_CYAN, f"Warnings ({len(warnings)}):"))  # CLI output, intentionally bypasses logger
         for i, warning in enumerate(warnings, 1):
-            print(f"  {i}. {warning}")
-        print()
+            print(f"  {i}. {warning}")  # CLI output, intentionally bypasses logger
+        print()  # CLI output, intentionally bypasses logger
         return 0
     else:
-        print(_c(_GREEN, f"All checks passed ({len(ok_items)} OK). Waggle looks healthy."))
-        print()
+        print(  # CLI output, intentionally bypasses logger
+            _c(_GREEN, f"All checks passed ({len(ok_items)} OK). Waggle looks healthy.")
+        )
+        print()  # CLI output, intentionally bypasses logger
         return 0
 
 
@@ -5612,7 +5620,7 @@ def _run_ingest_transcript_handoff(config: AppConfig, args: argparse.Namespace) 
         output["checkpoint_path"] = result.checkpoint_path
         output["checkpoint_scope"] = result.checkpoint_scope
 
-    print(json.dumps(output, indent=2))
+    print(json.dumps(output, indent=2))  # CLI output, intentionally bypasses logger
     return 0
 
 
@@ -5635,33 +5643,33 @@ def _c(code: str, text: str) -> str:
 
 def _prompt_choice(question: str, choices: list[str]) -> str:
     """Render an arrow-key style menu (keyboard fallback: number entry)."""
-    print(f"\n{_c(_BOLD, question)}")
+    print(f"\n{_c(_BOLD, question)}")  # CLI output, intentionally bypasses logger
     for i, choice in enumerate(choices, 1):
-        print(f"  {_c(_CYAN, str(i) + '.')} {choice}")
+        print(f"  {_c(_CYAN, str(i) + '.')} {choice}")  # CLI output, intentionally bypasses logger
     while True:
         raw = input(f"  Enter number [1-{len(choices)}]: ").strip()
         if raw.isdigit() and 1 <= int(raw) <= len(choices):
             selected = choices[int(raw) - 1]
-            print(f"  {_c(_GREEN, '>')} {selected}")
+            print(f"  {_c(_GREEN, '>')} {selected}")  # CLI output, intentionally bypasses logger
             return selected
-        print(f"  {_c(_RED, 'Invalid choice, try again.')}")
+        print(f"  {_c(_RED, 'Invalid choice, try again.')}")  # CLI output, intentionally bypasses logger
 
 
 def _prompt_path(question: str, default: str) -> str:
     """Prompt for a file path, showing the default."""
-    print(f"\n{_c(_BOLD, question)}")
+    print(f"\n{_c(_BOLD, question)}")  # CLI output, intentionally bypasses logger
     raw = input(f"  [{default}]: ").strip()
     result = raw or default
-    print(f"  {_c(_GREEN, '>')} {result}")
+    print(f"  {_c(_GREEN, '>')} {result}")  # CLI output, intentionally bypasses logger
     return result
 
 
 def _ok(msg: str) -> None:
-    print(f"  {_c(_GREEN, chr(0x2705))} {msg}")
+    print(f"  {_c(_GREEN, chr(0x2705))} {msg}")  # CLI output, intentionally bypasses logger
 
 
 def _fail(msg: str) -> None:
-    print(f"  {_c(_RED, chr(0x274C))} {msg}")
+    print(f"  {_c(_RED, chr(0x274C))} {msg}")  # CLI output, intentionally bypasses logger
 
 
 def _python_exe() -> str:
@@ -6132,7 +6140,9 @@ def _run_uninstall_hooks() -> int:
     """Remove the waggle-managed hooks block from Claude Code settings."""
     result = _uninstall_claude_hooks()
     if result is None:
-        print("No Waggle hooks found in Claude Code settings (nothing to remove).")
+        print(  # CLI output, intentionally bypasses logger
+            "No Waggle hooks found in Claude Code settings (nothing to remove)."
+        )
     else:
         _ok(f"Waggle hooks removed from {result}")
     return 0
@@ -6163,13 +6173,13 @@ def _run_demo(args: argparse.Namespace) -> int:
     tmp_dir = Path(tempfile.mkdtemp(prefix="waggle-demo-"))
     demo_db = tmp_dir / "demo.db"
 
-    print()
-    print(_c(_BOLD, "waggle-mcp demo"))
-    print(_c(_CYAN, "─" * 50))
-    print(f"  graph:   {demo_abhi}")
-    print(f"  db:      {demo_db}")
-    print(f"  model:   {model_name}")
-    print()
+    print()  # CLI output, intentionally bypasses logger
+    print(_c(_BOLD, "waggle-mcp demo"))  # CLI output, intentionally bypasses logger
+    print(_c(_CYAN, "─" * 50))  # CLI output, intentionally bypasses logger
+    print(f"  graph:   {demo_abhi}")  # CLI output, intentionally bypasses logger
+    print(f"  db:      {demo_db}")  # CLI output, intentionally bypasses logger
+    print(f"  model:   {model_name}")  # CLI output, intentionally bypasses logger
+    print()  # CLI output, intentionally bypasses logger
 
     try:
         # Import the demo graph
@@ -6181,22 +6191,26 @@ def _run_demo(args: argparse.Namespace) -> int:
             enable_dedup=False,
         )
         imported = graph.import_abhi(input_path=demo_abhi, merge_strategy="skip-existing")
-        print(f"  Imported {imported.nodes_created} nodes, {imported.edges_created} edges from demo.abhi")
-        print()
+        print(  # CLI output, intentionally bypasses logger
+            f"  Imported {imported.nodes_created} nodes, {imported.edges_created} edges from demo.abhi"
+        )
+        print()  # CLI output, intentionally bypasses logger
 
         # ── Query 1: What database did we choose? ─────────────────────────────
-        print(_c(_BOLD, "Query 1: What database did we choose?"))
+        print(_c(_BOLD, "Query 1: What database did we choose?"))  # CLI output, intentionally bypasses logger
         result1 = graph.query(query="What database did we choose?", max_nodes=6, max_depth=2)
         if result1.nodes:
             for node in result1.nodes[:4]:
                 marker = "  [decision]" if node.node_type.value == "decision" else "  [note]    "
-                print(f"{marker} {node.label}")
+                print(f"{marker} {node.label}")  # CLI output, intentionally bypasses logger
         else:
-            print("  (no results)")
-        print()
+            print("  (no results)")  # CLI output, intentionally bypasses logger
+        print()  # CLI output, intentionally bypasses logger
 
         # ── Query 2: What changed about the database decision? ────────────────
-        print(_c(_BOLD, "Query 2: What changed about the database decision?"))
+        print(  # CLI output, intentionally bypasses logger
+            _c(_BOLD, "Query 2: What changed about the database decision?")
+        )
         result2 = graph.query(
             query="What changed about the database decision? contradiction superseded", max_nodes=8, max_depth=2
         )
@@ -6207,54 +6221,57 @@ def _run_demo(args: argparse.Namespace) -> int:
                 src = next((n for n in result2.nodes if n.id == edge.source_id), None)
                 tgt = next((n for n in result2.nodes if n.id == edge.target_id), None)
                 if src and tgt:
-                    print(f"  [{edge.relationship}] {src.label}")
-                    print(f"    → {tgt.label}")
+                    print(f"  [{edge.relationship}] {src.label}")  # CLI output, intentionally bypasses logger
+                    print(f"    → {tgt.label}")  # CLI output, intentionally bypasses logger
         elif result2.nodes:
             for node in result2.nodes[:3]:
-                print(f"  {node.label}")
+                print(f"  {node.label}")  # CLI output, intentionally bypasses logger
         else:
-            print("  (no results)")
-        print()
+            print("  (no results)")  # CLI output, intentionally bypasses logger
+        print()  # CLI output, intentionally bypasses logger
 
         # ── Query 3: What are our team's preferences? ─────────────────────────
-        print(_c(_BOLD, "Query 3: What are our team's preferences?"))
+        print(_c(_BOLD, "Query 3: What are our team's preferences?"))  # CLI output, intentionally bypasses logger
         result3 = graph.query(query="team preferences", max_nodes=8, max_depth=1)
         pref_nodes = [n for n in result3.nodes if n.node_type.value == "preference"]
         if pref_nodes:
             for node in pref_nodes[:3]:
-                print(f"  [preference] {node.label}")
+                print(f"  [preference] {node.label}")  # CLI output, intentionally bypasses logger
         elif result3.nodes:
             for node in result3.nodes[:3]:
-                print(f"  {node.label}")
+                print(f"  {node.label}")  # CLI output, intentionally bypasses logger
         else:
-            print("  (no results)")
-        print()
+            print("  (no results)")  # CLI output, intentionally bypasses logger
+        print()  # CLI output, intentionally bypasses logger
 
         # ── Query 4: Show decisions and their reasons ─────────────────────────
-        print(_c(_BOLD, "Query 4: Show decisions and their reasons"))
+        print(_c(_BOLD, "Query 4: Show decisions and their reasons"))  # CLI output, intentionally bypasses logger
         result4 = graph.query(query="decisions reasons why", max_nodes=10, max_depth=2)
         decision_nodes = [n for n in result4.nodes if n.node_type.value == "decision"]
         reason_edges = [e for e in result4.edges if e.relationship == "derived_from"]
         if decision_nodes:
             for dec in decision_nodes[:3]:
-                print(f"  [decision] {dec.label}")
+                print(f"  [decision] {dec.label}")  # CLI output, intentionally bypasses logger
                 # Find reason nodes connected via derived_from
                 reason_ids = {e.target_id for e in reason_edges if e.source_id == dec.id}
                 for node in result4.nodes:
                     if node.id in reason_ids:
-                        print(f"    ↳ [reason] {node.label}")
+                        print(f"    ↳ [reason] {node.label}")  # CLI output, intentionally bypasses logger
         else:
-            print("  (no results)")
-        print()
+            print("  (no results)")  # CLI output, intentionally bypasses logger
+        print()  # CLI output, intentionally bypasses logger
 
         # ── Graph Studio URL ──────────────────────────────────────────────────
         studio_url = "http://127.0.0.1:8686/graph?mode=view"
-        print(_c(_CYAN, "─" * 50))
-        print(f"  Graph Studio: {studio_url}")
-        print(f"  (run 'WAGGLE_DB_PATH={demo_db} waggle-mcp ui' to open it)")
-        print()
-        print(f"  Cleanup: rm -rf {tmp_dir}")
-        print()
+
+        print(_c(_CYAN, "─" * 50))  # CLI output, intentionally bypasses logger
+        print(f"  Graph Studio: {studio_url}")  # CLI output, intentionally bypasses logger
+        print(  # CLI output, intentionally bypasses logger
+            f"  (run 'WAGGLE_DB_PATH={demo_db} waggle-mcp ui' to open it)"
+        )
+        print()  # CLI output, intentionally bypasses logger
+        print(f"  Cleanup: rm -rf {tmp_dir}")  # CLI output, intentionally bypasses logger
+        print()  # CLI output, intentionally bypasses logger
 
     except Exception as exc:
         _fail(f"Demo failed: {exc}")
@@ -6278,14 +6295,14 @@ def _run_setup(args: argparse.Namespace) -> int:
     clients = _setup_clients_from_args(args.clients)
     hook_tools = _hook_tools_from_args(getattr(args, "hooks", "auto"), bool(getattr(args, "no_hooks", False)))
 
-    print()
-    print(_c(_BOLD, "waggle-mcp setup"))
-    print(_c(_CYAN, "─" * 40))
-    print(f"  clients: {', '.join(clients)}")
-    print(f"  database: {db_path}")
-    print(f"  model: {args.model}")
+    print()  # CLI output, intentionally bypasses logger
+    print(_c(_BOLD, "waggle-mcp setup"))  # CLI output, intentionally bypasses logger
+    print(_c(_CYAN, "─" * 40))  # CLI output, intentionally bypasses logger
+    print(f"  clients: {', '.join(clients)}")  # CLI output, intentionally bypasses logger
+    print(f"  database: {db_path}")  # CLI output, intentionally bypasses logger
+    print(f"  model: {args.model}")  # CLI output, intentionally bypasses logger
     if args.dry_run:
-        print("  mode: dry-run")
+        print("  mode: dry-run")  # CLI output, intentionally bypasses logger
         for client in clients:
             _ok(f"Would configure {client}")
         if "Claude Code" in hook_tools:
@@ -6294,7 +6311,7 @@ def _run_setup(args: argparse.Namespace) -> int:
         if args.project_instructions and "Codex" in clients:
             agents_path = (Path.cwd() / "AGENTS.md").resolve()
             _ok(f"Would write Codex automatic-memory instructions to {agents_path}")
-        print()
+        print()  # CLI output, intentionally bypasses logger
         return 0
 
     for client in clients:
@@ -6324,8 +6341,8 @@ def _run_setup(args: argparse.Namespace) -> int:
         return 1
 
     for client in clients:
-        print(f"  {_c(_CYAN, chr(0x27A1))}  {_RESTART_HINTS[client]}")
-    print()
+        print(f"  {_c(_CYAN, chr(0x27A1))}  {_RESTART_HINTS[client]}")  # CLI output, intentionally bypasses logger
+    print()  # CLI output, intentionally bypasses logger
 
     # Install automatic memory hooks for the selected hook-capable tools
     if hook_tools and not args.dry_run:
@@ -6346,7 +6363,9 @@ def _run_setup(args: argparse.Namespace) -> int:
         doctor_config.model_name = args.model
         doctor_exit = _run_doctor_command(doctor_config, args)
         if doctor_exit:
-            print(_c(_CYAN, "Setup completed; doctor reported follow-up warnings above."))
+            print(  # CLI output, intentionally bypasses logger
+                _c(_CYAN, "Setup completed; doctor reported follow-up warnings above.")
+            )
         return 0
     return 0
 
@@ -6379,9 +6398,9 @@ def _replace_model_in_client_config(config_file: Path, model_name: str) -> None:
 
 def _run_init() -> int:
     """Interactive setup wizard for waggle-mcp."""
-    print()
-    print(_c(_BOLD, "waggle-mcp setup wizard"))
-    print(_c(_CYAN, "─" * 40))
+    print()  # CLI output, intentionally bypasses logger
+    print(_c(_BOLD, "waggle-mcp setup wizard"))  # CLI output, intentionally bypasses logger
+    print(_c(_CYAN, "─" * 40))  # CLI output, intentionally bypasses logger
 
     clients = list(_CLIENT_WRITERS.keys())
     client = _prompt_choice("Which MCP client are you using?", clients)
@@ -6392,7 +6411,7 @@ def _run_init() -> int:
 
     python_exe = _python_exe()
 
-    print()
+    print()  # CLI output, intentionally bypasses logger
 
     # Write client config
     writer = _CLIENT_WRITERS[client]
@@ -6421,8 +6440,8 @@ def _run_init() -> int:
         return 1
 
     # Restart hint
-    print(f"  {_c(_CYAN, chr(0x27A1))}  {_RESTART_HINTS[client]}")
-    print()
+    print(f"  {_c(_CYAN, chr(0x27A1))}  {_RESTART_HINTS[client]}")  # CLI output, intentionally bypasses logger
+    print()  # CLI output, intentionally bypasses logger
     return 0
 
 
@@ -6461,7 +6480,7 @@ def main() -> None:
     if command == "init":
         sys.exit(_run_init())
     if command == "features":
-        print(_FEATURES_GUIDE)
+        print(_FEATURES_GUIDE)  # CLI output, intentionally bypasses logger
         return
     if command == "doctor":
         # Doctor only needs the config — not a live backend connection.

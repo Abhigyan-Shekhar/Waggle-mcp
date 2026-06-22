@@ -39,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.server_info:
         from waggle.runtime_info import server_info_json
 
-        print(server_info_json())
+        print(server_info_json())  # CLI output, intentionally bypasses logger
         return 0
 
     from waggle.config import AppConfig

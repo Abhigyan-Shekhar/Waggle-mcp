@@ -36,7 +36,7 @@ def _timeout_handler(signum: int, frame: Any) -> None:
 
 
 def _silent_exit() -> None:
-    print(json.dumps({}))
+    print(json.dumps({}))  # CLI output, intentionally bypasses logger
     sys.exit(0)
 
 
@@ -117,7 +117,7 @@ def main() -> None:
                 checkpoint_path=result.checkpoint_path,
             )
 
-        print(json.dumps({}))
+        print(json.dumps({}))  # CLI output, intentionally bypasses logger
 
     except (TimeoutError, Exception):
         _silent_exit()
