@@ -16,9 +16,7 @@ def test_resolve_drive_file_id_direct_id(mock_credentials):
     # Length >= 20, no slash, no space, should resolve directly
     ref = "abcdefghijklmnopqrstuvwxyz"
     with patch("waggle.drive_sync.build_drive_service") as mock_build:
-        file_id, name = resolve_drive_file_id(
-            file_ref=ref, credentials=mock_credentials
-        )
+        file_id, name = resolve_drive_file_id(file_ref=ref, credentials=mock_credentials)
         assert file_id == ref
         assert name == ""
         mock_build.assert_not_called()
@@ -45,9 +43,7 @@ def test_resolve_drive_file_id_filename_lookup(mock_build, mock_credentials):
     mock_list_request = MagicMock()
     mock_service.files.return_value = mock_files
     mock_files.list.return_value = mock_list_request
-    mock_list_request.execute.return_value = {
-        "files": [{"id": "file123", "name": "my file.txt"}]
-    }
+    mock_list_request.execute.return_value = {"files": [{"id": "file123", "name": "my file.txt"}]}
 
     file_id, name = resolve_drive_file_id(file_ref=ref, credentials=mock_credentials)
 
@@ -62,9 +58,7 @@ def test_resolve_drive_file_id_filename_lookup(mock_build, mock_credentials):
 
 
 @patch("waggle.drive_sync.build_drive_service")
-def test_resolve_drive_file_id_filename_lookup_with_folder_id(
-    mock_build, mock_credentials
-):
+def test_resolve_drive_file_id_filename_lookup_with_folder_id(mock_build, mock_credentials):
     ref = "my file.txt"
     mock_service = MagicMock()
     mock_build.return_value = mock_service
@@ -73,13 +67,9 @@ def test_resolve_drive_file_id_filename_lookup_with_folder_id(
     mock_list_request = MagicMock()
     mock_service.files.return_value = mock_files
     mock_files.list.return_value = mock_list_request
-    mock_list_request.execute.return_value = {
-        "files": [{"id": "file123", "name": "my file.txt"}]
-    }
+    mock_list_request.execute.return_value = {"files": [{"id": "file123", "name": "my file.txt"}]}
 
-    file_id, name = resolve_drive_file_id(
-        file_ref=ref, credentials=mock_credentials, folder_id="folder-999"
-    )
+    file_id, name = resolve_drive_file_id(file_ref=ref, credentials=mock_credentials, folder_id="folder-999")
 
     assert file_id == "file123"
     assert name == "my file.txt"
@@ -100,9 +90,7 @@ def test_resolve_drive_file_id_escapes_single_quotes(mock_build, mock_credential
     mock_list_request = MagicMock()
     mock_service.files.return_value = mock_files
     mock_files.list.return_value = mock_list_request
-    mock_list_request.execute.return_value = {
-        "files": [{"id": "file456", "name": "O'Connor's File.txt"}]
-    }
+    mock_list_request.execute.return_value = {"files": [{"id": "file456", "name": "O'Connor's File.txt"}]}
 
     file_id, name = resolve_drive_file_id(file_ref=ref, credentials=mock_credentials)
 
@@ -117,9 +105,7 @@ def test_resolve_drive_file_id_escapes_single_quotes(mock_build, mock_credential
 
 
 @patch("waggle.drive_sync.build_drive_service")
-def test_resolve_drive_file_id_not_found_raises_value_error(
-    mock_build, mock_credentials
-):
+def test_resolve_drive_file_id_not_found_raises_value_error(mock_build, mock_credentials):
     ref = "nonexistent.txt"
     mock_service = MagicMock()
     mock_build.return_value = mock_service
@@ -130,9 +116,7 @@ def test_resolve_drive_file_id_not_found_raises_value_error(
     mock_files.list.return_value = mock_list_request
     mock_list_request.execute.return_value = {"files": []}
 
-    with pytest.raises(
-        ValueError, match=r"No Drive file found for 'nonexistent\.txt'\."
-    ):
+    with pytest.raises(ValueError, match=r"No Drive file found for 'nonexistent\.txt'\."):
         resolve_drive_file_id(file_ref=ref, credentials=mock_credentials)
 
 
