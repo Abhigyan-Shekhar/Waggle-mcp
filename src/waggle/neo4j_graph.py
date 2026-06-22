@@ -3364,6 +3364,7 @@ def update_node(
             tags=list(props.get("tags") or []),
             source_prompt=props.get("source_prompt") or "",
             evidence_records=_decode_evidence_records(props.get("evidence_records")),
+            metadata=_decode_metadata(props.get("metadata")),
             valid_from=_parse_datetime(props["valid_from"]) if props.get("valid_from") else None,
             valid_to=_parse_datetime(props["valid_to"]) if props.get("valid_to") else None,
             created_at=_parse_datetime(props["created_at"]),
