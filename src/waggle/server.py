@@ -94,6 +94,7 @@ from waggle.recursive_context import (
 )
 from waggle.runtime_context import runtime_context
 from waggle.runtime_info import SERVER_NAME, WAGGLE_SERVER_INFO
+from waggle.secure_temp import secure_temp_path, write_secure_temp
 from waggle.serializer import (
     serialize_abhi_chunk_load,
     serialize_abhi_inspect,
@@ -3646,13 +3647,12 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         content = str(payload.get("content", ""))
         content_base64 = str(payload.get("content_base64", ""))
         suffix = ".abhi" if import_format == "abhi" else ".json"
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
-            temp_path = Path(handle.name)
+        if import_format == "abhi" and content_base64:
+            data = base64.b64decode(content_base64)
+        else:
+            data = content.encode("utf-8")
+        temp_path = write_secure_temp(data, suffix=suffix)
         try:
-            if import_format == "abhi" and content_base64:
-                temp_path.write_bytes(base64.b64decode(content_base64))
-            else:
-                temp_path.write_text(content, encoding="utf-8")
             graph, _ = _require_http_scope(request, "graph:write")
             imported_node_ids: list[str] = []
             if import_format == "abhi":
@@ -3683,13 +3683,12 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         content = str(payload.get("content", ""))
         content_base64 = str(payload.get("content_base64", ""))
         suffix = ".abhi" if import_format == "abhi" else ".json"
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
-            temp_path = Path(handle.name)
+        if import_format == "abhi" and content_base64:
+            data = base64.b64decode(content_base64)
+        else:
+            data = content.encode("utf-8")
+        temp_path = write_secure_temp(data, suffix=suffix)
         try:
-            if import_format == "abhi" and content_base64:
-                temp_path.write_bytes(base64.b64decode(content_base64))
-            else:
-                temp_path.write_text(content, encoding="utf-8")
             graph, _ = _require_http_scope(request, "graph:read")
             if import_format == "abhi":
                 validation = graph.validate_abhi(input_path=temp_path)
@@ -3740,19 +3739,21 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         content_b = str(payload.get("content_b", ""))
         content_a_base64 = str(payload.get("content_a_base64", ""))
         content_b_base64 = str(payload.get("content_b_base64", ""))
-        with tempfile.NamedTemporaryFile(suffix=".abhi", delete=False) as handle_a:
-            path_a = Path(handle_a.name)
-        with tempfile.NamedTemporaryFile(suffix=".abhi", delete=False) as handle_b:
-            path_b = Path(handle_b.name)
+        if content_a_base64:
+            data_a = base64.b64decode(content_a_base64)
+        else:
+            data_a = content_a.encode("utf-8")
+        if content_b_base64:
+            data_b = base64.b64decode(content_b_base64)
+        else:
+            data_b = content_b.encode("utf-8")
+        path_a = write_secure_temp(data_a, suffix=".abhi")
         try:
-            if content_a_base64:
-                path_a.write_bytes(base64.b64decode(content_a_base64))
-            else:
-                path_a.write_text(content_a, encoding="utf-8")
-            if content_b_base64:
-                path_b.write_bytes(base64.b64decode(content_b_base64))
-            else:
-                path_b.write_text(content_b, encoding="utf-8")
+            path_b = write_secure_temp(data_b, suffix=".abhi")
+        except BaseException:
+            path_a.unlink(missing_ok=True)
+            raise
+        try:
             graph, _ = _require_http_scope(request, "graph:read")
             diff = graph.diff_abhi(input_path_a=path_a, input_path_b=path_b)
             snapshot_a = abhi_to_snapshot(load_abhi_document(path_a), fallback_tenant_id=graph.tenant_id)
@@ -4786,20 +4787,18 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             export_dir=config.export_dir,
         )
         target = backend.for_tenant(args.tenant_id)
-        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as handle:
-            temp_path = Path(handle.name)
-        backup = source.export_graph_backup(output_path=temp_path)
-        imported = target.import_graph_backup(input_path=temp_path)
-        print(
-            json.dumps(
-                {
-                    "backup": backup.model_dump(),
-                    "import": imported.model_dump(),
-                },
-                indent=2,
+        with secure_temp_path(suffix=".json") as temp_path:
+            backup = source.export_graph_backup(output_path=temp_path)
+            imported = target.import_graph_backup(input_path=temp_path)
+            print(
+                json.dumps(
+                    {
+                        "backup": backup.model_dump(),
+                        "import": imported.model_dump(),
+                    },
+                    indent=2,
+                )
             )
-        )
-        temp_path.unlink(missing_ok=True)
         return 0
     if args.command == "export":
         _assert_export_safe(
@@ -5142,6 +5141,7 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     issues: list[str] = []
     warnings: list[str] = []
     ok_items: list[str] = []
+    checks: dict[str, dict[str, Any]] = {}
 
     def emit(*args: object, **kwargs: object) -> None:
         if not json_output:
@@ -5162,13 +5162,11 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     # ── 1. Config file locations ─────────────────────────────────────────────
     emit(_c(_BOLD, "\n[1] MCP client config files"))
     waggle_found_in: list[str] = []
-    config_files_data = []
     for label, template in _KNOWN_CONFIG_PATHS:
         raw = template.replace("%APPDATA%", os.environ.get("APPDATA", "")).replace("%USERPROFILE%", str(Path.home()))
         path = Path(raw).expanduser()
         exists = path.exists()
         has_waggle = False
-        parsed = False
         if exists:
             try:
                 raw_text = path.read_text(encoding="utf-8", errors="replace")
@@ -5178,7 +5176,6 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
                     data = json.loads(raw_text)
                     servers = data.get("mcpServers", data.get("tools", {}) if isinstance(data, dict) else {})
                     has_waggle = isinstance(servers, dict) and "waggle" in servers
-                parsed = True
                 if has_waggle:
                     waggle_found_in.append(label)
                     ok(f"{label}\n     {path}  [waggle entry found]")
@@ -5197,27 +5194,18 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
         ):
             emit(f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [not found]")
 
-        is_plausible = (
-            exists
-            or (
-                sys.platform == "darwin"
-                and ("macOS" in label or "Cursor" in label or "Antigravity" in label or "Codex" in label)
-            )
-            or (sys.platform == "win32" and "Windows" in label)
-            or (sys.platform.startswith("linux") and ("Linux" in label or "Cursor" in label))
-        )
-        if exists or is_plausible:
-            config_files_data.append(
-                {"label": label, "path": str(path), "exists": exists, "has_waggle": has_waggle, "parsed": parsed}
-            )
-
     if not waggle_found_in:
         issues.append(
             "No MCP client config file contains a 'waggle' server entry. "
             "Run 'waggle-mcp setup --yes' to create one, or add it manually."
         )
+        checks["mcp_config"] = {
+            "status": "fail",
+            "reason": "No MCP client config file contains a 'waggle' server entry.",
+        }
     else:
         ok_items.append(f"Waggle found in: {', '.join(waggle_found_in)}")
+        checks["mcp_config"] = {"status": "ok", "found_in": waggle_found_in}
 
     # ── 2. DB path ───────────────────────────────────────────────────────────
     emit(_c(_BOLD, "\n[2] Database path"))
@@ -5228,12 +5216,18 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     if db_exists:
         ok(f"DB file exists: {db_path}")
         ok_items.append("DB file found")
+        checks["db_connection"] = {"status": "ok", "path": str(db_path)}
     elif db_dir_exists:
         ok(f"DB directory exists (file will be created on first run): {db_path}")
         ok_items.append("DB directory writable")
+        checks["db_connection"] = {"status": "ok", "path": str(db_path)}
     else:
         issues.append(f"DB directory does not exist: {db_dir}. Create it with: mkdir -p <dir>")
         fail(f"DB directory missing: {db_dir}")
+        checks["db_connection"] = {
+            "status": "fail",
+            "reason": f"DB directory does not exist: {db_dir}. Create it with: mkdir -p <dir>",
+        }
 
     # ── 3. Embedding model ───────────────────────────────────────────────────
     emit(_c(_BOLD, "\n[3] Embedding model"))
@@ -5250,6 +5244,7 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     if is_deterministic:
         ok(f"Model: {model_name!r}  (deterministic — no download, always offline-safe)")
         ok_items.append("Deterministic model — no download needed")
+        checks["embedding_model"] = {"status": "ok", "model_id": model_name}
     else:
         # Heuristic: look for a cached sentence-transformers directory
         safe_name = model_name.replace("/", "_").replace("\\", "_")
@@ -5262,6 +5257,7 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
         if is_cached:
             ok(f"Model: {model_name!r}  (cached locally — fast startup)")
             ok_items.append("Embedding model cached")
+            checks["embedding_model"] = {"status": "ok", "model_id": model_name}
         else:
             emit(
                 f"  {_c(_CYAN, chr(0x2139))} Model: {model_name!r}  — NOT found in local cache.\n"
@@ -5269,17 +5265,17 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
                 f"    To avoid: set WAGGLE_MODEL=deterministic, or pre-download with:\n"
                 f"      python -c \"from sentence_transformers import SentenceTransformer; SentenceTransformer('{model_name}')\""
             )
-            warnings.append(
+            reason = (
                 f"Embedding model '{model_name}' not found in cache. "
                 "First semantic call will block for a network download. "
                 "Set WAGGLE_MODEL=deterministic for offline-safe mode."
             )
+            warnings.append(reason)
+            checks["embedding_model"] = {"status": "warn", "model_id": model_name, "reason": reason}
 
-    embedding_model_data = {"model_name": model_name, "cached": is_cached, "deterministic": is_deterministic}
-
-    # ── 4. WAGGLE_STARTUP_MODE ───────────────────────────────────────────────
+    # ── 4. Embedding store ───────────────────────────────────────────────────
     emit(_c(_BOLD, "\n[4] Embedding store"))
-    embedding_store_data = None
+    checks["graph_schema"] = {"status": "ok"}
     try:
         graph = _default_graph(config)
         if isinstance(graph, MemoryGraph):
@@ -5292,6 +5288,50 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
                 )
                 ok_items.append("Stale embeddings re-embedded")
                 store_health = graph.get_embedding_store_health()
+
+            checksum_failures = (
+                store_health["node_checksum_failures"]
+                + store_health["transcript_checksum_failures"]
+                + store_health["window_checksum_failures"]
+            )
+            if fix and checksum_failures:
+                cleared = graph.clear_corrupt_embeddings()
+                rebuilt = graph.reembed_stale_embeddings(batch_size=100)
+                windows_rebuilt = graph.recompute_stale_window_embeddings()
+                ok(
+                    "Cleared corrupt embeddings: "
+                    f"{cleared['transcript_records']} transcript, {cleared['nodes']} node, "
+                    f"{cleared['context_windows']} window rows; rebuilt "
+                    f"{rebuilt['transcript_rows_updated']} transcript, {rebuilt['node_rows_updated']} node and "
+                    f"{windows_rebuilt} window embeddings."
+                )
+                ok_items.append("Corrupt embeddings cleared and rebuilt")
+                store_health = graph.get_embedding_store_health()
+                checksum_failures = (
+                    store_health["node_checksum_failures"]
+                    + store_health["transcript_checksum_failures"]
+                    + store_health["window_checksum_failures"]
+                )
+            if fix and store_health["window_stale_rows"]:
+                # Repair stale window embeddings even when nothing failed its checksum
+                # (membership changes flag windows stale without corrupting anything);
+                # the corrupt-clear path above only runs on failures.
+                windows_rebuilt = graph.recompute_stale_window_embeddings()
+                ok(f"Recomputed stale context-window embeddings: {windows_rebuilt} window rows.")
+                if windows_rebuilt:
+                    ok_items.append("Stale context-window embeddings recomputed")
+                store_health = graph.get_embedding_store_health()
+                checksum_failures = (
+                    store_health["node_checksum_failures"]
+                    + store_health["transcript_checksum_failures"]
+                    + store_health["window_checksum_failures"]
+                )
+
+            legacy_rows = (
+                store_health["node_legacy_rows"]
+                + store_health["transcript_legacy_rows"]
+                + store_health["window_legacy_rows"]
+            )
             transcript_models = store_health["transcript_model_counts"]
             node_models = store_health["node_model_counts"]
             emit(f"  Current model id: {store_health['current_model_id']}")
@@ -5299,25 +5339,75 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
             emit(f"  Node model ids: {node_models or '{}'}")
             emit(f"  Stale transcript rows: {store_health['transcript_stale_rows']}")
             emit(f"  Stale node rows: {store_health['node_stale_rows']}")
+
+            store_status = "ok"
+            store_reason: str | None = None
             if store_health["mixed_models"]:
                 issues.append("Mixed embedding_model_id values detected in the store.")
                 fail("Mixed embedding model IDs detected across transcript_records/nodes.")
+                store_status = "fail"
+                store_reason = "Mixed embedding_model_id values detected across transcript_records/nodes."
             else:
                 ok("Store model IDs are consistent.")
                 ok_items.append("Embedding store model IDs consistent")
 
-            embedding_store_data = {
+            if checksum_failures:
+                issues.append(f"{checksum_failures} embedding row(s) fail the integrity checksum (corruption).")
+                fail(
+                    "Embedding checksum failures: "
+                    f"{store_health['transcript_checksum_failures']} transcript rows, "
+                    f"{store_health['node_checksum_failures']} node rows, "
+                    f"{store_health['window_checksum_failures']} window rows. "
+                    "Run 'waggle-mcp doctor --fix' to clear and rebuild them."
+                )
+                store_status = "fail"
+                if store_reason is None:
+                    store_reason = f"{checksum_failures} embedding row(s) fail the integrity checksum (corruption)."
+            elif legacy_rows:
+                emit("  No checksum failures in checksummed rows; legacy rows cannot be checksum-verified yet.")
+                warnings.append(
+                    f"{legacy_rows} embedding row(s) use the legacy pre-checksum format "
+                    "and cannot be checksum-verified until rewritten."
+                )
+                if store_status == "ok":
+                    store_status = "warn"
+                    store_reason = (
+                        f"{legacy_rows} embedding row(s) use the legacy pre-checksum format "
+                        "and cannot be checksum-verified until rewritten."
+                    )
+            else:
+                ok("All stored embeddings pass the integrity checksum.")
+                ok_items.append("Embedding checksums verified")
+            if legacy_rows:
+                emit(
+                    "  Pre-checksum (legacy) rows: "
+                    f"{store_health['transcript_legacy_rows']} transcript, {store_health['node_legacy_rows']} node, "
+                    f"{store_health['window_legacy_rows']} window (upgraded automatically on next write)."
+                )
+
+            graph_schema_check: dict[str, Any] = {
+                "status": store_status,
                 "current_model_id": store_health["current_model_id"],
                 "transcript_model_counts": transcript_models,
                 "node_model_counts": node_models,
                 "transcript_stale_rows": store_health["transcript_stale_rows"],
                 "node_stale_rows": store_health["node_stale_rows"],
+                "window_stale_rows": store_health["window_stale_rows"],
                 "mixed_models": store_health["mixed_models"],
+                "checksum_failures": checksum_failures,
+                "transcript_checksum_failures": store_health["transcript_checksum_failures"],
+                "node_checksum_failures": store_health["node_checksum_failures"],
+                "window_checksum_failures": store_health["window_checksum_failures"],
+                "legacy_rows": legacy_rows,
             }
+            if store_reason is not None:
+                graph_schema_check["reason"] = store_reason
+            checks["graph_schema"] = graph_schema_check
     except Exception as exc:
         message = f"Embedding store check failed: {type(exc).__name__}: {exc}"
         issues.append(message)
         fail(message)
+        checks["graph_schema"] = {"status": "fail", "reason": message}
 
     # ── 5. WAGGLE_STARTUP_MODE ───────────────────────────────────────────────
     emit(_c(_BOLD, "\n[5] Startup mode"))
@@ -5325,15 +5415,17 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     if config.is_fast_mode:
         ok("fast mode: zero ML overhead. Schema/tool listing only. Semantic tools return 'unavailable'.")
         ok_items.append("Startup mode: fast")
+        checks["startup_mode"] = {"status": "ok", "mode": "fast"}
     elif config.is_strict_mode:
         ok("strict mode: server blocks on startup until embedding model is ready.")
         ok_items.append("Startup mode: strict")
+        checks["startup_mode"] = {"status": "ok", "mode": "strict"}
     else:
         ok("normal mode: embedding loads in background. First semantic call may wait up to ~30 s.")
         ok_items.append("Startup mode: normal")
+        checks["startup_mode"] = {"status": "ok", "mode": "normal"}
 
     # ── 6. Windows stdout encoding ───────────────────────────────────────────
-    stdout_encoding_data = None
     if sys.platform == "win32":
         emit(_c(_BOLD, "\n[6] Windows stdout encoding"))
         enc = getattr(sys.stdout, "encoding", "unknown")
@@ -5341,6 +5433,7 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
         if is_utf8:
             ok(f"stdout encoding: {enc}")
             ok_items.append("Windows stdout is UTF-8")
+            checks["stdout_encoding"] = {"status": "ok", "encoding": enc}
         else:
             fail(
                 f"stdout encoding is {enc!r} (not UTF-8). "
@@ -5348,8 +5441,11 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
                 "    Fix: run with 'python -X utf8' or add at script top:\n"
                 "      import sys; sys.stdout.reconfigure(encoding='utf-8')"
             )
-            issues.append(f"Windows stdout encoding is {enc!r} — set PYTHONUTF8=1 or use python -X utf8.")
-        stdout_encoding_data = {"encoding": enc, "is_utf8": is_utf8}
+            reason = f"Windows stdout encoding is {enc!r} — set PYTHONUTF8=1 or use python -X utf8."
+            issues.append(reason)
+            checks["stdout_encoding"] = {"status": "fail", "encoding": enc, "reason": reason}
+    else:
+        checks["stdout_encoding"] = {"status": "ok"}
 
     # ── 7. Known gotchas ─────────────────────────────────────────────────────
     emit(_c(_BOLD, "\n[7] Known API gotchas"))
@@ -5357,26 +5453,16 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
 
     # ── Summary ──────────────────────────────────────────────────────────────
     if json_output:
-        status = "issues_found" if issues else "warnings" if warnings else "ok"
+        summary = {"ok": 0, "warn": 0, "fail": 0}
+        for check in checks.values():
+            summary[check["status"]] += 1
         result = {
-            "schema_version": 1,
-            "platform": sys.platform,
-            "status": status,
-            "issues": issues,
-            "warnings": warnings,
-            "successful_checks": ok_items,
-            "fix_requested": bool(fix),
-            # Detailed audit trail fields:
-            "ok": not issues,
-            "config_files": config_files_data,
-            "database": {"path": str(db_path), "exists": db_exists, "parent_exists": db_dir_exists},
-            "embedding_model": embedding_model_data,
-            "embedding_store": embedding_store_data,
-            "startup_mode": config.startup_mode,
-            "stdout_encoding": stdout_encoding_data,
+            "version": __version__,
+            "checks": checks,
+            "summary": summary,
         }
         print(json.dumps(result, indent=2, sort_keys=True))
-        return 1 if issues else 0
+        return 1 if summary["fail"] else 0
 
     print(_c(_BOLD, "─" * 50))
     if issues:

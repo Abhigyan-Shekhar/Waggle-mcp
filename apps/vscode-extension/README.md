@@ -41,6 +41,68 @@ Use Waggle when you want coding agents in VS Code to remember:
 4. Reload VS Code if your MCP consumer requires it
 5. Waggle runs `doctor` as part of setup
 
+## Settings
+
+| Setting                 | Default   | Description                                    |
+| ----------------------- | --------- | ---------------------------------------------- |
+| `waggle.mcpConfigScope` | `servers` | Root key used when creating `.vscode/mcp.json` |
+
+### `waggle.mcpConfigScope`
+
+Controls which root key the extension uses when creating a new `.vscode/mcp.json`.
+
+Supported values:
+
+* `servers` (default) — Use the VS Code MCP configuration format.
+* `mcpServers` — Use the legacy MCP configuration format expected by some tools.
+
+If `.vscode/mcp.json` already contains a `servers` or `mcpServers` object, the extension follows
+
+the existing file and ignores this setting.
+
+This setting is mainly used when creating a new `.vscode/mcp.json` file.
+
+### `.vscode/mcp.json` merge behavior
+
+When you run **Waggle: Enable for this Workspace**, the extension merges the Waggle configuration into the existing `.vscode/mcp.json` file instead of overwriting unrelated MCP servers.
+
+Process:
+
+1. Read the existing `.vscode/mcp.json`.
+2. Determine whether `servers` or `mcpServers` should be used.
+3. Preserve existing server entries.
+4. Add or update only the `waggle` entry.
+5. Write the updated configuration back to disk.
+
+Example:
+
+Before:
+
+```json
+{
+  "servers": {
+    "github": {
+      "type": "http"
+    }
+  }
+}
+```
+
+After:
+
+```json
+{
+  "servers": {
+    "github": {
+      "type": "http"
+    },
+    "waggle": {
+      "type": "stdio"
+    }
+  }
+}
+```
+
 ## Commands
 
 - `Waggle: Enable for this Workspace`

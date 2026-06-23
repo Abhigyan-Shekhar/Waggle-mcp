@@ -94,6 +94,15 @@ Quick checklist:
 
 Repository labels are defined in [`.github/labels.yml`](./.github/labels.yml) and synced with [`scripts/sync_github_labels.py`](./scripts/sync_github_labels.py). Use `--dry-run` first before changing live labels.
 
+To prevent contributor docs from referencing renamed or deleted labels, the repository has an automated drift checker:
+```bash
+python scripts/check_label_refs.py
+```
+If you rename or remove a label:
+1. Run the script to detect mismatching references in `CONTRIBUTING.md` and `docs/good-first-issues.md`.
+2. Update the document references to match the new label names.
+3. Commit and push the changes. The check runs automatically on pull requests.
+
 ---
 
 ## Project Architecture

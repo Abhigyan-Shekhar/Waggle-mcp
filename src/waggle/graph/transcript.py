@@ -1010,7 +1010,7 @@ class TranscriptMixin(MemoryGraphBase):
                 record.turn_index,
                 record.role,
                 record.transcript_text,
-                self.embedding_model.to_bytes(embedding),
+                self._encode_embedding(embedding),
                 record.embedding_model_id,
                 record.embedding_dim,
                 record.content_hash,
