@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "waggle-memory",
   "display_name": "Waggle: Local Memory for AI Agents",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Local graph memory for coding agents using MCP. Persistent repo decisions, constraints, corrections, contradictions, and session context across chats.",
   "long_description": "Waggle gives coding agents persistent repo memory without requiring a cloud account or API key. It stores decisions, reasons, constraints, corrections, contradictions, and transcript-backed context locally, then exposes that memory through MCP tools for priming, retrieval, observation, export, and inspection workflows.",
   "author": {
@@ -16,11 +16,19 @@
   "documentation": "https://github.com/Abhigyan-Shekhar/Waggle-mcp/tree/main/docs/install",
   "support": "https://github.com/Abhigyan-Shekhar/Waggle-mcp/issues",
   "icon": "icon.png",
-  "keywords": ["memory", "mcp", "coding-agents", "local-first"],
+  "keywords": [
+    "memory",
+    "mcp",
+    "coding-agents",
+    "local-first"
+  ],
   "license": "Apache-2.0",
   "compatibility": {
     "claude_desktop": ">=0.9.0",
-    "platforms": ["darwin", "win32"],
+    "platforms": [
+      "darwin",
+      "win32"
+    ],
     "runtimes": {
       "python": ">=3.11"
     }

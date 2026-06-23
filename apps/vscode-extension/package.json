@@ -154,7 +154,10 @@
         "waggle.mcpConfigScope": {
           "type": "string",
           "default": "servers",
-          "enum": ["servers", "mcpServers"],
+          "enum": [
+            "servers",
+            "mcpServers"
+          ],
           "description": "Root key to use when writing .vscode/mcp.json."
         }
       }
