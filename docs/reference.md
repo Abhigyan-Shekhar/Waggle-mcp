@@ -294,6 +294,10 @@ Automation and bug reports can request structured output:
 ```bash
 waggle-mcp doctor --json
 ```
+For detailed JSON output examples and troubleshooting guidance, see:
+
+* [Doctor Output Reference](./doctor-output.md)
+
 
 `--json` (alias `--as-json`) suppresses the human-readable report and prints a single JSON object to stdout. The exit code is unchanged: `0` if no check has status `fail`, `1` otherwise.
 

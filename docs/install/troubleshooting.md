@@ -1,5 +1,11 @@
 # Troubleshooting
 
+## Related Documentation
+
+For a complete reference of `waggle-mcp doctor --json` output fields, example responses, and troubleshooting guidance, see:
+
+* [Doctor Output Reference](../doctor-output.md)
+
 ## `waggle-mcp: command not found`
 
 Install with `pipx install waggle-mcp`, then run `pipx ensurepath` and restart your shell.
