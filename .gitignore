@@ -30,13 +30,11 @@ docs/briefing.md
 docs/evaluation-plan.md
 docs/context_assembly_failure_analysis.json
 docs/context-handoff-dogfood.md
-graph-ui/node_modules/
-apps/mcp/graph-ui/node_modules/
+node_modules/
 graph-ui/dist/
 graph-ui/screenshots-*.png
 graph-ui/shot-*.png
 graph-ui/sample-preview.html
-packages/*/node_modules/
 packages/*/dist/
 packages/**/*.vsix
 packages/**/*.mcpb
