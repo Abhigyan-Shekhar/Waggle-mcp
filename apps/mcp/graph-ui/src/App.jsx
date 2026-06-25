@@ -936,65 +936,72 @@ export function App() {
             ) : null}
           </Section>
 
-          <Section title="Performance Demo">
-            <button
-              onClick={() => {
-                const dummyRecords = Array.from({ length: 5000 }, (_, i) => ({
-                  id: `dummy-${i}`,
-                  session_id: `session-${Math.floor(i / 10)}`,
-                  project: "Performance Test",
-                  agent_id: `agent-${i % 3}`,
-                  turn_index: i,
-                  role: i % 2 === 0 ? "user" : "assistant",
-                  transcript_text: `Dummy transcript message number ${i} for performance testing virtualization rendering in Graph Studio.`,
-                  observed_at: new Date(Date.now() - i * 60000).toISOString()
-                }));
-                const dummyRetrieval = {
-                  debug: {
-                    flat_top_nodes: Array.from({ length: 500 }, (_, i) => ({
-                      node_id: `dummy-node-${i}`,
-                      label: `Dummy Node ${i}`,
-                      final_score: 0.95 - i * 0.001,
-                      similarity_score: 0.85 - i * 0.001,
-                      recency_score: 0.9 - i * 0.001
-                    })),
-                    all_windows: Array.from({ length: 200 }, (_, i) => ({
-                      window_id: `dummy-w-${i}`,
-                      session_id: `session-${i}`,
-                      routing_score: 0.9 - i * 0.002,
-                      recency: 0.8,
-                      similarity: 0.7,
-                      title: `Window ${i}`
-                    }))
-                  },
-                  replay_hits: Array.from({ length: 1000 }, (_, i) => ({
-                    score: 0.95 - i * 0.0005,
-                    session_id: `session-${i}`,
+          {boot.sampleMode ? (
+            <Section title="Performance Demo">
+              <button
+                onClick={() => {
+                  const dummyRecords = Array.from({ length: 5000 }, (_, i) => ({
+                    id: `dummy-${i}`,
+                    session_id: `session-${Math.floor(i / 10)}`,
+                    project: "Performance Test",
+                    agent_id: `agent-${i % 3}`,
                     turn_index: i,
                     role: i % 2 === 0 ? "user" : "assistant",
-                    transcript_snippet: `Dummy replay hit number ${i} snippet text for performance demo.`
-                  })),
-                  fusion_hits: Array.from({ length: 1500 }, (_, i) => ({
-                    content: `Dummy Fusion Item ${i}`,
-                    score: 0.95 - i * 0.0005,
-                    source_lane: i % 2 === 0 ? "graph" : "replay",
-                    fused_rank: i + 1,
-                    reasoning: `Dummy fused ranking result reasoning for item index ${i}.`
-                  })),
-                  token_estimate: 154000
-                };
-                
-                setTranscriptRecords(dummyRecords);
-                setTranscriptTotalCount(5000);
-                setRetrievalResult(dummyRetrieval);
-                setToast("Loaded 5,000 dummy transcripts & 1,500 retrieval hits!");
-              }}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 transition"
-              type="button"
-            >
-              Simulate 5,000 records scale
-            </button>
-          </Section>
+                    transcript_text: `Dummy transcript message number ${i} for performance testing virtualization rendering in Graph Studio.`,
+                    observed_at: new Date(Date.now() - i * 60000).toISOString()
+                  }));
+                  const dummyRetrieval = {
+                    debug: {
+                      flat_top_nodes: Array.from({ length: 500 }, (_, i) => ({
+                        node_id: `dummy-node-${i}`,
+                        label: `Dummy Node ${i}`,
+                        final_score: 0.95 - i * 0.001,
+                        similarity_score: 0.85 - i * 0.001,
+                        recency_score: 0.9 - i * 0.001
+                      })),
+                      all_windows: Array.from({ length: 200 }, (_, i) => ({
+                        window_id: `dummy-w-${i}`,
+                        session_id: `session-${i}`,
+                        routing_score: 0.9 - i * 0.002,
+                        recency: 0.8,
+                        similarity: 0.7,
+                        title: `Window ${i}`
+                      }))
+                    },
+                    replay_hits: Array.from({ length: 1000 }, (_, i) => ({
+                      score: 0.95 - i * 0.0005,
+                      session_id: `session-${i}`,
+                      turn_index: i,
+                      role: i % 2 === 0 ? "user" : "assistant",
+                      transcript_snippet: `Dummy replay hit number ${i} snippet text for performance demo.`
+                    })),
+                    fusion_hits: Array.from({ length: 1500 }, (_, i) => ({
+                      content: `Dummy Fusion Item ${i}`,
+                      score: 0.95 - i * 0.0005,
+                      source_lane: i % 2 === 0 ? "graph" : "replay",
+                      fused_rank: i + 1,
+                      reasoning: `Dummy fused ranking result reasoning for item index ${i}.`
+                    })),
+                    token_estimate: 154000
+                  };
+                  
+                  // Reset search/filter states to ensure dummy dataset renders properly
+                  setTranscriptSearch("");
+                  setTranscriptHits([]);
+                  setFilters({ search: "", tags: [], sessions: [], sources: [], agents: [], projects: [], dateRange: "all" });
+                  
+                  setTranscriptRecords(dummyRecords);
+                  setTranscriptTotalCount(5000);
+                  setRetrievalResult(dummyRetrieval);
+                  setToast("Loaded 5,000 dummy transcripts & 1,500 retrieval hits!");
+                }}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 transition"
+                type="button"
+              >
+                Simulate 5,000 records scale
+              </button>
+            </Section>
+          ) : null}
 
           <Section title="Scope">
             <div className="space-y-2">
@@ -1128,7 +1135,7 @@ export function App() {
               </div>
               <VirtualList
                 items={transcriptItems}
-                keyExtractor={(item, index) => item.isLoadMore ? "load-more" : `${item.session_id}:${item.turn_index}:${item.role}`}
+                keyExtractor={(item, index) => item.isLoadMore ? "load-more" : (item.id || `${item.session_id || "s"}:${item.turn_index ?? index}:${item.role || "r"}`)}
                 className="flex-1 p-4 scrollbar-thin"
                 renderItem={(item) => {
                   if (item.isLoadMore) {
