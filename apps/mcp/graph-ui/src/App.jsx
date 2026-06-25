@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { VirtualList } from "./VirtualList";
 import { AnimatePresence, motion } from "framer-motion";
 import Cytoscape from "cytoscape";
 import coseBilkent from "cytoscape-cose-bilkent";
@@ -870,6 +871,13 @@ export function App() {
         return true;
       });
 
+  const transcriptItems = useMemo(() => {
+    if (!transcriptSearch.trim() && transcriptTotalCount > transcriptRecords.length) {
+      return [...visibleTranscriptRecords, { isLoadMore: true }];
+    }
+    return visibleTranscriptRecords;
+  }, [visibleTranscriptRecords, transcriptSearch, transcriptTotalCount, transcriptRecords.length]);
+
   const selectedGraphNode = graph.nodes.find((node) => node.id === selectedNodeId) || null;
   const selectedPair = transcriptPairs.find((pair) => pair.id === selectedNodeId) || null;
   const nodeEdges = selectedGraphNode ? buildNodeEdgeList(selectedGraphNode.id, graph) : [];
@@ -879,6 +887,8 @@ export function App() {
   const diffPayload = abhiDiff?.payload?.diff || {};
   const nodeDiffRecords = diffPayload.node_records || diffPayload.nodes || [];
   const edgeDiffRecords = diffPayload.edge_records || diffPayload.edges || [];
+  const filteredNodeDiffRecords = useMemo(() => nodeDiffRecords.filter((record) => record.classification !== "identical"), [nodeDiffRecords]);
+  const filteredEdgeDiffRecords = useMemo(() => edgeDiffRecords.filter((record) => record.classification !== "identical"), [edgeDiffRecords]);
   const diffCount = (records, classification) => records.filter((record) => record.classification === classification).length;
   const legacyDiffCount = (key) => (diffPayload[key] || []).length;
 
@@ -924,6 +934,66 @@ export function App() {
                 ))}
               </div>
             ) : null}
+          </Section>
+
+          <Section title="Performance Demo">
+            <button
+              onClick={() => {
+                const dummyRecords = Array.from({ length: 5000 }, (_, i) => ({
+                  id: `dummy-${i}`,
+                  session_id: `session-${Math.floor(i / 10)}`,
+                  project: "Performance Test",
+                  agent_id: `agent-${i % 3}`,
+                  turn_index: i,
+                  role: i % 2 === 0 ? "user" : "assistant",
+                  transcript_text: `Dummy transcript message number ${i} for performance testing virtualization rendering in Graph Studio.`,
+                  observed_at: new Date(Date.now() - i * 60000).toISOString()
+                }));
+                const dummyRetrieval = {
+                  debug: {
+                    flat_top_nodes: Array.from({ length: 500 }, (_, i) => ({
+                      node_id: `dummy-node-${i}`,
+                      label: `Dummy Node ${i}`,
+                      final_score: 0.95 - i * 0.001,
+                      similarity_score: 0.85 - i * 0.001,
+                      recency_score: 0.9 - i * 0.001
+                    })),
+                    all_windows: Array.from({ length: 200 }, (_, i) => ({
+                      window_id: `dummy-w-${i}`,
+                      session_id: `session-${i}`,
+                      routing_score: 0.9 - i * 0.002,
+                      recency: 0.8,
+                      similarity: 0.7,
+                      title: `Window ${i}`
+                    }))
+                  },
+                  replay_hits: Array.from({ length: 1000 }, (_, i) => ({
+                    score: 0.95 - i * 0.0005,
+                    session_id: `session-${i}`,
+                    turn_index: i,
+                    role: i % 2 === 0 ? "user" : "assistant",
+                    transcript_snippet: `Dummy replay hit number ${i} snippet text for performance demo.`
+                  })),
+                  fusion_hits: Array.from({ length: 1500 }, (_, i) => ({
+                    content: `Dummy Fusion Item ${i}`,
+                    score: 0.95 - i * 0.0005,
+                    source_lane: i % 2 === 0 ? "graph" : "replay",
+                    fused_rank: i + 1,
+                    reasoning: `Dummy fused ranking result reasoning for item index ${i}.`
+                  })),
+                  token_estimate: 154000
+                };
+                
+                setTranscriptRecords(dummyRecords);
+                setTranscriptTotalCount(5000);
+                setRetrievalResult(dummyRetrieval);
+                setToast("Loaded 5,000 dummy transcripts & 1,500 retrieval hits!");
+              }}
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 transition"
+              type="button"
+            >
+              Simulate 5,000 records scale
+            </button>
           </Section>
 
           <Section title="Scope">
@@ -1056,13 +1126,30 @@ export function App() {
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-auto p-4 scrollbar-thin">
-                <div className="space-y-3">
-                  {visibleTranscriptRecords.map((record) => {
-                    const pairId = `${record.session_id || "default"}:pair:${Math.floor((record.turn_index || 0) / 2)}`;
-                    const pair = transcriptPairs.find((item) => item.id === pairId);
+              <VirtualList
+                items={transcriptItems}
+                keyExtractor={(item, index) => item.isLoadMore ? "load-more" : `${item.session_id}:${item.turn_index}:${item.role}`}
+                className="flex-1 p-4 scrollbar-thin"
+                renderItem={(item) => {
+                  if (item.isLoadMore) {
                     return (
-                      <div key={`${record.session_id}:${record.turn_index}:${record.role}`} className="rounded-2xl border border-white/8 bg-black/15 p-4">
+                      <div className="pb-3 flex justify-center pt-2">
+                        <button
+                          className="rounded-xl border border-white/10 px-4 py-2 text-sm text-graph-muted hover:text-white"
+                          onClick={() => loadMoreTranscripts().catch((error) => setToast(error.message))}
+                          type="button"
+                        >
+                          Load more ({transcriptRecords.length} of {transcriptTotalCount})
+                        </button>
+                      </div>
+                    );
+                  }
+                  const record = item;
+                  const pairId = `${record.session_id || "default"}:pair:${Math.floor((record.turn_index || 0) / 2)}`;
+                  const pair = transcriptPairs.find((item) => item.id === pairId);
+                  return (
+                    <div className="pb-3">
+                      <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <div className="text-sm font-semibold text-white">{record.role}</div>
@@ -1087,21 +1174,10 @@ export function App() {
                         </div>
                         <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-graph-text">{record.transcript_text || record.transcript_snippet}</p>
                       </div>
-                    );
-                  })}
-                </div>
-                {!transcriptSearch.trim() && transcriptTotalCount > transcriptRecords.length ? (
-                  <div className="flex justify-center pt-2 pb-4">
-                    <button
-                      className="rounded-xl border border-white/10 px-4 py-2 text-sm text-graph-muted hover:text-white"
-                      onClick={() => loadMoreTranscripts().catch((error) => setToast(error.message))}
-                      type="button"
-                    >
-                      Load more ({transcriptRecords.length} of {transcriptTotalCount})
-                    </button>
-                  </div>
-                ) : null}
-              </div>
+                    </div>
+                  );
+                }}
+              />
             </div>
           ) : null}
 
@@ -1119,59 +1195,79 @@ export function App() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
                         <div className="mb-2 text-xs uppercase tracking-[0.16em] text-graph-muted">Graph / vector / recency</div>
-                        <div className="space-y-2">
-                          {(retrievalResult.debug?.flat_top_nodes || []).map((node) => (
-                            <div key={node.node_id} className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
-                              <div className="font-medium text-white">{node.label}</div>
-                              <div className="mt-1 text-xs text-graph-muted">
-                                final {Number(node.final_score || 0).toFixed(2)} · vector {Number(node.similarity_score || 0).toFixed(2)} · recency {Number(node.recency_score || 0).toFixed(2)}
+                        <VirtualList
+                          items={retrievalResult.debug?.flat_top_nodes || []}
+                          keyExtractor={(node, index) => node.node_id || index}
+                          className="h-64 scrollbar-thin"
+                          renderItem={(node) => (
+                            <div className="pb-2">
+                              <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
+                                <div className="font-medium text-white">{node.label}</div>
+                                <div className="mt-1 text-xs text-graph-muted">
+                                  final {Number(node.final_score || 0).toFixed(2)} · vector {Number(node.similarity_score || 0).toFixed(2)} · recency {Number(node.recency_score || 0).toFixed(2)}
+                                </div>
                               </div>
                             </div>
-                          ))}
-                        </div>
+                          )}
+                        />
                       </div>
                       <div>
                         <div className="mb-2 text-xs uppercase tracking-[0.16em] text-graph-muted">Replay / BM25 hybrid</div>
-                        <div className="space-y-2">
-                          {(retrievalResult.replay_hits || []).map((hit, index) => (
-                            <div key={`${hit.session_id}:${hit.turn_index}:${index}`} className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
-                              <div className="font-medium text-white">{hit.role}</div>
-                              <div className="mt-1 text-xs text-graph-muted">score {Number(hit.score || 0).toFixed(2)} · {hit.session_id} · turn {hit.turn_index}</div>
-                              <div className="mt-2 text-sm text-white">{hit.transcript_snippet}</div>
+                        <VirtualList
+                          items={retrievalResult.replay_hits || []}
+                          keyExtractor={(hit, index) => `${hit.session_id}:${hit.turn_index}:${index}`}
+                          className="h-64 scrollbar-thin"
+                          renderItem={(hit) => (
+                            <div className="pb-2">
+                              <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
+                                <div className="font-medium text-white">{hit.role}</div>
+                                <div className="mt-1 text-xs text-graph-muted">score {Number(hit.score || 0).toFixed(2)} · {hit.session_id} · turn {hit.turn_index}</div>
+                                <div className="mt-2 text-sm text-white">{hit.transcript_snippet}</div>
+                              </div>
                             </div>
-                          ))}
-                        </div>
+                          )}
+                        />
                       </div>
                     </div>
                   </Section>
 
                   <Section title="RRF fused ranking" extra={<span className="text-sm text-white">{retrievalResult.token_estimate} tokens</span>}>
-                    <div className="space-y-2">
-                      {(retrievalResult.fusion_hits || []).map((hit) => (
-                        <div key={`${hit.fused_rank}:${hit.content}`} className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
-                          <div className="font-medium text-white">
-                            #{hit.fused_rank} {hit.content}
+                    <VirtualList
+                      items={retrievalResult.fusion_hits || []}
+                      keyExtractor={(hit, index) => `${hit.fused_rank}:${hit.content}:${index}`}
+                      className="h-80 scrollbar-thin"
+                      renderItem={(hit) => (
+                        <div className="pb-2">
+                          <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
+                            <div className="font-medium text-white">
+                              #{hit.fused_rank} {hit.content}
+                            </div>
+                            <div className="mt-1 text-xs text-graph-muted">
+                              lane {hit.source_lane} · graph {hit.graph_rank ?? "-"} · replay {hit.replay_rank ?? "-"} · score {Number(hit.score || 0).toFixed(2)}
+                            </div>
+                            <div className="mt-2 text-sm text-white">{hit.reasoning}</div>
                           </div>
-                          <div className="mt-1 text-xs text-graph-muted">
-                            lane {hit.source_lane} · graph {hit.graph_rank ?? "-"} · replay {hit.replay_rank ?? "-"} · score {Number(hit.score || 0).toFixed(2)}
-                          </div>
-                          <div className="mt-2 text-sm text-white">{hit.reasoning}</div>
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    />
                   </Section>
 
                   <Section title="Window routing">
-                    <div className="space-y-2">
-                      {(retrievalResult.debug?.all_windows || []).map((window) => (
-                        <div key={window.window_id} className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
-                          <div className="font-medium text-white">{window.title || window.session_id}</div>
-                          <div className="mt-1 text-xs text-graph-muted">
-                            route {Number(window.routing_score || 0).toFixed(2)} · similarity {Number(window.similarity || 0).toFixed(2)} · recency {Number(window.recency || 0).toFixed(2)}
+                    <VirtualList
+                      items={retrievalResult.debug?.all_windows || []}
+                      keyExtractor={(window, index) => window.window_id || index}
+                      className="h-64 scrollbar-thin"
+                      renderItem={(window) => (
+                        <div className="pb-2">
+                          <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
+                            <div className="font-medium text-white">{window.title || window.session_id}</div>
+                            <div className="mt-1 text-xs text-graph-muted">
+                              route {Number(window.routing_score || 0).toFixed(2)} · similarity {Number(window.similarity || 0).toFixed(2)} · recency {Number(window.recency || 0).toFixed(2)}
+                            </div>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    />
                   </Section>
                 </div>
               ) : null}
@@ -1229,40 +1325,50 @@ export function App() {
                   <div className="mt-4 grid gap-4 lg:grid-cols-2">
                     <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Node changes</div>
-                      <div className="mt-3 max-h-72 space-y-2 overflow-auto scrollbar-thin">
-                        {nodeDiffRecords.filter((record) => record.classification !== "identical").map((record) => (
-                          <div key={record.node_id || record.id} className="rounded-xl border border-white/8 bg-black/15 p-3 text-xs">
-                            <div className="font-medium text-white">{record.node_id || record.id}</div>
-                            <div className="mt-1 text-graph-muted">{record.classification}</div>
-                            {(record.deltas || []).map((delta) => (
-                              <div key={`${record.node_id || record.id}:${delta.field}`} className="mt-2 rounded-lg bg-black/20 p-2 text-graph-muted">
-                                <div className="text-white">{delta.field}</div>
-                                <div>Old: {JSON.stringify(delta.left ?? delta.old ?? null)}</div>
-                                <div>New: {JSON.stringify(delta.right ?? delta.new ?? null)}</div>
-                              </div>
-                            ))}
+                      <VirtualList
+                        items={filteredNodeDiffRecords}
+                        keyExtractor={(record) => record.node_id || record.id}
+                        className="mt-3 h-72 scrollbar-thin"
+                        renderItem={(record) => (
+                          <div className="pb-2">
+                            <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-xs">
+                              <div className="font-medium text-white">{record.node_id || record.id}</div>
+                              <div className="mt-1 text-graph-muted">{record.classification}</div>
+                              {(record.deltas || []).map((delta) => (
+                                <div key={`${record.node_id || record.id}:${delta.field}`} className="mt-2 rounded-lg bg-black/20 p-2 text-graph-muted">
+                                  <div className="text-white">{delta.field}</div>
+                                  <div>Old: {JSON.stringify(delta.left ?? delta.old ?? null)}</div>
+                                  <div>New: {JSON.stringify(delta.right ?? delta.new ?? null)}</div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        ))}
-                      </div>
+                        )}
+                      />
                     </div>
 
                     <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Edge changes</div>
-                      <div className="mt-3 max-h-72 space-y-2 overflow-auto scrollbar-thin">
-                        {edgeDiffRecords.filter((record) => record.classification !== "identical").map((record) => (
-                          <div key={record.edge_id || record.id} className="rounded-xl border border-white/8 bg-black/15 p-3 text-xs">
-                            <div className="font-medium text-white">{record.edge_id || record.id}</div>
-                            <div className="mt-1 text-graph-muted">{record.classification}</div>
-                            {(record.deltas || []).map((delta) => (
-                              <div key={`${record.edge_id || record.id}:${delta.field}`} className="mt-2 rounded-lg bg-black/20 p-2 text-graph-muted">
-                                <div className="text-white">{delta.field}</div>
-                                <div>Old: {JSON.stringify(delta.left ?? delta.old ?? null)}</div>
-                                <div>New: {JSON.stringify(delta.right ?? delta.new ?? null)}</div>
-                              </div>
-                            ))}
+                      <VirtualList
+                        items={filteredEdgeDiffRecords}
+                        keyExtractor={(record) => record.edge_id || record.id}
+                        className="mt-3 h-72 scrollbar-thin"
+                        renderItem={(record) => (
+                          <div className="pb-2">
+                            <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-xs">
+                              <div className="font-medium text-white">{record.edge_id || record.id}</div>
+                              <div className="mt-1 text-graph-muted">{record.classification}</div>
+                              {(record.deltas || []).map((delta) => (
+                                <div key={`${record.edge_id || record.id}:${delta.field}`} className="mt-2 rounded-lg bg-black/20 p-2 text-graph-muted">
+                                  <div className="text-white">{delta.field}</div>
+                                  <div>Old: {JSON.stringify(delta.left ?? delta.old ?? null)}</div>
+                                  <div>New: {JSON.stringify(delta.right ?? delta.new ?? null)}</div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        ))}
-                      </div>
+                        )}
+                      />
                     </div>
                   </div>
                 ) : null}
