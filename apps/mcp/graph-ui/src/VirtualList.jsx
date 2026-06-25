@@ -13,8 +13,8 @@ export function VirtualList({
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(0);
   
-  // Track heights of rendered items by unique key
-  const heightsRef = useRef({});
+  // Track heights of rendered items by unique key using a prototype-less cache to avoid inherited properties collisions
+  const heightsRef = useRef(Object.create(null));
   const [, forceUpdate] = useState(0);
   const itemResizeObservers = useRef(new Map());
 
