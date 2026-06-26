@@ -159,3 +159,6 @@ jobs:
 
       - name: Run browser tests
         run: npm run test:browser
+
+      - name: Run unit tests
+        run: npm run test:unit

@@ -30,11 +30,70 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install waggle-mcp (for CLI smoke-test)
+        run: pip install -e "${{ github.workspace }}"
+
       - name: Validate MCPB bundle
         run: npm run validate
 
       - name: Pack MCPB bundle
         run: npm run pack
+
+      - name: Smoke-test packaged launcher scripts
+        run: |
+          echo "::group::Verify launcher scripts exist"
+          test -f server/run-waggle.sh      || { echo "Missing server/run-waggle.sh"; exit 1; }
+          test -f server/run-waggle.cmd     || { echo "Missing server/run-waggle.cmd"; exit 1; }
+          echo "  ✓ Both launcher scripts present"
+
+          echo "::endgroup::"
+          echo "::group::Verify manifest entry_point resolves"
+          ENTRY_POINT="$(node -e "console.log(require('./manifest.json').server.entry_point)")"
+          echo "  Manifest entry_point: ${ENTRY_POINT}"
+          test -f "${ENTRY_POINT}"          || { echo "Entry point ${ENTRY_POINT} not found"; exit 1; }
+          echo "  ✓ Entry point exists"
+
+          WIN_CMD="$(node -e "console.log(require('./manifest.json').server.mcp_config.platform_overrides.win32.command)")"
+          echo "  win32 override: ${WIN_CMD}"
+          echo "  ✓ win32 override configured"
+
+          echo "::endgroup::"
+          echo "::group::Verify shell script syntax"
+          sh -n server/run-waggle.sh        || { echo "Shell syntax check failed"; exit 1; }
+          echo "  ✓ Shell launcher syntax OK"
+
+          # Verify the script references the expected command
+          grep -q 'waggle-mcp' server/run-waggle.sh     || { echo "run-waggle.sh missing waggle-mcp"; exit 1; }
+          echo "  ✓ Shell launcher invokes waggle-mcp"
+
+          echo "::endgroup::"
+          echo "::group::Execute CLI entrypoint (help path)"
+          set -o pipefail
+          waggle-mcp --help 2>&1 | head -5   || { echo "waggle-mcp CLI failed"; exit 1; }
+          echo "  ✓ waggle-mcp --help succeeded"
+
+          echo "::endgroup::"
+          echo "::group::Verify packaged layout matches manifest"
+          # Check the packaged .mcpb archive contains expected entries
+          MCPB_FILE="$(ls *.mcpb 2>/dev/null | head -1)"
+          if [ -n "${MCPB_FILE}" ]; then
+            echo "  Packaged artifact: ${MCPB_FILE}"
+            # Unpack to temp dir and verify structure
+            TMP_CHECK=$(mktemp -d)
+            unzip -q "${MCPB_FILE}" -d "${TMP_CHECK}"
+            echo "  Packed files:"
+            find "${TMP_CHECK}" -type f | sort | sed 's/^/    /'
+            test -f "${TMP_CHECK}/manifest.json"          || { echo "Missing manifest.json in bundle"; exit 1; }
+            test -f "${TMP_CHECK}/server/run-waggle.sh"   || { echo "Missing server/run-waggle.sh in bundle"; exit 1; }
+            test -f "${TMP_CHECK}/server/run-waggle.cmd"  || { echo "Missing server/run-waggle.cmd in bundle"; exit 1; }
+            echo "  ✓ Packaged layout matches manifest"
+            rm -rf "${TMP_CHECK}"
+          else
+            echo "  No .mcpb artifact found!"
+            exit 1
+          fi
+          echo "::endgroup::"
+          echo "✅ All smoke-tests passed"
 
       - name: Upload MCPB artifact
         uses: actions/upload-artifact@v4
