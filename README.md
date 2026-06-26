@@ -13,6 +13,7 @@
 
 <p align="center">
   <a href="https://pypi.org/project/waggle-mcp"><img src="https://img.shields.io/pypi/v/waggle-mcp?color=39d5cf&label=pypi" alt="PyPI"/></a>
+  <a href="https://pepy.tech/projects/waggle-mcp"><img src="https://static.pepy.tech/personalized-badge/waggle-mcp?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads" alt="PyPI Downloads"/></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+"/>
   <img src="https://img.shields.io/badge/MCP-compatible-brightgreen" alt="MCP compatible"/>
   <img src="https://img.shields.io/badge/license-Apache--2.0-black" alt="Apache-2.0"/>
@@ -59,6 +60,8 @@ waggle-mcp doctor
 ## Local Development Setup
 
 These steps are intended to work on a clean macOS, Linux, or Windows checkout with Python 3.11+ and Git installed:
+
+For a complete list of supported environment variables and configuration options, see [docs/environment-variables.md](docs/environment-variables.md).
 
 ```bash
 git clone https://github.com/Abhigyan-Shekhar/Waggle-mcp.git

@@ -11,9 +11,42 @@ Boolean values are enabled only when set to the lowercase string `true`. Integer
 | `WAGGLE_BACKEND` | `sqlite` | string enum: `sqlite`, `neo4j` | Always. Selects the storage backend. | `neo4j` |
 | `WAGGLE_TRANSPORT` | `stdio` | string enum: `stdio`, `http` | Always. HTTP transport requires `WAGGLE_BACKEND=neo4j`. | `http` |
 | `WAGGLE_MODEL` | `all-MiniLM-L6-v2` | string | Always. Names the sentence-transformers embedding model. | `BAAI/bge-small-en-v1.5` |
+| `WAGGLE_EMBEDDING_BACKEND` | `pytorch` | string enum: `pytorch`, `onnx` | Always. Controls which backend Sentence Transformers uses for embedding inference. | `onnx` |
 | `WAGGLE_DEFAULT_TENANT_ID` | `local-default` | string | Always. Used when a request does not provide a tenant. Must not be empty. | `workspace-default` |
 | `WAGGLE_LOG_LEVEL` | `INFO` | string | Always. Configures application logging verbosity. | `DEBUG` |
 | `WAGGLE_STARTUP_MODE` | `normal` | string enum: `fast`, `normal`, `strict` | Always. Controls startup/warmup behavior. | `strict` |
+
+## Embedding backend
+
+`WAGGLE_EMBEDDING_BACKEND` controls which backend Sentence Transformers uses for embedding inference.
+
+**Default:** `pytorch`
+
+**Allowed values:**
+
+* `pytorch`
+* `onnx`
+
+Example:
+
+```bash
+export WAGGLE_EMBEDDING_BACKEND=onnx
+```
+
+### ONNX Runtime requirements
+
+Using `WAGGLE_EMBEDDING_BACKEND=onnx` requires additional ONNX Runtime dependencies:
+
+```bash
+pip install onnxruntime optimum
+```
+
+### Backend tradeoffs
+
+* **pytorch** (default): Recommended for most deployments. Simpler setup and works out of the box.
+* **onnx**: Can improve inference performance and reduce latency on some hardware configurations, but requires additional ONNX Runtime dependencies.
+
+If ONNX dependencies are unavailable, model initialization may fail and Waggle will fall back to deterministic embeddings.
 
 ## SQLite storage
 

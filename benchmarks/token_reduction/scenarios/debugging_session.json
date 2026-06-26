@@ -1,0 +1,11 @@
+{
+  "name": "Debugging Session",
+  "turns": [
+    "The API returns a 500 error when creating a user.",
+    "The stack trace points to a missing database connection.",
+    "We discovered the DATABASE_URL variable is missing.",
+    "The environment configuration was updated.",
+    "The API now starts successfully.",
+    "What was the root cause of the 500 error?"
+  ]
+}

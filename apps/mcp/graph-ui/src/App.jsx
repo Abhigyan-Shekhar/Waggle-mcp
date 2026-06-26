@@ -876,6 +876,11 @@ export function App() {
   const provenanceTrail = selectedGraphNode ? buildProvenanceTrail(selectedGraphNode, graph) : [];
   const sourcePrompts = selectedGraphNode ? summarizeSourcePrompts(selectedGraphNode) : [];
   const sourceTurnPairId = selectedGraphNode ? firstTurnPairId(selectedGraphNode) : "";
+  const diffPayload = abhiDiff?.payload?.diff || {};
+  const nodeDiffRecords = diffPayload.node_records || diffPayload.nodes || [];
+  const edgeDiffRecords = diffPayload.edge_records || diffPayload.edges || [];
+  const diffCount = (records, classification) => records.filter((record) => record.classification === classification).length;
+  const legacyDiffCount = (key) => (diffPayload[key] || []).length;
 
   return (
     <div className="min-h-screen p-4">
@@ -904,7 +909,7 @@ export function App() {
 
           <Section title="Views">
             <div className="flex flex-wrap gap-2">
-              {["graph", "transcripts", "retrieval"].map((tab) => (
+              {["graph", "transcripts", "retrieval", "diff"].map((tab) => (
                 <Pill key={tab} active={activeTab === tab} onClick={() => setActiveTab(tab)}>
                   {tab[0].toUpperCase() + tab.slice(1)}
                 </Pill>
@@ -1172,6 +1177,104 @@ export function App() {
               ) : null}
             </div>
           ) : null}
+
+          {activeTab === "diff" ? (
+            <div className="flex h-full flex-col overflow-auto p-4 scrollbar-thin">
+              <Section title="ABHI Diff Inspector">
+                <p className="text-sm leading-6 text-graph-muted">
+                  Compare two .abhi artifacts and inspect node, edge, and metadata changes without modifying the current graph.
+                </p>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <FileInputButton label="Left .abhi" accept=".abhi" onChange={(event) => loadDiffFiles(event, "left").catch((error) => setToast(error.message))} />
+                  <FileInputButton label="Right .abhi" accept=".abhi" onChange={(event) => loadDiffFiles(event, "right").catch((error) => setToast(error.message))} />
+                </div>
+
+                {!abhiDiff?.leftBase64 || !abhiDiff?.rightBase64 ? (
+                  <div className="mt-4 rounded-2xl border border-white/8 bg-black/15 p-4 text-sm text-graph-muted">
+                    Select both left and right .abhi files to generate a visual diff.
+                  </div>
+                ) : null}
+
+                {abhiDiff?.payload ? (
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
+                      <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Nodes added</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">{diffCount(nodeDiffRecords, "added") || legacyDiffCount("nodes_added")}</div>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
+                      <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Nodes removed</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">{diffCount(nodeDiffRecords, "removed") || legacyDiffCount("nodes_removed")}</div>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
+                      <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Nodes modified</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">{diffCount(nodeDiffRecords, "modified") || legacyDiffCount("nodes_updated")}</div>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
+                      <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Edges added</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">{diffCount(edgeDiffRecords, "added") || legacyDiffCount("edges_added")}</div>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
+                      <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Edges removed</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">{diffCount(edgeDiffRecords, "removed") || legacyDiffCount("edges_removed")}</div>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
+                      <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Edges modified</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">{diffCount(edgeDiffRecords, "modified") || legacyDiffCount("edges_updated")}</div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {nodeDiffRecords.length || edgeDiffRecords.length ? (
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
+                      <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Node changes</div>
+                      <div className="mt-3 max-h-72 space-y-2 overflow-auto scrollbar-thin">
+                        {nodeDiffRecords.filter((record) => record.classification !== "identical").map((record) => (
+                          <div key={record.node_id || record.id} className="rounded-xl border border-white/8 bg-black/15 p-3 text-xs">
+                            <div className="font-medium text-white">{record.node_id || record.id}</div>
+                            <div className="mt-1 text-graph-muted">{record.classification}</div>
+                            {(record.deltas || []).map((delta) => (
+                              <div key={`${record.node_id || record.id}:${delta.field}`} className="mt-2 rounded-lg bg-black/20 p-2 text-graph-muted">
+                                <div className="text-white">{delta.field}</div>
+                                <div>Old: {JSON.stringify(delta.left ?? delta.old ?? null)}</div>
+                                <div>New: {JSON.stringify(delta.right ?? delta.new ?? null)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
+                      <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Edge changes</div>
+                      <div className="mt-3 max-h-72 space-y-2 overflow-auto scrollbar-thin">
+                        {edgeDiffRecords.filter((record) => record.classification !== "identical").map((record) => (
+                          <div key={record.edge_id || record.id} className="rounded-xl border border-white/8 bg-black/15 p-3 text-xs">
+                            <div className="font-medium text-white">{record.edge_id || record.id}</div>
+                            <div className="mt-1 text-graph-muted">{record.classification}</div>
+                            {(record.deltas || []).map((delta) => (
+                              <div key={`${record.edge_id || record.id}:${delta.field}`} className="mt-2 rounded-lg bg-black/20 p-2 text-graph-muted">
+                                <div className="text-white">{delta.field}</div>
+                                <div>Old: {JSON.stringify(delta.left ?? delta.old ?? null)}</div>
+                                <div>New: {JSON.stringify(delta.right ?? delta.new ?? null)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {abhiDiff?.payload?.diff ? (
+                  <pre className="mt-4 max-h-80 overflow-auto rounded-2xl border border-white/8 bg-black/20 p-4 text-xs text-graph-muted scrollbar-thin">
+                    {JSON.stringify(abhiDiff.payload.diff, null, 2)}
+                  </pre>
+                ) : null}
+              </Section>
+            </div>
+          ) : null}
         </section>
 
         <div className="flex min-h-0 flex-col gap-4">
@@ -1322,19 +1425,11 @@ export function App() {
                 ) : null}
               </div>
             ) : null}
-            <div className="mt-4 grid gap-2">
-              <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Visual diff</div>
-              <div className="flex gap-2">
-                <FileInputButton label="Left .abhi" accept=".abhi" onChange={(event) => loadDiffFiles(event, "left").catch((error) => setToast(error.message))} />
-                <FileInputButton label="Right .abhi" accept=".abhi" onChange={(event) => loadDiffFiles(event, "right").catch((error) => setToast(error.message))} />
-              </div>
-              {abhiDiff?.payload ? (
-                <div className="rounded-2xl border border-white/8 bg-black/15 p-3 text-xs text-graph-muted">
-                  <div>Nodes added: {(abhiDiff.payload.diff?.nodes_added || []).length}</div>
-                  <div>Nodes updated: {(abhiDiff.payload.diff?.nodes_updated || []).length}</div>
-                  <div>Edges added: {(abhiDiff.payload.diff?.edges_added || []).length}</div>
-                </div>
-              ) : null}
+            <div className="mt-4 rounded-2xl border border-white/8 bg-black/15 p-3 text-sm text-graph-muted">
+              Use the Diff view to compare two .abhi artifacts without changing the current graph editor state.
+              <button className="mt-3 w-full rounded-xl border border-white/10 px-3 py-2 text-sm text-white" onClick={() => setActiveTab("diff")} type="button">
+                Open Diff Inspector
+              </button>
             </div>
           </Section>
         </div>
