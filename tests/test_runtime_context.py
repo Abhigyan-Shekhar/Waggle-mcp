@@ -48,11 +48,11 @@ def test_runtime_context_resets_when_body_raises() -> None:
 
 @pytest.mark.asyncio
 async def test_runtime_context_is_isolated_between_async_tasks() -> None:
-    async def worker(request_id: str) -> tuple[str, str]:
-        with runtime_context(request_id=request_id):
-            before_sleep = get_runtime_context().request_id
+    async def worker(tenant_id: str) -> tuple[str, str]:
+        with runtime_context(tenant_id=tenant_id):
+            before_sleep = get_runtime_context().tenant_id
             await asyncio.sleep(0)
-            after_sleep = get_runtime_context().request_id
+            after_sleep = get_runtime_context().tenant_id
             return before_sleep, after_sleep
 
     with runtime_context(request_id="parent"):
