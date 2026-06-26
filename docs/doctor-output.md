@@ -27,7 +27,7 @@ Each entry inside `checks` contains:
 | `path`     | string | File or database path related to the check.           |
 | `model_id` | string | Embedding model identifier when applicable.           |
 | `mode`     | string | Startup mode currently configured.                    |
-| `found_in` | string | Configuration file where the setting was detected.    |
+| `found_in` | array[string] | Configuration files where the setting was detected. |
 
 ### Summary Object
 
@@ -45,10 +45,14 @@ A healthy installation indicates that all diagnostic checks completed successful
 {
   "version": "0.0.1",
   "checks": {
-    "db_connection": {
-      "status": "ok",
-      "path": "/home/user/.waggle/waggle.db"
-    },
+       "db_connection": {
+        "status": "ok",
+        "reason": "",
+        "path": "postgres://localhost:5432/db",
+        "model_id": "",
+        "mode": "",
+        "found_in": []
+    }
     "embedding_model": {
       "status": "ok",
       "model_id": "deterministic"
