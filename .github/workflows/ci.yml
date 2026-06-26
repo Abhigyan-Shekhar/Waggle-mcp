@@ -128,6 +128,9 @@ jobs:
       - name: Compile extension
         run: npm run compile
 
+      - name: Run command validation
+        run: npm test
+
   graph-studio:
     name: Graph Studio validation
     runs-on: ubuntu-latest

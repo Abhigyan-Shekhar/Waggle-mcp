@@ -37,6 +37,9 @@ jobs:
       - name: Compile extension
         run: npm run compile
 
+      - name: Run command validation
+        run: npm test
+
       - name: Package VSIX
         run: npx @vscode/vsce package
 
