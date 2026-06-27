@@ -165,6 +165,35 @@ from .base import (
 from .transcript import TranscriptMixin
 
 
+class LazyEmbeddingDict(dict):
+    def __init__(self, node_rows_dict, graph):
+        self.node_rows_dict = node_rows_dict
+        self.graph = graph
+        self.cache = {}
+
+    def __getitem__(self, key):
+        if key in self.cache:
+            return self.cache[key]
+        if key in self.node_rows_dict:
+            emb = self.graph._decode_embedding(self.node_rows_dict[key]["embedding"])
+            self.cache[key] = emb
+            return emb
+        raise KeyError(key)
+
+    def get(self, key, default=None):
+        try:
+            val = self[key]
+            return val if val is not None else default
+        except KeyError:
+            return default
+
+    def __contains__(self, key):
+        return key in self.node_rows_dict
+
+    def items(self):
+        return ((k, self[k]) for k in self.node_rows_dict if self[k] is not None)
+
+
 class TraversalMixin(MemoryGraphBase):
     """Mixin class for MemoryGraph handling search, BM25, semantic retrieval, and timeline query logic."""
 
@@ -758,34 +787,55 @@ class TraversalMixin(MemoryGraphBase):
             elif agent_id.strip():
                 filters.append("agent_id = ?")
                 params.append(agent_id.strip())
-            node_rows = connection.execute(
-                f"""
-                SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags,
-                       source_prompt, metadata, evidence_records, valid_from, valid_to, created_at,
-                       updated_at, access_count, embedding, tenant_id
-                FROM nodes
-                WHERE {" AND ".join(filters)}
-                """,
-                tuple(params),
-            ).fetchall()
+
+            from waggle.graph import HAS_SQLITE_VEC
+
+            expanded_query = self._expand_query_aliases(query)
+            query_embedding = self.embedding_model.embed(expanded_query)
+
+            if HAS_SQLITE_VEC:
+                _emb_norm = float(np.linalg.norm(query_embedding))
+                query_unit = query_embedding / _emb_norm if _emb_norm > 0.0 else query_embedding
+                node_rows = connection.execute(
+                    f"""
+                    SELECT n.id, n.agent_id, n.project, n.session_id, n.context_window_id, n.label, n.content, n.node_type, n.tags,
+                           n.source_prompt, n.metadata, n.evidence_records, n.valid_from, n.valid_to, n.created_at,
+                           n.updated_at, n.access_count, n.embedding, n.tenant_id,
+                           vec_distance_cosine(v.embedding, ?) AS distance
+                    FROM nodes n
+                    JOIN vec_nodes v ON v.node_id = n.id
+                    WHERE n.{" AND n.".join(filters)}
+                    """,
+                    (query_unit.astype(np.float32).tobytes(), *params),
+                ).fetchall()
+            else:
+                node_rows = connection.execute(
+                    f"""
+                    SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags,
+                           source_prompt, metadata, evidence_records, valid_from, valid_to, created_at,
+                           updated_at, access_count, embedding, tenant_id
+                    FROM nodes
+                    WHERE {" AND ".join(filters)}
+                    """,
+                    tuple(params),
+                ).fetchall()
+
             total_nodes = len(node_rows)
             if total_nodes == 0:
                 return SubgraphResult(query=query, total_nodes_in_graph=0)
 
-            def collect_scoped_nodes(active_session_id: str) -> tuple[dict[str, Node], dict[str, np.ndarray]]:
+            def collect_scoped_nodes(active_session_id: str) -> tuple[dict[str, Node], dict[str, Any]]:
                 scoped_nodes: dict[str, Node] = {}
-                scoped_embeddings: dict[str, np.ndarray] = {}
+                scoped_rows: dict[str, Any] = {}
                 for row in node_rows:
                     node = self._row_to_node(row)
                     if not _scope_matches(node, agent_id=agent_id, project=project, session_id=active_session_id):
                         continue
                     scoped_nodes[node.id] = node
-                    decoded_embedding = self._decode_embedding(row["embedding"])
-                    if decoded_embedding is not None:
-                        scoped_embeddings[node.id] = decoded_embedding
-                return scoped_nodes, scoped_embeddings
+                    scoped_rows[node.id] = row
+                return scoped_nodes, scoped_rows
 
-            nodes_by_id, embeddings_by_id = collect_scoped_nodes(active_session_id)
+            nodes_by_id, scoped_rows = collect_scoped_nodes(active_session_id)
 
             # Apply temporal validity filtering
             valid_node_ids = {
@@ -797,17 +847,24 @@ class TraversalMixin(MemoryGraphBase):
                 )
             }
             nodes_by_id = {nid: node for nid, node in nodes_by_id.items() if nid in valid_node_ids}
-            embeddings_by_id = {nid: emb for nid, emb in embeddings_by_id.items() if nid in valid_node_ids}
+            scoped_rows = {nid: r for nid, r in scoped_rows.items() if nid in valid_node_ids}
 
             if not nodes_by_id:
                 return SubgraphResult(query=query, total_nodes_in_graph=total_nodes)
 
-            expanded_query = self._expand_query_aliases(query)
-            query_embedding = self.embedding_model.embed(expanded_query)
-            similarity_by_id = {
-                node_id: max(self.embedding_model.cosine_similarity(query_embedding, embedding), 0.0)
-                for node_id, embedding in embeddings_by_id.items()
-            }
+            embeddings_by_id = LazyEmbeddingDict(scoped_rows, self)
+
+            if HAS_SQLITE_VEC:
+                similarity_by_id = {}
+                for node_id in nodes_by_id:
+                    row = scoped_rows[node_id]
+                    dist = row["distance"]
+                    similarity_by_id[node_id] = max(1.0 - (dist if dist is not None else 1.0), 0.0)
+            else:
+                similarity_by_id = {
+                    node_id: max(self.embedding_model.cosine_similarity(query_embedding, embedding), 0.0)
+                    for node_id, embedding in embeddings_by_id.items()
+                }
             replay_session_scores = self._query_replay_session_scores(
                 query=expanded_query,
                 query_embedding=query_embedding,

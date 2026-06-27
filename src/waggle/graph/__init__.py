@@ -130,6 +130,23 @@ from .mutation import MutationMixin
 from .transcript import TranscriptMixin
 from .traversal import TraversalMixin
 
+HAS_SQLITE_VEC = False
+try:
+    import sqlite_vec
+
+    _conn = sqlite3.connect(":memory:")
+    try:
+        _conn.enable_load_extension(True)
+        sqlite_vec.load(_conn)
+        HAS_SQLITE_VEC = True
+    except Exception:
+        HAS_SQLITE_VEC = False
+    finally:
+        _conn.close()
+except ImportError:
+    HAS_SQLITE_VEC = False
+
+
 SCHEMA_VERSION = 7
 
 LOGGER = logging.getLogger(__name__)
@@ -562,6 +579,32 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         with contextlib.suppress(Exception):  # pragma: no cover - defensive finalizer guard
             self.close()
 
+    def _sync_vec_node(
+        self, connection: sqlite3.Connection, node_id: str, embedding: np.ndarray | bytes | None
+    ) -> None:
+        if not HAS_SQLITE_VEC:
+            return
+        connection.execute("DELETE FROM vec_nodes WHERE node_id = ?", (node_id,))
+        if embedding is not None:
+            if isinstance(embedding, bytes):
+                decoded_bytes = decode_embedding_blob(embedding)
+                if decoded_bytes is not None:
+                    arr = np.frombuffer(decoded_bytes, dtype=np.float32)
+                    raw_bytes = arr.tobytes()
+                else:
+                    if embedding.startswith(b"WEB1") and len(embedding) >= 8:
+                        raw = embedding[4 : len(embedding) - 4]
+                    else:
+                        raw = embedding
+                    arr = np.frombuffer(raw, dtype=np.float32)
+                    raw_bytes = arr.tobytes()
+            else:
+                raw_bytes = np.asarray(embedding, dtype=np.float32).tobytes()
+            connection.execute(
+                "INSERT INTO vec_nodes (node_id, embedding) VALUES (?, ?)",
+                (node_id, raw_bytes),
+            )
+
     def _connect(self, timeout: float = 30.0, *, check_same_thread: bool = True) -> sqlite3.Connection:
         """Connect to the SQLite database with WAL mode and cross-process safety.
 
@@ -577,6 +620,11 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         """
         connection = sqlite3.connect(str(self.db_path), timeout=timeout, check_same_thread=check_same_thread)
         connection.row_factory = sqlite3.Row
+
+        if HAS_SQLITE_VEC:
+            connection.enable_load_extension(True)
+            sqlite_vec.load(connection)
+            connection.enable_load_extension(False)
 
         # WAL mode: enables concurrent reads while maintaining single-writer safety
         connection.execute("PRAGMA journal_mode=WAL")
@@ -640,6 +688,53 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             connection.executescript(SCHEMA_SQL)
             self._migrate_legacy_schema(connection)
             connection.executescript(INDEX_SQL)
+
+            if HAS_SQLITE_VEC:
+                dim = None
+                dim_row = connection.execute(
+                    "SELECT embedding_dim FROM nodes WHERE embedding_dim > 0 LIMIT 1"
+                ).fetchone()
+                if dim_row:
+                    dim = int(dim_row["embedding_dim"])
+                else:
+                    try:
+                        dummy_emb = self.embedding_model.embed("dummy")
+                        dim = int(dummy_emb.shape[0]) if getattr(dummy_emb, "shape", None) else 256
+                    except Exception:
+                        dim = 256
+                row = connection.execute(
+                    "SELECT sql FROM sqlite_master WHERE type='table' AND name='vec_nodes'"
+                ).fetchone()
+                needs_creation = True
+                if row is not None:
+                    sql_str = row["sql"] or ""
+                    if f"float[{dim}]" in sql_str:
+                        needs_creation = False
+                    else:
+                        connection.execute("DROP TABLE IF EXISTS vec_nodes")
+                if needs_creation:
+                    connection.execute("DROP TRIGGER IF EXISTS trg_nodes_insert")
+                    connection.execute("DROP TRIGGER IF EXISTS trg_nodes_update")
+                    connection.execute("DROP TRIGGER IF EXISTS trg_nodes_delete")
+                    connection.execute(
+                        f"""
+                        CREATE VIRTUAL TABLE vec_nodes USING vec0(
+                            node_id TEXT PRIMARY KEY,
+                            embedding float[{dim}] distance_metric=cosine
+                        )
+                        """
+                    )
+                    # Backfill vec_nodes
+                    nodes_rows = connection.execute(
+                        "SELECT id, embedding FROM nodes WHERE embedding IS NOT NULL"
+                    ).fetchall()
+                    for r in nodes_rows:
+                        decoded = self._decode_embedding(r["embedding"])
+                        if decoded is not None and int(decoded.shape[0]) == dim:
+                            connection.execute(
+                                "INSERT INTO vec_nodes(node_id, embedding) VALUES (?, ?)",
+                                (r["id"], np.asarray(decoded, dtype=np.float32).tobytes()),
+                            )
 
             # Ensure tenant record
             created_at = utc_now().isoformat()
@@ -1643,6 +1738,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 """,
                 (embedding_bytes, model_id, dim, self.tenant_id, row["id"]),
             )
+            self._sync_vec_node(connection, row["id"], embedding_bytes)
 
     def get_embedding_store_health(self) -> dict[str, Any]:
         with self._lock, self._pool.checkout() as connection:
@@ -1831,6 +1927,8 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                         )
                         if cursor.rowcount and cursor.rowcount > 0:
                             cleared[table] += 1
+                            if table == "nodes":
+                                self._sync_vec_node(connection, row["id"], None)
             window_rows = connection.execute(
                 "SELECT id, embedding FROM context_windows WHERE tenant_id = ? AND embedding IS NOT NULL",
                 (self.tenant_id,),
@@ -2010,6 +2108,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                                 row["id"],
                             ),
                         )
+                        self._sync_vec_node(connection, row["id"], embedding)
                         node_updated += 1
                 else:
                     model_id = self._current_embedding_model_id()
@@ -2031,6 +2130,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                                 row["id"],
                             ),
                         )
+                        self._sync_vec_node(connection, row["id"], embedding)
                         node_updated += 1
 
         return {"transcript_rows_updated": transcript_updated, "node_rows_updated": node_updated}
@@ -4168,6 +4268,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                     node.access_count,
                 ),
             )
+            self._sync_vec_node(connection, node.id, embedding_bytes)
             return node, True
 
         existing = self._row_to_node(row)
@@ -4221,6 +4322,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 self.tenant_id,
             ),
         )
+        self._sync_vec_node(connection, node.id, embedding_bytes)
         return node, False
 
     def _insert_vault_stub_node(
@@ -4279,6 +4381,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 node.access_count,
             ),
         )
+        self._sync_vec_node(connection, node.id, embedding_vector)
         return node
 
     def _parse_optional_datetime(self, raw: Any) -> datetime | None:
@@ -4597,6 +4700,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 int(raw_node.get("access_count", 0)),
             ),
         )
+        self._sync_vec_node(connection, raw_node["id"], embedding)
 
     def _insert_snapshot_transcript(self, connection: sqlite3.Connection, raw_transcript: dict[str, Any]) -> None:
         embedding, embedding_model_id, embedding_dim = self._coerce_imported_embedding(
@@ -4798,6 +4902,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 self.tenant_id,
             ),
         )
+        self._sync_vec_node(connection, raw_node["id"], embedding)
 
     def _insert_snapshot_edge(self, connection: sqlite3.Connection, raw_edge: dict[str, Any]) -> None:
         self._require_node(connection, raw_edge["source_id"])

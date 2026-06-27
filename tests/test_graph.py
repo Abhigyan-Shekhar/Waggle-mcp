@@ -2361,3 +2361,133 @@ def test_read_to_write_lock_upgrade_raises_runtime_error() -> None:
 
     with lock.read(), pytest.raises(RuntimeError, match="Cannot upgrade a read lock to a write lock"), lock:
         pass
+
+
+def test_query_retrieval_optimization_sqlite_vec(tmp_path: Path, monkeypatch) -> None:
+    # Set up two identical graphs: one using sqlite-vec, one bypassing it.
+    graph_vec = make_graph(tmp_path / "vec")
+    graph_fallback = make_graph(tmp_path / "fallback")
+
+    import waggle.graph as graph_module
+    import waggle.graph.traversal as traversal_module
+
+    # Let's populate some data on both graphs
+    for g in (graph_vec, graph_fallback):
+        g.add_node(
+            label="Postgres Decision",
+            content="We decided to use PostgreSQL for persistence.",
+            node_type=NodeType.DECISION,
+            project="p1",
+            session_id="s1",
+        )
+        g.add_node(
+            label="Redis Decision",
+            content="We decided to use Redis for caching.",
+            node_type=NodeType.DECISION,
+            project="p1",
+            session_id="s1",
+        )
+        g.add_node(
+            label="Frontend Choice",
+            content="We are using React for the frontend UI.",
+            node_type=NodeType.DECISION,
+            project="p1",
+            session_id="s1",
+        )
+
+    # Query with sqlite-vec enabled:
+    monkeypatch.setattr(graph_module, "HAS_SQLITE_VEC", True)
+    res_vec = graph_vec.query(query="PostgreSQL database", project="p1", session_id="s1", max_nodes=5, retrieval_mode="graph")
+
+    # Query with sqlite-vec disabled (fallback):
+    monkeypatch.setattr(graph_module, "HAS_SQLITE_VEC", False)
+    res_fallback = graph_fallback.query(query="PostgreSQL database", project="p1", session_id="s1", max_nodes=5, retrieval_mode="graph")
+
+    assert len(res_vec.nodes) == len(res_fallback.nodes)
+    assert [n.label for n in res_vec.nodes] == [n.label for n in res_fallback.nodes]
+
+    # Check that similarity scores match or are very close
+    for n_vec, n_fb in zip(res_vec.nodes, res_fallback.nodes):
+        assert abs((n_vec.similarity_score or 0.0) - (n_fb.similarity_score or 0.0)) < 1e-4
+
+    # Let's also check lazy loading behavior of LazyEmbeddingDict
+    # When HAS_SQLITE_VEC is True, the retrieval path should not call _decode_embedding
+    # except when we explicitly request the embedding from LazyEmbeddingDict.
+    monkeypatch.setattr(graph_module, "HAS_SQLITE_VEC", True)
+
+    decode_calls = []
+    original_decode = graph_vec._decode_embedding
+
+    def traced_decode(blob):
+        decode_calls.append(blob)
+        return original_decode(blob)
+
+    monkeypatch.setattr(graph_vec, "_decode_embedding", traced_decode)
+
+    res = graph_vec.query(query="PostgreSQL database", project="p1", session_id="s1", max_nodes=5, retrieval_mode="graph")
+    # Verify that query itself did not call _decode_embedding for the node embeddings!
+    assert len(decode_calls) == 0
+
+    # Fetching an item from LazyEmbeddingDict should now trigger the decode
+    with graph_vec._lock, graph_vec._pool.checkout() as connection:
+        rows = connection.execute("SELECT id, embedding FROM nodes").fetchall()
+        rows_dict = {row["id"]: row for row in rows}
+        lazy_dict = traversal_module.LazyEmbeddingDict(rows_dict, graph_vec)
+
+        # Checking presence
+        assert rows[0]["id"] in lazy_dict
+        assert len(decode_calls) == 0
+
+        # Fetching item triggers decode
+        emb = lazy_dict[rows[0]["id"]]
+        assert emb is not None
+        assert len(decode_calls) == 1
+
+
+def test_vec_nodes_sync_during_mutations(tmp_path: Path, monkeypatch) -> None:
+    import waggle.graph as graph_module
+    monkeypatch.setattr(graph_module, "HAS_SQLITE_VEC", True)
+
+    graph = make_graph(tmp_path / "sync_mutations")
+
+    # Add a node
+    node_res = graph.add_node(
+        label="Original Node",
+        content="This is the original content.",
+        node_type=NodeType.DECISION,
+        project="p1",
+        session_id="s1",
+    )
+    node_id = node_res.node.id
+
+    # 1. Verify it was added to vec_nodes
+    with graph._lock, graph._pool.checkout() as connection:
+        vec_row = connection.execute("SELECT node_id FROM vec_nodes WHERE node_id = ?", (node_id,)).fetchone()
+        assert vec_row is not None
+
+    # 2. Update node content and verify vec_nodes is updated/synced
+    updated_node = graph.update_node(
+        node_id=node_id,
+        content="This is the updated content.",
+    )
+    # The embedding should be updated. Let's verify we still have the row in vec_nodes.
+    with graph._lock, graph._pool.checkout() as connection:
+        vec_row = connection.execute("SELECT node_id FROM vec_nodes WHERE node_id = ?", (node_id,)).fetchone()
+        assert vec_row is not None
+
+    # 3. Corrupt embedding checksum and clear corrupt embeddings
+    with graph._lock, graph._pool.checkout() as connection:
+        connection.execute(
+            "UPDATE nodes SET embedding = ? WHERE id = ?",
+            (b"WEB1invalid_bytes_with_bad_crc", node_id),
+        )
+
+    # Run clear_corrupt_embeddings
+    cleared = graph.clear_corrupt_embeddings()
+    assert cleared["nodes"] == 1
+
+    # Verify that the corrupt node has been removed from vec_nodes!
+    with graph._lock, graph._pool.checkout() as connection:
+        vec_row = connection.execute("SELECT node_id FROM vec_nodes WHERE node_id = ?", (node_id,)).fetchone()
+        assert vec_row is None
+

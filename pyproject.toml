@@ -57,6 +57,9 @@ dev = [
 neo4j = [
   "neo4j>=5.20.0",
 ]
+vector = [
+  "sqlite-vec>=0.1.0",
+]
 rlm-ipython = [
   "dill>=0.3.7",
   "ipykernel>=6.0.0",

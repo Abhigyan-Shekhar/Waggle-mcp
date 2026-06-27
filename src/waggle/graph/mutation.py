@@ -199,6 +199,7 @@ class MutationMixin(MemoryGraphBase):
                     node.access_count,
                 ),
             )
+            self._sync_vec_node(active_connection, node.id, embedding_vector)
             self._mark_window_embedding_stale(active_connection, resolved_context_window_id)
             self._update_window_node_count(active_connection, resolved_context_window_id)
             conflicts = self._register_conflicts(active_connection, node) if self.enable_dedup else []
@@ -536,6 +537,7 @@ class MutationMixin(MemoryGraphBase):
                     self.tenant_id,
                 ),
             )
+            self._sync_vec_node(connection, updated_node.id, embedding_bytes)
 
             if scope_changed:
                 if node.context_window_id:
@@ -651,6 +653,7 @@ class MutationMixin(MemoryGraphBase):
                 (node_id, node_id, self.tenant_id),
             )
             connection.execute("DELETE FROM nodes WHERE id = ? AND tenant_id = ?", (node_id, self.tenant_id))
+            self._sync_vec_node(connection, node_id, None)
             if node.context_window_id:
                 self._mark_window_embedding_stale(connection, node.context_window_id)
                 self._update_window_node_count(connection, node.context_window_id)
@@ -868,6 +871,14 @@ class MutationMixin(MemoryGraphBase):
                     f"DELETE FROM nodes WHERE tenant_id = ? AND id IN ({placeholders})",
                     (self.tenant_id, *node_ids),
                 )
+                from waggle.graph import HAS_SQLITE_VEC
+
+                if HAS_SQLITE_VEC and node_ids:
+                    placeholders_vec = ", ".join("?" for _ in node_ids)
+                    connection.execute(
+                        f"DELETE FROM vec_nodes WHERE node_id IN ({placeholders_vec})",
+                        tuple(node_ids),
+                    )
 
         if window_ids:
             placeholders = ", ".join("?" for _ in window_ids)
@@ -924,6 +935,8 @@ class MutationMixin(MemoryGraphBase):
         node: Node,
         embedding: np.ndarray,
     ) -> tuple[Node, str, float | None] | None:
+        from waggle.graph import HAS_SQLITE_VEC
+
         filters = ["tenant_id = ?", "embedding IS NOT NULL"]
         params: list[Any] = [self.tenant_id]
         if node.project:
@@ -936,15 +949,35 @@ class MutationMixin(MemoryGraphBase):
             filters.append("agent_id = ?")
             params.append(node.agent_id)
 
-        rows = connection.execute(
-            f"""
-            SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt, metadata, evidence_records,
-                   valid_from, valid_to, created_at, updated_at, access_count, embedding, tenant_id
-            FROM nodes
-            WHERE {" AND ".join(filters)}
-            """,
-            tuple(params),
-        ).fetchall()
+        _emb_norm = float(np.linalg.norm(embedding))
+        query_unit = embedding / _emb_norm if _emb_norm > 0.0 else embedding
+
+        if HAS_SQLITE_VEC:
+            rows = connection.execute(
+                f"""
+                SELECT n.id, n.agent_id, n.project, n.session_id, n.context_window_id, n.label, n.content, n.node_type, n.tags,
+                       n.aliases, n.embedding_model_id, n.embedding_dim, n.source_turn_pair_id, n.source_prompt, n.metadata, n.evidence_records,
+                       n.valid_from, n.valid_to, n.created_at, n.updated_at, n.access_count, n.tenant_id,
+                       vec_distance_cosine(v.embedding, ?) AS distance
+                FROM nodes n
+                JOIN vec_nodes v ON v.node_id = n.id
+                WHERE n.{" AND n.".join(filters)}
+                ORDER BY distance
+                LIMIT 50
+                """,
+                (query_unit.astype(np.float32).tobytes(), *params),
+            ).fetchall()
+        else:
+            rows = connection.execute(
+                f"""
+                SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags,
+                       aliases, embedding_model_id, embedding_dim, source_turn_pair_id, source_prompt, metadata, evidence_records,
+                       valid_from, valid_to, created_at, updated_at, access_count, embedding, tenant_id
+                FROM nodes
+                WHERE {" AND ".join(filters)}
+                """,
+                tuple(params),
+            ).fetchall()
 
         normalized_label = normalize_text(node.label)
         normalized_content = normalize_text(node.content)
@@ -952,23 +985,18 @@ class MutationMixin(MemoryGraphBase):
         type_threshold = type_aware_dedup_threshold(node.node_type, default=self.dedup_similarity_threshold)
         best_match: tuple[Node, float] | None = None
 
-        # Pre-normalise the query embedding ONCE so the inner loop only needs a
-        # single np.dot() per candidate instead of two norm computations. Use a
-        # fresh local so we don't shadow the `embedding` parameter — keeps the
-        # invariant "normalisation happens here, not silently for callers" clear.
-        _emb_norm = float(np.linalg.norm(embedding))
-        query_unit = embedding / _emb_norm if _emb_norm > 0.0 else embedding
-
         for row in rows:
             existing_node = self._row_to_node(row)
-            if not _scope_matches(
+            scope_ok = _scope_matches(
                 existing_node,
                 agent_id=node.agent_id,
                 project=node.project,
                 session_id=node.session_id,
-            ):
+            )
+            types_ok = compatible_node_types(node.node_type, existing_node.node_type)
+            if not scope_ok:
                 continue
-            if not compatible_node_types(node.node_type, existing_node.node_type):
+            if not types_ok:
                 continue
             existing_label = normalize_text(existing_node.label)
             existing_content = normalize_text(existing_node.content)
@@ -1008,12 +1036,16 @@ class MutationMixin(MemoryGraphBase):
                 if normalized_content in existing_content or existing_content in normalized_content:
                     return existing_node, "content_substring", 0.98
 
-            # ── Layer 3: semantic similarity (expensive — compute embedding once) ─
-            existing_embedding = self._decode_embedding(row["embedding"])
-            if existing_embedding is None:
-                continue
-            # Fast dot() — both vectors are unit-norm here, so this equals cosine.
-            similarity = float(np.dot(query_unit, existing_embedding / (np.linalg.norm(existing_embedding) or 1.0)))
+            # ── Layer 3: expensive semantic similarity ──
+            if HAS_SQLITE_VEC:
+                similarity = 1.0 - float(row["distance"])
+            else:
+                existing_embedding = self._decode_embedding(row["embedding"])
+                if existing_embedding is None:
+                    continue
+                # Fast dot() — both vectors are unit-norm here, so this equals cosine.
+                similarity = float(np.dot(query_unit, existing_embedding / (np.linalg.norm(existing_embedding) or 1.0)))
+
             label_score = label_similarity(node.label, existing_node.label)
             acronym_match = is_acronym_match(node.label, existing_node.label)
 
@@ -1265,6 +1297,7 @@ class MutationMixin(MemoryGraphBase):
                     "DELETE FROM nodes WHERE id = ? AND tenant_id = ?",
                     (node_id, self.tenant_id),
                 )
+                self._sync_vec_node(connection, node_id, None)
                 merged_ids.append(node_id)
 
             # Persist updated aliases on canonical node
