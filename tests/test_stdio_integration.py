@@ -38,7 +38,7 @@ async def _run_stdio_initialize_and_basic_calls(tmp_path: Path) -> None:
         assert init_result.serverInfo.name == "waggle"
 
         tools_result = await session.list_tools()
-        assert len(tools_result.tools) == 41
+        assert len(tools_result.tools) == 42
         assert {tool.name for tool in tools_result.tools} >= {
             "store_node",
             "query_graph",
