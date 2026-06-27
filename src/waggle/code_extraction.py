@@ -137,11 +137,32 @@ def _tree_sitter_extract(code: str, language: str) -> list[CodeEntity] | None:
 
     entities: list[CodeEntity] = []
     seen: set[tuple[str, str]] = set()
-    func_types = {"function_definition", "function_declaration", "method_definition", "arrow_function"}
+    func_types = {"function_definition", "function_declaration", "function", "method_definition", "arrow_function"}
     class_types = {"class_definition", "class_declaration"}
 
     def _walk(node: object) -> None:
         node_type = getattr(node, "type", "")
+
+        # Variable-bound functions: const handleClick = () => {}
+        if node_type == "variable_declarator":
+            value_node = node.child_by_field_name("value") if hasattr(node, "child_by_field_name") else None
+            name_node = node.child_by_field_name("name") if hasattr(node, "child_by_field_name") else None
+            if value_node is not None and name_node is not None:
+                value_type = getattr(value_node, "type", "")
+                if value_type in func_types:
+                    name = code[name_node.start_byte : name_node.end_byte]
+                    key = (name, "function")
+                    if name and key not in seen:
+                        seen.add(key)
+                        entities.append(
+                            CodeEntity(
+                                name=name,
+                                entity_type="function",
+                                language=language,
+                                snippet=_snippet_for(code, name),
+                            )
+                        )
+
         if node_type in func_types or node_type in class_types:
             name_node = node.child_by_field_name("name") if hasattr(node, "child_by_field_name") else None
             if name_node is not None:
@@ -182,7 +203,7 @@ def extract_code_entities(text: str) -> list[CodeEntity]:
             continue
         language = _normalize_language(hint, code)
         entities = _tree_sitter_extract(code, language)
-        if entities is None:
+        if not entities:
             entities = _regex_extract(code, language)
         for entity in entities:
             key = (entity.name, entity.entity_type)
