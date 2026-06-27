@@ -461,7 +461,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 event_type="record.read",
                 resource_type="transcript_records",
                 action="read",
-                metadata={"mode": "hybrid", "query": query_text, "limit": limit},
+                metadata={"mode": "hybrid", "query_length": len(query_text), "limit": limit},
             )
             return JSONResponse(
                 {
@@ -557,7 +557,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             event_type="graph.query.executed",
             resource_type="retrieval_debug",
             action="read",
-            metadata={"query": query_text, "max_nodes": max_nodes, "max_depth": max_depth},
+            metadata={"query_length": len(query_text), "max_nodes": max_nodes, "max_depth": max_depth},
         )
         return JSONResponse(
             {
@@ -615,7 +615,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             action="read",
             metadata={
                 "query_id": str(payload.get("query_id", "")).strip(),
-                "query": str(payload.get("query", "")).strip(),
+                "query_length": len(str(payload.get("query", "")).strip()),
             },
         )
         return JSONResponse(result)
@@ -693,6 +693,42 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             if str(edge.get("id", "")).strip()
         }
 
+        # Validation Pass
+        ui = payload.get("ui", {}) or {}
+        zoom_val = None
+        if "zoom" in ui and ui.get("zoom") is not None:
+            try:
+                zoom_val = float(ui["zoom"])
+            except ValueError:
+                raise ValidationFailure("zoom must be a float number.")
+
+        for node_id, node_payload in desired_nodes.items():
+            if node_id not in current_nodes:
+                try:
+                    NodeType(str(node_payload.get("node_type", "note")).strip() or "note")
+                except ValueError:
+                    raise ValidationFailure(f"node_type must be one of {[nt.value for nt in NodeType]}.")
+
+        parsed_weights = {}
+        for edge_id, edge_payload in desired_edges.items():
+            if edge_id in current_edges:
+                try:
+                    weight_val = (
+                        float(edge_payload["weight"])
+                        if "weight" in edge_payload and edge_payload.get("weight") is not None
+                        else None
+                    )
+                    parsed_weights[edge_id] = weight_val
+                except ValueError:
+                    raise ValidationFailure("weight must be a float number.")
+            else:
+                try:
+                    weight_val = float(edge_payload.get("weight", 1.0))
+                    parsed_weights[edge_id] = weight_val
+                except ValueError:
+                    raise ValidationFailure("weight must be a float number.")
+
+        # Mutation Pass
         for edge_id in list(current_edges):
             if edge_id not in desired_edges:
                 graph.delete_edge(edge_id=edge_id)
@@ -724,42 +760,23 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
         for edge_id, edge_payload in desired_edges.items():
             if edge_id in current_edges:
-                try:
-                    weight_val = (
-                        float(edge_payload["weight"])
-                        if "weight" in edge_payload and edge_payload.get("weight") is not None
-                        else None
-                    )
-                except ValueError:
-                    raise ValidationFailure("weight must be a float number.")
                 graph.update_edge(
                     edge_id=edge_id,
                     source_id=str(edge_payload.get("source_id", "")).strip() or None,
                     target_id=str(edge_payload.get("target_id", "")).strip() or None,
                     relationship=str(edge_payload.get("relationship", "")).strip() or None,
-                    weight=weight_val,
+                    weight=parsed_weights[edge_id],
                 )
                 continue
-            edge_id = str(edge_payload.get("id") or f"preview-{uuid.uuid4()}").strip()
-            try:
-                weight_val = float(edge_payload.get("weight", 1.0))
-            except ValueError:
-                raise ValidationFailure("weight must be a float number.")
+            edge_id_to_use = str(edge_payload.get("id") or f"preview-{uuid.uuid4()}").strip()
             graph.add_edge(
-                edge_id=edge_id,
+                edge_id=edge_id_to_use,
                 source_id=str(edge_payload.get("source_id", "")).strip(),
                 target_id=str(edge_payload.get("target_id", "")).strip(),
                 relationship=str(edge_payload.get("relationship", "")).strip(),
-                weight=weight_val,
+                weight=parsed_weights[edge_id],
             )
 
-        ui = payload.get("ui", {}) or {}
-        zoom_val = None
-        if "zoom" in ui and ui.get("zoom") is not None:
-            try:
-                zoom_val = float(ui["zoom"])
-            except ValueError:
-                raise ValidationFailure("zoom must be a float number.")
         saved = graph.save_ui_state(
             project=scope["project"],
             agent_id=scope["agent_id"],
@@ -933,6 +950,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         raise ValidationFailure("format must be one of: abhi, json.")
 
     async def graph_import(request: Request) -> Response:
+        graph, _ = _require_http_scope(request, "graph:write")
         payload = await request.json()
         import_format = str(payload.get("format", "abhi")).strip().lower()
         content = str(payload.get("content", ""))
@@ -945,7 +963,6 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 temp_path.write_bytes(base64.b64decode(content_base64))
             else:
                 temp_path.write_text(content, encoding="utf-8")
-            graph, _ = _require_http_scope(request, "graph:write")
             imported_node_ids: list[str] = []
             if import_format == "abhi":
                 document = load_abhi_document(temp_path)
@@ -970,6 +987,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             temp_path.unlink(missing_ok=True)
 
     async def graph_import_preview(request: Request) -> Response:
+        graph, _ = _require_http_scope(request, "graph:read")
         payload = await request.json()
         import_format = str(payload.get("format", "abhi")).strip().lower()
         content = str(payload.get("content", ""))
@@ -982,7 +1000,6 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 temp_path.write_bytes(base64.b64decode(content_base64))
             else:
                 temp_path.write_text(content, encoding="utf-8")
-            graph, _ = _require_http_scope(request, "graph:read")
             if import_format == "abhi":
                 validation = graph.validate_abhi(input_path=temp_path)
                 inspect_result = graph.inspect_abhi(input_path=temp_path)
@@ -1111,8 +1128,12 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
     async def admin_retention_prune(request: Request) -> Response:
         payload = await request.json() if request.method != "GET" else {}
         graph, _ = _require_http_scope(request, "admin:write", tenant_override=str(payload.get("tenant_id", "") or ""))
+        try:
+            batch_size = int(payload.get("batch_size", 1000) or 1000)
+        except ValueError:
+            raise ValidationFailure("batch_size must be an integer.")
         run = graph.prune_retention(
-            batch_size=int(payload.get("batch_size", 1000) or 1000),
+            batch_size=batch_size,
             default_enabled=config.retention_enabled,
             default_retention_days=config.retention_days,
             default_prune_interval_hours=config.retention_prune_interval_hours,
@@ -1129,13 +1150,19 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def admin_retention_runs(request: Request) -> Response:
         graph, _ = _require_http_scope(request, "admin:read")
-        limit = int(request.query_params.get("limit", "20") or "20")
+        try:
+            limit = int(request.query_params.get("limit", "20") or "20")
+        except ValueError:
+            raise ValidationFailure("limit query parameter must be an integer.")
         runs = graph.list_retention_runs(limit=limit)
         return JSONResponse([_serialize_retention_run(run) for run in runs])
 
     async def admin_audit_events(request: Request) -> Response:
         graph, _ = _require_http_scope(request, "admin:read")
-        limit = int(request.query_params.get("limit", "100") or "100")
+        try:
+            limit = int(request.query_params.get("limit", "100") or "100")
+        except ValueError:
+            raise ValidationFailure("limit query parameter must be an integer.")
         events = graph.list_audit_events(
             limit=limit,
             event_type=request.query_params.get("type", "").strip(),

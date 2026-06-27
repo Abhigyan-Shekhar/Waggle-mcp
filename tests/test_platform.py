@@ -794,3 +794,189 @@ def test_graph_update_edge_rejects_invalid_weight(tmp_path: Path) -> None:
             headers=headers,
         )
         assert resp.status_code == 200
+
+
+def test_new_validation_and_audit_safety(tmp_path: Path) -> None:
+    config = make_http_config(tmp_path)
+    config.db_path = str(tmp_path / "memory_safety.db")
+    graph = MemoryGraph(config.db_path, FakeEmbeddingModel())
+    server = WaggleServer(graph)
+    app = create_http_application(server, config)
+
+    # 1. API key setup
+    created = graph.create_api_key(
+        "local-default",
+        name="test-safety-key",
+        scopes=["admin:write", "admin:read", "graph:write", "graph:read"],
+    )
+    headers = {"X-API-Key": created.raw_api_key}
+
+    with TestClient(app) as client:
+        # Check Issue 1: Persisting raw search text in audit metadata
+        # We query transcripts and retrieve debug to verify that the query is not in the audit logs
+        # First, query transcripts with query text
+        resp = client.get(
+            "/api/graph/transcripts",
+            params={"project": "studio", "query": "sensitive raw query"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+
+        # Run retrieve debug
+        resp = client.post(
+            "/api/graph/retrieval-debug",
+            json={
+                "project": "studio",
+                "agent_id": "test-agent",
+                "session_id": "test-session",
+                "query": "sensitive retrieval query",
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 200
+
+        # Execute abhi query
+        resp = client.post(
+            "/api/graph/query",
+            json={
+                "project": "studio",
+                "agent_id": "test-agent",
+                "session_id": "test-session",
+                "query": "sensitive abhi query",
+                "query_id": "q-1",
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 200
+
+        # Query audit events to ensure "sensitive" query text does NOT appear in audit logs
+        events_resp = client.get(
+            "/api/admin/audit-events",
+            params={"tenant_id": "local-default", "limit": 100},
+            headers=headers,
+        )
+        assert events_resp.status_code == 200
+        events = events_resp.json()
+        for event in events:
+            meta_str = str(event.get("metadata", ""))
+            assert "sensitive" not in meta_str
+            # Verify we have "query_length" in metadata instead of "query"
+            if event.get("event_type") in {"record.read", "graph.query.executed"}:
+                meta = event.get("metadata", {})
+                if ("mode" in meta and meta["mode"] == "hybrid") or event.get("resource_type") in {"retrieval_debug", "abhi_query"}:
+                    assert "query_length" in meta
+                    assert "query" not in meta
+
+        # Check Issue 2: graph_restore pre-validation
+        # Send an invalid node_type and check that the graph has not been mutated
+        # First, add a node to the graph
+        n = graph.for_tenant("local-default").add_node(
+            label="Valid Node",
+            content="Initial content",
+            node_type="fact",
+            project="studio",
+        )
+        node_id = n.node.id
+
+        # Post invalid restore
+        resp = client.post(
+            "/api/graph/restore",
+            json={
+                "project": "studio",
+                "nodes": [
+                    {
+                        "id": "new-node",
+                        "label": "Invalid node type",
+                        "content": "some content",
+                        "node_type": "invalid_type_here",
+                        "project": "studio",
+                    }
+                ],
+                "edges": [],
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        # Check that the original node still exists (not deleted by partial restore)
+        snapshot_resp = client.get("/api/graph", params={"project": "studio"}, headers=headers)
+        assert len(snapshot_resp.json()["nodes"]) == 1
+        assert snapshot_resp.json()["nodes"][0]["id"] == node_id
+
+        # Post invalid weight restore
+        resp = client.post(
+            "/api/graph/restore",
+            json={
+                "project": "studio",
+                "nodes": [
+                    {
+                        "id": node_id,
+                        "label": "Valid Node",
+                        "content": "Initial content",
+                        "node_type": "fact",
+                        "project": "studio",
+                    }
+                ],
+                "edges": [
+                    {
+                        "id": "edge-1",
+                        "source_id": node_id,
+                        "target_id": node_id,
+                        "relationship": "self",
+                        "weight": "not a float",
+                    }
+                ],
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        # Original node still exists
+        snapshot_resp = client.get("/api/graph", params={"project": "studio"}, headers=headers)
+        assert len(snapshot_resp.json()["nodes"]) == 1
+
+        # Check Issue 3: graph_import and graph_import_preview check scope first
+        # Call with a read-only key, should return 403 Forbidden on import (which requires graph:write)
+        read_only_key = graph.create_api_key(
+            "local-default",
+            name="read-only-key",
+            scopes=["graph:read"],
+        )
+        resp = client.post(
+            "/api/graph/import",
+            json={"format": "json", "content": "invalid json body {["},
+            headers={"X-API-Key": read_only_key.raw_api_key},
+        )
+        assert resp.status_code == 403
+
+        # Call preview import (which requires graph:read) with an invalid key, should return 401/403
+        resp = client.post(
+            "/api/graph/abhi/preview-import",
+            json={"format": "json", "content": "invalid json body {["},
+            headers={"X-API-Key": "invalid-api-key"},
+        )
+        assert resp.status_code in {401, 403}
+
+        # Check Issue 4: ValueError in admin retention endpoints
+        # Verify limit and batch_size invalid inputs return 400 ValidationFailure
+        resp = client.post(
+            "/api/admin/retention/prune",
+            json={"batch_size": "not-an-int"},
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        assert "batch_size must be an integer" in resp.json()["message"]
+
+        resp = client.get(
+            "/api/admin/retention/runs",
+            params={"limit": "invalid-limit"},
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        assert "limit query parameter must be an integer" in resp.json()["message"]
+
+        resp = client.get(
+            "/api/admin/audit-events",
+            params={"limit": "invalid-limit"},
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        assert "limit query parameter must be an integer" in resp.json()["message"]
