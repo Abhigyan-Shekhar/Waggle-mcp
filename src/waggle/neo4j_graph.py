@@ -222,6 +222,15 @@ def _cypher_rel_type(relationship: str) -> str:
     return safe or "RELATES_TO"
 
 
+_RE_NON_LABEL = re.compile(r"[^A-Z0-9_]")
+
+
+def _cypher_label(raw: str) -> str:
+    """Sanitize a string for use as a Cypher label (PascalCase, alphanumeric only)."""
+    safe = _RE_NON_LABEL.sub("", raw.strip().title())
+    return safe or "Unknown"
+
+
 def _scope_matches(node: Node, *, agent_id: str = "", project: str = "", session_id: str = "") -> bool:
     normalized_agent = agent_id.strip().lower()
     normalized_project = project.strip().lower()
@@ -2477,7 +2486,7 @@ def update_node(
 
         # Node creation
         for node in nodes:
-            node_type = node.get("node_type", "unknown")
+            node_type = _cypher_label(node.get("node_type", "unknown"))
             labels = f":Memory:{node_type}"
 
             safe_id = _cypher_escape(node["id"])
@@ -2486,11 +2495,12 @@ def update_node(
             safe_project = _cypher_escape(node.get("project", ""))
             safe_agent = _cypher_escape(node.get("agent_id", ""))
             safe_session = _cypher_escape(node.get("session_id", ""))
-            safe_created = node.get("created_at", "")
+            safe_node_type = _cypher_escape(node.get("node_type", "unknown"))
+            safe_created = _cypher_escape(node.get("created_at", ""))
 
             props = (
                 f"id: '{safe_id}', label: '{safe_label}', content: '{safe_content}', "
-                f"node_type: '{node_type}', project: '{safe_project}', "
+                f"node_type: '{safe_node_type}', project: '{safe_project}', "
                 f"agent_id: '{safe_agent}', session_id: '{safe_session}', "
                 f"created_at: '{safe_created}'"
             )
@@ -2512,10 +2522,12 @@ def update_node(
             safe_target = _cypher_escape(edge["target_id"])
             rel_type = _cypher_rel_type(edge.get("relationship", "RELATES_TO"))
             weight = float(edge.get("weight", 1.0))
+            meta = edge.get("metadata") or {}
+            confidence = float(meta.get("edge_confidence", 1.0))
 
             lines.append(
                 f"MATCH (a:Memory {{id: '{safe_source}'}}), (b:Memory {{id: '{safe_target}'}}) "
-                f"CREATE (a)-[:{rel_type} {{weight: {weight!r}}}]->(b);"
+                f"CREATE (a)-[:{rel_type} {{weight: {weight!r}, confidence: {confidence!r}}}]->(b);"
             )
 
         lines.append("")

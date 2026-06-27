@@ -3651,7 +3651,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
     async def graph_export(request: Request) -> Response:
         scope = _scope_from_request(request)
         export_format = request.query_params.get("format", "abhi").strip().lower()
-        graph = app_server.graph
+        graph, _ = _require_http_scope(request, "graph:read")
         if export_format == "abhi":
             exported = graph.export_abhi(**scope)
             content = Path(exported.output_path).read_bytes()
