@@ -495,7 +495,7 @@ class HybridRetriever:
                        COALESCE(instr('0123456789abcdef', substr(content_hash, 8, 1)), 0)
                    ), 0)
             FROM transcript_records
-            WHERE {' AND '.join(tx_filters)}
+            WHERE {" AND ".join(tx_filters)}
             """,
             tuple(tx_params),
         ).fetchone()
@@ -561,12 +561,7 @@ class HybridRetriever:
                 session_id=session_id,
                 include_nodes=include_nodes,
             )
-            if (
-                cache is not None
-                and cache[0] == sig
-                and cache[1] is not None
-                and cache[2] is not None
-            ):
+            if cache is not None and cache[0] == sig and cache[1] is not None and cache[2] is not None:
                 bm25 = cache[1]
                 payloads = cache[2]
             else:

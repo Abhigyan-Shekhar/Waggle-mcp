@@ -765,7 +765,6 @@ def test_hybrid_retrieval_performance_caching(tmp_path: Path) -> None:
     print(f"[BENCHMARK] Caching Speedup factor: {speedup:.2f}x")
 
 
-
 def test_lexical_cache_persists_across_multiple_retrievers(tmp_path: Path) -> None:
     graph = make_graph(tmp_path, rerank_enabled=False)
     observed_at = datetime(2026, 1, 1, tzinfo=UTC)
@@ -843,6 +842,7 @@ def test_lexical_cache_invalidated_on_transcript_update(tmp_path: Path) -> None:
 
     # Now update the transcript record in place: change text and content_hash but keep the same count/observed_at
     from waggle.graph.base import _normalized_content_hash
+
     new_text = "Original secret: sapphire-snake."
     new_hash = _normalized_content_hash(new_text)
 
@@ -853,7 +853,7 @@ def test_lexical_cache_invalidated_on_transcript_update(tmp_path: Path) -> None:
             SET transcript_text = ?, content_hash = ?
             WHERE session_id = ? AND turn_pair_id = ?
             """,
-            (new_text, new_hash, "sess-update-test", "tp-secret")
+            (new_text, new_hash, "sess-update-test", "tp-secret"),
         )
 
     # Next query on a new retriever should trigger a cache invalidation and return new content

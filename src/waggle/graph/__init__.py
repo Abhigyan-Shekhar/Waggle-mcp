@@ -542,7 +542,9 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
     @property
     def root_graph(self) -> MemoryGraph:
         owner = getattr(self, "_pool_owner", None)
-        return owner if owner is not None else self
+        if owner is not None:
+            return owner.root_graph
+        return self
 
     def hybrid_retriever(self) -> HybridRetriever:
         return HybridRetriever(self, config=self.hybrid_retrieval_config)
