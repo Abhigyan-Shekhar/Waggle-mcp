@@ -763,3 +763,112 @@ def test_hybrid_retrieval_performance_caching(tmp_path: Path) -> None:
     print(f"\n[BENCHMARK] Uncached query time: {t_uncached * 1000:.3f} ms")
     print(f"[BENCHMARK] Cached query time (avg of {runs} runs): {t_cached_avg * 1000:.3f} ms")
     print(f"[BENCHMARK] Caching Speedup factor: {speedup:.2f}x")
+
+
+
+def test_lexical_cache_persists_across_multiple_retrievers(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+    with graph._lock, graph._connect() as connection:
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-cache-test",
+            observed_at=observed_at,
+            turn_index=0,
+            role="user",
+            transcript_text="The launch codeword is emerald-eagle.",
+            turn_pair_id="tp-emerald",
+        )
+
+    # First retriever query
+    retriever_1 = graph.hybrid_retriever()
+    res1 = retriever_1.retrieve(
+        query="what is the launch codeword",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-cache-test",
+        mode="hybrid",
+    )
+    assert any("emerald-eagle" in hit.content for hit in res1)
+
+    # Cache should be populated on root graph
+    cache_entry = graph.root_graph._lexical_cache
+    assert cache_entry is not None
+
+    # Second retriever query (new instance)
+    retriever_2 = graph.hybrid_retriever()
+    res2 = retriever_2.retrieve(
+        query="what is the launch codeword",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-cache-test",
+        mode="hybrid",
+    )
+    assert any("emerald-eagle" in hit.content for hit in res2)
+
+    # Make sure the cache entry was reused and not overwritten (id is the same)
+    assert graph.root_graph._lexical_cache is cache_entry
+
+
+def test_lexical_cache_invalidated_on_transcript_update(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+    with graph._lock, graph._connect() as connection:
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-update-test",
+            observed_at=observed_at,
+            turn_index=0,
+            role="user",
+            transcript_text="Original secret: ruby-rabbit.",
+            turn_pair_id="tp-secret",
+        )
+
+    retriever = graph.hybrid_retriever()
+    res1 = retriever.retrieve(
+        query="what is the secret",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-update-test",
+        mode="hybrid",
+    )
+    assert any("ruby-rabbit" in hit.content for hit in res1)
+
+    cache_entry_1 = graph.root_graph._lexical_cache
+    assert cache_entry_1 is not None
+
+    # Now update the transcript record in place: change text and content_hash but keep the same count/observed_at
+    from waggle.graph.base import _normalized_content_hash
+    new_text = "Original secret: sapphire-snake."
+    new_hash = _normalized_content_hash(new_text)
+
+    with graph._lock, graph._connect() as connection:
+        connection.execute(
+            """
+            UPDATE transcript_records
+            SET transcript_text = ?, content_hash = ?
+            WHERE session_id = ? AND turn_pair_id = ?
+            """,
+            (new_text, new_hash, "sess-update-test", "tp-secret")
+        )
+
+    # Next query on a new retriever should trigger a cache invalidation and return new content
+    retriever_new = graph.hybrid_retriever()
+    res2 = retriever_new.retrieve(
+        query="what is the secret",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-update-test",
+        mode="hybrid",
+    )
+    assert any("sapphire-snake" in hit.content for hit in res2)
+    assert not any("ruby-rabbit" in hit.content for hit in res2)
+
+    cache_entry_2 = graph.root_graph._lexical_cache
+    assert cache_entry_2 is not None
+    # Signature must be different, hence cache entry must be different
+    assert cache_entry_1[0] != cache_entry_2[0]

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import sqlite3
 from collections import Counter, defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -185,9 +186,45 @@ class HybridRetriever:
             recency_half_life_days=getattr(graph, "recency_half_life_days", 30.0)
         )
         self.rerank_callable = rerank_callable
-        self._lexical_cache_sig: tuple[Any, ...] | None = None
-        self._lexical_cache_bm25: SimpleBM25 | None = None
-        self._lexical_cache_payloads: dict[str, CandidateMemory] | None = None
+
+    @property
+    def _lexical_cache_sig(self) -> Any:
+        cache = self.graph.root_graph._lexical_cache
+        return cache[0] if cache is not None else None
+
+    @_lexical_cache_sig.setter
+    def _lexical_cache_sig(self, value: Any) -> None:
+        cache = self.graph.root_graph._lexical_cache
+        if cache is None:
+            self.graph.root_graph._lexical_cache = (value, None, None)
+        else:
+            self.graph.root_graph._lexical_cache = (value, cache[1], cache[2])
+
+    @property
+    def _lexical_cache_bm25(self) -> Any:
+        cache = self.graph.root_graph._lexical_cache
+        return cache[1] if cache is not None else None
+
+    @_lexical_cache_bm25.setter
+    def _lexical_cache_bm25(self, value: Any) -> None:
+        cache = self.graph.root_graph._lexical_cache
+        if cache is None:
+            self.graph.root_graph._lexical_cache = (None, value, None)
+        else:
+            self.graph.root_graph._lexical_cache = (cache[0], value, cache[2])
+
+    @property
+    def _lexical_cache_payloads(self) -> Any:
+        cache = self.graph.root_graph._lexical_cache
+        return cache[2] if cache is not None else None
+
+    @_lexical_cache_payloads.setter
+    def _lexical_cache_payloads(self, value: Any) -> None:
+        cache = self.graph.root_graph._lexical_cache
+        if cache is None:
+            self.graph.root_graph._lexical_cache = (None, None, value)
+        else:
+            self.graph.root_graph._lexical_cache = (cache[0], cache[1], value)
 
     def retrieve(
         self,
@@ -424,62 +461,79 @@ class HybridRetriever:
 
     def _get_lexical_db_signature(
         self,
+        connection: sqlite3.Connection,
         *,
         project: str,
         agent_id: str,
         session_id: str,
         include_nodes: bool,
     ) -> tuple[Any, ...]:
-        with self.graph._lock.read(), self.graph._pool.checkout() as connection:
-            tx_filters = ["tenant_id = ?"]
-            tx_params: list[Any] = [self.graph.tenant_id]
+        tx_filters = ["tenant_id = ?"]
+        tx_params: list[Any] = [self.graph.tenant_id]
+        if project.strip():
+            tx_filters.append("project = ?")
+            tx_params.append(project.strip())
+        if session_id.strip():
+            tx_filters.append("session_id = ?")
+            tx_params.append(session_id.strip())
+        elif agent_id.strip():
+            tx_filters.append("agent_id = ?")
+            tx_params.append(agent_id.strip())
+
+        tx_row = connection.execute(
+            f"""
+            SELECT COUNT(*),
+                   MAX(observed_at),
+                   COALESCE(SUM(
+                       COALESCE(instr('0123456789abcdef', substr(content_hash, 1, 1)), 0) +
+                       COALESCE(instr('0123456789abcdef', substr(content_hash, 2, 1)), 0) +
+                       COALESCE(instr('0123456789abcdef', substr(content_hash, 3, 1)), 0) +
+                       COALESCE(instr('0123456789abcdef', substr(content_hash, 4, 1)), 0) +
+                       COALESCE(instr('0123456789abcdef', substr(content_hash, 5, 1)), 0) +
+                       COALESCE(instr('0123456789abcdef', substr(content_hash, 6, 1)), 0) +
+                       COALESCE(instr('0123456789abcdef', substr(content_hash, 7, 1)), 0) +
+                       COALESCE(instr('0123456789abcdef', substr(content_hash, 8, 1)), 0)
+                   ), 0)
+            FROM transcript_records
+            WHERE {' AND '.join(tx_filters)}
+            """,
+            tuple(tx_params),
+        ).fetchone()
+        tx_count = tx_row[0] if tx_row else 0
+        tx_max = tx_row[1] if tx_row else None
+        tx_hash_sum = tx_row[2] if tx_row else 0
+
+        node_count = 0
+        node_max = None
+        if include_nodes:
+            node_filters = ["tenant_id = ?"]
+            node_params: list[Any] = [self.graph.tenant_id]
             if project.strip():
-                tx_filters.append("project = ?")
-                tx_params.append(project.strip())
+                node_filters.append("project = ?")
+                node_params.append(project.strip())
             if session_id.strip():
-                tx_filters.append("session_id = ?")
-                tx_params.append(session_id.strip())
+                node_filters.append("session_id = ?")
+                node_params.append(session_id.strip())
             elif agent_id.strip():
-                tx_filters.append("agent_id = ?")
-                tx_params.append(agent_id.strip())
+                node_filters.append("agent_id = ?")
+                node_params.append(agent_id.strip())
 
-            tx_row = connection.execute(
-                f"SELECT COUNT(*), MAX(observed_at) FROM transcript_records WHERE {' AND '.join(tx_filters)}",
-                tuple(tx_params),
+            node_row = connection.execute(
+                f"SELECT COUNT(*), MAX(updated_at) FROM nodes WHERE {' AND '.join(node_filters)}",
+                tuple(node_params),
             ).fetchone()
-            tx_count = tx_row[0] if tx_row else 0
-            tx_max = tx_row[1] if tx_row else None
-
-            node_count = 0
-            node_max = None
-            if include_nodes:
-                node_filters = ["tenant_id = ?"]
-                node_params: list[Any] = [self.graph.tenant_id]
-                if project.strip():
-                    node_filters.append("project = ?")
-                    node_params.append(project.strip())
-                if session_id.strip():
-                    node_filters.append("session_id = ?")
-                    node_params.append(session_id.strip())
-                elif agent_id.strip():
-                    node_filters.append("agent_id = ?")
-                    node_params.append(agent_id.strip())
-
-                node_row = connection.execute(
-                    f"SELECT COUNT(*), MAX(updated_at) FROM nodes WHERE {' AND '.join(node_filters)}",
-                    tuple(node_params),
-                ).fetchone()
-                node_count = node_row[0] if node_row else 0
-                node_max = node_row[1] if node_row else None
+            node_count = node_row[0] if node_row else 0
+            node_max = node_row[1] if node_row else None
 
         return (
             self.graph.tenant_id,
-            project,
-            agent_id,
-            session_id,
+            project.strip(),
+            agent_id.strip(),
+            session_id.strip(),
             include_nodes,
             tx_count,
             tx_max,
+            tx_hash_sum,
             node_count,
             node_max,
         )
@@ -494,35 +548,42 @@ class HybridRetriever:
         session_id: str,
         include_nodes: bool,
     ) -> list[CandidateMemory]:
-        sig = self._get_lexical_db_signature(
-            project=project,
-            agent_id=agent_id,
-            session_id=session_id,
-            include_nodes=include_nodes,
-        )
-        if (
-            self._lexical_cache_sig == sig
-            and self._lexical_cache_bm25 is not None
-            and self._lexical_cache_payloads is not None
-        ):
-            bm25 = self._lexical_cache_bm25
-            payloads = self._lexical_cache_payloads
-        else:
-            documents: dict[str, list[str]] = {}
-            payloads = {}
-            for pair in turn_pairs:
-                doc_id = f"tp:{pair.turn_pair_id}"
-                documents[doc_id] = list(tokenize_text(pair.transcript_text))
-                payloads[doc_id] = CandidateMemory(
-                    candidate_id=doc_id,
-                    content=pair.transcript_text,
-                    source="transcript",
-                    turn_pair_id=pair.turn_pair_id,
-                    transcript_text=pair.transcript_text,
-                    observed_at=pair.observed_at,
-                )
-            if include_nodes:
-                with self.graph._lock.read(), self.graph._pool.checkout() as connection:
+        cache = self.graph.root_graph._lexical_cache
+        sig = None
+        bm25 = None
+        payloads = None
+
+        with self.graph._lock.read(), self.graph._pool.checkout() as connection:
+            sig = self._get_lexical_db_signature(
+                connection,
+                project=project,
+                agent_id=agent_id,
+                session_id=session_id,
+                include_nodes=include_nodes,
+            )
+            if (
+                cache is not None
+                and cache[0] == sig
+                and cache[1] is not None
+                and cache[2] is not None
+            ):
+                bm25 = cache[1]
+                payloads = cache[2]
+            else:
+                documents: dict[str, list[str]] = {}
+                payloads = {}
+                for pair in turn_pairs:
+                    doc_id = f"tp:{pair.turn_pair_id}"
+                    documents[doc_id] = list(tokenize_text(pair.transcript_text))
+                    payloads[doc_id] = CandidateMemory(
+                        candidate_id=doc_id,
+                        content=pair.transcript_text,
+                        source="transcript",
+                        turn_pair_id=pair.turn_pair_id,
+                        transcript_text=pair.transcript_text,
+                        observed_at=pair.observed_at,
+                    )
+                if include_nodes:
                     filters = ["tenant_id = ?"]
                     params: list[Any] = [self.graph.tenant_id]
                     if project.strip():
@@ -544,22 +605,20 @@ class HybridRetriever:
                         """,
                         tuple(params),
                     ).fetchall()
-                for row in rows:
-                    node = self.graph._row_to_node(row)
-                    doc_id = f"node:{node.id}"
-                    documents[doc_id] = list(tokenize_text(f"{node.label} {node.content}"))
-                    payloads[doc_id] = CandidateMemory(
-                        candidate_id=doc_id,
-                        content=f"{node.label}: {node.content}",
-                        source="node",
-                        turn_pair_id=node.source_turn_pair_id,
-                        node_ids=[node.id],
-                        observed_at=node.updated_at,
-                    )
-            bm25 = SimpleBM25(documents)
-            self._lexical_cache_sig = sig
-            self._lexical_cache_bm25 = bm25
-            self._lexical_cache_payloads = payloads
+                    for row in rows:
+                        node = self.graph._row_to_node(row)
+                        doc_id = f"node:{node.id}"
+                        documents[doc_id] = list(tokenize_text(f"{node.label} {node.content}"))
+                        payloads[doc_id] = CandidateMemory(
+                            candidate_id=doc_id,
+                            content=f"{node.label}: {node.content}",
+                            source="node",
+                            turn_pair_id=node.source_turn_pair_id,
+                            node_ids=[node.id],
+                            observed_at=node.updated_at,
+                        )
+                bm25 = SimpleBM25(documents)
+                self.graph.root_graph._lexical_cache = (sig, bm25, payloads)
 
         scores = bm25.score(query)
         ranked: list[CandidateMemory] = []
