@@ -94,5 +94,4 @@ The dev server reads these from the shell or a `.env` file in `apps/mcp/graph-ui
 
 * `sample-preview.html` was a standalone preview artifact used during earlier Graph Studio development and review workflows.
 * The file has been removed from the active codebase and is no longer maintained.
-* Current Graph Studio review and verification should use the active development workflow described in this document.
-
+* Current Graph Studio review and verification should follow the "Quick Start (Development)" section above by running `npm run dev` and verifying changes manually in the browser.
