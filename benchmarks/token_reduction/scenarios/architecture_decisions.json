@@ -1,0 +1,11 @@
+{
+  "name": "Architecture Decisions",
+  "turns": [
+    "We decided to use PostgreSQL as the database.",
+    "The backend will be built with FastAPI.",
+    "Authentication will use JWT tokens.",
+    "The application will be deployed using Docker.",
+    "The frontend framework will be React.",
+    "Why did we choose PostgreSQL instead of MongoDB?"
+  ]
+}

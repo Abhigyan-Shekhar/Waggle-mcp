@@ -13,6 +13,7 @@ import tempfile
 import threading
 import time
 import uuid
+import warnings
 import webbrowser
 from contextlib import asynccontextmanager, suppress
 from copy import deepcopy
@@ -38,6 +39,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from waggle import __version__
 from waggle.abhi import (
+    ABHI_MERGE_STRATEGIES,
+    DEFAULT_ABHI_MERGE_STRATEGY,
     abhi_to_snapshot,
     build_abhi_document,
     execute_abhi_query,
@@ -135,6 +138,12 @@ except Exception as exc:  # pragma: no cover - depends on optional Google libs
     resolve_drive_file_id = None
     share_drive_file = None
     _DRIVE_SYNC_IMPORT_ERROR = exc
+
+_ABHI_IMPORT_STRATEGIES = (
+    "skip-existing",
+    "overwrite",
+    "branch",
+)
 
 WRITE_HEAVY_TOOLS = {
     "store_node",
@@ -4420,12 +4429,37 @@ def _build_parser() -> argparse.ArgumentParser:
     pull_abhi.add_argument("--download-path", default="")
     pull_abhi.add_argument("--merged-output", default="")
     pull_abhi.add_argument("--passphrase-env", default="")
-    pull_abhi.add_argument("--client-secret-path", default="~/.waggle/google-client-secret.json")
+    pull_abhi.add_argument(
+        "--client-secret-path",
+        default="~/.waggle/google-client-secret.json",
+    )
     pull_abhi.add_argument("--token-path", default="")
-    pull_abhi.add_argument("--open-browser", action=argparse.BooleanOptionalAction, default=True)
+    pull_abhi.add_argument(
+        "--open-browser",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
     pull_abhi.add_argument("--namespace", default="")
     pull_abhi.add_argument(
-        "--merge-strategy", choices=["skip-existing", "overwrite", "branch"], default="skip-existing"
+        "--merge-strategy",
+        choices=[
+            *ABHI_MERGE_STRATEGIES,
+            "skip-existing",
+            "overwrite",
+            "branch",
+        ],
+        default=None,
+        help=(
+            "Conflict strategy used when merging local memory with the "
+            "downloaded Drive document. Legacy import values are deprecated; "
+            "use --import-strategy for those."
+        ),
+    )
+    pull_abhi.add_argument(
+        "--import-strategy",
+        choices=["skip-existing", "overwrite", "branch"],
+        default=None,
+        help="Strategy used to import the merged document into the active graph.",
     )
     pull_abhi.add_argument("--verify-signature", action="store_true")
     pull_abhi.add_argument("--read-only", action="store_true")
@@ -4627,6 +4661,45 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     return parser
+
+
+def _normalize_pull_strategy_args(
+    args: argparse.Namespace,
+) -> argparse.Namespace:
+    """Normalize current and legacy strategy arguments for Drive pull."""
+    if getattr(args, "command", "") != "pull":
+        return args
+
+    raw_merge_strategy = getattr(args, "merge_strategy", None)
+    explicit_import_strategy = getattr(args, "import_strategy", None)
+
+    if raw_merge_strategy in _ABHI_IMPORT_STRATEGIES:
+        if explicit_import_strategy is None:
+            args.import_strategy = raw_merge_strategy
+            warning_message = (
+                f"`--merge-strategy {raw_merge_strategy}` is deprecated for "
+                "selecting the graph import strategy. Use "
+                f"`--import-strategy {raw_merge_strategy}` instead."
+            )
+        else:
+            warning_message = (
+                f"Legacy `--merge-strategy {raw_merge_strategy}` is deprecated "
+                "and has been ignored because `--import-strategy` was also "
+                "supplied."
+            )
+
+        args.merge_strategy = DEFAULT_ABHI_MERGE_STRATEGY
+        warnings.warn(
+            warning_message,
+            FutureWarning,
+            stacklevel=2,
+        )
+    else:
+        args.merge_strategy = raw_merge_strategy or DEFAULT_ABHI_MERGE_STRATEGY
+        if explicit_import_strategy is None:
+            args.import_strategy = "skip-existing"
+
+    return args
 
 
 def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
@@ -4999,16 +5072,21 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         local_document = build_abhi_document(backend.get_graph_snapshot())
         remote_document = load_abhi_document(download_path, passphrase=passphrase)
         merged_output = Path(getattr(args, "merged_output", "") or backend.export_dir / f"merged-{remote_file_id}.abhi")
+        selected_merge_strategy = getattr(args, "merge_strategy", None) or DEFAULT_ABHI_MERGE_STRATEGY
+        selected_import_strategy = getattr(args, "import_strategy", None) or "skip-existing"
+
         merged_path = merge_downloaded_abhi(
             local_document=local_document,
             remote_document=remote_document,
             output_path=merged_output,
+            merge_strategy=selected_merge_strategy,
         )
+
         imported = backend.import_abhi(
             input_path=merged_path,
             passphrase=passphrase,
             namespace=getattr(args, "namespace", ""),
-            merge_strategy=getattr(args, "merge_strategy", "skip-existing"),
+            merge_strategy=selected_import_strategy,
             verify_signature=bool(getattr(args, "verify_signature", False)),
             read_only=bool(getattr(args, "read_only", False)),
             reembed_on_mismatch=bool(getattr(args, "reembed_on_mismatch", False)),
@@ -5018,7 +5096,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             remote_name=resolved_name or remote_name,
             downloaded_path=str(download_path),
             merged_output_path=merged_path,
-            merge_strategy="last_write_wins",
+            merge_strategy=selected_merge_strategy,
             nodes_created=imported.nodes_created,
             nodes_updated=imported.nodes_updated,
             edges_created=imported.edges_created,
@@ -6440,7 +6518,7 @@ def main() -> None:
             pass  # best-effort; don't break startup over encoding
     _assert_runtime_feature_parity()
     parser = _build_parser()
-    args = parser.parse_args()
+    args = _normalize_pull_strategy_args(parser.parse_args())
     command = args.command or "serve"
 
     # Commands that should work before full backend/app initialization.

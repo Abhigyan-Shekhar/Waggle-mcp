@@ -17,7 +17,12 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
-from waggle.abhi import merge_abhi_documents
+from waggle.abhi import (
+    ABHI_MERGE_STRATEGIES,
+    DEFAULT_ABHI_MERGE_STRATEGY,
+    merge_abhi_documents,
+)
+from waggle.errors import ValidationFailure
 from waggle.models import DrivePushResult, DriveShareResult
 
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
@@ -146,7 +151,29 @@ def merge_downloaded_abhi(
     local_document: dict[str, Any],
     remote_document: dict[str, Any],
     output_path: str | Path,
+    merge_strategy: str = DEFAULT_ABHI_MERGE_STRATEGY,
 ) -> str:
+    """Merge a downloaded remote .abhi document with the local document.
+
+    Args:
+        local_document: The current local .abhi document.
+        remote_document: The downloaded remote .abhi document.
+        output_path: Destination path for the merged .abhi file.
+        merge_strategy: Conflict-resolution strategy used when both documents
+            modify the same object. Supported values are contradict,
+            last_write_wins, prefer_left, and prefer_right.
+
+    Returns:
+        The path to the written merged .abhi file.
+
+    Raises:
+        ValidationFailure: If merge_strategy is unsupported.
+    """
+    normalized_merge_strategy = str(merge_strategy).strip()
+    if normalized_merge_strategy not in ABHI_MERGE_STRATEGIES:
+        supported = ", ".join(ABHI_MERGE_STRATEGIES)
+        raise ValidationFailure(f"Invalid merge_strategy {merge_strategy!r}. Expected one of: {supported}.")
+
     merged = merge_abhi_documents(
         {
             "graph": {"nodes": [], "edges": []},
@@ -169,8 +196,9 @@ def merge_downloaded_abhi(
         left_input_path="local://current",
         right_input_path="local://remote",
         output_path=output_path,
-        merge_strategy="last_write_wins",
+        merge_strategy=normalized_merge_strategy,
     )
+
     return merged.output_path
 
 
