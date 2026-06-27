@@ -1238,6 +1238,23 @@ class WaggleServer:
                 ),
             ),
             types.Tool(
+                name="export_cypher",
+                description=(
+                    "Export the current memory graph as a Neo4j-compatible .cypher script. "
+                    "Use when you need to load the memory graph into a Neo4j database for "
+                    "running arbitrary Cypher queries. Returns the output path and graph counts."
+                ),
+                inputSchema=_object_input_schema(
+                    {
+                        "output_path": {
+                            "type": "string",
+                            "description": "Optional destination .cypher file path. If omitted, Waggle chooses an export path.",
+                        },
+                        **_scope_properties(),
+                    },
+                ),
+            ),
+            types.Tool(
                 name="commit",
                 description=(
                     "Snapshot the current memory graph to a portable file (waggle commit). "
@@ -2307,6 +2324,23 @@ class WaggleServer:
                     result = self._tool_result(
                         serialize_abhi_inspect(inspection),
                         inspection.model_dump(mode="json"),
+                    )
+                elif name == "export_cypher":
+                    exported = graph.export_cypher(
+                        output_path=arguments.get("output_path"),
+                        project=arguments.get("project", ""),
+                        agent_id=arguments.get("agent_id", ""),
+                        session_id=arguments.get("session_id", ""),
+                    )
+                    result = self._tool_result(
+                        f"Exported cypher script to {exported.output_path}.",
+                        {
+                            "output_path": exported.output_path,
+                            "tenant_id": exported.tenant_id,
+                            "node_count": exported.node_count,
+                            "edge_count": exported.edge_count,
+                            "format": "cypher",
+                        },
                     )
                 elif name == "export_markdown_vault":
                     exported = graph.export_markdown_vault(
@@ -3648,7 +3682,23 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 media_type="application/json",
                 headers={"Content-Disposition": 'attachment; filename="waggle-backup.json"'},
             )
-        raise ValidationFailure("format must be one of: abhi, json.")
+        if export_format == "cypher":
+            exported = graph.export_cypher(**scope)
+            content = Path(exported.output_path).read_text(encoding="utf-8")
+            _emit_http_audit(
+                request,
+                event_type="export.downloaded",
+                resource_type="cypher_export",
+                resource_id=exported.output_path,
+                action="download",
+                metadata={"format": "cypher", "project": scope["project"]},
+            )
+            return Response(
+                content,
+                media_type="application/octet-stream",
+                headers={"Content-Disposition": 'attachment; filename="waggle-memory.cypher"'},
+            )
+        raise ValidationFailure("format must be one of: abhi, json, cypher.")
 
     async def graph_import(request: Request) -> Response:
         payload = await request.json()

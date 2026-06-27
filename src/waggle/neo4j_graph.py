@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import threading
 from collections import deque
 from datetime import UTC, datetime, timedelta
@@ -89,6 +90,7 @@ from waggle.models import (
     ContextTimelineItem,
     ContextWindow,
     ContextWindowEdge,
+    CypherExportResult,
     Edge,
     EvidenceRecord,
     FusionHit,
@@ -201,6 +203,23 @@ def _decode_evidence_records(raw: Any) -> list[EvidenceRecord]:
             continue
         records.append(EvidenceRecord.model_validate(item))
     return records
+
+
+_RE_NEEDS_QUOTE = re.compile(r"[\\']")
+
+
+def _cypher_escape(raw: str) -> str:
+    """Escape a string value for use inside a Cypher single-quoted string."""
+    return _RE_NEEDS_QUOTE.sub(lambda m: "\\" + m.group(0), raw)
+
+
+_RE_NON_REL = re.compile(r"[^A-Z0-9_]")
+
+
+def _cypher_rel_type(relationship: str) -> str:
+    """Sanitize a relationship string to uppercase snake_case Cypher rel type."""
+    safe = _RE_NON_REL.sub("", relationship.upper().strip())
+    return safe or "RELATES_TO"
 
 
 def _scope_matches(node: Node, *, agent_id: str = "", project: str = "", session_id: str = "") -> bool:
@@ -2423,6 +2442,91 @@ def update_node(
         else:
             destination = Path(output_path).expanduser()
         return write_abhi_document(filtered, output_path=destination, passphrase=passphrase)
+
+    def export_cypher(
+        self,
+        *,
+        output_path: str | Path | None = None,
+        project: str = "",
+        agent_id: str = "",
+        session_id: str = "",
+    ) -> CypherExportResult:
+        with self._lock, self._session() as session:
+            snapshot = self._build_backup_snapshot(session)
+        filtered = filter_snapshot_by_scope(snapshot, project=project, agent_id=agent_id, session_id=session_id)
+        nodes = filtered.get("nodes", [])
+        edges = filtered.get("edges", [])
+
+        if output_path is None:
+            self.export_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = utc_now().strftime("%Y%m%d-%H%M%S")
+            destination = self.export_dir / f"waggle-memory-{timestamp}.cypher"
+        else:
+            destination = Path(output_path).expanduser()
+            destination.parent.mkdir(parents=True, exist_ok=True)
+
+        lines: list[str] = []
+        lines.append("// Cypher export of Waggle memory graph")
+        lines.append(f"// Generated: {utc_now().isoformat()}")
+        lines.append(f"// Tenant: {self.tenant_id}")
+        lines.append("")
+
+        # Uniqueness constraint
+        lines.append("CREATE CONSTRAINT waggle_memory_id IF NOT EXISTS FOR (n:Memory) REQUIRE n.id IS UNIQUE;")
+        lines.append("")
+
+        # Node creation
+        for node in nodes:
+            node_type = node.get("node_type", "unknown")
+            labels = f":Memory:{node_type}"
+
+            safe_id = _cypher_escape(node["id"])
+            safe_label = _cypher_escape(node.get("label", ""))
+            safe_content = _cypher_escape(node.get("content", ""))
+            safe_project = _cypher_escape(node.get("project", ""))
+            safe_agent = _cypher_escape(node.get("agent_id", ""))
+            safe_session = _cypher_escape(node.get("session_id", ""))
+            safe_created = node.get("created_at", "")
+
+            props = (
+                f"id: '{safe_id}', label: '{safe_label}', content: '{safe_content}', "
+                f"node_type: '{node_type}', project: '{safe_project}', "
+                f"agent_id: '{safe_agent}', session_id: '{safe_session}', "
+                f"created_at: '{safe_created}'"
+            )
+
+            community_id = node.get("community_id")
+            community_label = node.get("community_label")
+            if community_id:
+                props += f", community_id: '{_cypher_escape(str(community_id))}'"
+            if community_label:
+                props += f", community_label: '{_cypher_escape(str(community_label))}'"
+
+            lines.append(f"CREATE ({labels} {{{props}}});")
+
+        lines.append("")
+
+        # Edge creation
+        for edge in edges:
+            safe_source = _cypher_escape(edge["source_id"])
+            safe_target = _cypher_escape(edge["target_id"])
+            rel_type = _cypher_rel_type(edge.get("relationship", "RELATES_TO"))
+            weight = float(edge.get("weight", 1.0))
+
+            lines.append(
+                f"MATCH (a:Memory {{id: '{safe_source}'}}), (b:Memory {{id: '{safe_target}'}}) "
+                f"CREATE (a)-[:{rel_type} {{weight: {weight!r}}}]->(b);"
+            )
+
+        lines.append("")
+        destination.write_text("\n".join(lines), encoding="utf-8")
+
+        return CypherExportResult(
+            output_path=str(destination),
+            tenant_id=self.tenant_id,
+            node_count=len(nodes),
+            edge_count=len(edges),
+        )
 
     def get_graph_snapshot(
         self,

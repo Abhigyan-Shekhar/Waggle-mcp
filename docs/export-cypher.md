@@ -50,10 +50,10 @@ CREATE (:Memory:fact {id: 'abc123', label: 'Project deadline', content: 'Due nex
 
 ### 3. Edge Creation (`MATCH ... CREATE`)
 
-One `MATCH` + `CREATE` per edge. Nodes are matched by `id`, then an edge is created with `weight` and `confidence` properties.
+One `MATCH` + `CREATE` per edge. Nodes are matched by `id`, then an edge is created with the edge's `weight` value.
 
 ```cypher
-MATCH (a:Memory {id: 'abc123'}), (b:Memory {id: 'def456'}) CREATE (a)-[:RELATES_TO {weight: 1.0, confidence: 'explicit'}]->(b);
+MATCH (a:Memory {id: 'abc123'}), (b:Memory {id: 'def456'}) CREATE (a)-[:RELATES_TO {weight: 1.0}]->(b);
 ```
 
 Relationship types are sanitized to uppercase snake_case (e.g. `relates_to` → `RELATES_TO`, `derived_from` → `DERIVED_FROM`). String values are escaped to prevent Cypher injection.
@@ -80,7 +80,7 @@ cat waggle-memory-20250101-120000.cypher | cypher-shell -u neo4j -p your-passwor
 4. Select the generated `.cypher` file
 5. The script executes, creating all nodes and edges
 
-### Option C: Using `neo4j-admin` (large datasets)
+### Option C: Using `cypher-shell` with file input (large datasets)
 
 ```bash
 cypher-shell -u neo4j -p your-password -f waggle-memory-20250101-120000.cypher
@@ -106,4 +106,4 @@ MATCH (n:Memory)-[r]->(m:Memory) RETURN n.label, type(r), m.label LIMIT 20;
 | `Neo4jError: Profiling is not supported` | Use `cypher-shell` without `--profile`; the script uses `CREATE` not `PROFILE` |
 | `Neo4jError: Already exists` | The `CREATE CONSTRAINT IF NOT EXISTS` prevents duplicate constraint errors |
 | Connection refused | Ensure Neo4j is running and `cypher-shell` points to the correct `bolt://` URI |
-| Node not found during edge creation | The script is order-independent — all `CREATE` statements run before `MATCH ... CREATE` so all nodes exist when edges reference them |
+| Node not found during edge creation | The export script is intentionally ordered — all node `CREATE` statements appear before `MATCH ... CREATE` edge statements, so referenced nodes exist first |

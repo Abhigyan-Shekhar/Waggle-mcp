@@ -322,6 +322,13 @@ class AbhiExportResult(BaseModel):
     export_context: dict[str, Any] = Field(default_factory=dict)
 
 
+class CypherExportResult(BaseModel):
+    output_path: str
+    tenant_id: str = ""
+    node_count: int = 0
+    edge_count: int = 0
+
+
 class ImportResult(BaseModel):
     input_path: str
     tenant_id: str = ""
