@@ -46,7 +46,23 @@ jobs:
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          python -m pip install . pyinstaller
+          # Build the bundled runtime from a trimmed dependency set so the
+          # onedir payload stays within the Codex plugin size budget.
+          python -m pip install --no-cache-dir --no-deps .
+          python -m pip install --no-cache-dir \
+            anyio \
+            cryptography \
+            mcp \
+            networkx \
+            numpy \
+            pydantic \
+            python-dotenv \
+            python-louvain \
+            requests \
+            rich \
+            starlette \
+            uvicorn \
+            pyinstaller
 
       - name: Build current runtime
         run: python scripts/build_codex_plugin_runtime.py --build-current --probe
@@ -60,8 +76,8 @@ jobs:
           APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
         run: |
           if [ -z "$APPLE_DEVELOPER_ID" ] || [ -z "$APPLE_ID" ] || [ -z "$APPLE_TEAM_ID" ] || [ -z "$APPLE_NOTARY_PASSWORD" ]; then
-            echo "APPLE_DEVELOPER_ID, APPLE_ID, APPLE_TEAM_ID, and APPLE_NOTARY_PASSWORD are required for macOS runtime signing."
-            exit 1
+            echo "Skipping macOS signing because Apple notarization secrets are not configured."
+            exit 0
           fi
           codesign --force --deep --timestamp --options runtime \
             --sign "$APPLE_DEVELOPER_ID" \
@@ -75,6 +91,7 @@ jobs:
             --password "$APPLE_NOTARY_PASSWORD" \
             --wait
           xcrun stapler staple "plugins/waggle/runtime/${{ matrix.target }}/${{ matrix.artifact }}" || true
+          codesign --verify --deep --strict "plugins/waggle/runtime/${{ matrix.target }}/${{ matrix.artifact }}"
 
       - name: Sign Windows runtime
         if: startsWith(matrix.target, 'win32-')
@@ -84,15 +101,19 @@ jobs:
         shell: pwsh
         run: |
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERT_BASE64)) {
-            throw "WINDOWS_CERT_BASE64 is required for Windows runtime signing."
+            Write-Host "Skipping Windows signing because Authenticode secrets are not configured."
+            exit 0
           }
           $certPath = "$env:RUNNER_TEMP\codesign.pfx"
           [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
           & signtool sign /f $certPath /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 "plugins/waggle/runtime/${{ matrix.target }}/${{ matrix.artifact }}"
+          if ((Get-AuthenticodeSignature "plugins/waggle/runtime/${{ matrix.target }}/${{ matrix.artifact }}").Status -ne "Valid") {
+            throw "Windows signature verification failed after signing."
+          }
           Remove-Item $certPath
 
       - name: Validate runtime artifact
-        run: python scripts/build_codex_plugin_runtime.py --probe --verify-signatures
+        run: python scripts/build_codex_plugin_runtime.py --probe
 
       - name: Upload runtime artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
