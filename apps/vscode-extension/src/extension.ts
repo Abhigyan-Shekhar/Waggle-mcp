@@ -1,5 +1,6 @@
+import { type ChildProcess } from "child_process";
 import * as vscode from "vscode";
-import { type ExtensionState } from "./types";
+import { type ExtensionState, type WaggleStatus } from "./types";
 import { createContext } from "./services/context";
 import {
   runDoctorInternal,
@@ -10,13 +11,20 @@ import {
 import { openGraphStudio } from "./services/studio";
 import { exportMemory, openInstallDocs } from "./services/export";
 
-export function activate(context: vscode.ExtensionContext): void {
+export interface WaggleExtensionApi {
+  getState: () => {
+    status: WaggleStatus;
+    graphStudioProcess: ChildProcess | undefined;
+  };
+}
+
+export function activate(context: vscode.ExtensionContext): WaggleExtensionApi {
   const output = vscode.window.createOutputChannel("Waggle");
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
   statusBar.command = "waggle.showStatus";
   const state: ExtensionState = {
     graphStudioProcess: undefined,
-    status: "not-installed"
+    status: "not-installed",
   };
   context.subscriptions.push(output, statusBar, new vscode.Disposable(() => state.graphStudioProcess?.kill()));
 
@@ -35,10 +43,14 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("waggle.openGraphStudio", () => openGraphStudio(ctx)),
     vscode.commands.registerCommand("waggle.showStatus", showStatus),
     vscode.commands.registerCommand("waggle.exportMemory", () => exportMemory(ctx)),
-    vscode.commands.registerCommand("waggle.openInstallDocs", () => openInstallDocs())
+    vscode.commands.registerCommand("waggle.openInstallDocs", () => openInstallDocs()),
   );
 
   void maybePromptInstall(ctx);
+
+  return {
+    getState: () => ({ ...state }),
+  };
 }
 
 export function deactivate(): void {}

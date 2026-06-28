@@ -82,6 +82,16 @@ The dev server reads these from the shell or a `.env` file in `apps/mcp/graph-ui
 
 ---
 
-## Screenshots
+## Screenshots & Preview Artifacts
 
-> Run `waggle-mcp edit-graph` to launch Graph Studio in your browser.
+### Screenshot Maintenance
+
+* **Storage:** Screenshot assets belong under the version-controlled `assets/` directory at the repository root.
+* **Updates:** Screenshots should be refreshed manually after Graph Studio UI changes, and related documentation should be updated to match.
+* **Optimization:** Checked-in images should remain lightweight.
+
+### Historical Artifacts
+
+* `sample-preview.html` was a standalone preview artifact used during earlier Graph Studio development and review workflows.
+* The file has been removed from the active codebase and is no longer maintained.
+* Current Graph Studio review and verification should follow the "Quick Start (Development)" section above by running `npm run dev` and verifying changes manually in the browser.

@@ -275,12 +275,16 @@ What this feature does:
 Primary files:
 - `src/waggle/graph_ui.py`
 - `apps/mcp/graph-ui/**`
-- `assets/**`
+- `assets/**` (Storage directory for version-controlled documentation assets)
 
 Change here when:
 - UI pages fail to load
 - Static assets are broken
-- The Graph Studio flow needs improvement
+- The Graph Studio flow needs improvement or UI changes require refreshing screenshots
+
+Asset & Preview Guidelines:
+- **Screenshots:** Screenshot assets belong in `assets/`. They must remain lightweight and be updated manually when the UI changes. Ensure matching documentation files are updated alongside them.
+- **Historical Previews:** The standalone `sample-preview.html` file is historical and has been removed. Local UI reviews must use the current Graph Studio development workflow documented in [apps/mcp/graph-ui/README.md](../apps/mcp/graph-ui/README.md).
 
 Tests and checks:
 - Read `apps/mcp/graph-ui/README.md`
@@ -288,7 +292,6 @@ Tests and checks:
 
 Blast radius:
 - Medium. Usually isolated, but packaging and asset paths can leak into the server surface.
-
 ### 9. Packaging and external distributions
 
 What this feature does:
