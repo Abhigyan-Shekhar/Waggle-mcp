@@ -14,7 +14,10 @@ PLUGIN_ROOT = ROOT / "plugins" / "waggle"
 RUNTIME_ROOT = PLUGIN_ROOT / "runtime"
 LAUNCHER_PATH = PLUGIN_ROOT / "bin" / "waggle-server-launcher.js"
 ENTRYPOINT = ROOT / "src" / "waggle" / "entrypoints" / "server_only.py"
-MAX_BINARY_BYTES = 80 * 1024 * 1024
+# Current signed PyInstaller onedir builds with the bundled Waggle server land
+# just above 80 MiB on macOS arm64 runners. Keep a hard cap, but allow enough
+# headroom for the current runtime payload without flaking release builds.
+MAX_BINARY_BYTES = 96 * 1024 * 1024
 STARTUP_TIMEOUT_SECONDS = 3.0
 BUILD_TIMEOUT_SECONDS = 600.0
 BUNDLE_MODE = "onedir"
