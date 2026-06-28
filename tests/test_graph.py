@@ -2361,3 +2361,78 @@ def test_read_to_write_lock_upgrade_raises_runtime_error() -> None:
 
     with lock.read(), pytest.raises(RuntimeError, match="Cannot upgrade a read lock to a write lock"), lock:
         pass
+
+
+# ---------------------------------------------------------------------------
+# hub_analysis - betweenness cap on large graphs
+# ---------------------------------------------------------------------------
+
+_BETWEENNESS_NODE_CAP = 2000
+
+
+def _build_star_graph(graph: MemoryGraph, *, spoke_count: int) -> str:
+    """Add one hub node connected to *spoke_count* leaves; return the hub node id."""
+    hub = graph.add_node(
+        label="hub",
+        content="central hub node",
+        node_type=NodeType.CONCEPT,
+    )
+    for i in range(spoke_count):
+        leaf = graph.add_node(
+            label=f"leaf-{i}",
+            content=f"leaf node {i}",
+            node_type=NodeType.CONCEPT,
+        )
+        graph.add_edge(
+            source_id=hub.node.id,
+            target_id=leaf.node.id,
+            relationship=RelationType.RELATES_TO,
+        )
+    return hub.node.id
+
+
+def test_hub_analysis_large_graph_skips_betweenness(tmp_path: Path) -> None:
+    """hub_analysis returns betweenness_centrality=0.0 for all nodes above the cap."""
+    graph = make_graph(tmp_path)
+    # 1 hub + 2001 spokes = 2002 nodes total, which exceeds the 2000-node cap
+    hub_id = _build_star_graph(graph, spoke_count=_BETWEENNESS_NODE_CAP + 1)
+
+    hubs = graph.hub_analysis(top_n=10, min_degree=1)
+
+    assert hubs, "hub_analysis must return results even on a large graph"
+    for entry in hubs:
+        assert entry["betweenness_centrality"] == 0.0, (
+            f"expected 0.0 for {entry['node_id']} on capped graph, got {entry['betweenness_centrality']}"
+        )
+    # Degree-based ordering must still work: the hub connects to every spoke
+    top = hubs[0]
+    assert top["node_id"] == hub_id
+    assert top["degree"] == _BETWEENNESS_NODE_CAP + 1
+
+
+def test_hub_analysis_small_graph_computes_betweenness(tmp_path: Path) -> None:
+    """hub_analysis computes real betweenness centrality when below the node cap."""
+    graph = make_graph(tmp_path)
+    # Chain A - B - C: B is the only node with positive betweenness
+    node_a = graph.add_node(label="A", content="node A", node_type=NodeType.CONCEPT)
+    node_b = graph.add_node(label="B", content="node B", node_type=NodeType.CONCEPT)
+    node_c = graph.add_node(label="C", content="node C", node_type=NodeType.CONCEPT)
+    graph.add_edge(
+        source_id=node_a.node.id,
+        target_id=node_b.node.id,
+        relationship=RelationType.RELATES_TO,
+    )
+    graph.add_edge(
+        source_id=node_b.node.id,
+        target_id=node_c.node.id,
+        relationship=RelationType.RELATES_TO,
+    )
+
+    hubs = graph.hub_analysis(top_n=10, min_degree=1)
+
+    assert hubs, "hub_analysis must return entries for a small graph"
+    b_entry = next((h for h in hubs if h["node_id"] == node_b.node.id), None)
+    assert b_entry is not None, "node B must appear in results"
+    assert b_entry["betweenness_centrality"] > 0.0, (
+        "node B is the only path between A and C and must have positive betweenness"
+    )
