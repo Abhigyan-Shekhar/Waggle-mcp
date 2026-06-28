@@ -106,6 +106,8 @@ def build_current() -> Path:
         *[flag for module in HEAVY_EXCLUDES for flag in ("--exclude-module", module)],
         str(ENTRYPOINT),
     ]
+    if target.startswith("linux-"):
+        command.append("--strip")
     try:
         result = _run(command, timeout=BUILD_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired as exc:
