@@ -8,7 +8,10 @@ import tempfile
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
-from scripts.build_codex_plugin_runtime import TARGETS
+try:
+    from scripts.build_codex_plugin_runtime import TARGETS
+except ModuleNotFoundError:  # pragma: no cover - direct script execution path
+    from build_codex_plugin_runtime import TARGETS
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_DIR = Path("plugins") / "waggle"
