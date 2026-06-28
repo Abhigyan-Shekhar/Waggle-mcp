@@ -15,7 +15,7 @@ export function VirtualList({
   
   // Track heights of rendered items by unique key using a prototype-less cache to avoid inherited properties collisions
   const heightsRef = useRef(Object.create(null));
-  const [, forceUpdate] = useState(0);
+  const [updateTrigger, forceUpdate] = useState(0);
   const itemResizeObservers = useRef(new Map());
 
   // Handle scroll position
@@ -52,7 +52,7 @@ export function VirtualList({
       currentOffset += height;
     }
     return { offsets, totalHeight: currentOffset };
-  }, [items, keyExtractor, itemEstimatedHeight]);
+  }, [items, keyExtractor, itemEstimatedHeight, updateTrigger]);
 
   // Find visible item range
   const { startIndex, endIndex } = useMemo(() => {
@@ -84,7 +84,7 @@ export function VirtualList({
     const bufferedEnd = Math.min(items.length - 1, endIndex + buffer);
 
     return { startIndex: bufferedStart, endIndex: bufferedEnd };
-  }, [offsets, scrollTop, containerHeight, items, buffer, itemEstimatedHeight, keyExtractor]);
+  }, [offsets, scrollTop, containerHeight, items, buffer, itemEstimatedHeight, keyExtractor, updateTrigger]);
 
   const measureItem = (index, itemKey, node) => {
     if (!node) {
