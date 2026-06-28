@@ -66,7 +66,7 @@ python scripts/build_codex_plugin_runtime.py --require-artifacts
 Validation enforces:
 
 - all five target binaries are present
-- each target runtime directory is no larger than 80 MB
+- each target runtime directory is no larger than 96 MiB
 - `--server-info` starts within 3 seconds and emits compatibility metadata when
   `--probe` is run on a native runner
 - macOS binaries pass `codesign --verify` when `--verify-signatures` is run on
