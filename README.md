@@ -398,7 +398,15 @@ Claude Code also supports **automatic memory hooks** — see the [Hooks](#automa
 
 ### Codex
 
-Add to `~/.codex/config.toml`:
+The easiest install path is the Codex app plugin via the marketplace bundle
+published on the [`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17)
+— download `waggle-codex-marketplace-v0.1.17.zip`, extract it, then run
+`codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.17` and
+install `Waggle` from the added marketplace. `v0.1.16` was a partial release
+and is not a viable Codex marketplace install source. See
+[`docs/install/codex.md`](docs/install/codex.md) for full details.
+
+For direct Codex CLI usage instead, add Waggle to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.waggle]

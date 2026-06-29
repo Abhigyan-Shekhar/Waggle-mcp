@@ -47,17 +47,23 @@ and starts it with `serve --transport stdio`.
 Bundled runtime updates are delivered only through plugin upgrades. If a bundled
 binary is stale or missing, reinstall or upgrade the Waggle Codex plugin.
 
-Tagged Waggle releases now publish two Codex plugin assets:
+Tagged Waggle releases publish two Codex plugin assets. The current Codex
+marketplace artifacts are published on the
+[`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17):
 
-- `waggle-codex-marketplace-<tag>.zip`: a complete local marketplace root that
+- `waggle-codex-marketplace-v0.1.17.zip`: a complete local marketplace root that
   can be added with `codex plugin marketplace add`
-- `waggle-codex-plugin-<tag>.zip`: the bare `plugins/waggle` plugin folder
+- `waggle-codex-plugin-v0.1.17.zip`: the bare `plugins/waggle` plugin folder
 
-For the easiest install path, download and extract the marketplace bundle, then
-run:
+> `v0.1.16` was a partial release and should not be used as a Codex
+> marketplace install source. Use `v0.1.17` instead.
+
+For the easiest install path, download and extract the marketplace bundle
+from the [`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17),
+then run:
 
 ```bash
-codex plugin marketplace add /path/to/waggle-codex-marketplace-<tag>
+codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.17
 ```
 
 After that, refresh the plugin directory in Codex and install `Waggle` from the
