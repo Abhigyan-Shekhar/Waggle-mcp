@@ -863,7 +863,10 @@ def test_new_validation_and_audit_safety(tmp_path: Path) -> None:
             # Verify we have "query_length" in metadata instead of "query"
             if event.get("event_type") in {"record.read", "graph.query.executed"}:
                 meta = event.get("metadata", {})
-                if ("mode" in meta and meta["mode"] == "hybrid") or event.get("resource_type") in {"retrieval_debug", "abhi_query"}:
+                if ("mode" in meta and meta["mode"] == "hybrid") or event.get("resource_type") in {
+                    "retrieval_debug",
+                    "abhi_query",
+                }:
                     assert "query_length" in meta
                     assert "query" not in meta
 
