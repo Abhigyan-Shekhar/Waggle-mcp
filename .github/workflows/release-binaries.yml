@@ -8,12 +8,14 @@ on:
     types: [published]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-binaries:
     name: Build ${{ matrix.asset_name }}
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -37,10 +39,23 @@ jobs:
 
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/mcp/graph-ui/package-lock.json
+
+      - name: Build Graph Studio static assets
+        working-directory: apps/mcp/graph-ui
+        run: |
+          npm ci
+          npm run build
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.11"
 
@@ -62,18 +77,106 @@ jobs:
 
       - name: Smoke test binary
         shell: bash
+        env:
+          WAGGLE_MODEL: deterministic
+          WAGGLE_STARTUP_MODE: fast
         run: |
           "${{ matrix.artifact_path }}" --help
           "${{ matrix.artifact_path }}" doctor --help
+          "${{ matrix.artifact_path }}" doctor
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ matrix.asset_name }}
           path: ${{ matrix.artifact_path }}
 
+  upload-release-binaries:
+    name: Upload ${{ matrix.asset_name }} to release
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - asset_name: waggle-mcp-darwin-arm64
+            artifact_path: dist/waggle-mcp-darwin-arm64
+          - asset_name: waggle-mcp-darwin-x64
+            artifact_path: dist/waggle-mcp-darwin-x64
+          - asset_name: waggle-mcp-linux-x64
+            artifact_path: dist/waggle-mcp-linux-x64
+          - asset_name: waggle-mcp-windows-x64.exe
+            artifact_path: dist/waggle-mcp-windows-x64.exe
+
+    steps:
+      - name: Download built binary
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: dist
+
       - name: Upload release asset
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
           files: ${{ matrix.artifact_path }}
+          fail_on_unmatched_files: true
+
+  publish-bundle-metadata:
+    name: Publish bundle-metadata.json
+    needs: upload-release-binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [ "$REF_TYPE" = "tag" ]; then
+            REF="$REF_NAME"
+          else
+            REF="$RELEASE_TAG"
+          fi
+          echo "value=${REF#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download built binaries
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: artifacts
+          pattern: waggle-mcp-*
+          merge-multiple: true
+
+      - name: Generate bundle-metadata.json
+        env:
+          BUNDLE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          node apps/vscode-extension/scripts/generate-bundle-metadata.mjs \
+            "$BUNDLE_VERSION" \
+            dist/bundle-metadata.json \
+            artifacts
+
+      - name: Upload bundle-metadata artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bundle-metadata
+          path: dist/bundle-metadata.json
+
+      - name: Upload bundle-metadata to release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: dist/bundle-metadata.json
           fail_on_unmatched_files: true
