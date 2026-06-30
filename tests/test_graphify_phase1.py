@@ -7,6 +7,7 @@ C. hub_analysis graph method
 
 from __future__ import annotations
 
+import itertools
 import json
 from pathlib import Path
 
@@ -342,3 +343,37 @@ class TestHubAnalysis:
         hub_a = next(h for h in hubs if h["node_id"] == a)
         # 2 edges total, a has degree 2: 2/(2*2) = 0.5
         assert hub_a["pct_of_edges"] == pytest.approx(0.5, abs=0.01)
+
+
+def test_shortest_path_returns_only_consecutive_path_edges(tmp_path: Path) -> None:
+    """Regression: shortest_path must not return edges that merely touch a path
+    node (e.g. a branch B->D), only edges between consecutive path nodes."""
+    graph = make_graph(tmp_path)
+    a = add_node(graph, "PathA")
+    b = add_node(graph, "PathB")
+    c = add_node(graph, "PathC")
+    d = add_node(graph, "PathD")
+    graph.add_edge(source_id=a, target_id=b, relationship="relates_to")
+    graph.add_edge(source_id=b, target_id=c, relationship="relates_to")
+    graph.add_edge(source_id=b, target_id=d, relationship="relates_to")  # branch off B
+
+    result = graph.shortest_path(source_id=a, target_id=c)
+    node_ids = [n.id for n in result.nodes]
+    assert node_ids == [a, b, c]
+    assert d not in node_ids
+    pairs = {(e.source_id, e.target_id) for e in result.edges}
+    assert (a, b) in pairs
+    assert (b, c) in pairs
+    assert (b, d) not in pairs  # branch edge must be excluded
+
+
+def test_shortest_path_search_bounded_by_max_depth(tmp_path: Path) -> None:
+    """A path longer than max_depth returns empty (bounded search)."""
+    graph = make_graph(tmp_path)
+    ids = [add_node(graph, f"Chain{i}") for i in range(5)]  # A-B-C-D-E (4 hops)
+    for x, y in itertools.pairwise(ids):
+        graph.add_edge(source_id=x, target_id=y, relationship="relates_to")
+    # 4 hops > max_depth=2 → empty
+    assert graph.shortest_path(source_id=ids[0], target_id=ids[4], max_depth=2).nodes == []
+    # within budget → found
+    assert graph.shortest_path(source_id=ids[0], target_id=ids[4], max_depth=4).nodes

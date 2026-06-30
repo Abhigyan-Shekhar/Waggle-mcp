@@ -4,6 +4,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import heapq
+import itertools
 import json
 import logging
 import math
@@ -763,7 +764,7 @@ class TraversalMixin(MemoryGraphBase):
                 f"""
                 SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags,
                        source_prompt, metadata, evidence_records, valid_from, valid_to, created_at,
-                       updated_at, access_count, embedding, tenant_id
+                       updated_at, access_count, community_id, community_label, embedding, tenant_id
                 FROM nodes
                 WHERE {" AND ".join(filters)}
                 """,
@@ -1299,10 +1300,13 @@ class TraversalMixin(MemoryGraphBase):
         """Return the shortest path between two memory nodes.
 
         Searches for the shortest directed path from ``source_id`` to
-        ``target_id``, then falls back to an undirected search so that
-        relationships traversed in either direction are considered.  If no
-        path exists within ``max_depth`` hops an empty SubgraphResult is
-        returned (no exception).
+        ``target_id`` within ``max_depth`` hops, then falls back to an
+        undirected search so that relationships traversed in either direction
+        are considered.  The search itself is bounded by ``max_depth`` (via a
+        cutoff), and the returned edges are only those that connect consecutive
+        nodes on the path — not every edge incident to a path node.  If no path
+        exists within ``max_depth`` hops an empty SubgraphResult is returned
+        (no exception).
         """
         if max_depth < 1:
             raise ValueError("max_depth must be at least 1.")
@@ -1325,17 +1329,17 @@ class TraversalMixin(MemoryGraphBase):
 
             digraph = self._load_graph(connection, node_ids=nodes_by_id.keys())
 
-            path_ids: list[str] = []
-            try:
-                path_ids = nx.shortest_path(digraph, source=source_id, target=target_id)
-            except (nx.NetworkXNoPath, nx.NodeNotFound):
+            # Bounded search: single_source_shortest_path with a cutoff explores
+            # at most `max_depth` hops, so we never do unbounded work and then
+            # discard the result. Directed first, then undirected fallback.
+            def _bounded_path(graph: nx.Graph) -> list[str]:
                 try:
-                    path_ids = nx.shortest_path(digraph.to_undirected(), source=source_id, target=target_id)
-                except (nx.NetworkXNoPath, nx.NodeNotFound):
-                    path_ids = []
+                    reachable = nx.single_source_shortest_path(graph, source_id, cutoff=max_depth)
+                except nx.NodeNotFound:
+                    return []
+                return reachable.get(target_id, [])
 
-            if len(path_ids) - 1 > max_depth:
-                path_ids = []
+            path_ids = _bounded_path(digraph) or _bounded_path(digraph.to_undirected())
 
             if not path_ids:
                 return SubgraphResult(
@@ -1346,7 +1350,14 @@ class TraversalMixin(MemoryGraphBase):
                 )
 
             path_nodes = [nodes_by_id[nid] for nid in path_ids if nid in nodes_by_id]
-            edges = self._fetch_edges_for_nodes(connection, [n.id for n in path_nodes])
+            # Only keep edges that connect consecutive nodes on the path. The
+            # edge may be stored in either direction, so accept both orderings.
+            path_pairs: set[tuple[str, str]] = set()
+            for a, b in itertools.pairwise(path_ids):
+                path_pairs.add((a, b))
+                path_pairs.add((b, a))
+            incident_edges = self._fetch_edges_for_nodes(connection, [n.id for n in path_nodes])
+            edges = [e for e in incident_edges if (e.source_id, e.target_id) in path_pairs]
 
             now = time.time()
             for i, node in enumerate(path_nodes):

@@ -568,9 +568,17 @@ class MutationMixin(MemoryGraphBase):
         target_id: str | None = None,
         relationship: str | RelationType | None = None,
         weight: float | None = None,
+        confidence: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Edge:
-        if source_id is None and target_id is None and relationship is None and weight is None and metadata is None:
+        if (
+            source_id is None
+            and target_id is None
+            and relationship is None
+            and weight is None
+            and confidence is None
+            and metadata is None
+        ):
             raise ValueError("At least one field must be provided for edge update.")
 
         with self._lock, self._pool.checkout() as connection:
@@ -585,7 +593,7 @@ class MutationMixin(MemoryGraphBase):
                 target_id=target_id if target_id is not None else edge.target_id,
                 relationship=relationship if relationship is not None else edge.relationship,
                 weight=weight if weight is not None else edge.weight,
-                confidence=edge.confidence,
+                confidence=confidence if confidence is not None else edge.confidence,
                 metadata=metadata if metadata is not None else edge.metadata,
                 created_at=edge.created_at,
             )
@@ -594,7 +602,7 @@ class MutationMixin(MemoryGraphBase):
             connection.execute(
                 """
                 UPDATE edges
-                SET source_id = ?, target_id = ?, relationship = ?, weight = ?, metadata = ?
+                SET source_id = ?, target_id = ?, relationship = ?, weight = ?, confidence = ?, metadata = ?
                 WHERE id = ? AND tenant_id = ?
                 """,
                 (
@@ -602,6 +610,7 @@ class MutationMixin(MemoryGraphBase):
                     updated_edge.target_id,
                     updated_edge.relationship,
                     updated_edge.weight,
+                    updated_edge.confidence,
                     _encode_metadata(updated_edge.metadata),
                     edge_id,
                     self.tenant_id,
@@ -1187,7 +1196,7 @@ class MutationMixin(MemoryGraphBase):
         with self._lock, self._pool.checkout() as connection:
             # Fetch canonical node
             canonical_row = connection.execute(
-                "SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, aliases, source_prompt, metadata, evidence_records, valid_from, valid_to, created_at, updated_at, access_count, embedding, embedding_model_id, embedding_dim, source_turn_pair_id, tenant_id FROM nodes WHERE id = ? AND tenant_id = ?",
+                "SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, aliases, source_prompt, metadata, evidence_records, valid_from, valid_to, created_at, updated_at, access_count, community_id, community_label, embedding, embedding_model_id, embedding_dim, source_turn_pair_id, tenant_id FROM nodes WHERE id = ? AND tenant_id = ?",
                 (canonical_id, self.tenant_id),
             ).fetchone()
             if canonical_row is None:
@@ -1203,7 +1212,7 @@ class MutationMixin(MemoryGraphBase):
                 if node_id == canonical_id:
                     continue  # idempotent: skip self
                 row = connection.execute(
-                    "SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, aliases, source_prompt, metadata, evidence_records, valid_from, valid_to, created_at, updated_at, access_count, embedding, embedding_model_id, embedding_dim, source_turn_pair_id, tenant_id FROM nodes WHERE id = ? AND tenant_id = ?",
+                    "SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, aliases, source_prompt, metadata, evidence_records, valid_from, valid_to, created_at, updated_at, access_count, community_id, community_label, embedding, embedding_model_id, embedding_dim, source_turn_pair_id, tenant_id FROM nodes WHERE id = ? AND tenant_id = ?",
                     (node_id, self.tenant_id),
                 ).fetchone()
                 if row is None:
@@ -1280,7 +1289,7 @@ class MutationMixin(MemoryGraphBase):
 
             # Re-fetch canonical node with updated aliases
             updated_row = connection.execute(
-                "SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, aliases, source_prompt, metadata, evidence_records, valid_from, valid_to, created_at, updated_at, access_count, embedding, embedding_model_id, embedding_dim, source_turn_pair_id, tenant_id FROM nodes WHERE id = ? AND tenant_id = ?",
+                "SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, aliases, source_prompt, metadata, evidence_records, valid_from, valid_to, created_at, updated_at, access_count, community_id, community_label, embedding, embedding_model_id, embedding_dim, source_turn_pair_id, tenant_id FROM nodes WHERE id = ? AND tenant_id = ?",
                 (canonical_id, self.tenant_id),
             ).fetchone()
             updated_canonical = self._row_to_node(updated_row)
@@ -1418,14 +1427,15 @@ class MutationMixin(MemoryGraphBase):
                     source_id=node.id,
                     target_id=existing_node.id,
                     relationship=RelationType.CONTRADICTS,
+                    confidence="inferred",
                     metadata={"origin": "auto-conflict", "reason": reason},
                 )
                 connection.execute(
                     """
                     INSERT INTO edges (
-                        id, tenant_id, source_id, target_id, relationship, weight, metadata, created_at
+                        id, tenant_id, source_id, target_id, relationship, weight, confidence, metadata, created_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         edge.id,
@@ -1434,6 +1444,7 @@ class MutationMixin(MemoryGraphBase):
                         edge.target_id,
                         edge.relationship,
                         edge.weight,
+                        edge.confidence,
                         json.dumps(edge.metadata),
                         edge.created_at.isoformat(),
                     ),

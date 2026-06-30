@@ -62,10 +62,15 @@ def _normalize_language(hint: str, code: str) -> str:
     lang = _LANG_ALIASES.get(hint.strip().lower(), hint.strip().lower())
     if lang in {"python", "javascript", "typescript"}:
         return lang
-    # Heuristic guess when no/unknown hint
-    if re.search(r"^\s*def\s+\w+\s*\(", code, re.MULTILINE) or ("import " in code and ":" in code):
+    # Heuristic guess when no/unknown hint. Check Python class-with-colon before
+    # the JS branch so a `class Foo:` block is not misread as JavaScript.
+    if (
+        re.search(r"^\s*def\s+\w+\s*\(", code, re.MULTILINE)
+        or re.search(r"^\s*class\s+\w+[\w\s,()]*:", code, re.MULTILINE)
+        or ("import " in code and ":" in code)
+    ):
         return "python"
-    if re.search(r"\bfunction\b|=>|\bconst\b|\blet\b", code):
+    if re.search(r"\bfunction\b|=>|\bconst\b|\blet\b|\bclass\s+\w+", code):
         return "javascript"
     return lang or "unknown"
 
@@ -104,12 +109,17 @@ def _regex_extract(code: str, language: str) -> list[CodeEntity]:
         for m in _JS_CONST_FN_RE.finditer(code):
             _add(m.group(1), "function")
     else:
-        # Generic best-effort: try both families
+        # Generic best-effort: try both families, including JS classes so a
+        # class-only block in an unlabeled fence still yields an entity.
         for m in _PY_CLASS_RE.finditer(code):
+            _add(m.group(1), "class")
+        for m in _JS_CLASS_RE.finditer(code):
             _add(m.group(1), "class")
         for m in _PY_FUNC_RE.finditer(code):
             _add(m.group(1), "function")
         for m in _JS_FUNC_RE.finditer(code):
+            _add(m.group(1), "function")
+        for m in _JS_CONST_FN_RE.finditer(code):
             _add(m.group(1), "function")
 
     return entities

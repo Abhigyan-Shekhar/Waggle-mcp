@@ -219,9 +219,10 @@ class TestCypherExport:
 
         out = Path(graph.export_cypher(output_path=str(tmp_path / "out.cypher"))["output_path"])
         text = out.read_text()
-        # Should be uppercased snake with no spaces or parens
-        assert "RELATED_TO_LOOSELY" in text
-        assert "( " not in text.split("CREATE (a)")[-1] or True  # smoke
+        # The relationship must be sanitized to a valid Cypher identifier
+        # (UPPER_SNAKE, no spaces or parens) and the raw string must not leak.
+        assert "[:RELATED_TO_LOOSELY" in text
+        assert "related to (loosely)" not in text
 
     def test_cypher_includes_confidence(self, tmp_path: Path) -> None:
         graph = make_graph(tmp_path)

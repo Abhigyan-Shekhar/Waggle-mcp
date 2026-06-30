@@ -284,3 +284,73 @@ class TestGetRelatedReverseEdge:
         # Should not raise
         history = graph.get_node_history(node_id=a, max_depth=2)
         assert history.node.id == a
+
+
+class TestCodeEntityScopedReuse:
+    """Regression for the review blocker: code-entity reuse must be scoped and
+    code-only, so it never hijacks an unrelated entity or one from another scope."""
+
+    def test_reuse_only_within_same_scope(self, tmp_path: Path) -> None:
+        graph = make_graph(tmp_path)
+        # A code entity (e.g. Graphify-imported) in project P / session S1.
+        graph.add_node(
+            label="authenticate",
+            content="def authenticate (graphify import)",
+            node_type=NodeType.ENTITY,
+            tags=["code"],
+            project="P",
+            session_id="S1",
+            metadata={"code_entity": True},
+        )
+        # A conversation in the SAME project but a DIFFERENT session pastes the
+        # same function name. It must NOT reuse the S1 node.
+        graph.observe_conversation(
+            user_message="```python\ndef authenticate(user):\n    return True\n```",
+            assistant_response="ok",
+            project="P",
+            session_id="S2",
+        )
+        auth_nodes = [
+            n for n in graph.list_recent_nodes(limit=50) if n.label == "authenticate" and n.node_type == NodeType.ENTITY
+        ]
+        assert len(auth_nodes) == 2  # one per scope, not hijacked
+        assert {n.session_id for n in auth_nodes} == {"S1", "S2"}
+
+    def test_does_not_reuse_non_code_entity(self, tmp_path: Path) -> None:
+        graph = make_graph(tmp_path)
+        # A normal (non-code) entity that happens to share a name with a function.
+        graph.add_node(
+            label="process",
+            content="the Process working group owns rollout",
+            node_type=NodeType.ENTITY,
+            project="P",
+            session_id="S1",
+        )
+        graph.observe_conversation(
+            user_message="```python\ndef process(payload):\n    return payload\n```",
+            assistant_response="ok",
+            project="P",
+            session_id="S1",
+        )
+        process_nodes = [
+            n for n in graph.list_recent_nodes(limit=50) if n.label == "process" and n.node_type == NodeType.ENTITY
+        ]
+        # The non-code entity is untouched; a separate code entity is created.
+        assert len(process_nodes) == 2
+        code_ones = [n for n in process_nodes if (n.metadata or {}).get("code_entity")]
+        assert len(code_ones) == 1
+
+    def test_reuse_within_same_scope_does_not_duplicate(self, tmp_path: Path) -> None:
+        graph = make_graph(tmp_path)
+        scope = {"project": "P", "session_id": "S1"}
+        # Same function pasted twice in the same scope → single code entity reused.
+        for _ in range(2):
+            graph.observe_conversation(
+                user_message="```python\ndef render(component):\n    return component\n```",
+                assistant_response="done",
+                **scope,
+            )
+        render_nodes = [
+            n for n in graph.list_recent_nodes(limit=50) if n.label == "render" and n.node_type == NodeType.ENTITY
+        ]
+        assert len(render_nodes) == 1

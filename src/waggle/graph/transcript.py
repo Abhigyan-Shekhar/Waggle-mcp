@@ -276,11 +276,16 @@ class TranscriptMixin(MemoryGraphBase):
     ) -> int:
         """Parse fenced code blocks, store code entities, and link them to context.
 
-        For each function/class found in a code block: reuse an existing ENTITY
-        node with the same label if one exists (e.g. a Graphify-imported symbol),
-        otherwise create a new ENTITY node tagged ``code``.  Each code entity is
-        linked to the conversation's extracted nodes with a RELATES_TO edge so a
-        later query can traverse from "what we discussed" to "the code involved".
+        For each function/class found in a code block: reuse an existing
+        *code-entity* node with the same label **within the same scope**
+        (project/session/agent) — e.g. a Graphify-imported symbol or a code
+        entity from an earlier turn in the session — otherwise create a new
+        ENTITY node tagged ``code``.  Reuse is deliberately restricted to nodes
+        that are themselves code entities (``metadata.code_entity`` /
+        ``graphify_source`` or a ``code``/``graphify`` tag) and to the current
+        scope, so an unrelated entity like ``Order`` or a same-named symbol from
+        another project/session is never hijacked.  Each code entity is linked
+        to the conversation's extracted nodes with a RELATES_TO edge.
 
         Returns the number of code entities processed.  No-op (returns 0) when
         the transcript contains no fenced code blocks.
@@ -291,12 +296,32 @@ class TranscriptMixin(MemoryGraphBase):
         if not entities:
             return 0
 
-        # Index existing ENTITY nodes by lowercased label for reuse.
+        # Index existing *code-entity* nodes in the current scope for reuse.
+        # Restricting by scope + code-entity-ness prevents cross-project/session
+        # contamination and avoids reusing ordinary entities that share a name.
         existing_rows = connection.execute(
-            "SELECT id, label FROM nodes WHERE tenant_id = ? AND node_type = ?",
-            (self.tenant_id, NodeType.ENTITY.value),
+            """
+            SELECT id, label, metadata, tags FROM nodes
+            WHERE tenant_id = ? AND node_type = ?
+              AND project = ? AND session_id = ? AND agent_id = ?
+            """,
+            (self.tenant_id, NodeType.ENTITY.value, project, session_id, agent_id),
         ).fetchall()
-        existing_by_label = {str(row["label"]).strip().lower(): row["id"] for row in existing_rows}
+        existing_by_label: dict[str, str] = {}
+        for row in existing_rows:
+            try:
+                meta = json.loads(row["metadata"] or "{}")
+            except (json.JSONDecodeError, TypeError):
+                meta = {}
+            try:
+                row_tags = json.loads(row["tags"] or "[]")
+            except (json.JSONDecodeError, TypeError):
+                row_tags = []
+            is_code_entity = bool(meta.get("code_entity") or meta.get("graphify_source")) or any(
+                str(tag).lower() in {"code", "graphify"} for tag in row_tags
+            )
+            if is_code_entity:
+                existing_by_label[str(row["label"]).strip().lower()] = row["id"]
 
         # Cap links per code entity to avoid edge explosion on large turns.
         link_targets = list(context_nodes)[:5]

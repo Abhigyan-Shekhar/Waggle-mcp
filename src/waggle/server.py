@@ -2669,6 +2669,7 @@ class WaggleServer:
             "verbatim_stored": result.verbatim_stored,
             "nodes_extracted": result.nodes_extracted,
             "edges_inferred": result.edges_inferred,
+            "code_entities_extracted": result.code_entities_extracted,
             "extraction_errors": result.extraction_errors,
             "stored_nodes": [self._node_payload(node) for node in result.stored_nodes],
             "created_count": result.created_count,
@@ -3274,6 +3275,10 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 payload.get("relationship", current.get("relationship", "")) or current.get("relationship", "")
             ).strip(),
             "weight": float(payload.get("weight", current.get("weight", 1.0)) or current.get("weight", 1.0)),
+            "confidence": str(
+                payload.get("confidence", current.get("confidence", "explicit"))
+                or current.get("confidence", "explicit")
+            ).strip(),
             "metadata": current.get("metadata", {}),
             "created_at": current.get("created_at", now),
         }
@@ -3606,6 +3611,9 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                     weight=float(edge_payload["weight"])
                     if "weight" in edge_payload and edge_payload.get("weight") is not None
                     else None,
+                    confidence=str(edge_payload["confidence"]).strip()
+                    if str(edge_payload.get("confidence", "")).strip()
+                    else None,
                 )
                 continue
             graph.add_edge(
@@ -3614,6 +3622,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 target_id=str(edge_payload.get("target_id", "")).strip(),
                 relationship=str(edge_payload.get("relationship", "")).strip(),
                 weight=float(edge_payload.get("weight", 1.0)),
+                confidence=str(edge_payload.get("confidence", "explicit")).strip() or "explicit",
             )
 
         ui = payload.get("ui", {}) or {}
@@ -3710,6 +3719,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             target_id=str(payload.get("target_id", "")).strip(),
             relationship=str(payload.get("relationship", "")).strip(),
             weight=float(payload.get("weight", 1.0)),
+            confidence=str(payload.get("confidence", "explicit")).strip() or "explicit",
         )
         return JSONResponse(edge.model_dump(mode="json"))
 
@@ -3744,6 +3754,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             target_id=str(payload.get("target_id", "")).strip() or None,
             relationship=str(payload.get("relationship", "")).strip() or None,
             weight=float(payload["weight"]) if "weight" in payload and payload.get("weight") is not None else None,
+            confidence=str(payload["confidence"]).strip() if str(payload.get("confidence", "")).strip() else None,
         )
         return JSONResponse(edge.model_dump(mode="json"))
 
@@ -3753,10 +3764,32 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         edge = graph.delete_edge(edge_id=edge_id)
         return JSONResponse(edge.model_dump(mode="json"))
 
+    def _int_param(raw: object, name: str, *, default: int, minimum: int) -> int:
+        if raw is None or (isinstance(raw, str) and not raw.strip()):
+            return default
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            raise ValidationFailure(f"{name} must be an integer.")
+        if value < minimum:
+            raise ValidationFailure(f"{name} must be >= {minimum}.")
+        return value
+
+    def _float_param(raw: object, name: str, *, default: float, minimum: float) -> float:
+        if raw is None or (isinstance(raw, str) and not raw.strip()):
+            return default
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            raise ValidationFailure(f"{name} must be a number.")
+        if value <= minimum:
+            raise ValidationFailure(f"{name} must be greater than {minimum}.")
+        return value
+
     async def graph_hub_analysis(request: Request) -> Response:
         graph, _ = _require_http_scope(request, "graph:read")
-        top_n = int(request.query_params.get("top_n", 10))
-        min_degree = int(request.query_params.get("min_degree", 2))
+        top_n = _int_param(request.query_params.get("top_n"), "top_n", default=10, minimum=1)
+        min_degree = _int_param(request.query_params.get("min_degree"), "min_degree", default=2, minimum=0)
         hubs = graph.hub_analysis(top_n=top_n, min_degree=min_degree)
         return JSONResponse({"hubs": hubs, "count": len(hubs)})
 
@@ -3771,7 +3804,12 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             payload = await request.json()
         except Exception:
             payload = {}
-        resolution = float(payload.get("resolution", 1.0)) if isinstance(payload, dict) else 1.0
+        resolution = _float_param(
+            payload.get("resolution") if isinstance(payload, dict) else None,
+            "resolution",
+            default=1.0,
+            minimum=0.0,
+        )
         stats = graph.recompute_communities(resolution=resolution)
         _emit_http_audit(
             request,
@@ -3788,7 +3826,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         graph, _ = _require_http_scope(request, "graph:read")
         source_id = str(payload.get("source_id", "")).strip()
         target_id = str(payload.get("target_id", "")).strip()
-        max_depth = int(payload.get("max_depth", 5))
+        max_depth = _int_param(payload.get("max_depth"), "max_depth", default=5, minimum=1)
         if not source_id or not target_id:
             raise ValidationFailure("source_id and target_id are required.")
         subgraph = graph.shortest_path(source_id=source_id, target_id=target_id, max_depth=max_depth)
@@ -3829,7 +3867,9 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
     async def graph_export(request: Request) -> Response:
         scope = _scope_from_request(request)
         export_format = request.query_params.get("format", "abhi").strip().lower()
-        graph = app_server.graph
+        # Resolve the graph through the auth helper so export honors the API
+        # key's graph:read scope and tenant (instead of the default tenant).
+        graph, _ = _require_http_scope(request, "graph:read")
         if export_format == "abhi":
             exported = graph.export_abhi(**scope)
             content = Path(exported.output_path).read_bytes()

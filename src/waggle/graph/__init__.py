@@ -2618,7 +2618,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 """
                 SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags,
                        source_prompt, metadata, evidence_records, valid_from, valid_to, created_at,
-                       updated_at, access_count, embedding, tenant_id
+                       updated_at, access_count, community_id, community_label, embedding, tenant_id
                 FROM nodes
                 WHERE tenant_id = ?
                 """,
@@ -2711,7 +2711,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                             f"""
                             SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags,
                                    source_prompt, metadata, evidence_records, valid_from, valid_to, created_at,
-                                   updated_at, access_count, embedding, tenant_id
+                                   updated_at, access_count, community_id, community_label, embedding, tenant_id
                             FROM nodes
                             WHERE tenant_id = ? AND id IN ({placeholders})
                             """,
@@ -2876,7 +2876,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             ).fetchall()
             edge_rows = connection.execute(
                 """
-                SELECT id, source_id, target_id, relationship, weight, metadata, created_at
+                SELECT id, source_id, target_id, relationship, weight, confidence, metadata, created_at
                 FROM edges
                 WHERE tenant_id = ?
                 ORDER BY created_at ASC
@@ -3348,7 +3348,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 ).fetchall()
                 edge_rows = connection.execute(
                     """
-                    SELECT id, source_id, target_id, relationship, weight, metadata, created_at
+                    SELECT id, source_id, target_id, relationship, weight, confidence, metadata, created_at
                     FROM edges
                     WHERE tenant_id = ?
                     ORDER BY created_at ASC
@@ -3924,7 +3924,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 self._row_to_edge(row)
                 for row in connection.execute(
                     """
-                    SELECT id, source_id, target_id, relationship, weight, metadata, created_at
+                    SELECT id, source_id, target_id, relationship, weight, confidence, metadata, created_at
                     FROM edges
                     WHERE tenant_id = ? AND created_at >= ?
                     ORDER BY created_at DESC
@@ -4428,7 +4428,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         graph.add_nodes_from(node_ids)
         rows = connection.execute(
             """
-            SELECT source_id, target_id, relationship, weight, metadata, created_at
+            SELECT source_id, target_id, relationship, weight, confidence, metadata, created_at
             FROM edges
             WHERE tenant_id = ?
             """,

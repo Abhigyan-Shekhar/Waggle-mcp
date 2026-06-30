@@ -1474,12 +1474,12 @@ export function App() {
                 <div className="rounded-2xl border border-white/8 bg-black/15 p-3">
                   <div className="flex items-center gap-2">
                     <span className="text-white">{selectedEdge.relationship}</span>
-                    {selectedEdge.confidence === "explicit" ? (
-                      <span className="rounded-full bg-green-500/20 px-2 py-0.5 text-xs text-green-400">explicit</span>
-                    ) : selectedEdge.confidence === "weak" ? (
+                    {selectedEdge.confidence === "weak" ? (
                       <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-xs text-red-400">weak</span>
-                    ) : (
+                    ) : selectedEdge.confidence === "inferred" ? (
                       <span className="rounded-full bg-yellow-500/20 px-2 py-0.5 text-xs text-yellow-400">inferred</span>
+                    ) : (
+                      <span className="rounded-full bg-green-500/20 px-2 py-0.5 text-xs text-green-400">explicit</span>
                     )}
                   </div>
                   <div className="mt-1 break-all text-xs">Edge ID: {selectedEdge.id}</div>
