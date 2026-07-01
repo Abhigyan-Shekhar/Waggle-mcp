@@ -136,13 +136,14 @@ For self-hosted production review and security posture:
 - [Hardening checklist](docs/security/hardening-checklist.md)
 - [Reference](docs/reference.md)
 
-## Contributing & Community
+## Repository Docs
+
+Internal contributors can use the docs in this repo as the source of truth:
 
 - [Contributing guide](./CONTRIBUTING.md)
 - [Repository map](./docs/repository-map.md)
 - [Starter issues](./docs/good-first-issues.md)
 - [Label catalog](./.github/labels.yml)
-- Contact channel: open a GitHub issue for bugs, feature proposals, and contributor assignment requests. Use `SECURITY.md` for vulnerability reports.
 
 Contributor layout note:
 - The repo root is reserved for packaging, deployment entrypoints, and external registry manifests. Contributor-facing docs, examples, and utilities should live under `docs/`, `examples/`, `scripts/`, or `deploy/`.
