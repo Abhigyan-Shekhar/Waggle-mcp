@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 import logging
 import tempfile
@@ -54,6 +55,13 @@ from .utils import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _decode_base64_content(value: str, field_name: str = "content_base64") -> bytes:
+    try:
+        return base64.b64decode(value.strip(), validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValidationFailure(f"{field_name} must be valid base64.") from exc
 
 
 class MCPHttpApp:
@@ -242,7 +250,19 @@ class _RequestBodySizeMiddleware:
                 )
                 await response(scope, receive, send)
                 return
-        await self.app(scope, receive, send)
+
+        received = 0
+
+        async def limited_receive() -> dict[str, Any]:
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > self.max_bytes:
+                    raise PayloadTooLargeError(f"Request body exceeds maximum allowed size of {self.max_bytes} bytes.")
+            return message
+
+        await self.app(scope, limited_receive, send)
 
 
 def create_http_application(app_server: WaggleServer, config: AppConfig) -> Starlette:
@@ -702,12 +722,11 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             except ValueError:
                 raise ValidationFailure("zoom must be a float number.")
 
-        for node_id, node_payload in desired_nodes.items():
-            if node_id not in current_nodes:
-                try:
-                    NodeType(str(node_payload.get("node_type", "note")).strip() or "note")
-                except ValueError:
-                    raise ValidationFailure(f"node_type must be one of {[nt.value for nt in NodeType]}.")
+        for node_payload in desired_nodes.values():
+            try:
+                NodeType(str(node_payload.get("node_type", "note")).strip() or "note")
+            except ValueError:
+                raise ValidationFailure(f"node_type must be one of {[nt.value for nt in NodeType]}.")
 
         parsed_weights = {}
         for edge_id, edge_payload in desired_edges.items():
@@ -727,6 +746,25 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                     parsed_weights[edge_id] = weight_val
                 except ValueError:
                     raise ValidationFailure("weight must be a float number.")
+
+            rel_str = str(edge_payload.get("relationship", "")).strip()
+            if not rel_str:
+                raise ValidationFailure("relationship is required for edges.")
+            try:
+                RelationType(rel_str)
+            except ValueError:
+                raise ValidationFailure(f"relationship must be one of {[rt.value for rt in RelationType]}.")
+
+            source_id = str(edge_payload.get("source_id", "")).strip()
+            target_id = str(edge_payload.get("target_id", "")).strip()
+            if not source_id:
+                raise ValidationFailure("source_id is required for edges.")
+            if not target_id:
+                raise ValidationFailure("target_id is required for edges.")
+            if source_id not in desired_nodes:
+                raise ValidationFailure(f"edge source_id '{source_id}' does not exist in desired nodes.")
+            if target_id not in desired_nodes:
+                raise ValidationFailure(f"edge target_id '{target_id}' does not exist in desired nodes.")
 
         # Mutation Pass
         for edge_id in list(current_edges):
@@ -960,7 +998,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             temp_path = Path(handle.name)
         try:
             if import_format == "abhi" and content_base64:
-                temp_path.write_bytes(base64.b64decode(content_base64))
+                temp_path.write_bytes(_decode_base64_content(content_base64))
             else:
                 temp_path.write_text(content, encoding="utf-8")
             imported_node_ids: list[str] = []
@@ -997,7 +1035,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             temp_path = Path(handle.name)
         try:
             if import_format == "abhi" and content_base64:
-                temp_path.write_bytes(base64.b64decode(content_base64))
+                temp_path.write_bytes(_decode_base64_content(content_base64))
             else:
                 temp_path.write_text(content, encoding="utf-8")
             if import_format == "abhi":
@@ -1044,6 +1082,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             temp_path.unlink(missing_ok=True)
 
     async def graph_abhi_diff(request: Request) -> Response:
+        graph, _ = _require_http_scope(request, "graph:read")
         payload = await request.json()
         content_a = str(payload.get("content_a", ""))
         content_b = str(payload.get("content_b", ""))
@@ -1055,14 +1094,13 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             path_b = Path(handle_b.name)
         try:
             if content_a_base64:
-                path_a.write_bytes(base64.b64decode(content_a_base64))
+                path_a.write_bytes(_decode_base64_content(content_a_base64, "content_a_base64"))
             else:
                 path_a.write_text(content_a, encoding="utf-8")
             if content_b_base64:
-                path_b.write_bytes(base64.b64decode(content_b_base64))
+                path_b.write_bytes(_decode_base64_content(content_b_base64, "content_b_base64"))
             else:
                 path_b.write_text(content_b, encoding="utf-8")
-            graph, _ = _require_http_scope(request, "graph:read")
             diff = graph.diff_abhi(input_path_a=path_a, input_path_b=path_b)
             snapshot_a = abhi_to_snapshot(load_abhi_document(path_a), fallback_tenant_id=graph.tenant_id)
             snapshot_b = abhi_to_snapshot(load_abhi_document(path_b), fallback_tenant_id=graph.tenant_id)

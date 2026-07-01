@@ -983,3 +983,98 @@ def test_new_validation_and_audit_safety(tmp_path: Path) -> None:
         )
         assert resp.status_code == 400
         assert "limit query parameter must be an integer" in resp.json()["message"]
+
+
+def test_new_safety_features_regression(tmp_path: Path) -> None:
+    config = make_http_config(tmp_path)
+    config.max_payload_bytes = 2000
+    config.db_path = str(tmp_path / "safety_regression.db")
+    graph = MemoryGraph(config.db_path, FakeEmbeddingModel())
+    server = WaggleServer(graph)
+    app = create_http_application(server, config)
+
+    created = graph.create_api_key(
+        "local-default",
+        name="test-safety-key",
+        scopes=["admin:write", "admin:read", "graph:write", "graph:read"],
+    )
+    headers = {"X-API-Key": created.raw_api_key}
+
+    with TestClient(app) as client:
+        # 1. Test malformed Base64 payload in graph/import
+        resp = client.post(
+            "/api/graph/import",
+            json={"format": "abhi", "content_base64": "!!!invalid_base64!!!"},
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        assert "must be valid base64" in resp.json()["message"]
+
+        # 2. Test graph_restore validation failure: invalid relationship
+        resp = client.post(
+            "/api/graph/restore",
+            json={
+                "project": "studio",
+                "nodes": [
+                    {
+                        "id": "node-1",
+                        "label": "Node 1",
+                        "content": "Content 1",
+                        "node_type": "fact",
+                        "project": "studio",
+                    }
+                ],
+                "edges": [
+                    {
+                        "id": "edge-1",
+                        "source_id": "node-1",
+                        "target_id": "node-1",
+                        "relationship": "INVALID_RELATIONSHIP_TYPE",
+                    }
+                ],
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        assert "relationship must be one of" in resp.json()["message"]
+
+        # 3. Test graph_restore validation failure: non-existent node
+        resp = client.post(
+            "/api/graph/restore",
+            json={
+                "project": "studio",
+                "nodes": [
+                    {
+                        "id": "node-1",
+                        "label": "Node 1",
+                        "content": "Content 1",
+                        "node_type": "fact",
+                        "project": "studio",
+                    }
+                ],
+                "edges": [
+                    {
+                        "id": "edge-1",
+                        "source_id": "node-1",
+                        "target_id": "node-2",
+                        "relationship": "depends_on",
+                    }
+                ],
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        assert "does not exist in desired nodes" in resp.json()["message"]
+
+        # 4. Test body size limit for chunked/streamed body exceeding max_payload_bytes
+        def gen():
+            yield b'{"format": "json", "content": "'
+            yield b"x" * 2100
+            yield b'"}'
+
+        resp = client.post(
+            "/api/graph/import",
+            content=gen(),
+            headers={**headers, "Content-Type": "application/json"},
+        )
+        assert resp.status_code == 413
