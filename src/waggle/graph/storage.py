@@ -914,8 +914,11 @@ class StorageMixin(MemoryGraphBase):
                 """ALTER TABLE api_keys ADD COLUMN scopes TEXT DEFAULT '["graph:read","graph:write","admin:read","admin:write"]'"""
             )
         if "tenant_id" not in node_columns:
-            connection.execute(f"ALTER TABLE nodes ADD COLUMN tenant_id TEXT NOT NULL DEFAULT '{self.tenant_id}'")
-            connection.execute("UPDATE nodes SET tenant_id = ? WHERE tenant_id = ''", (self.tenant_id,))
+            connection.execute("ALTER TABLE nodes ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'local-default'")
+            connection.execute(
+                "UPDATE nodes SET tenant_id = ? WHERE tenant_id IN ('', 'local-default')",
+                (self.tenant_id,),
+            )
         if "evidence_records" not in node_columns:
             connection.execute("ALTER TABLE nodes ADD COLUMN evidence_records TEXT DEFAULT '[]'")
         if "metadata" not in node_columns:
@@ -942,8 +945,11 @@ class StorageMixin(MemoryGraphBase):
         if "aliases" not in node_columns:
             connection.execute("ALTER TABLE nodes ADD COLUMN aliases TEXT DEFAULT '[]'")
         if "tenant_id" not in edge_columns:
-            connection.execute(f"ALTER TABLE edges ADD COLUMN tenant_id TEXT NOT NULL DEFAULT '{self.tenant_id}'")
-            connection.execute("UPDATE edges SET tenant_id = ? WHERE tenant_id = ''", (self.tenant_id,))
+            connection.execute("ALTER TABLE edges ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'local-default'")
+            connection.execute(
+                "UPDATE edges SET tenant_id = ? WHERE tenant_id IN ('', 'local-default')",
+                (self.tenant_id,),
+            )
         transcript_columns = {
             row["name"] for row in connection.execute("PRAGMA table_info(transcript_records)").fetchall()
         }

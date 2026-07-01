@@ -48,7 +48,12 @@ def extract_conversation_candidates(user_message: str, assistant_response: str) 
     func = None
     if graph_mod and hasattr(graph_mod, "extract_conversation_candidates"):
         f = graph_mod.extract_conversation_candidates
-        if f is not extract_conversation_candidates and getattr(f, "__module__", "") not in (__name__, "waggle.graph"):
+        is_shim = (
+            f is extract_conversation_candidates
+            or getattr(f, "__module__", "") == __name__
+            or getattr(f, "__module__", "") == "waggle.graph.transcript"
+        )
+        if not is_shim:
             func = f
     if func is None:
         from waggle.intelligence import extract_conversation_candidates as original_func
@@ -376,7 +381,7 @@ class TranscriptMixin(MemoryGraphBase):
                         result.created_count = candidates_result.created_count
                         result.reused_count = candidates_result.reused_count
                         result.conflicts = candidates_result.conflicts
-                        result.nodes_extracted = candidates_result.created_count
+                        result.nodes_extracted = len(candidates_result.stored_nodes)
                         result.edges_inferred = candidates_result.edges_inferred
                     except Exception as candidate_err:
                         logger.exception(
