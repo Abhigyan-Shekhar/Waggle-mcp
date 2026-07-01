@@ -24,6 +24,7 @@ from waggle.abhi import (
     build_abhi_document,
     diff_abhi_files,
     load_abhi_document,
+    merge_abhi_documents,
     merge_abhi_files,
     resolve_abhi_conflict,
     serialize_abhi_diff,
@@ -31,10 +32,12 @@ from waggle.abhi import (
     validate_abhi_document,
     write_abhi_document,
 )
+from waggle.drive_sync import merge_downloaded_abhi
 from waggle.errors import (
     ConflictResolutionError,
     DanglingEdgeError,
     SchemaVersionError,
+    ValidationFailure,
 )
 from waggle.models import (
     FieldDelta,
@@ -51,7 +54,27 @@ except ImportError:
     cli_app = None  # type: ignore[assignment]
     _CLI_AVAILABLE = False
 
-_skip_cli = pytest.mark.skipif(not _CLI_AVAILABLE, reason="waggle.server requires mcp package")
+_skip_cli = pytest.mark.skipif(
+    not _CLI_AVAILABLE,
+    reason="waggle.server requires mcp package",
+)
+
+try:
+    from waggle.server import (
+        _build_parser,
+        _normalize_pull_strategy_args,
+    )
+
+    _PARSER_AVAILABLE = True
+except ImportError:
+    _build_parser = None  # type: ignore[assignment]
+    _normalize_pull_strategy_args = None  # type: ignore[assignment]
+    _PARSER_AVAILABLE = False
+
+_skip_parser = pytest.mark.skipif(
+    not _PARSER_AVAILABLE,
+    reason="waggle.server requires MCP dependencies",
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -112,6 +135,135 @@ def _edge(source_id, target_id, relationship="relates_to", **kwargs):
 # ---------------------------------------------------------------------------
 # 16.1  Fixture-based tests
 # ---------------------------------------------------------------------------
+
+
+def test_drive_merge_respects_prefer_left_strategy(tmp_path):
+    local_document = build_abhi_document(
+        {
+            "tenant_id": "test-tenant",
+            "nodes": [
+                {
+                    "id": "shared-node",
+                    "label": "Local label",
+                    "content": "Local content",
+                    "node_type": "note",
+                    "tags": [],
+                    "metadata": {},
+                    "updated_at": "2026-06-10T10:00:00+00:00",
+                }
+            ],
+            "edges": [],
+            "transcripts": [],
+            "context_windows": [],
+        }
+    )
+
+    remote_document = build_abhi_document(
+        {
+            "tenant_id": "test-tenant",
+            "nodes": [
+                {
+                    "id": "shared-node",
+                    "label": "Remote label",
+                    "content": "Remote content",
+                    "node_type": "note",
+                    "tags": [],
+                    "metadata": {},
+                    "updated_at": "2026-06-11T10:00:00+00:00",
+                }
+            ],
+            "edges": [],
+            "transcripts": [],
+            "context_windows": [],
+        }
+    )
+
+    output_path = tmp_path / "merged.abhi"
+
+    merge_downloaded_abhi(
+        local_document=local_document,
+        remote_document=remote_document,
+        output_path=output_path,
+        merge_strategy="prefer_left",
+    )
+
+    merged_document = load_abhi_document(output_path)
+    merged_nodes = [node for node in merged_document["nodes"] if node["id"] == "shared-node"]
+
+    assert len(merged_nodes) == 1, f"Expected exactly one node with id 'shared-node', found {len(merged_nodes)}"
+
+    merged_node = merged_nodes[0]
+
+    assert merged_node["label"] == "Local label"
+    assert merged_node["content"] == "Local content"
+
+
+def test_drive_merge_rejects_invalid_strategy(tmp_path):
+    document = build_abhi_document(_make_snapshot())
+
+    with pytest.raises(ValidationFailure, match="Invalid merge_strategy"):
+        merge_downloaded_abhi(
+            local_document=document,
+            remote_document=document,
+            output_path=tmp_path / "merged.abhi",
+            merge_strategy="invalid-strategy",
+        )
+
+
+def test_drive_merge_normalizes_strategy_whitespace(tmp_path):
+    document = build_abhi_document(_make_snapshot())
+    output_path = tmp_path / "normalized-strategy.abhi"
+
+    merge_downloaded_abhi(
+        local_document=document,
+        remote_document=document,
+        output_path=output_path,
+        merge_strategy=" prefer_left ",
+    )
+
+    assert output_path.exists()
+
+
+@pytest.mark.parametrize(
+    "strategy_config",
+    [
+        MergeStrategyConfig(
+            type_overrides=[
+                {
+                    "node_type": "fact",
+                    "strategy": "invalid-strategy",
+                }
+            ]
+        ),
+        MergeStrategyConfig(
+            field_overrides=[
+                {
+                    "field": "content",
+                    "strategy": "invalid-strategy",
+                }
+            ]
+        ),
+    ],
+)
+def test_merge_rejects_invalid_override_strategies(
+    tmp_path,
+    strategy_config,
+):
+    document = build_abhi_document(_make_snapshot())
+
+    with pytest.raises(ValidationFailure, match="Invalid merge_strategy"):
+        merge_abhi_documents(
+            document,
+            document,
+            document,
+            base_input_path="local://base",
+            left_input_path="local://left",
+            right_input_path="local://right",
+            output_path=tmp_path / "merged.abhi",
+            merge_strategy="prefer_left",
+            strategy_config=strategy_config,
+            dry_run=True,
+        )
 
 
 def test_diff_empty_abhi():
@@ -366,6 +518,85 @@ def test_upgrade_unsupported_path():
                 target_version="99.0.0",
                 output_path=path,
             )
+
+
+@_skip_parser
+def test_pull_parser_accepts_drive_merge_strategy():
+    assert _build_parser is not None
+    assert _normalize_pull_strategy_args is not None
+
+    parser = _build_parser()
+    args = _normalize_pull_strategy_args(
+        parser.parse_args(
+            [
+                "pull",
+                "remote-file-id",
+                "--merge-strategy",
+                "prefer_left",
+            ]
+        )
+    )
+
+    assert args.merge_strategy == "prefer_left"
+    assert args.import_strategy == "skip-existing"
+
+
+@_skip_parser
+def test_pull_parser_defaults_to_last_write_wins():
+    assert _build_parser is not None
+    assert _normalize_pull_strategy_args is not None
+
+    parser = _build_parser()
+    args = _normalize_pull_strategy_args(parser.parse_args(["pull", "remote-file-id"]))
+
+    assert args.merge_strategy == "last_write_wins"
+    assert args.import_strategy == "skip-existing"
+
+
+@_skip_parser
+def test_pull_parser_maps_legacy_merge_strategy_to_import_strategy():
+    assert _build_parser is not None
+    assert _normalize_pull_strategy_args is not None
+
+    parser = _build_parser()
+    parsed_args = parser.parse_args(
+        [
+            "pull",
+            "remote-file-id",
+            "--merge-strategy",
+            "overwrite",
+        ]
+    )
+
+    with pytest.warns(FutureWarning, match="deprecated"):
+        args = _normalize_pull_strategy_args(parsed_args)
+
+    assert args.merge_strategy == "last_write_wins"
+    assert args.import_strategy == "overwrite"
+
+
+@_skip_parser
+def test_explicit_import_strategy_overrides_legacy_merge_value():
+    assert _build_parser is not None
+    assert _normalize_pull_strategy_args is not None
+
+    parser = _build_parser()
+    parsed_args = parser.parse_args(
+        [
+            "pull",
+            "remote-file-id",
+            "--merge-strategy",
+            "overwrite",
+            "--import-strategy",
+            "branch",
+        ]
+    )
+
+    with pytest.warns(FutureWarning, match="ignored"):
+        args = _normalize_pull_strategy_args(parsed_args)
+
+    assert args.merge_strategy == "last_write_wins"
+    assert args.import_strategy == "branch"
 
 
 # ---------------------------------------------------------------------------

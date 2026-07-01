@@ -1699,6 +1699,40 @@ class Neo4jMemoryGraph:
                 total_nodes_in_graph=total_nodes,
             )
 
+    def _transcript_from_props(self, props: Any) -> TranscriptRecord:
+        return TranscriptRecord(
+            id=props["id"],
+            tenant_id=props.get("tenant_id") or self.tenant_id,
+            agent_id=props.get("agent_id") or "",
+            project=props.get("project") or "",
+            session_id=props.get("session_id") or "",
+            observed_at=_parse_datetime(props["observed_at"]),
+            turn_index=int(props.get("turn_index") or 0),
+            role=props.get("role") or "",
+            transcript_text=props["transcript_text"],
+            embedding_model_id=props.get("embedding_model_id") or "",
+            embedding_dim=int(props.get("embedding_dim") or 0),
+            content_hash=props.get("content_hash") or "",
+            turn_pair_id=props.get("turn_pair_id") or "",
+            metadata=_decode_metadata(props.get("metadata")),
+        )
+
+    def _transcript_scope_matches(
+        self,
+        record: TranscriptRecord,
+        *,
+        agent_id: str = "",
+        project: str = "",
+        session_id: str = "",
+    ) -> bool:
+        if project.strip() and record.project != project.strip():
+            return False
+        if session_id.strip():
+            return record.session_id == session_id.strip()
+        if agent_id.strip():
+            return record.agent_id == agent_id.strip()
+        return True
+
     def _query_replay_hits(
         self,
         *,
@@ -1708,15 +1742,34 @@ class Neo4jMemoryGraph:
         project: str,
         session_id: str,
     ) -> list[ReplayHit]:
+        filters = [
+            "t.tenant_id = $tenant_id",
+            "t.embedding IS NOT NULL",
+        ]
+        params: dict[str, Any] = {
+            "tenant_id": self.tenant_id,
+        }
+
+        if project.strip():
+            filters.append("t.project = $project")
+            params["project"] = project.strip()
+
+        if session_id.strip():
+            filters.append("t.session_id = $session_id")
+            params["session_id"] = session_id.strip()
+        elif agent_id.strip():
+            filters.append("t.agent_id = $agent_id")
+            params["agent_id"] = agent_id.strip()
+
         with self._lock, self._session() as session:
             records = list(
                 session.run(
-                    """
-                    MATCH (t:MemoryTranscript {tenant_id: $tenant_id})
+                    f"""
+                    MATCH (t:MemoryTranscript)
+                    WHERE {" AND ".join(filters)}
                     RETURN t
-                    ORDER BY t.observed_at DESC, t.turn_index DESC
                     """,
-                    tenant_id=self.tenant_id,
+                    **params,
                 )
             )
         if not records:
@@ -2995,6 +3048,7 @@ def update_node(
         *,
         edge_id: str,
         resolution_note: str = "",
+        winner: str | None = None,
     ) -> ConflictEntry:
         with self._lock, self._session() as session:
             record = session.run(
@@ -3023,11 +3077,19 @@ def update_node(
             if edge.relationship not in {RelationType.CONTRADICTS.value, RelationType.UPDATES.value}:
                 raise ValueError("Only contradicts or updates edges can be resolved.")
 
+            if winner is not None and winner not in {edge.source_id, edge.target_id}:
+                raise ValueError(
+                    f"winner '{winner}' is not an endpoint of edge '{edge_id}'. "
+                    f"Must be one of: '{edge.source_id}' (source) or '{edge.target_id}' (target)."
+                )
+
             metadata = dict(edge.metadata)
             metadata["resolved"] = True
             metadata["resolved_at"] = utc_now().isoformat()
             if resolution_note.strip():
                 metadata["resolution_note"] = resolution_note.strip()
+            if winner is not None:
+                metadata["winner"] = winner
 
             session.run(
                 """
@@ -3038,6 +3100,16 @@ def update_node(
                 edge_id=edge_id,
                 metadata=_encode_metadata(metadata),
             ).consume()
+
+            if winner is not None:
+                losing_id = edge.target_id if winner == edge.source_id else edge.source_id
+                self._mark_node_superseded(
+                    session,
+                    losing_id=losing_id,
+                    winner_id=winner,
+                    relationship=edge.relationship,
+                )
+
             updated_edge = Edge(
                 id=edge.id,
                 tenant_id=edge.tenant_id,
@@ -3346,6 +3418,7 @@ def update_node(
             tags=list(props.get("tags") or []),
             source_prompt=props.get("source_prompt") or "",
             evidence_records=_decode_evidence_records(props.get("evidence_records")),
+            metadata=_decode_metadata(props.get("metadata")),
             valid_from=_parse_datetime(props["valid_from"]) if props.get("valid_from") else None,
             valid_to=_parse_datetime(props["valid_to"]) if props.get("valid_to") else None,
             created_at=_parse_datetime(props["created_at"]),
@@ -3860,6 +3933,47 @@ def update_node(
         resolved_at_raw = metadata.get("resolved_at")
         resolved_at = _parse_datetime(resolved_at_raw) if resolved_at_raw else None
         return resolved, resolution_note, resolved_at
+
+    def _mark_node_superseded(
+        self,
+        session: Any,
+        *,
+        losing_id: str,
+        winner_id: str,
+        relationship: str,
+    ) -> None:
+        now = utc_now()
+
+        record = session.run(
+            """
+            MATCH (n:MemoryNode {tenant_id: $tenant_id, id: $id})
+            RETURN n.metadata AS metadata
+            LIMIT 1
+            """,
+            tenant_id=self.tenant_id,
+            id=losing_id,
+        ).single()
+        if record is None:
+            raise ValueError(f"Node not found: {losing_id}")
+
+        metadata = _decode_metadata(record.get("metadata"))
+        metadata["superseded_by"] = winner_id
+        metadata["superseded_at"] = now.isoformat()
+        metadata["superseded_relationship"] = relationship
+
+        session.run(
+            """
+            MATCH (n:MemoryNode {tenant_id: $tenant_id, id: $id})
+            SET n.valid_to = $valid_to,
+                n.updated_at = $updated_at,
+                n.metadata = $metadata
+            """,
+            tenant_id=self.tenant_id,
+            id=losing_id,
+            valid_to=now.isoformat(),
+            updated_at=now.isoformat(),
+            metadata=_encode_metadata(metadata),
+        ).consume()
 
     def _temporal_sort_value(self, node: Node, hints: Any) -> float:
         if hints.recency_mode == "latest":

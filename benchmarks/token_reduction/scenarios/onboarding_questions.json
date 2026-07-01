@@ -1,0 +1,11 @@
+{
+  "name": "Onboarding Questions",
+  "turns": [
+    "Our team uses GitHub Actions for CI/CD.",
+    "All pull requests require at least one review.",
+    "Issues are tracked using GitHub Issues.",
+    "Documentation is stored in the docs folder.",
+    "Development happens on feature branches.",
+    "Where is the documentation stored?"
+  ]
+}

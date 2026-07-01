@@ -1,0 +1,10 @@
+{
+  "version": "0.1.0",
+  "repository": "Abhigyan-Shekhar/Waggle-mcp",
+  "assets": {
+    "win32-x64": "waggle-mcp-windows-x64.exe",
+    "darwin-arm64": "waggle-mcp-darwin-arm64",
+    "darwin-x64": "waggle-mcp-darwin-x64",
+    "linux-x64": "waggle-mcp-linux-x64"
+  }
+}

@@ -727,6 +727,8 @@ A local browser-based graph editor for inspecting and editing memory directly. F
 
 `waggle-mcp push` encrypts `.abhi` exports by default. Export paths refuse to proceed if transcript text contains likely secrets unless you pass `--force`.
 
+*Note: Screenshot assets belong under [assets/](./assets/). See [apps/mcp/graph-ui/README.md](./apps/mcp/graph-ui/README.md) for screenshot update guidelines and local development review instructions.*
+
 ---
 
 ## Model Support

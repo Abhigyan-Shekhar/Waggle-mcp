@@ -69,6 +69,27 @@ ABHI_SIGNATURE_MEMBER = "signatures/content.ed25519"
 ABHI_PUBLIC_KEY_MEMBER = "signatures/public_key.pem"
 ABHI_DETERMINISTIC_ZIP_TIMESTAMP = (2000, 1, 1, 0, 0, 0)
 
+ABHI_MERGE_STRATEGIES = (
+    "contradict",
+    "last_write_wins",
+    "prefer_left",
+    "prefer_right",
+)
+DEFAULT_ABHI_MERGE_STRATEGY = "last_write_wins"
+
+
+def _validate_abhi_merge_strategy(merge_strategy: str) -> str:
+    """Validate and return a supported .abhi merge strategy."""
+    normalized = str(merge_strategy).strip()
+
+    if normalized not in ABHI_MERGE_STRATEGIES:
+        raise ValidationFailure(
+            f"Invalid merge_strategy '{merge_strategy}'. Supported strategies: {', '.join(ABHI_MERGE_STRATEGIES)}."
+        )
+
+    return normalized
+
+
 DIFFED_FIELDS: frozenset[str] = frozenset(
     {
         "label",
@@ -1251,6 +1272,22 @@ def merge_abhi_documents(
     passphrase: str = "",
     dry_run: bool = False,
 ) -> AbhiMergeResult:
+    """Merge left and right .abhi documents against a common base.
+
+    Supported strategies:
+
+    - ``contradict``: retain the right value and create a CONTRADICTS edge.
+    - ``last_write_wins``: retain the value with the newest timestamp.
+    - ``prefer_left``: retain the left/local value during a conflict.
+    - ``prefer_right``: retain the right/remote value during a conflict.
+    """
+    merge_strategy = _validate_abhi_merge_strategy(merge_strategy)
+    if strategy_config is not None:
+        for override in strategy_config.type_overrides:
+            _validate_abhi_merge_strategy(override.strategy)
+        for override in strategy_config.field_overrides:
+            _validate_abhi_merge_strategy(override.strategy)
+
     import time
 
     _t0 = time.monotonic()

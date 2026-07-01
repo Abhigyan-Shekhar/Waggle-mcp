@@ -50,11 +50,14 @@ class LMRequest:
     @classmethod
     def from_dict(cls, data: dict) -> "LMRequest":
         """Create from dict."""
+        if "depth" not in data:
+            raise ValueError("LMRequest requires a depth field")
+
         return cls(
             prompt=data.get("prompt"),
             prompts=data.get("prompts"),
             model=data.get("model"),
-            depth=data.get("depth", -1),  # TODO: Default should throw an error
+            depth=data["depth"],
         )
 
 
