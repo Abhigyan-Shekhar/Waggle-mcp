@@ -533,7 +533,8 @@ def build_abhi_document(
                 "Use --include-deps or remove --strict-export."
             )
         if include_deps:
-            logger.info("Walking dangling edge targets to include referenced nodes (not yet implemented, continuing)")
+            # TODO: Implement traversal of dangling edge targets to include referenced nodes.
+            pass
         else:
             logger.warning(
                 "Export contains %d dangling edge(s): %s",
