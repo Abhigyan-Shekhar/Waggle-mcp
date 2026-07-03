@@ -75,7 +75,7 @@ with its MCP companion config in `.mcp.json`.
 
 For the Codex app plugin, Waggle bundles its own plugin-local MCP server runtime.
 Users do not need to install `waggle-mcp` from PyPI separately. The plugin
-launcher resolves a signed executable under `plugins/waggle/runtime/<target>/`
+launcher resolves a bundled executable under `plugins/waggle/runtime/<target>/`
 and starts it with `serve --transport stdio`.
 
 Bundled runtime updates are delivered only through plugin upgrades. If a bundled
