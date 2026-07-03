@@ -36,6 +36,40 @@ For more details on how these rules govern agent behavior, see the [Automatic Me
 
 ## Codex app plugin
 
+## First-run OS warnings (unsigned binary)
+
+The bundled Waggle runtime binary is currently unsigned. This means macOS and Windows will show a security warning on first launch. This is expected — it does not mean the binary is malicious.
+
+### macOS (Gatekeeper)
+
+You may see: *"waggle-runtime cannot be opened because it is from an unidentified developer."*
+
+To approve:
+
+1. Open **System Settings → Privacy & Security**
+2. Scroll to the bottom — you'll see a message about the blocked binary
+3. Click **Allow Anyway**
+4. Re-launch Codex — macOS will ask once more; click **Open**
+
+Or via terminal:
+
+```bash
+xattr -dr com.apple.quarantine /path/to/waggle-runtime
+```
+
+### Windows (SmartScreen)
+
+You may see: *"Windows protected your PC"*
+
+To approve:
+
+1. Click **More info**
+2. Click **Run anyway**
+
+Then retry the Codex plugin install.
+
+> These warnings appear only on first run. Once approved, the binary launches without prompting.
+
 This repository also ships a Codex app plugin manifest at `.codex-plugin/plugin.json`
 with its MCP companion config in `.mcp.json`.
 
