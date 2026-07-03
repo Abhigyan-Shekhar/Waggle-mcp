@@ -28,9 +28,17 @@ from waggle.abhi import (
     write_abhi_document,
 )
 from waggle.auth import api_key_prefix, generate_api_key, hash_api_key, verify_api_key
-from waggle.context_bundle import build_context_bundle, build_query_summary, export_context_bundle_files
+from waggle.context_bundle import (
+    build_context_bundle,
+    build_query_summary,
+    export_context_bundle_files,
+)
 from waggle.errors import AuthenticationError, ValidationFailure
-from waggle.evidence import build_observation_evidence, merge_evidence_records, merge_validity_windows
+from waggle.evidence import (
+    build_observation_evidence,
+    merge_evidence_records,
+    merge_validity_windows,
+)
 from waggle.graph import decode_embedding_blob
 from waggle.intelligence import (
     canonical_concept_overlap,
@@ -178,7 +186,9 @@ def _decode_string_list(raw: Any) -> list[str]:
 
 
 def _encode_evidence_records(records: list[EvidenceRecord]) -> str:
-    return json.dumps([record.model_dump(mode="json") for record in records], sort_keys=True)
+    return json.dumps(
+        [record.model_dump(mode="json") for record in records], sort_keys=True
+    )
 
 
 def _decode_evidence_records(raw: Any) -> list[EvidenceRecord]:
@@ -203,7 +213,9 @@ def _decode_evidence_records(raw: Any) -> list[EvidenceRecord]:
     return records
 
 
-def _scope_matches(node: Node, *, agent_id: str = "", project: str = "", session_id: str = "") -> bool:
+def _scope_matches(
+    node: Node, *, agent_id: str = "", project: str = "", session_id: str = ""
+) -> bool:
     normalized_agent = agent_id.strip().lower()
     normalized_project = project.strip().lower()
     normalized_session = session_id.strip().lower()
@@ -259,106 +271,84 @@ class Neo4jMemoryGraph:
         self.tenant_id = tenant_id.strip() or "local-default"
         self.dedup_similarity_threshold = dedup_similarity_threshold
         self.dedup_same_label_threshold = dedup_same_label_threshold
-        self.export_dir = Path(export_dir).expanduser() if export_dir is not None else Path.cwd() / "exports"
+        self.export_dir = (
+            Path(export_dir).expanduser()
+            if export_dir is not None
+            else Path.cwd() / "exports"
+        )
         self.api_key_environment = api_key_environment
         self._lock = threading.RLock()
         self._initialize_database()
 
     def _session(self):
-        return self._driver.session(database=self.database) if self.database else self._driver.session()
+        return (
+            self._driver.session(database=self.database)
+            if self.database
+            else self._driver.session()
+        )
 
     def _initialize_database(self) -> None:
         with self._lock, self._session() as session:
-            session.run(
-                """
+            session.run("""
                 CREATE CONSTRAINT waggle_node_id IF NOT EXISTS
                 FOR (n:MemoryNode) REQUIRE n.id IS UNIQUE
-                """
-            ).consume()
-            session.run(
-                """
+                """).consume()
+            session.run("""
                 CREATE CONSTRAINT waggle_edge_id IF NOT EXISTS
                 FOR ()-[r:MEMORY_EDGE]-() REQUIRE r.id IS UNIQUE
-                """
-            ).consume()
-            session.run(
-                """
+                """).consume()
+            session.run("""
                 CREATE CONSTRAINT waggle_transcript_id IF NOT EXISTS
                 FOR (t:MemoryTranscript) REQUIRE t.id IS UNIQUE
-                """
-            ).consume()
-            session.run(
-                """
+                """).consume()
+            session.run("""
                 CREATE CONSTRAINT waggle_tenant_id IF NOT EXISTS
                 FOR (t:GraphTenant) REQUIRE t.tenant_id IS UNIQUE
-                """
-            ).consume()
-            session.run(
-                """
+                """).consume()
+            session.run("""
                 CREATE CONSTRAINT waggle_api_key_id IF NOT EXISTS
                 FOR (a:GraphApiKey) REQUIRE a.api_key_id IS UNIQUE
-                """
-            ).consume()
-            session.run(
-                """
+                """).consume()
+            session.run("""
                 CREATE CONSTRAINT waggle_retention_policy_tenant IF NOT EXISTS
                 FOR (p:GraphRetentionPolicy) REQUIRE p.tenant_id IS UNIQUE
-                """
-            ).consume()
-            session.run(
-                """
+                """).consume()
+            session.run("""
                 CREATE CONSTRAINT waggle_retention_run_id IF NOT EXISTS
                 FOR (r:GraphRetentionPruneRun) REQUIRE r.run_id IS UNIQUE
-                """
-            ).consume()
-            session.run(
-                """
+                """).consume()
+            session.run("""
                 CREATE CONSTRAINT waggle_audit_event_id IF NOT EXISTS
                 FOR (a:GraphAuditEvent) REQUIRE a.event_id IS UNIQUE
-                """
-            ).consume()
-            session.run(
-                """
+                """).consume()
+            session.run("""
                 CREATE INDEX waggle_node_tenant_updated IF NOT EXISTS
                 FOR (n:MemoryNode) ON (n.tenant_id, n.updated_at)
-                """
-            ).consume()
-            session.run(
-                """
+                """).consume()
+            session.run("""
                 CREATE INDEX waggle_node_tenant_type IF NOT EXISTS
                 FOR (n:MemoryNode) ON (n.tenant_id, n.node_type)
-                """
-            ).consume()
-            session.run(
-                """
+                """).consume()
+            session.run("""
                 CREATE INDEX waggle_transcript_tenant_observed IF NOT EXISTS
                 FOR (t:MemoryTranscript) ON (t.tenant_id, t.observed_at)
-                """
-            ).consume()
-            session.run(
-                """
+                """).consume()
+            session.run("""
                 CREATE INDEX waggle_transcript_tenant_session_turn IF NOT EXISTS
                 FOR (t:MemoryTranscript) ON (t.tenant_id, t.session_id, t.turn_index)
-                """
-            ).consume()
-            session.run(
-                """
+                """).consume()
+            session.run("""
                 CREATE INDEX waggle_transcript_tenant_project IF NOT EXISTS
                 FOR (t:MemoryTranscript) ON (t.tenant_id, t.project)
-                """
-            ).consume()
-            session.run(
-                """
+                """).consume()
+            session.run("""
                 CREATE INDEX waggle_transcript_tenant_agent IF NOT EXISTS
                 FOR (t:MemoryTranscript) ON (t.tenant_id, t.agent_id)
-                """
-            ).consume()
-            session.run(
-                """
+                """).consume()
+            session.run("""
                 CREATE INDEX waggle_api_key_hash IF NOT EXISTS
                 FOR (a:GraphApiKey) ON (a.key_hash)
-                """
-            ).consume()
+                """).consume()
             session.run(
                 """
                 MATCH (n:MemoryNode)
@@ -466,7 +456,9 @@ class Neo4jMemoryGraph:
                 continue
         return deleted
 
-    def _store_retention_run(self, run: RetentionPruneRunRecord, *, session: Any | None = None) -> None:
+    def _store_retention_run(
+        self, run: RetentionPruneRunRecord, *, session: Any | None = None
+    ) -> None:
         owns_session = session is None
         active_session = session or self._session()
         try:
@@ -591,7 +583,10 @@ class Neo4jMemoryGraph:
         status: str = "",
     ) -> list[AuditEventRecord]:
         predicates = ["a.tenant_id = $tenant_id"]
-        params: dict[str, Any] = {"tenant_id": self.tenant_id, "limit": max(1, int(limit))}
+        params: dict[str, Any] = {
+            "tenant_id": self.tenant_id,
+            "limit": max(1, int(limit)),
+        }
         if event_type.strip():
             predicates.append("a.event_type = $event_type")
             params["event_type"] = event_type.strip()
@@ -714,9 +709,21 @@ class Neo4jMemoryGraph:
                     name=row["name"] or "",
                     status=row["status"],
                     created_at=_parse_datetime(row["created_at"]),
-                    expires_at=_parse_datetime(row["expires_at"]) if row["expires_at"] else None,
-                    revoked_at=_parse_datetime(row["revoked_at"]) if row["revoked_at"] else None,
-                    last_used_at=_parse_datetime(row["last_used_at"]) if row["last_used_at"] else None,
+                    expires_at=(
+                        _parse_datetime(row["expires_at"])
+                        if row["expires_at"]
+                        else None
+                    ),
+                    revoked_at=(
+                        _parse_datetime(row["revoked_at"])
+                        if row["revoked_at"]
+                        else None
+                    ),
+                    last_used_at=(
+                        _parse_datetime(row["last_used_at"])
+                        if row["last_used_at"]
+                        else None
+                    ),
                     created_by=row["created_by"] or "",
                     scopes=row["scopes"] or [],
                 )
@@ -767,7 +774,11 @@ class Neo4jMemoryGraph:
             enabled=bool(props["enabled"]),
             retention_days=int(props["retention_days"]),
             prune_interval_hours=int(props["prune_interval_hours"]),
-            last_pruned_at=_parse_datetime(props["last_pruned_at"]) if props.get("last_pruned_at") else None,
+            last_pruned_at=(
+                _parse_datetime(props["last_pruned_at"])
+                if props.get("last_pruned_at")
+                else None
+            ),
             created_at=_parse_datetime(props["created_at"]),
             updated_at=_parse_datetime(props["updated_at"]),
         )
@@ -788,9 +799,13 @@ class Neo4jMemoryGraph:
             default_prune_interval_hours=default_prune_interval_hours,
         )
         next_enabled = current.enabled if enabled is None else bool(enabled)
-        next_retention_days = current.retention_days if retention_days is None else int(retention_days)
+        next_retention_days = (
+            current.retention_days if retention_days is None else int(retention_days)
+        )
         next_prune_interval_hours = (
-            current.prune_interval_hours if prune_interval_hours is None else int(prune_interval_hours)
+            current.prune_interval_hours
+            if prune_interval_hours is None
+            else int(prune_interval_hours)
         )
         if next_retention_days < 1:
             raise ValidationFailure("Retention days must be at least 1.")
@@ -838,12 +853,18 @@ class Neo4jMemoryGraph:
                 status=props["status"],
                 cutoff=_parse_datetime(props["cutoff"]),
                 started_at=_parse_datetime(props["started_at"]),
-                completed_at=_parse_datetime(props["completed_at"]) if props.get("completed_at") else None,
+                completed_at=(
+                    _parse_datetime(props["completed_at"])
+                    if props.get("completed_at")
+                    else None
+                ),
                 deleted_nodes=int(props.get("deleted_nodes") or 0),
                 deleted_edges=int(props.get("deleted_edges") or 0),
                 deleted_transcripts=int(props.get("deleted_transcripts") or 0),
                 deleted_context_windows=int(props.get("deleted_context_windows") or 0),
-                deleted_context_window_edges=int(props.get("deleted_context_window_edges") or 0),
+                deleted_context_window_edges=int(
+                    props.get("deleted_context_window_edges") or 0
+                ),
                 deleted_exports=int(props.get("deleted_exports") or 0),
                 duration_ms=int(props.get("duration_ms") or 0),
                 error_message=props.get("error_message") or "",
@@ -965,7 +986,9 @@ class Neo4jMemoryGraph:
                 run.deleted_exports = self._delete_old_export_files(cutoff=cutoff)
                 completed_at = utc_now()
                 run.completed_at = completed_at
-                run.duration_ms = max(0, int((completed_at - started_at).total_seconds() * 1000))
+                run.duration_ms = max(
+                    0, int((completed_at - started_at).total_seconds() * 1000)
+                )
                 session.run(
                     """
                     MATCH (p:GraphRetentionPolicy {tenant_id: $tenant_id})
@@ -981,7 +1004,9 @@ class Neo4jMemoryGraph:
             run.status = "failed"
             run.error_message = str(exc)
             run.completed_at = completed_at
-            run.duration_ms = max(0, int((completed_at - started_at).total_seconds() * 1000))
+            run.duration_ms = max(
+                0, int((completed_at - started_at).total_seconds() * 1000)
+            )
             self._store_retention_run(run)
             raise
         return run
@@ -1004,7 +1029,9 @@ class Neo4jMemoryGraph:
                 raise AuthenticationError("Invalid API key.")
             if row["status"] != "active":
                 raise AuthenticationError("Invalid API key.")
-            expires_at = _parse_datetime(row["expires_at"]) if row["expires_at"] else None
+            expires_at = (
+                _parse_datetime(row["expires_at"]) if row["expires_at"] else None
+            )
             if expires_at is not None and expires_at <= utc_now():
                 raise AuthenticationError("API key expired.")
             session.run(
@@ -1024,7 +1051,9 @@ class Neo4jMemoryGraph:
             status=row["status"],
             created_at=_parse_datetime(row["created_at"]),
             expires_at=expires_at,
-            revoked_at=_parse_datetime(row["revoked_at"]) if row["revoked_at"] else None,
+            revoked_at=(
+                _parse_datetime(row["revoked_at"]) if row["revoked_at"] else None
+            ),
             last_used_at=utc_now(),
             created_by=row["created_by"] or "",
             scopes=row["scopes"] or [],
@@ -1078,7 +1107,9 @@ class Neo4jMemoryGraph:
                     node_type=node.node_type.value,
                 )
             ]
-            duplicate = self._find_duplicate_node(existing_nodes=existing, node=node, embedding=embedding)
+            duplicate = self._find_duplicate_node(
+                existing_nodes=existing, node=node, embedding=embedding
+            )
             if duplicate is not None:
                 existing_node, dedup_reason, similarity = duplicate
                 merged_node = self._merge_duplicate_node(
@@ -1086,6 +1117,7 @@ class Neo4jMemoryGraph:
                     existing_node=existing_node,
                     incoming_node=node,
                 )
+                self._mark_communities_stale(session)
                 return NodeStoreResult(
                     node=merged_node,
                     created=False,
@@ -1118,6 +1150,7 @@ class Neo4jMemoryGraph:
                 **self._node_create_params(node=node, embedding=embedding),
             ).consume()
             conflicts = self._register_conflicts(session, node)
+            self._mark_communities_stale(session)
         return NodeStoreResult(node=node, created=True, conflicts=conflicts)
 
     def add_edge(
@@ -1175,6 +1208,7 @@ class Neo4jMemoryGraph:
                 metadata=_encode_metadata(edge.metadata),
                 created_at=edge.created_at.isoformat(),
             ).consume()
+            self._mark_communities_stale(session)
         return edge
 
     def get_node(self, node_id: str) -> Node:
@@ -1219,7 +1253,8 @@ class Neo4jMemoryGraph:
         value = {
             "positions": _decode_metadata(record["positions"]),
             "zoom": float(record["zoom"]) if record["zoom"] is not None else 1.0,
-            "viewport": _decode_metadata(record["viewport"]) or {"center_x": 0, "center_y": 0},
+            "viewport": _decode_metadata(record["viewport"])
+            or {"center_x": 0, "center_y": 0},
             "groups": _decode_list(record["groups"]),
             "collapsed_groups": _decode_string_list(record["collapsed_groups"]),
             "selected_nodes": _decode_string_list(record["selected_nodes"]),
@@ -1241,14 +1276,24 @@ class Neo4jMemoryGraph:
         selected_nodes: list[str] | None = None,
     ) -> dict[str, Any]:
         key = (self.tenant_id, project.strip(), agent_id.strip(), session_id.strip())
-        current = self.get_ui_state(project=project, agent_id=agent_id, session_id=session_id)
+        current = self.get_ui_state(
+            project=project, agent_id=agent_id, session_id=session_id
+        )
         merged = {
             "positions": positions if positions is not None else current["positions"],
             "zoom": float(zoom if zoom is not None else current["zoom"]),
             "viewport": viewport if viewport is not None else current["viewport"],
             "groups": groups if groups is not None else current["groups"],
-            "collapsed_groups": collapsed_groups if collapsed_groups is not None else current["collapsed_groups"],
-            "selected_nodes": selected_nodes if selected_nodes is not None else current["selected_nodes"],
+            "collapsed_groups": (
+                collapsed_groups
+                if collapsed_groups is not None
+                else current["collapsed_groups"]
+            ),
+            "selected_nodes": (
+                selected_nodes
+                if selected_nodes is not None
+                else current["selected_nodes"]
+            ),
         }
         with self._lock, self._session() as session:
             session.run(
@@ -1286,12 +1331,19 @@ class Neo4jMemoryGraph:
         del project
         return "default"
 
-    def ensure_context_window(self, session_id: str = "", repo_id: str | None = None) -> str:
+    def ensure_context_window(
+        self, session_id: str = "", repo_id: str | None = None
+    ) -> str:
         del repo_id
         return session_id.strip() or "default"
 
-    def resolve_window_context(self, project: str | None = None, session_id: str | None = None) -> tuple[str, str]:
-        return (self.ensure_repo(project or "default"), self.ensure_context_window(session_id or "default", "default"))
+    def resolve_window_context(
+        self, project: str | None = None, session_id: str | None = None
+    ) -> tuple[str, str]:
+        return (
+            self.ensure_repo(project or "default"),
+            self.ensure_context_window(session_id or "default", "default"),
+        )
 
     def list_context_windows(
         self,
@@ -1335,7 +1387,9 @@ class Neo4jMemoryGraph:
         del repo_id, exclude, include_archived
         return []
 
-    def get_window_nodes(self, window_id: str, node_types: list[NodeType] | None = None) -> list[Node]:
+    def get_window_nodes(
+        self, window_id: str, node_types: list[NodeType] | None = None
+    ) -> list[Node]:
         del window_id, node_types
         return []
 
@@ -1351,7 +1405,9 @@ class Neo4jMemoryGraph:
         del window_id
         return []
 
-    def derive_context_window_edges(self, window_id: str, repo_id: str) -> list[ContextWindowEdge]:
+    def derive_context_window_edges(
+        self, window_id: str, repo_id: str
+    ) -> list[ContextWindowEdge]:
         del window_id, repo_id
         return []
 
@@ -1383,7 +1439,9 @@ class Neo4jMemoryGraph:
         top_k_windows: int | None = None,
     ) -> SubgraphResult:
         del repo_id, top_k_windows
-        result = self.query(query=query, project=project, max_nodes=max_nodes, max_depth=max_depth)
+        result = self.query(
+            query=query, project=project, max_nodes=max_nodes, max_depth=max_depth
+        )
         result.retrieval_mode = "flat_fallback"
         return result
 
@@ -1473,7 +1531,9 @@ class Neo4jMemoryGraph:
             embeddings_by_id: dict[str, np.ndarray] = {}
             for props in node_records:
                 node = self._node_from_props(props)
-                if not _scope_matches(node, agent_id=agent_id, project=project, session_id=session_id):
+                if not _scope_matches(
+                    node, agent_id=agent_id, project=project, session_id=session_id
+                ):
                     continue
                 if target_types and node.node_type.value.lower() not in target_types:
                     continue
@@ -1483,10 +1543,14 @@ class Neo4jMemoryGraph:
                         continue
                 candidates.append(node)
                 if props.get("embedding"):
-                    embeddings_by_id[node.id] = np.array(props["embedding"], dtype=np.float32)
+                    embeddings_by_id[node.id] = np.array(
+                        props["embedding"], dtype=np.float32
+                    )
 
             if not candidates:
-                return SubgraphResult(query=query_text, total_nodes_in_graph=total_nodes)
+                return SubgraphResult(
+                    query=query_text, total_nodes_in_graph=total_nodes
+                )
 
             if query_text:
                 query_embedding = self.embedding_model.embed(query_text)
@@ -1495,18 +1559,27 @@ class Neo4jMemoryGraph:
                     similarity = 0.0
                     emb = embeddings_by_id.get(node.id)
                     if emb is not None:
-                        similarity = max(self.embedding_model.cosine_similarity(query_embedding, emb), 0.0)
+                        similarity = max(
+                            self.embedding_model.cosine_similarity(
+                                query_embedding, emb
+                            ),
+                            0.0,
+                        )
                     scored_candidates.append((similarity, node))
                 scored_candidates.sort(key=lambda item: item[0], reverse=True)
                 selected_nodes = [node for _, node in scored_candidates[:max_nodes]]
             else:
-                candidates.sort(key=lambda node: node.updated_at.timestamp(), reverse=True)
+                candidates.sort(
+                    key=lambda node: node.updated_at.timestamp(), reverse=True
+                )
                 selected_nodes = candidates[:max_nodes]
 
             if max_depth > 0 and selected_nodes:
                 selected_ids = [node.id for node in selected_nodes]
                 graph = self._load_graph(session)
-                expanded_depths = self._expand_node_depths(graph, selected_ids, max_depth)
+                expanded_depths = self._expand_node_depths(
+                    graph, selected_ids, max_depth
+                )
                 expanded_ids = set(expanded_depths.keys())
                 missing_ids = expanded_ids - {node.id for node in selected_nodes}
                 if missing_ids:
@@ -1588,9 +1661,13 @@ class Neo4jMemoryGraph:
                 replay_hits=replay_hits,
                 retrieval_mode="verbatim",
                 query=query_text,
-                total_nodes_in_graph=graph_result.total_nodes_in_graph if graph_result is not None else 0,
+                total_nodes_in_graph=(
+                    graph_result.total_nodes_in_graph if graph_result is not None else 0
+                ),
             )
-        fusion_hits = self._build_fusion_hits(graph_result or SubgraphResult(query=query_text), replay_hits)
+        fusion_hits = self._build_fusion_hits(
+            graph_result or SubgraphResult(query=query_text), replay_hits
+        )
         return SubgraphResult(
             nodes=graph_result.nodes if graph_result is not None else [],
             edges=graph_result.edges if graph_result is not None else [],
@@ -1598,7 +1675,9 @@ class Neo4jMemoryGraph:
             fusion_hits=fusion_hits[:max_nodes],
             retrieval_mode="hybrid",
             query=query_text,
-            total_nodes_in_graph=graph_result.total_nodes_in_graph if graph_result is not None else 0,
+            total_nodes_in_graph=(
+                graph_result.total_nodes_in_graph if graph_result is not None else 0
+            ),
         )
 
     def _query_graph_only(
@@ -1628,7 +1707,9 @@ class Neo4jMemoryGraph:
                 props["id"]: node
                 for props in node_records
                 for node in [self._node_from_props(props)]
-                if _scope_matches(node, agent_id=agent_id, project=project, session_id=session_id)
+                if _scope_matches(
+                    node, agent_id=agent_id, project=project, session_id=session_id
+                )
             }
             if not nodes_by_id:
                 return SubgraphResult(query=query, total_nodes_in_graph=total_nodes)
@@ -1640,18 +1721,23 @@ class Neo4jMemoryGraph:
 
             query_embedding = self.embedding_model.embed(query)
             similarity_by_id = {
-                node_id: max(self.embedding_model.cosine_similarity(query_embedding, embedding), 0.0)
+                node_id: max(
+                    self.embedding_model.cosine_similarity(query_embedding, embedding),
+                    0.0,
+                )
                 for node_id, embedding in embeddings_by_id.items()
             }
             lexical_by_id = {
-                node_id: lexical_overlap(query, node.label, node.content) for node_id, node in nodes_by_id.items()
+                node_id: lexical_overlap(query, node.label, node.content)
+                for node_id, node in nodes_by_id.items()
             }
 
             seed_count = min(total_nodes, max(1, max_nodes // 2))
             seed_candidates = [
                 (
                     node_id,
-                    (0.72 * similarity_by_id.get(node_id, 0.0)) + (0.28 * lexical_by_id.get(node_id, 0.0)),
+                    (0.72 * similarity_by_id.get(node_id, 0.0))
+                    + (0.28 * lexical_by_id.get(node_id, 0.0)),
                     self._seed_temporal_order(nodes_by_id[node_id], temporal_hints),
                 )
                 for node_id in nodes_by_id
@@ -1661,7 +1747,11 @@ class Neo4jMemoryGraph:
                     item[0]
                     for item in sorted(
                         seed_candidates,
-                        key=lambda item: (item[2], -item[1], nodes_by_id[item[0]].label.lower()),
+                        key=lambda item: (
+                            item[2],
+                            -item[1],
+                            nodes_by_id[item[0]].label.lower(),
+                        ),
                     )[:seed_count]
                 ]
             else:
@@ -1669,14 +1759,24 @@ class Neo4jMemoryGraph:
                     item[0]
                     for item in sorted(
                         seed_candidates,
-                        key=lambda item: (-item[1], item[2], nodes_by_id[item[0]].label.lower()),
+                        key=lambda item: (
+                            -item[1],
+                            item[2],
+                            nodes_by_id[item[0]].label.lower(),
+                        ),
                     )[:seed_count]
                 ]
 
             graph = self._load_graph(session)
-            expanded_depths = self._expand_node_depths(graph, ranked_seed_ids, max_depth)
+            expanded_depths = self._expand_node_depths(
+                graph, ranked_seed_ids, max_depth
+            )
             candidate_nodes = [nodes_by_id[node_id] for node_id in expanded_depths]
-            temporal_candidates = [node for node in candidate_nodes if within_time_window(node, temporal_hints)]
+            temporal_candidates = [
+                node
+                for node in candidate_nodes
+                if within_time_window(node, temporal_hints)
+            ]
             if temporal_candidates:
                 candidate_nodes = temporal_candidates
             max_access = max((node.access_count for node in candidate_nodes), default=0)
@@ -1787,16 +1887,22 @@ class Neo4jMemoryGraph:
         rows = [self._transcript_from_props(record["t"]) for record in records]
         query_embedding = self.embedding_model.embed(query)
         temporal_hints = infer_temporal_hints(query)
-        timestamps = np.asarray([row.observed_at.timestamp() for row in rows], dtype=np.float64)
+        timestamps = np.asarray(
+            [row.observed_at.timestamp() for row in rows], dtype=np.float64
+        )
         max_timestamp = float(np.max(timestamps))
         min_timestamp = float(np.min(timestamps))
         span = max(max_timestamp - min_timestamp, 1.0)
         hits: list[tuple[float, ReplayHit]] = []
         for row, raw_timestamp, record in zip(rows, timestamps, records, strict=True):
-            if not self._transcript_scope_matches(row, agent_id=agent_id, project=project, session_id=session_id):
+            if not self._transcript_scope_matches(
+                row, agent_id=agent_id, project=project, session_id=session_id
+            ):
                 continue
             embedding = np.asarray(record["t"].get("embedding") or [], dtype=np.float32)
-            semantic_score = max(self.embedding_model.cosine_similarity(query_embedding, embedding), 0.0)
+            semantic_score = max(
+                self.embedding_model.cosine_similarity(query_embedding, embedding), 0.0
+            )
             lexical_score = lexical_overlap(query, row.role, row.transcript_text)
             temporal_score = 0.0
             if temporal_hints.recency_mode == "latest":
@@ -1804,7 +1910,12 @@ class Neo4jMemoryGraph:
             elif temporal_hints.recency_mode == "oldest":
                 temporal_score = float((max_timestamp - raw_timestamp) / span)
             role_score = 1.0 if row.role == "user" else 0.8
-            score = (0.6 * semantic_score) + (0.2 * lexical_score) + (0.1 * temporal_score) + (0.1 * role_score)
+            score = (
+                (0.6 * semantic_score)
+                + (0.2 * lexical_score)
+                + (0.1 * temporal_score)
+                + (0.1 * role_score)
+            )
             hits.append(
                 (
                     score,
@@ -1819,7 +1930,13 @@ class Neo4jMemoryGraph:
                     ),
                 )
             )
-        hits.sort(key=lambda item: (-item[0], -item[1].observed_at.timestamp(), item[1].turn_index))
+        hits.sort(
+            key=lambda item: (
+                -item[0],
+                -item[1].observed_at.timestamp(),
+                item[1].turn_index,
+            )
+        )
         return [hit for _, hit in hits[:max_hits]]
 
     def _build_fusion_hits(
@@ -1829,7 +1946,9 @@ class Neo4jMemoryGraph:
     ) -> list[FusionHit]:
         combined: dict[str, FusionHit] = {}
         graph_edge_map: dict[str, list[dict[str, Any]]] = {}
-        graph_nodes_by_session = {node.session_id: node for node in graph_result.nodes if node.session_id}
+        graph_nodes_by_session = {
+            node.session_id: node for node in graph_result.nodes if node.session_id
+        }
         replay_by_session = {hit.session_id for hit in replay_hits if hit.session_id}
         for edge in graph_result.edges:
             payload = {
@@ -1843,7 +1962,11 @@ class Neo4jMemoryGraph:
             graph_edge_map.setdefault(edge.target_id, []).append(payload)
         for index, node in enumerate(graph_result.nodes, start=1):
             key = f"graph:{node.id}"
-            source_lane = "both" if node.session_id and node.session_id in replay_by_session else "graph"
+            source_lane = (
+                "both"
+                if node.session_id and node.session_id in replay_by_session
+                else "graph"
+            )
             combined[key] = FusionHit(
                 content=node.content,
                 score=1.0 / (60 + index),
@@ -1857,7 +1980,9 @@ class Neo4jMemoryGraph:
             )
         for index, hit in enumerate(replay_hits, start=1):
             key = f"replay:{hit.session_id}:{hit.turn_index}:{hit.role}"
-            matching_graph = graph_nodes_by_session.get(hit.session_id) if hit.session_id else None
+            matching_graph = (
+                graph_nodes_by_session.get(hit.session_id) if hit.session_id else None
+            )
             if matching_graph is not None:
                 existing = combined.get(f"graph:{matching_graph.id}")
                 if existing is not None:
@@ -1879,8 +2004,16 @@ class Neo4jMemoryGraph:
                     replay_rank=index,
                     fused_rank=index,
                     node_id=matching_graph.id if matching_graph is not None else None,
-                    node_type=matching_graph.node_type.value if matching_graph is not None else None,
-                    edges=graph_edge_map.get(matching_graph.id, []) if matching_graph is not None else None,
+                    node_type=(
+                        matching_graph.node_type.value
+                        if matching_graph is not None
+                        else None
+                    ),
+                    edges=(
+                        graph_edge_map.get(matching_graph.id, [])
+                        if matching_graph is not None
+                        else None
+                    ),
                     session_id=hit.session_id,
                     transcript_snippet=hit.transcript_snippet,
                     turn_index=hit.turn_index,
@@ -1895,7 +2028,12 @@ class Neo4jMemoryGraph:
 
         ordered = sorted(
             combined.values(),
-            key=lambda hit: (-hit.score, hit.graph_rank or 10**6, hit.replay_rank or 10**6, hit.content.lower()),
+            key=lambda hit: (
+                -hit.score,
+                hit.graph_rank or 10**6,
+                hit.replay_rank or 10**6,
+                hit.content.lower(),
+            ),
         )
         for index, hit in enumerate(ordered, start=1):
             hit.fused_rank = index
@@ -1914,7 +2052,9 @@ class Neo4jMemoryGraph:
                     tenant_id=self.tenant_id,
                 )
             ]
-            nodes_by_id = {props["id"]: self._node_from_props(props) for props in node_records}
+            nodes_by_id = {
+                props["id"]: self._node_from_props(props) for props in node_records
+            }
             graph = self._load_graph(session)
             related_ids = list(self._expand_node_depths(graph, [node_id], max_depth))
 
@@ -1926,7 +2066,9 @@ class Neo4jMemoryGraph:
                 seen.add(related_id)
                 ordered_nodes.append(nodes_by_id[related_id])
 
-            edges = self._fetch_edges_for_nodes(session, [node.id for node in ordered_nodes])
+            edges = self._fetch_edges_for_nodes(
+                session, [node.id for node in ordered_nodes]
+            )
             self._increment_access_counts(session, [node.id for node in ordered_nodes])
             for node in ordered_nodes:
                 node.access_count += 1
@@ -1983,7 +2125,11 @@ def update_node(
             node_type=node.node_type,
             tags=tags if tags is not None else node.tags,
             source_prompt=node.source_prompt,
-            evidence_records=evidence_records if evidence_records is not None else node.evidence_records,
+            evidence_records=(
+                evidence_records
+                if evidence_records is not None
+                else node.evidence_records
+            ),
             valid_from=valid_from if valid_from is not None else node.valid_from,
             valid_to=valid_to if valid_to is not None else node.valid_to,
             created_at=node.created_at,
@@ -1993,7 +2139,11 @@ def update_node(
 
         embedding = None
         if content is not None:
-            embedding = self.embedding_model.embed(updated_node.content).astype(np.float32).tolist()
+            embedding = (
+                self.embedding_model.embed(updated_node.content)
+                .astype(np.float32)
+                .tolist()
+            )
 
         session.run(
             """
@@ -2021,12 +2171,17 @@ def update_node(
             agent_id=updated_node.agent_id,
             project=updated_node.project,
             session_id=updated_node.session_id,
-            valid_from=updated_node.valid_from.isoformat() if updated_node.valid_from else None,
-            valid_to=updated_node.valid_to.isoformat() if updated_node.valid_to else None,
+            valid_from=(
+                updated_node.valid_from.isoformat() if updated_node.valid_from else None
+            ),
+            valid_to=(
+                updated_node.valid_to.isoformat() if updated_node.valid_to else None
+            ),
             evidence_records=_encode_evidence_records(updated_node.evidence_records),
             updated_at=updated_node.updated_at.isoformat(),
             embedding=embedding,
         ).consume()
+        self._mark_communities_stale(session)
 
         return updated_node
 
@@ -2040,7 +2195,13 @@ def update_node(
         weight: float | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Edge:
-        if source_id is None and target_id is None and relationship is None and weight is None and metadata is None:
+        if (
+            source_id is None
+            and target_id is None
+            and relationship is None
+            and weight is None
+            and metadata is None
+        ):
             raise ValueError("At least one field must be provided for edge update.")
 
         with self._lock, self._session() as session:
@@ -2072,7 +2233,9 @@ def update_node(
                 tenant_id=edge.tenant_id,
                 source_id=source_id if source_id is not None else edge.source_id,
                 target_id=target_id if target_id is not None else edge.target_id,
-                relationship=relationship if relationship is not None else edge.relationship,
+                relationship=(
+                    relationship if relationship is not None else edge.relationship
+                ),
                 weight=weight if weight is not None else edge.weight,
                 metadata=metadata if metadata is not None else edge.metadata,
                 created_at=edge.created_at,
@@ -2138,6 +2301,7 @@ def update_node(
                 tenant_id=self.tenant_id,
                 id=edge_id,
             ).consume()
+            self._mark_communities_stale(session)
             return edge
 
     def delete_node(self, *, node_id: str) -> Node:
@@ -2153,6 +2317,7 @@ def update_node(
                 tenant_id=self.tenant_id,
                 id=node_id,
             ).consume()
+            self._mark_communities_stale(session)
             return node
 
     def list_recent_nodes(
@@ -2174,7 +2339,9 @@ def update_node(
                 tenant_id=self.tenant_id,
             ):
                 node = self._node_from_props(record["n"])
-                if not _scope_matches(node, agent_id=agent_id, project=project, session_id=session_id):
+                if not _scope_matches(
+                    node, agent_id=agent_id, project=project, session_id=session_id
+                ):
                     continue
                 selected.append(node)
                 if len(selected) >= max(1, limit):
@@ -2277,7 +2444,9 @@ def update_node(
         try:
             from pyvis.network import Network
         except ImportError as exc:  # pragma: no cover
-            raise RuntimeError("pyvis is not installed. Install the project dependencies again.") from exc
+            raise RuntimeError(
+                "pyvis is not installed. Install the project dependencies again."
+            ) from exc
 
         with self._lock, self._session() as session:
             nodes = [
@@ -2390,7 +2559,9 @@ def update_node(
         )
         return destination
 
-    def export_graph_backup(self, *, output_path: str | Path | None = None) -> BackupResult:
+    def export_graph_backup(
+        self, *, output_path: str | Path | None = None
+    ) -> BackupResult:
         with self._lock, self._session() as session:
             snapshot = self._build_backup_snapshot(session)
 
@@ -2422,16 +2593,24 @@ def update_node(
         passphrase: str = "",
     ) -> AbhiExportResult:
         with self._lock, self._session() as session:
-            snapshot = self._build_backup_snapshot(session, include_embeddings=include_embeddings)
-        snapshot["ui"] = self.get_ui_state(project=project, agent_id=agent_id, session_id=session_id)
-        filtered = filter_snapshot_by_scope(snapshot, project=project, agent_id=agent_id, session_id=session_id)
+            snapshot = self._build_backup_snapshot(
+                session, include_embeddings=include_embeddings
+            )
+        snapshot["ui"] = self.get_ui_state(
+            project=project, agent_id=agent_id, session_id=session_id
+        )
+        filtered = filter_snapshot_by_scope(
+            snapshot, project=project, agent_id=agent_id, session_id=session_id
+        )
         if output_path is None:
             self.export_dir.mkdir(parents=True, exist_ok=True)
             timestamp = utc_now().strftime("%Y%m%d-%H%M%S")
             destination = self.export_dir / f"waggle-memory-{timestamp}.abhi"
         else:
             destination = Path(output_path).expanduser()
-        return write_abhi_document(filtered, output_path=destination, passphrase=passphrase)
+        return write_abhi_document(
+            filtered, output_path=destination, passphrase=passphrase
+        )
 
     def get_graph_snapshot(
         self,
@@ -2442,8 +2621,12 @@ def update_node(
     ) -> dict[str, Any]:
         with self._lock, self._session() as session:
             snapshot = self._build_backup_snapshot(session)
-        filtered = filter_snapshot_by_scope(snapshot, project=project, agent_id=agent_id, session_id=session_id)
-        filtered["ui"] = self.get_ui_state(project=project, agent_id=agent_id, session_id=session_id)
+        filtered = filter_snapshot_by_scope(
+            snapshot, project=project, agent_id=agent_id, session_id=session_id
+        )
+        filtered["ui"] = self.get_ui_state(
+            project=project, agent_id=agent_id, session_id=session_id
+        )
         return filtered
 
     def export_context_bundle(
@@ -2477,15 +2660,21 @@ def update_node(
         if normalized_audience not in {"llm", "human"}:
             raise ValidationFailure("audience must be one of: llm, human.")
         if normalized_retrieval_mode not in {"graph", "verbatim", "hybrid"}:
-            raise ValidationFailure("retrieval_mode must be one of: graph, verbatim, hybrid.")
+            raise ValidationFailure(
+                "retrieval_mode must be one of: graph, verbatim, hybrid."
+            )
         if normalized_mode == "query" and not query.strip():
             raise ValidationFailure("query is required when mode='query'.")
         if normalized_mode != "query" and normalized_retrieval_mode != "graph":
-            raise ValidationFailure("retrieval_mode is only supported when mode='query'.")
+            raise ValidationFailure(
+                "retrieval_mode is only supported when mode='query'."
+            )
 
         replay_hits: list[ReplayHit] = []
         if normalized_mode == "prime":
-            selected = self.prime_context(project=project, agent_id=agent_id, session_id=session_id)
+            selected = self.prime_context(
+                project=project, agent_id=agent_id, session_id=session_id
+            )
             selected_nodes = selected.nodes[:max_nodes]
             selected_edges = selected.edges if include_edges else []
             summary = selected.summary
@@ -2518,7 +2707,9 @@ def update_node(
                         tenant_id=self.tenant_id,
                     )
                     for node in [self._node_from_props(record["n"])]
-                    if _scope_matches(node, agent_id=agent_id, project=project, session_id=session_id)
+                    if _scope_matches(
+                        node, agent_id=agent_id, project=project, session_id=session_id
+                    )
                 ]
                 selected_edges = (
                     [
@@ -2548,7 +2739,9 @@ def update_node(
             if include_edges:
                 selected_ids = {node.id for node in selected_nodes}
                 selected_edges = [
-                    edge for edge in selected_edges if edge.source_id in selected_ids and edge.target_id in selected_ids
+                    edge
+                    for edge in selected_edges
+                    if edge.source_id in selected_ids and edge.target_id in selected_ids
                 ]
             summary = (
                 f"Full graph export for tenant '{self.tenant_id}' with {len(selected_nodes)} nodes and "
@@ -2559,7 +2752,9 @@ def update_node(
             tenant_id=self.tenant_id,
             project=project,
             mode=normalized_mode,
-            retrieval_mode=normalized_retrieval_mode if normalized_mode == "query" else "graph",
+            retrieval_mode=(
+                normalized_retrieval_mode if normalized_mode == "query" else "graph"
+            ),
             audience=normalized_audience,
             query=query,
             summary=summary,
@@ -2596,7 +2791,9 @@ def update_node(
                     tenant_id=self.tenant_id,
                 )
                 for node in [self._node_from_props(record["n"])]
-                if _scope_matches(node, agent_id=agent_id, project=project, session_id=session_id)
+                if _scope_matches(
+                    node, agent_id=agent_id, project=project, session_id=session_id
+                )
             ]
             selected_ids = {node.id for node in selected_nodes}
             selected_edges = [
@@ -2619,7 +2816,8 @@ def update_node(
                     """,
                     tenant_id=self.tenant_id,
                 )
-                if record["source_id"] in selected_ids and record["target_id"] in selected_ids
+                if record["source_id"] in selected_ids
+                and record["target_id"] in selected_ids
             ]
         node_by_id = {node.id: node for node in selected_nodes}
         files_written: list[str] = []
@@ -2628,7 +2826,9 @@ def update_node(
             node_type_dir = slugify(node.node_type.value)
             destination = root / project_dir / node_type_dir / vault_filename(node)
             destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_text(render_node_document(node, selected_edges, node_by_id), encoding="utf-8")
+            destination.write_text(
+                render_node_document(node, selected_edges, node_by_id), encoding="utf-8"
+            )
             files_written.append(str(destination.relative_to(root)))
         return MarkdownVaultExportResult(
             root_path=str(root),
@@ -2645,7 +2845,9 @@ def update_node(
         root_path: str | Path,
     ) -> MarkdownVaultImportResult:
         documents = iter_vault_documents(root_path)
-        result = MarkdownVaultImportResult(root_path=str(Path(root_path).expanduser()), tenant_id=self.tenant_id)
+        result = MarkdownVaultImportResult(
+            root_path=str(Path(root_path).expanduser()), tenant_id=self.tenant_id
+        )
         if not documents:
             return result
 
@@ -2673,7 +2875,9 @@ def update_node(
                     node_id=node_id,
                     label=document.label,
                     content=document.content.strip() or document.label,
-                    tags=[str(tag) for tag in document.frontmatter.get("tags", []) or []],
+                    tags=[
+                        str(tag) for tag in document.frontmatter.get("tags", []) or []
+                    ],
                 )
                 nodes_by_id[node_id] = updated
                 if node_id:
@@ -2686,13 +2890,19 @@ def update_node(
                     label=document.label,
                     content=document.content.strip() or document.label,
                     node_type=node_type,
-                    tags=[str(tag) for tag in document.frontmatter.get("tags", []) or []],
+                    tags=[
+                        str(tag) for tag in document.frontmatter.get("tags", []) or []
+                    ],
                     agent_id=str(document.frontmatter.get("agent_id", "") or ""),
                     project=str(document.frontmatter.get("project", "") or ""),
                     session_id=str(document.frontmatter.get("session_id", "") or ""),
                     evidence_records=evidence_from_lines(document.evidence_lines),
-                    valid_from=self._parse_optional_datetime(document.frontmatter.get("valid_from")),
-                    valid_to=self._parse_optional_datetime(document.frontmatter.get("valid_to")),
+                    valid_from=self._parse_optional_datetime(
+                        document.frontmatter.get("valid_from")
+                    ),
+                    valid_to=self._parse_optional_datetime(
+                        document.frontmatter.get("valid_to")
+                    ),
                 ).node
                 nodes_by_id[created.id] = created
                 if node_id:
@@ -2703,12 +2913,18 @@ def update_node(
 
         for document in documents:
             source_lookup_id = str(document.frontmatter.get("node_id", "")).strip()
-            source_node = nodes_by_id.get(imported_id_map.get(source_lookup_id, source_lookup_id))
+            source_node = nodes_by_id.get(
+                imported_id_map.get(source_lookup_id, source_lookup_id)
+            )
             if source_node is None:
-                result.conflicts.append(f"Missing source node for {document.path.name}.")
+                result.conflicts.append(
+                    f"Missing source node for {document.path.name}."
+                )
                 continue
             for relation in document.relations:
-                target_lookup_id = imported_id_map.get(relation.target_node_id, relation.target_node_id)
+                target_lookup_id = imported_id_map.get(
+                    relation.target_node_id, relation.target_node_id
+                )
                 target = nodes_by_id.get(target_lookup_id) if target_lookup_id else None
                 if target is None and relation.target_label:
                     target = label_index.get(relation.target_label.strip().lower())
@@ -2746,7 +2962,11 @@ def update_node(
                         relationship=relation.relationship,
                     )
                 if existing_edge is None:
-                    self.add_edge(source_id=source_node.id, target_id=target.id, relationship=relation.relationship)
+                    self.add_edge(
+                        source_id=source_node.id,
+                        target_id=target.id,
+                        relationship=relation.relationship,
+                    )
                     result.edges_created += 1
         return result
 
@@ -2762,7 +2982,10 @@ def update_node(
                 schema_version=int(snapshot.get("schema_version", 1)),
             )
             for raw_node in snapshot.get("nodes", []):
-                raw_node = {**raw_node, "tenant_id": raw_node.get("tenant_id") or snapshot_tenant}
+                raw_node = {
+                    **raw_node,
+                    "tenant_id": raw_node.get("tenant_id") or snapshot_tenant,
+                }
                 if raw_node["tenant_id"] != self.tenant_id:
                     raw_node["tenant_id"] = self.tenant_id
                 if self._fetch_node(session, raw_node["id"]) is None:
@@ -2773,7 +2996,10 @@ def update_node(
                     result.nodes_updated += 1
 
             for raw_edge in snapshot.get("edges", []):
-                raw_edge = {**raw_edge, "tenant_id": raw_edge.get("tenant_id") or snapshot_tenant}
+                raw_edge = {
+                    **raw_edge,
+                    "tenant_id": raw_edge.get("tenant_id") or snapshot_tenant,
+                }
                 if raw_edge["tenant_id"] != self.tenant_id:
                     raw_edge["tenant_id"] = self.tenant_id
                 if self._fetch_edge_by_id(session, raw_edge["id"]) is None:
@@ -2785,28 +3011,46 @@ def update_node(
         self.save_ui_state(
             positions=snapshot.get("ui", {}).get("positions", {}),
             zoom=snapshot.get("ui", {}).get("zoom", 1.0),
-            viewport=snapshot.get("ui", {}).get("viewport", {"center_x": 0, "center_y": 0}),
+            viewport=snapshot.get("ui", {}).get(
+                "viewport", {"center_x": 0, "center_y": 0}
+            ),
             groups=snapshot.get("ui", {}).get("groups", []),
             collapsed_groups=snapshot.get("ui", {}).get("collapsed_groups", []),
             selected_nodes=snapshot.get("ui", {}).get("selected_nodes", []),
         )
         return result
 
-    def validate_abhi(self, *, input_path: str | Path, passphrase: str = "") -> AbhiValidationResult:
+    def validate_abhi(
+        self, *, input_path: str | Path, passphrase: str = ""
+    ) -> AbhiValidationResult:
         document = load_abhi_document(input_path, passphrase=passphrase)
         return validate_abhi_document(document, input_path=input_path)
 
-    def inspect_abhi(self, *, input_path: str | Path, passphrase: str = "") -> AbhiInspectResult:
+    def inspect_abhi(
+        self, *, input_path: str | Path, passphrase: str = ""
+    ) -> AbhiInspectResult:
         document = load_abhi_document(input_path, passphrase=passphrase)
         return inspect_abhi_document(document, input_path=input_path)
 
-    def diff_abhi(self, *, input_path_a: str | Path, input_path_b: str | Path) -> AbhiDiffResult:
+    def diff_abhi(
+        self, *, input_path_a: str | Path, input_path_b: str | Path
+    ) -> AbhiDiffResult:
         return diff_abhi_files(input_path_a=input_path_a, input_path_b=input_path_b)
 
     def query_abhi(
-        self, *, input_path: str | Path, query_id: str = "", query_text: str = "", passphrase: str = ""
+        self,
+        *,
+        input_path: str | Path,
+        query_id: str = "",
+        query_text: str = "",
+        passphrase: str = "",
     ) -> AbhiQueryResult:
-        return query_abhi_file(input_path=input_path, query_id=query_id, query_text=query_text, passphrase=passphrase)
+        return query_abhi_file(
+            input_path=input_path,
+            query_id=query_id,
+            query_text=query_text,
+            passphrase=passphrase,
+        )
 
     def load_abhi_chunks(
         self,
@@ -2842,13 +3086,19 @@ def update_node(
             merge_strategy=merge_strategy,
         )
 
-    def import_abhi(self, *, input_path: str | Path, passphrase: str = "") -> AbhiImportResult:
+    def import_abhi(
+        self, *, input_path: str | Path, passphrase: str = ""
+    ) -> AbhiImportResult:
         source = Path(input_path).expanduser()
         document = load_abhi_document(source, passphrase=passphrase)
         validation = validate_abhi_document(document, input_path=source)
         if not validation.valid:
-            raise ValidationFailure("Invalid .abhi file: " + "; ".join(validation.errors))
-        executed_actions = dispatch_abhi_event(document, event_name="on_import", persist=False, input_path=source)
+            raise ValidationFailure(
+                "Invalid .abhi file: " + "; ".join(validation.errors)
+            )
+        executed_actions = dispatch_abhi_event(
+            document, event_name="on_import", persist=False, input_path=source
+        )
         snapshot = abhi_to_snapshot(document, fallback_tenant_id=self.tenant_id)
 
         with self._lock, self._session() as session:
@@ -2865,7 +3115,10 @@ def update_node(
                 executed_actions=executed_actions,
             )
             for raw_node in snapshot.get("nodes", []):
-                raw_node = {**raw_node, "tenant_id": raw_node.get("tenant_id") or snapshot_tenant}
+                raw_node = {
+                    **raw_node,
+                    "tenant_id": raw_node.get("tenant_id") or snapshot_tenant,
+                }
                 if raw_node["tenant_id"] != self.tenant_id:
                     raw_node["tenant_id"] = self.tenant_id
                 if self._fetch_node(session, raw_node["id"]) is None:
@@ -2876,7 +3129,10 @@ def update_node(
                     result.nodes_updated += 1
 
             for raw_edge in snapshot.get("edges", []):
-                raw_edge = {**raw_edge, "tenant_id": raw_edge.get("tenant_id") or snapshot_tenant}
+                raw_edge = {
+                    **raw_edge,
+                    "tenant_id": raw_edge.get("tenant_id") or snapshot_tenant,
+                }
                 if raw_edge["tenant_id"] != self.tenant_id:
                     raw_edge["tenant_id"] = self.tenant_id
                 if self._fetch_edge_by_id(session, raw_edge["id"]) is None:
@@ -2888,7 +3144,9 @@ def update_node(
         self.save_ui_state(
             positions=snapshot.get("ui", {}).get("positions", {}),
             zoom=snapshot.get("ui", {}).get("zoom", 1.0),
-            viewport=snapshot.get("ui", {}).get("viewport", {"center_x": 0, "center_y": 0}),
+            viewport=snapshot.get("ui", {}).get(
+                "viewport", {"center_x": 0, "center_y": 0}
+            ),
             groups=snapshot.get("ui", {}).get("groups", []),
             collapsed_groups=snapshot.get("ui", {}).get("collapsed_groups", []),
             selected_nodes=snapshot.get("ui", {}).get("selected_nodes", []),
@@ -2940,12 +3198,16 @@ def update_node(
             if index == 0:
                 continue
             previous = item_nodes[index - 1]
-            shared_tokens = tokenize_text(previous.content) & tokenize_text(node.content)
+            shared_tokens = tokenize_text(previous.content) & tokenize_text(
+                node.content
+            )
             if shared_tokens or previous.node_type == node.node_type:
                 self.add_edge(
                     source_id=previous.id,
                     target_id=node.id,
-                    relationship=infer_relationship(previous, node, shared_tokens=shared_tokens),
+                    relationship=infer_relationship(
+                        previous, node, shared_tokens=shared_tokens
+                    ),
                     metadata={"origin": "decomposition"},
                 )
 
@@ -2963,11 +3225,15 @@ def update_node(
             total_nodes_in_graph=int(total_nodes),
         )
 
-    def get_node_history(self, *, node_id: str, max_depth: int = 2) -> NodeHistoryResult:
+    def get_node_history(
+        self, *, node_id: str, max_depth: int = 2
+    ) -> NodeHistoryResult:
         node = self.get_node(node_id)
         related = self.get_related(node_id=node_id, max_depth=max_depth)
         related_nodes = [item for item in related.nodes if item.id != node_id]
-        return NodeHistoryResult(node=node, related_nodes=related_nodes, edges=related.edges)
+        return NodeHistoryResult(
+            node=node, related_nodes=related_nodes, edges=related.edges
+        )
 
     def timeline(
         self,
@@ -2991,14 +3257,18 @@ def update_node(
             edges = related.edges
             scope = f"node:{node_id.strip()}"
         elif query.strip():
-            subgraph = self.query(query=query, max_nodes=max(limit, 10), max_depth=max_depth)
+            subgraph = self.query(
+                query=query, max_nodes=max(limit, 10), max_depth=max_depth
+            )
             nodes = subgraph.nodes
             edges = subgraph.edges
             scope = f"query:{query.strip()}"
         else:
             with self._lock, self._session() as session:
                 nodes = self.list_recent_nodes(limit=max(limit, 10))
-                edges = self._fetch_edges_for_nodes(session, [node.id for node in nodes])
+                edges = self._fetch_edges_for_nodes(
+                    session, [node.id for node in nodes]
+                )
             scope = "tenant"
 
         items = self._build_timeline_items(
@@ -3083,7 +3353,10 @@ def update_node(
                 metadata=_decode_metadata(record["metadata"]),
                 created_at=_parse_datetime(record["created_at"]),
             )
-            if edge.relationship not in {RelationType.CONTRADICTS.value, RelationType.UPDATES.value}:
+            if edge.relationship not in {
+                RelationType.CONTRADICTS.value,
+                RelationType.UPDATES.value,
+            }:
                 raise ValueError("Only contradicts or updates edges can be resolved.")
 
             if winner is not None and winner not in {edge.source_id, edge.target_id}:
@@ -3111,7 +3384,9 @@ def update_node(
             ).consume()
 
             if winner is not None:
-                losing_id = edge.target_id if winner == edge.source_id else edge.source_id
+                losing_id = (
+                    edge.target_id if winner == edge.source_id else edge.source_id
+                )
                 self._mark_node_superseded(
                     session,
                     losing_id=losing_id,
@@ -3137,6 +3412,7 @@ def update_node(
             )
         if not entries:
             raise ValueError(f"Resolved conflict could not be loaded: {edge_id}")
+        self._mark_communities_stale(session)
         return entries[0]
 
     def observe_conversation(
@@ -3157,7 +3433,9 @@ def update_node(
 
         result = ObservationResult()
         with self._lock, self._session() as session:
-            next_turn_index = self._next_transcript_turn_index(session, session_id=session_id)
+            next_turn_index = self._next_transcript_turn_index(
+                session, session_id=session_id
+            )
             turns = [
                 ("user", user_message.strip(), next_turn_index),
                 ("assistant", assistant_response.strip(), next_turn_index + 1),
@@ -3177,7 +3455,9 @@ def update_node(
                 )
         for candidate in candidates:
             candidate_tags = list(candidate.get("tags", []))
-            speaker_tag = next((tag for tag in candidate_tags if str(tag).startswith("speaker:")), "")
+            speaker_tag = next(
+                (tag for tag in candidate_tags if str(tag).startswith("speaker:")), ""
+            )
             speaker = speaker_tag.split(":", 1)[1] if ":" in speaker_tag else "user"
             turn_index = next_turn_index if speaker == "user" else next_turn_index + 1
             evidence = build_observation_evidence(
@@ -3206,7 +3486,9 @@ def update_node(
             else:
                 result.reused_count += 1
             for conflict in store_result.conflicts:
-                if conflict.other_node_id not in {item.other_node_id for item in result.conflicts}:
+                if conflict.other_node_id not in {
+                    item.other_node_id for item in result.conflicts
+                }:
                     result.conflicts.append(conflict)
         return result
 
@@ -3268,10 +3550,16 @@ def update_node(
             added_nodes=added_nodes,
             updated_nodes=updated_nodes,
             created_edges=created_edges,
-            contradiction_edges=[edge for edge in created_edges if edge.relationship == RelationType.CONTRADICTS],
+            contradiction_edges=[
+                edge
+                for edge in created_edges
+                if edge.relationship == RelationType.CONTRADICTS
+            ],
         )
 
-    def prime_context(self, *, project: str = "", agent_id: str = "", session_id: str = "") -> PrimeContextResult:
+    def prime_context(
+        self, *, project: str = "", agent_id: str = "", session_id: str = ""
+    ) -> PrimeContextResult:
         with self._lock, self._session() as session:
             total_nodes = int(
                 session.run(
@@ -3280,7 +3568,9 @@ def update_node(
                 ).single()["count"]
             )
             if total_nodes == 0:
-                return PrimeContextResult(project=project, summary="No stored memory is available yet.")
+                return PrimeContextResult(
+                    project=project, summary="No stored memory is available yet."
+                )
 
             selected_ids: list[str] = []
             selected_ids.extend(
@@ -3315,7 +3605,9 @@ def update_node(
             nodes = [
                 node
                 for node in self._fetch_nodes_by_ids(session, unique_ids)
-                if _scope_matches(node, agent_id=agent_id, project=project, session_id=session_id)
+                if _scope_matches(
+                    node, agent_id=agent_id, project=project, session_id=session_id
+                )
             ]
             edges = self._fetch_edges_for_nodes(session, [node.id for node in nodes])
 
@@ -3356,6 +3648,9 @@ def update_node(
                 if row and row["communities_stale"] == 0 and row["cached_communities"]:
                     try:
                         partition = json.loads(row["cached_communities"])
+                        # Treat non-mapping JSON payloads as cache miss
+                        if not isinstance(partition, dict):
+                            partition = None
                     except Exception:
                         partition = None
 
@@ -3391,7 +3686,11 @@ def update_node(
             label, top_tags = summarize_topic(cluster_nodes)
             ordered_nodes = sorted(
                 cluster_nodes,
-                key=lambda node: (-node.access_count, -node.updated_at.timestamp(), node.label.lower()),
+                key=lambda node: (
+                    -node.access_count,
+                    -node.updated_at.timestamp(),
+                    node.label.lower(),
+                ),
             )
             clusters.append(
                 TopicCluster(
@@ -3425,7 +3724,9 @@ def update_node(
             return None
         return self._node_from_props(record["n"])
 
-    def _node_create_params(self, *, node: Node, embedding: np.ndarray) -> dict[str, Any]:
+    def _node_create_params(
+        self, *, node: Node, embedding: np.ndarray
+    ) -> dict[str, Any]:
         return {
             "id": node.id,
             "tenant_id": node.tenant_id,
@@ -3439,8 +3740,12 @@ def update_node(
             "embedding": embedding.astype(np.float32).tolist(),
             "source_prompt": node.source_prompt,
             "evidence_records": _encode_evidence_records(node.evidence_records),
-            "valid_from": node.valid_from.isoformat() if node.valid_from is not None else None,
-            "valid_to": node.valid_to.isoformat() if node.valid_to is not None else None,
+            "valid_from": (
+                node.valid_from.isoformat() if node.valid_from is not None else None
+            ),
+            "valid_to": (
+                node.valid_to.isoformat() if node.valid_to is not None else None
+            ),
             "created_at": node.created_at.isoformat(),
             "updated_at": node.updated_at.isoformat(),
             "access_count": node.access_count,
@@ -3460,8 +3765,14 @@ def update_node(
             source_prompt=props.get("source_prompt") or "",
             evidence_records=_decode_evidence_records(props.get("evidence_records")),
             metadata=_decode_metadata(props.get("metadata")),
-            valid_from=_parse_datetime(props["valid_from"]) if props.get("valid_from") else None,
-            valid_to=_parse_datetime(props["valid_to"]) if props.get("valid_to") else None,
+            valid_from=(
+                _parse_datetime(props["valid_from"])
+                if props.get("valid_from")
+                else None
+            ),
+            valid_to=(
+                _parse_datetime(props["valid_to"]) if props.get("valid_to") else None
+            ),
             created_at=_parse_datetime(props["created_at"]),
             updated_at=_parse_datetime(props["updated_at"]),
             access_count=int(props.get("access_count") or 0),
@@ -3496,7 +3807,10 @@ def update_node(
             return False
         if normalized_project and record.project.strip().lower() != normalized_project:
             return False
-        return not (normalized_session and record.session_id.strip().lower() != normalized_session)
+        return not (
+            normalized_session
+            and record.session_id.strip().lower() != normalized_session
+        )
 
     def list_transcript_records(
         self,
@@ -3507,7 +3821,10 @@ def update_node(
         limit: int = 200,
     ) -> list[TranscriptRecord]:
         filters = ["t.tenant_id = $tenant_id"]
-        params: dict[str, Any] = {"tenant_id": self.tenant_id, "limit": max(1, int(limit))}
+        params: dict[str, Any] = {
+            "tenant_id": self.tenant_id,
+            "limit": max(1, int(limit)),
+        }
         if project.strip():
             filters.append("t.project = $project")
             params["project"] = project.strip()
@@ -3610,7 +3927,9 @@ def update_node(
             turn_index=record.turn_index,
             role=record.role,
             transcript_text=record.transcript_text,
-            embedding=self.embedding_model.embed(record.transcript_text).astype(np.float32).tolist(),
+            embedding=self.embedding_model.embed(record.transcript_text)
+            .astype(np.float32)
+            .tolist(),
             metadata=_encode_metadata(record.metadata),
         ).consume()
         return record
@@ -3665,7 +3984,9 @@ def update_node(
             ):
                 continue
             if contains_conflicting_numbers(node.content, existing_node.content) and (
-                node_entity is None or existing_entity is None or node_entity[0] == existing_entity[0]
+                node_entity is None
+                or existing_entity is None
+                or node_entity[0] == existing_entity[0]
             ):
                 continue
             if contains_conflicting_months(node.content, existing_node.content):
@@ -3674,18 +3995,30 @@ def update_node(
             if normalized_content == existing_content:
                 return existing_node, "exact_content", 1.0
             if len(normalized_content) >= 10 and len(existing_content) >= 10:
-                if normalized_content in existing_content or existing_content in normalized_content:
+                if (
+                    normalized_content in existing_content
+                    or existing_content in normalized_content
+                ):
                     return existing_node, "content_substring", 0.98
 
             existing_embedding = self.embedding_model.embed(existing_node.content)
-            similarity = self.embedding_model.cosine_similarity(embedding, existing_embedding)
+            similarity = self.embedding_model.cosine_similarity(
+                embedding, existing_embedding
+            )
             label_score = label_similarity(node.label, existing_node.label)
             acronym_match = is_acronym_match(node.label, existing_node.label)
-            if normalized_label == existing_label and similarity >= self.dedup_same_label_threshold:
+            if (
+                normalized_label == existing_label
+                and similarity >= self.dedup_same_label_threshold
+            ):
                 return existing_node, "same_label_high_similarity", similarity
-            if acronym_match and similarity >= max(self.dedup_same_label_threshold - 0.25, 0.55):
+            if acronym_match and similarity >= max(
+                self.dedup_same_label_threshold - 0.25, 0.55
+            ):
                 return existing_node, "acronym_entity_match", similarity
-            if label_score >= 0.92 and similarity >= max(self.dedup_same_label_threshold - 0.2, 0.6):
+            if label_score >= 0.92 and similarity >= max(
+                self.dedup_same_label_threshold - 0.2, 0.6
+            ):
                 return existing_node, "label_entity_match", similarity
             if (
                 node_entity is not None
@@ -3708,7 +4041,9 @@ def update_node(
                 if paraphrase_score >= paraphrase_threshold:
                     return existing_node, "entityless_paraphrase", paraphrase_score
 
-            concept_overlap = canonical_concept_overlap(node.content, existing_node.content)
+            concept_overlap = canonical_concept_overlap(
+                node.content, existing_node.content
+            )
             if (
                 node_entity is not None
                 and existing_entity is not None
@@ -3727,10 +4062,16 @@ def update_node(
             return None
         return best_match[0], "high_similarity", best_match[1]
 
-    def _merge_duplicate_node(self, session: Any, *, existing_node: Node, incoming_node: Node) -> Node:
+    def _merge_duplicate_node(
+        self, session: Any, *, existing_node: Node, incoming_node: Node
+    ) -> Node:
         merged_tags = list(dict.fromkeys([*existing_node.tags, *incoming_node.tags]))
-        updated_source_prompt = existing_node.source_prompt or incoming_node.source_prompt
-        merged_evidence = merge_evidence_records(existing_node.evidence_records, incoming_node.evidence_records)
+        updated_source_prompt = (
+            existing_node.source_prompt or incoming_node.source_prompt
+        )
+        merged_evidence = merge_evidence_records(
+            existing_node.evidence_records, incoming_node.evidence_records
+        )
         merged_valid_from, merged_valid_to = merge_validity_windows(
             existing_node.valid_from,
             incoming_node.valid_from,
@@ -3754,8 +4095,12 @@ def update_node(
             tags=merged_tags,
             source_prompt=updated_source_prompt,
             evidence_records=_encode_evidence_records(merged_evidence),
-            valid_from=merged_valid_from.isoformat() if merged_valid_from is not None else None,
-            valid_to=merged_valid_to.isoformat() if merged_valid_to is not None else None,
+            valid_from=(
+                merged_valid_from.isoformat() if merged_valid_from is not None else None
+            ),
+            valid_to=(
+                merged_valid_to.isoformat() if merged_valid_to is not None else None
+            ),
             updated_at=updated_at.isoformat(),
         ).consume()
         return Node(
@@ -3917,8 +4262,16 @@ def update_node(
                     )
         node_by_id = {node.id: node for node in nodes}
         for edge in edges:
-            source_label = node_by_id.get(edge.source_id).label if edge.source_id in node_by_id else edge.source_id[:8]
-            target_label = node_by_id.get(edge.target_id).label if edge.target_id in node_by_id else edge.target_id[:8]
+            source_label = (
+                node_by_id.get(edge.source_id).label
+                if edge.source_id in node_by_id
+                else edge.source_id[:8]
+            )
+            target_label = (
+                node_by_id.get(edge.target_id).label
+                if edge.target_id in node_by_id
+                else edge.target_id[:8]
+            )
             items.append(
                 ContextTimelineItem(
                     kind=f"edge_{edge.relationship}",
@@ -3942,11 +4295,19 @@ def update_node(
         include_resolved: bool,
         limit: int,
     ) -> list[ConflictEntry]:
-        node_ids = list(dict.fromkeys([edge.source_id for edge in edges] + [edge.target_id for edge in edges]))
-        nodes_by_id = {node.id: node for node in self._fetch_nodes_by_ids(session, node_ids)}
+        node_ids = list(
+            dict.fromkeys(
+                [edge.source_id for edge in edges] + [edge.target_id for edge in edges]
+            )
+        )
+        nodes_by_id = {
+            node.id: node for node in self._fetch_nodes_by_ids(session, node_ids)
+        }
         entries: list[ConflictEntry] = []
         for edge in edges:
-            resolved, resolution_note, resolved_at = self._conflict_resolution_state(edge)
+            resolved, resolution_note, resolved_at = self._conflict_resolution_state(
+                edge
+            )
             if resolved and not include_resolved:
                 continue
             source_node = nodes_by_id.get(edge.source_id)
@@ -3967,7 +4328,9 @@ def update_node(
                 break
         return entries
 
-    def _conflict_resolution_state(self, edge: Edge) -> tuple[bool, str, datetime | None]:
+    def _conflict_resolution_state(
+        self, edge: Edge
+    ) -> tuple[bool, str, datetime | None]:
         metadata = edge.metadata or {}
         resolved = bool(metadata.get("resolved"))
         resolution_note = str(metadata.get("resolution_note", "") or "")
@@ -4049,26 +4412,42 @@ def update_node(
                 semantic_similarity=similarity_by_id.get(node.id, 0.0),
                 lexical_score=lexical_by_id.get(node.id, 0.0),
                 max_access=max_access,
-                degree_score=(degree_by_id.get(node.id, 0) / max_degree if max_degree > 0 else 0.0),
+                degree_score=(
+                    degree_by_id.get(node.id, 0) / max_degree if max_degree > 0 else 0.0
+                ),
                 depth=expanded_depths.get(node.id, max_depth + 1),
             ) + temporal_score_adjustment(node, temporal_hints)
 
         if temporal_hints.recency_mode == "latest":
             return sorted(
                 candidate_nodes,
-                key=lambda node: (-node.updated_at.timestamp(), -combined_score(node), node.label.lower()),
+                key=lambda node: (
+                    -node.updated_at.timestamp(),
+                    -combined_score(node),
+                    node.label.lower(),
+                ),
             )
         if temporal_hints.recency_mode == "oldest":
             return sorted(
                 candidate_nodes,
-                key=lambda node: (node.created_at.timestamp(), -combined_score(node), node.label.lower()),
+                key=lambda node: (
+                    node.created_at.timestamp(),
+                    -combined_score(node),
+                    node.label.lower(),
+                ),
             )
         return sorted(
             candidate_nodes,
-            key=lambda node: (-combined_score(node), -node.updated_at.timestamp(), node.label.lower()),
+            key=lambda node: (
+                -combined_score(node),
+                -node.updated_at.timestamp(),
+                node.label.lower(),
+            ),
         )
 
-    def _expand_node_depths(self, graph: nx.DiGraph, seed_ids: list[str], max_depth: int) -> dict[str, int]:
+    def _expand_node_depths(
+        self, graph: nx.DiGraph, seed_ids: list[str], max_depth: int
+    ) -> dict[str, int]:
         ordered: dict[str, int] = {}
         seen: set[str] = set()
         queue: deque[tuple[str, int]] = deque((seed_id, 0) for seed_id in seed_ids)
@@ -4081,7 +4460,9 @@ def update_node(
             ordered[node_id] = depth
             if depth >= max_depth:
                 continue
-            neighbors = list(graph.predecessors(node_id)) + list(graph.successors(node_id))
+            neighbors = list(graph.predecessors(node_id)) + list(
+                graph.successors(node_id)
+            )
             for neighbor in neighbors:
                 if neighbor not in seen:
                     queue.append((neighbor, depth + 1))
@@ -4202,7 +4583,9 @@ def update_node(
             tenant_id=self.tenant_id,
         ):
             node = self._node_from_props(record["n"])
-            if not _scope_matches(node, agent_id=agent_id, project=project, session_id=session_id):
+            if not _scope_matches(
+                node, agent_id=agent_id, project=project, session_id=session_id
+            ):
                 continue
             selected.append(node.id)
             if len(selected) >= limit:
@@ -4225,9 +4608,13 @@ def update_node(
             tenant_id=self.tenant_id,
         ):
             node = self._node_from_props(record["n"])
-            if not _scope_matches(node, agent_id=agent_id, project=project, session_id=session_id):
+            if not _scope_matches(
+                node, agent_id=agent_id, project=project, session_id=session_id
+            ):
                 continue
-            tag_match = 1.0 if any(project_lower == tag.lower() for tag in node.tags) else 0.0
+            tag_match = (
+                1.0 if any(project_lower == tag.lower() for tag in node.tags) else 0.0
+            )
             lexical = lexical_overlap(project, node.label, node.content)
             score = max(tag_match, lexical)
             if score <= 0.0:
@@ -4236,7 +4623,9 @@ def update_node(
         scored.sort(key=lambda item: (-item[1], -item[2]))
         return [node_id for node_id, _, _ in scored[:limit]]
 
-    def _build_topic_partition(self, graph: nx.Graph, nodes: list[Node]) -> dict[str, int]:
+    def _build_topic_partition(
+        self, graph: nx.Graph, nodes: list[Node]
+    ) -> dict[str, int]:
         if graph.number_of_edges() == 0:
             return {node.id: index for index, node in enumerate(nodes)}
         try:
@@ -4261,7 +4650,9 @@ def update_node(
             id=edge_id,
         ).single()
 
-    def _build_backup_snapshot(self, session: Any, *, include_embeddings: bool = False) -> dict[str, Any]:
+    def _build_backup_snapshot(
+        self, session: Any, *, include_embeddings: bool = False
+    ) -> dict[str, Any]:
         nodes = [
             {
                 "id": props["id"],
@@ -4277,7 +4668,10 @@ def update_node(
                 "source_prompt": props.get("source_prompt") or "",
                 "metadata": _decode_metadata(props.get("metadata")),
                 "evidence_records": [
-                    record.model_dump(mode="json") for record in _decode_evidence_records(props.get("evidence_records"))
+                    record.model_dump(mode="json")
+                    for record in _decode_evidence_records(
+                        props.get("evidence_records")
+                    )
                 ],
                 "valid_from": props.get("valid_from"),
                 "valid_to": props.get("valid_to"),
@@ -4287,7 +4681,9 @@ def update_node(
                 **(
                     {
                         "embedding": base64.b64encode(
-                            np.array(props.get("embedding") or [], dtype=np.float32).astype(np.float32).tobytes()
+                            np.array(props.get("embedding") or [], dtype=np.float32)
+                            .astype(np.float32)
+                            .tobytes()
                         ).decode("ascii")
                     }
                     if include_embeddings and props.get("embedding")
@@ -4324,9 +4720,16 @@ def update_node(
                 tenant_id=self.tenant_id,
             )
         ]
-        snapshot = {"schema_version": SCHEMA_VERSION, "tenant_id": self.tenant_id, "nodes": nodes, "edges": edges}
+        snapshot = {
+            "schema_version": SCHEMA_VERSION,
+            "tenant_id": self.tenant_id,
+            "nodes": nodes,
+            "edges": edges,
+        }
         if include_embeddings:
-            snapshot["embeddings"] = {node["id"]: node["embedding"] for node in nodes if node.get("embedding")}
+            snapshot["embeddings"] = {
+                node["id"]: node["embedding"] for node in nodes if node.get("embedding")
+            }
             for node in nodes:
                 node.pop("embedding", None)
         return snapshot
@@ -4337,11 +4740,19 @@ def update_node(
         # converting. A legacy/corrupt blob can decode to a length that is not a
         # whole number of float32 values; np.frombuffer would raise and abort the
         # import, so fall back to re-embedding instead.
-        raw = decode_embedding_blob(embedding_bytes) if isinstance(embedding_bytes, bytes) else None
+        raw = (
+            decode_embedding_blob(embedding_bytes)
+            if isinstance(embedding_bytes, bytes)
+            else None
+        )
         if raw is not None and len(raw) % np.dtype(np.float32).itemsize == 0:
             embedding = np.frombuffer(raw, dtype=np.float32).astype(np.float32).tolist()
         else:
-            embedding = self.embedding_model.embed(raw_node["content"]).astype(np.float32).tolist()
+            embedding = (
+                self.embedding_model.embed(raw_node["content"])
+                .astype(np.float32)
+                .tolist()
+            )
         session.run(
             """
             CREATE (n:MemoryNode {
@@ -4360,7 +4771,10 @@ def update_node(
             embedding=embedding,
             source_prompt=raw_node.get("source_prompt", ""),
             evidence_records=_encode_evidence_records(
-                [EvidenceRecord.model_validate(item) for item in raw_node.get("evidence_records", [])]
+                [
+                    EvidenceRecord.model_validate(item)
+                    for item in raw_node.get("evidence_records", [])
+                ]
             ),
             valid_from=raw_node.get("valid_from"),
             valid_to=raw_node.get("valid_to"),
@@ -4368,6 +4782,7 @@ def update_node(
             updated_at=raw_node["updated_at"],
             access_count=int(raw_node.get("access_count", 0)),
         ).consume()
+        self._mark_communities_stale(session)
 
     def _update_snapshot_node(self, session: Any, raw_node: dict[str, Any]) -> None:
         embedding_bytes = raw_node.get("embedding")
@@ -4375,11 +4790,19 @@ def update_node(
         # converting. A legacy/corrupt blob can decode to a length that is not a
         # whole number of float32 values; np.frombuffer would raise and abort the
         # import, so fall back to re-embedding instead.
-        raw = decode_embedding_blob(embedding_bytes) if isinstance(embedding_bytes, bytes) else None
+        raw = (
+            decode_embedding_blob(embedding_bytes)
+            if isinstance(embedding_bytes, bytes)
+            else None
+        )
         if raw is not None and len(raw) % np.dtype(np.float32).itemsize == 0:
             embedding = np.frombuffer(raw, dtype=np.float32).astype(np.float32).tolist()
         else:
-            embedding = self.embedding_model.embed(raw_node["content"]).astype(np.float32).tolist()
+            embedding = (
+                self.embedding_model.embed(raw_node["content"])
+                .astype(np.float32)
+                .tolist()
+            )
         session.run(
             """
             MATCH (n:MemoryNode {tenant_id: $existing_tenant_id, id: $id})
@@ -4407,7 +4830,10 @@ def update_node(
             embedding=embedding,
             source_prompt=raw_node.get("source_prompt", ""),
             evidence_records=_encode_evidence_records(
-                [EvidenceRecord.model_validate(item) for item in raw_node.get("evidence_records", [])]
+                [
+                    EvidenceRecord.model_validate(item)
+                    for item in raw_node.get("evidence_records", [])
+                ]
             ),
             valid_from=raw_node.get("valid_from"),
             valid_to=raw_node.get("valid_to"),
@@ -4415,6 +4841,7 @@ def update_node(
             updated_at=raw_node["updated_at"],
             access_count=int(raw_node.get("access_count", 0)),
         ).consume()
+        self._mark_communities_stale(session)
 
     def _insert_snapshot_edge(self, session: Any, raw_edge: dict[str, Any]) -> None:
         self._require_node(session, raw_edge["source_id"])
@@ -4437,6 +4864,7 @@ def update_node(
             metadata=_encode_metadata(raw_edge.get("metadata")),
             created_at=raw_edge["created_at"],
         ).consume()
+        self._mark_communities_stale(session)
 
     def _update_snapshot_edge(self, session: Any, raw_edge: dict[str, Any]) -> None:
         self._require_node(session, raw_edge["source_id"])
@@ -4449,4 +4877,5 @@ def update_node(
             tenant_id=self.tenant_id,
             id=raw_edge["id"],
         ).consume()
+        self._mark_communities_stale(session)
         self._insert_snapshot_edge(session, raw_edge)
