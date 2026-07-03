@@ -63,11 +63,12 @@ def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def test_memory_graph_migrates_legacy_nodes_before_creating_indexes(tmp_path: Path) -> None:
+def test_memory_graph_migrates_legacy_nodes_before_creating_indexes(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "legacy-memory.db"
     connection = sqlite3.connect(db_path)
-    connection.executescript(
-        """
+    connection.executescript("""
         CREATE TABLE nodes (
             id TEXT PRIMARY KEY,
             tenant_id TEXT NOT NULL DEFAULT 'local-default',
@@ -111,15 +112,20 @@ def test_memory_graph_migrates_legacy_nodes_before_creating_indexes(tmp_path: Pa
             embedding BLOB,
             metadata TEXT DEFAULT '{}'
         );
-        """
-    )
+        """)
     connection.close()
 
     graph = MemoryGraph(db_path, FakeEmbeddingModel())
 
     with graph._lock, graph._connect() as migrated:
-        node_columns = {row["name"] for row in migrated.execute("PRAGMA table_info(nodes)").fetchall()}
-        node_indexes = {row["name"] for row in migrated.execute("PRAGMA index_list(nodes)").fetchall()}
+        node_columns = {
+            row["name"]
+            for row in migrated.execute("PRAGMA table_info(nodes)").fetchall()
+        }
+        node_indexes = {
+            row["name"]
+            for row in migrated.execute("PRAGMA index_list(nodes)").fetchall()
+        }
 
     assert "context_window_id" in node_columns
     assert "idx_nodes_context_window" in node_indexes
@@ -150,7 +156,9 @@ def _insert_transcript_record(
     observed_at: datetime,
     role: str = "user",
 ) -> None:
-    embedding = graph.embedding_model.to_bytes(graph.embedding_model.embed(transcript_text))
+    embedding = graph.embedding_model.to_bytes(
+        graph.embedding_model.embed(transcript_text)
+    )
     with graph._lock, graph._connect() as connection:
         connection.execute(
             """
@@ -248,11 +256,20 @@ def test_clear_session_removes_only_session_scoped_data(tmp_path: Path) -> None:
     assert result.session_id == "sess-a"
     assert result.deleted_nodes >= 1
     assert result.deleted_transcripts >= 2
-    assert graph.query(query="redis", project="alpha", session_id="sess-a", max_nodes=5).nodes == []
-    assert graph.query(query="postgres", project="alpha", session_id="sess-b", max_nodes=5).nodes
+    assert (
+        graph.query(
+            query="redis", project="alpha", session_id="sess-a", max_nodes=5
+        ).nodes
+        == []
+    )
+    assert graph.query(
+        query="postgres", project="alpha", session_id="sess-b", max_nodes=5
+    ).nodes
 
 
-def test_clear_project_removes_project_but_preserves_other_projects(tmp_path: Path) -> None:
+def test_clear_project_removes_project_but_preserves_other_projects(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
     graph.add_node(
         label="Alpha Cache",
@@ -378,7 +395,10 @@ def test_node_cosine_similarity_logs_and_reraises_errors(tmp_path, caplog):
     with caplog.at_level(logging.WARNING):
         result = graph._node_cosine_similarity(node_a, node_b)
         assert result is None
-        assert any("Failed to compute cosine similarity" in record.message for record in caplog.records)
+        assert any(
+            "Failed to compute cosine similarity" in record.message
+            for record in caplog.records
+        )
 
 
 def test_entity_resolution_reuses_acronym_matches(tmp_path: Path) -> None:
@@ -450,7 +470,9 @@ def test_query_ranking_uses_label_lexical_overlap(tmp_path: Path) -> None:
         node_type=NodeType.CONCEPT,
     )
 
-    result = graph.query(query="jwt", max_nodes=2, max_depth=0, retrieval_mode="graph")  # Benchmark mode
+    result = graph.query(
+        query="jwt", max_nodes=2, max_depth=0, retrieval_mode="graph"
+    )  # Benchmark mode
 
     assert result.nodes[0].label == "JWT Auth"
 
@@ -581,7 +603,9 @@ def test_export_import_export_abhi_round_trip_is_stable(tmp_path: Path) -> None:
     assert [item["id"] for item in first["waggle"]["context_windows"]] == [
         item["id"] for item in second["waggle"]["context_windows"]
     ]
-    assert _sha256_file(Path(exported.output_path)) == _sha256_file(Path(reexported.output_path))
+    assert _sha256_file(Path(exported.output_path)) == _sha256_file(
+        Path(reexported.output_path)
+    )
 
 
 def test_export_abhi_is_byte_identical_across_repeated_exports(tmp_path: Path) -> None:
@@ -601,10 +625,16 @@ def test_export_abhi_is_byte_identical_across_repeated_exports(tmp_path: Path) -
         session_id="thread-1",
     )
 
-    first = graph.export_abhi(output_path=tmp_path / "first.abhi", include_embeddings=True)
-    second = graph.export_abhi(output_path=tmp_path / "second.abhi", include_embeddings=True)
+    first = graph.export_abhi(
+        output_path=tmp_path / "first.abhi", include_embeddings=True
+    )
+    second = graph.export_abhi(
+        output_path=tmp_path / "second.abhi", include_embeddings=True
+    )
 
-    assert _sha256_file(Path(first.output_path)) == _sha256_file(Path(second.output_path))
+    assert _sha256_file(Path(first.output_path)) == _sha256_file(
+        Path(second.output_path)
+    )
 
     with zipfile.ZipFile(first.output_path) as archive:
         infos = {info.filename: info for info in archive.infolist()}
@@ -622,7 +652,9 @@ def test_export_abhi_includes_embeddings_and_source_app(tmp_path: Path) -> None:
         project="waggle-mcp",
     ).node
 
-    exported = graph.export_abhi(output_path=tmp_path / "embeddings.abhi", include_embeddings=True)
+    exported = graph.export_abhi(
+        output_path=tmp_path / "embeddings.abhi", include_embeddings=True
+    )
     payload = load_abhi_document(exported.output_path)
 
     assert payload["embeddings"]["vectors"][node.id]
@@ -638,7 +670,9 @@ def test_encrypted_abhi_requires_passphrase_and_round_trips(tmp_path: Path) -> N
         node_type=NodeType.NOTE,
     )
 
-    exported = graph.export_abhi(output_path=tmp_path / "secure.abhi", passphrase="secret-passphrase")
+    exported = graph.export_abhi(
+        output_path=tmp_path / "secure.abhi", passphrase="secret-passphrase"
+    )
     with zipfile.ZipFile(exported.output_path) as archive:
         raw_manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
     assert raw_manifest["encryption"]["enabled"] is True
@@ -647,9 +681,14 @@ def test_encrypted_abhi_requires_passphrase_and_round_trips(tmp_path: Path) -> N
         load_abhi_document(exported.output_path)
 
     decrypted = load_abhi_document(exported.output_path, passphrase="secret-passphrase")
-    assert decrypted["graph"]["nodes"][0]["content"] == "Entire conversation history should be encrypted."
+    assert (
+        decrypted["graph"]["nodes"][0]["content"]
+        == "Entire conversation history should be encrypted."
+    )
 
-    imported_result = imported.import_abhi(input_path=exported.output_path, passphrase="secret-passphrase")
+    imported_result = imported.import_abhi(
+        input_path=exported.output_path, passphrase="secret-passphrase"
+    )
     assert imported_result.nodes_created == 1
 
 
@@ -738,7 +777,8 @@ def test_execute_abhi_query_matches_recent_and_filtered_nodes(tmp_path: Path) ->
     document = load_abhi_document(exported.output_path)
 
     filtered = execute_abhi_query(
-        document, query_text="FIND nodes WHERE type='decision' AND content CONTAINS 'database'"
+        document,
+        query_text="FIND nodes WHERE type='decision' AND content CONTAINS 'database'",
     )
     recent = execute_abhi_query(document, query_id="q1")
 
@@ -768,13 +808,19 @@ def test_diff_and_merge_abhi_files(tmp_path: Path) -> None:
         project="studio",
     )
     right_node = right.list_recent_nodes(limit=1, project="studio")[0]
-    right.update_node(node_id=right_node.id, content="Use PostgreSQL with managed backups")
+    right.update_node(
+        node_id=right_node.id, content="Use PostgreSQL with managed backups"
+    )
 
     base_file = base.export_abhi(output_path=tmp_path / "base.abhi", project="studio")
     left_file = left.export_abhi(output_path=tmp_path / "left.abhi", project="studio")
-    right_file = right.export_abhi(output_path=tmp_path / "right.abhi", project="studio")
+    right_file = right.export_abhi(
+        output_path=tmp_path / "right.abhi", project="studio"
+    )
 
-    diff = diff_abhi_files(input_path_a=left_file.output_path, input_path_b=right_file.output_path)
+    diff = diff_abhi_files(
+        input_path_a=left_file.output_path, input_path_b=right_file.output_path
+    )
     merged = merge_abhi_files(
         base_input_path=base_file.output_path,
         left_input_path=left_file.output_path,
@@ -799,13 +845,17 @@ def test_query_abhi_file_updates_event_log_and_relevance_hits(tmp_path: Path) ->
     )
     exported = graph.export_abhi(output_path=tmp_path / "memory.abhi", project="studio")
 
-    result = query_abhi_file(input_path=exported.output_path, query_text="FIND nodes WHERE type='decision'")
+    result = query_abhi_file(
+        input_path=exported.output_path, query_text="FIND nodes WHERE type='decision'"
+    )
     load_abhi_document(exported.output_path)
     assert result.node_count == 1
     assert "queried_abhi" in result.executed_actions
 
 
-def test_export_abhi_builds_semantic_chunks_and_inspect_reports_them(tmp_path: Path) -> None:
+def test_export_abhi_builds_semantic_chunks_and_inspect_reports_them(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
     for index in range(70):
         graph.add_node(
@@ -814,7 +864,9 @@ def test_export_abhi_builds_semantic_chunks_and_inspect_reports_them(tmp_path: P
             node_type=NodeType.DECISION,
             project="studio",
         )
-    exported = graph.export_abhi(output_path=tmp_path / "chunked.abhi", project="studio")
+    exported = graph.export_abhi(
+        output_path=tmp_path / "chunked.abhi", project="studio"
+    )
     inspected = graph.inspect_abhi(input_path=exported.output_path)
     document = load_abhi_document(exported.output_path)
     chunk_index = document["chunks"]["chunk_index"]
@@ -842,7 +894,9 @@ def test_load_abhi_chunk_file_and_query_use_relevant_chunks(tmp_path: Path) -> N
             node_type=NodeType.FACT,
             project="studio",
         )
-    exported = graph.export_abhi(output_path=tmp_path / "chunked-query.abhi", project="studio")
+    exported = graph.export_abhi(
+        output_path=tmp_path / "chunked-query.abhi", project="studio"
+    )
 
     loaded = load_abhi_chunk_file(
         input_path=exported.output_path,
@@ -879,7 +933,9 @@ def test_export_graph_html_creates_visualization_file(tmp_path: Path) -> None:
         relationship=RelationType.PART_OF,
     )
 
-    output_path = graph.export_graph_html(output_path=tmp_path / "graph.html", include_physics=False)
+    output_path = graph.export_graph_html(
+        output_path=tmp_path / "graph.html", include_physics=False
+    )
     html = output_path.read_text(encoding="utf-8")
 
     assert output_path.exists()
@@ -1069,7 +1125,9 @@ def test_query_fusion_mode_includes_graph_and_replay_provenance(tmp_path: Path) 
     assert result.hybrid_hits[0].score >= 0.0
 
 
-def test_query_graph_mode_uses_transcript_session_signal_for_node_ranking(tmp_path: Path) -> None:
+def test_query_graph_mode_uses_transcript_session_signal_for_node_ranking(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
     timestamp = datetime(2024, 1, 1, tzinfo=UTC)
     node_a = graph.add_node(
@@ -1111,7 +1169,9 @@ def test_query_graph_mode_uses_transcript_session_signal_for_node_ranking(tmp_pa
     assert result.nodes[0].final_score is not None
 
 
-def test_prime_context_prefers_nodes_from_recent_transcript_sessions(tmp_path: Path) -> None:
+def test_prime_context_prefers_nodes_from_recent_transcript_sessions(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
     timestamp = datetime(2024, 1, 1, tzinfo=UTC)
     active = graph.add_node(
@@ -1220,7 +1280,9 @@ def test_markdown_vault_export_and_import_round_trip(tmp_path: Path) -> None:
     exported = graph.export_markdown_vault(root_path=tmp_path / "vault")
     assert exported.files_written
 
-    decision_file_rel = next(path for path in exported.files_written if decision.id in path)
+    decision_file_rel = next(
+        path for path in exported.files_written if decision.id in path
+    )
     decision_file = Path(exported.root_path) / decision_file_rel
     updated_text = decision_file.read_text(encoding="utf-8").replace(
         "We decided to use PostgreSQL for production.",
@@ -1257,10 +1319,14 @@ def test_markdown_vault_import_explicit_relation_deletion(tmp_path: Path) -> Non
         content="ACID compliance matters.",
         node_type=NodeType.FACT,
     ).node
-    graph.add_edge(source_id=decision.id, target_id=reason.id, relationship="depends_on")
+    graph.add_edge(
+        source_id=decision.id, target_id=reason.id, relationship="depends_on"
+    )
 
     exported = graph.export_markdown_vault(root_path=tmp_path / "vault-delete")
-    decision_file_rel = next(path for path in exported.files_written if decision.id in path)
+    decision_file_rel = next(
+        path for path in exported.files_written if decision.id in path
+    )
     decision_file = Path(exported.root_path) / decision_file_rel
     updated_text = decision_file.read_text(encoding="utf-8").replace(
         f"- [[depends_on::Need ACID]] <!-- node_id:{reason.id} -->",
@@ -1272,7 +1338,10 @@ def test_markdown_vault_import_explicit_relation_deletion(tmp_path: Path) -> Non
     related = graph.get_related(node_id=decision.id, max_depth=1)
 
     assert imported.edges_deleted == 1
-    assert not any(edge.relationship == "depends_on" and edge.target_id == reason.id for edge in related.edges)
+    assert not any(
+        edge.relationship == "depends_on" and edge.target_id == reason.id
+        for edge in related.edges
+    )
 
 
 def test_conflict_detection_creates_contradiction_edge(tmp_path: Path) -> None:
@@ -1312,7 +1381,9 @@ def test_conflict_detection_skips_meta_policy_example_nodes(tmp_path: Path) -> N
 
     assert second.conflicts == []
     related = graph.get_related(node_id=second.node.id, max_depth=1)
-    assert not any(edge.relationship == RelationType.CONTRADICTS for edge in related.edges)
+    assert not any(
+        edge.relationship == RelationType.CONTRADICTS for edge in related.edges
+    )
 
 
 def test_load_graph_preserves_edge_attributes(tmp_path: Path) -> None:
@@ -1401,16 +1472,23 @@ def test_observe_conversation_links_entity_mentions_within_turn(tmp_path: Path) 
         assistant_response="Understood.",
     )
 
-    decision_node = next(node for node in result.stored_nodes if node.node_type == NodeType.DECISION)
-    path_node = next(node for node in result.stored_nodes if node.label == "src/server.py")
+    decision_node = next(
+        node for node in result.stored_nodes if node.node_type == NodeType.DECISION
+    )
+    path_node = next(
+        node for node in result.stored_nodes if node.label == "src/server.py"
+    )
     related = graph.get_related(node_id=decision_node.id, max_depth=1)
 
     assert any(
-        edge.relationship == RelationType.RELATES_TO and edge.target_id == path_node.id for edge in related.edges
+        edge.relationship == RelationType.RELATES_TO and edge.target_id == path_node.id
+        for edge in related.edges
     )
 
 
-def test_observe_conversation_extracts_favorite_preference_statement(tmp_path: Path) -> None:
+def test_observe_conversation_extracts_favorite_preference_statement(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
 
     result = graph.observe_conversation(
@@ -1418,14 +1496,21 @@ def test_observe_conversation_extracts_favorite_preference_statement(tmp_path: P
         assistant_response="I'll remember that your favorite programming language is Python.",
     )
 
-    preference_nodes = [node for node in result.stored_nodes if node.node_type == NodeType.PREFERENCE]
+    preference_nodes = [
+        node for node in result.stored_nodes if node.node_type == NodeType.PREFERENCE
+    ]
 
     assert preference_nodes
-    assert any("favorite programming language is Python" in node.content for node in preference_nodes)
+    assert any(
+        "favorite programming language is Python" in node.content
+        for node in preference_nodes
+    )
     assert any("speaker:user" in node.tags for node in preference_nodes)
 
 
-def test_observe_conversation_extracts_common_preference_and_decision_phrasings(tmp_path: Path) -> None:
+def test_observe_conversation_extracts_common_preference_and_decision_phrasings(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
 
     cases = [
@@ -1471,7 +1556,9 @@ def test_duplicate_nodes_accumulate_evidence_records(tmp_path: Path) -> None:
         assistant_response="Got it.",
     )
 
-    node = next(item for item in second.stored_nodes if item.label == "Database decision")
+    node = next(
+        item for item in second.stored_nodes if item.label == "Database decision"
+    )
 
     assert second.reused_count >= 1
     assert len(node.evidence_records) >= 2
@@ -1529,7 +1616,9 @@ def test_timeline_includes_evidence_and_edges(tmp_path: Path) -> None:
         assistant_response="I will remember that decision.",
     )
 
-    timeline = graph.timeline(node_id=decision.id, max_depth=1, include_evidence=True, limit=10)
+    timeline = graph.timeline(
+        node_id=decision.id, max_depth=1, include_evidence=True, limit=10
+    )
     kinds = {item.kind for item in timeline.items}
 
     assert timeline.scope == f"node:{decision.id}"
@@ -1597,7 +1686,9 @@ def test_query_can_filter_by_explicit_scopes(tmp_path: Path) -> None:
         agent_id="codex",
         session_id="sess-new",
     )
-    missing_session_only = graph.query(query="production database", session_id="sess-new")
+    missing_session_only = graph.query(
+        query="production database", session_id="sess-new"
+    )
     scopes = graph.list_context_scopes()
 
     assert [node.label for node in alpha.nodes] == ["DB choice alpha"]
@@ -1626,14 +1717,28 @@ def test_query_intersects_project_and_session_scope(tmp_path: Path) -> None:
         session_id="sess-2",
     )
 
-    sess_one = graph.query(query="alpha session note", project="alpha", session_id="sess-1", max_nodes=5, max_depth=0)
-    sess_two = graph.query(query="alpha session note", project="alpha", session_id="sess-2", max_nodes=5, max_depth=0)
+    sess_one = graph.query(
+        query="alpha session note",
+        project="alpha",
+        session_id="sess-1",
+        max_nodes=5,
+        max_depth=0,
+    )
+    sess_two = graph.query(
+        query="alpha session note",
+        project="alpha",
+        session_id="sess-2",
+        max_nodes=5,
+        max_depth=0,
+    )
 
     assert [node.label for node in sess_one.nodes] == ["Alpha session one"]
     assert [node.label for node in sess_two.nodes] == ["Alpha session two"]
 
 
-def test_observe_conversation_extracts_clean_database_and_auth_facts(tmp_path: Path) -> None:
+def test_observe_conversation_extracts_clean_database_and_auth_facts(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
 
     result = graph.observe_conversation(
@@ -1656,7 +1761,9 @@ def test_observe_conversation_extracts_clean_database_and_auth_facts(tmp_path: P
     assert "FastAPI" not in labels
 
 
-def test_observe_conversation_splits_multi_clause_turns_into_multiple_nodes(tmp_path: Path) -> None:
+def test_observe_conversation_splits_multi_clause_turns_into_multiple_nodes(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
 
     result = graph.observe_conversation(
@@ -1664,13 +1771,19 @@ def test_observe_conversation_splits_multi_clause_turns_into_multiple_nodes(tmp_
         assistant_response="Understood. I'll remember both tool choices.",
     )
 
-    decision_contents = {node.content for node in result.stored_nodes if node.node_type == NodeType.DECISION}
+    decision_contents = {
+        node.content
+        for node in result.stored_nodes
+        if node.node_type == NodeType.DECISION
+    }
 
     assert "I switched from VS Code to Neovim." in decision_contents
     assert "I'm using tmux now too." in decision_contents
 
 
-def test_observe_conversation_extracts_causal_fact_and_decision_with_dependency_edge(tmp_path: Path) -> None:
+def test_observe_conversation_extracts_causal_fact_and_decision_with_dependency_edge(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
 
     result = graph.observe_conversation(
@@ -1678,18 +1791,25 @@ def test_observe_conversation_extracts_causal_fact_and_decision_with_dependency_
         assistant_response="Understood. I'll remember the reason and the decision.",
     )
 
-    fact_node = next(node for node in result.stored_nodes if node.node_type == NodeType.FACT)
-    decision_node = next(node for node in result.stored_nodes if node.node_type == NodeType.DECISION)
+    fact_node = next(
+        node for node in result.stored_nodes if node.node_type == NodeType.FACT
+    )
+    decision_node = next(
+        node for node in result.stored_nodes if node.node_type == NodeType.DECISION
+    )
 
     assert fact_node.content == "The deadline moved to March."
     assert decision_node.content == "we dropped the GraphQL migration."
     related = graph.get_related(node_id=decision_node.id, max_depth=1)
     assert any(
-        edge.relationship == RelationType.DEPENDS_ON and edge.target_id == fact_node.id for edge in related.edges
+        edge.relationship == RelationType.DEPENDS_ON and edge.target_id == fact_node.id
+        for edge in related.edges
     )
 
 
-def test_observe_conversation_stores_hedged_and_conditional_turns_as_notes(tmp_path: Path) -> None:
+def test_observe_conversation_stores_hedged_and_conditional_turns_as_notes(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
 
     hedged = graph.observe_conversation(
@@ -1724,14 +1844,18 @@ def test_observe_conversation_preserves_negated_tool_choices(tmp_path: Path) -> 
         assistant_response="Understood. I'll remember that.",
     )
 
-    decision_node = next(node for node in result.stored_nodes if node.node_type == NodeType.DECISION)
+    decision_node = next(
+        node for node in result.stored_nodes if node.node_type == NodeType.DECISION
+    )
 
     assert decision_node.content == "We're not using MongoDB anymore."
     assert "negated" in decision_node.tags
     assert "choice:mongodb" in decision_node.tags
 
 
-def test_observe_conversation_creates_database_contradiction_edges(tmp_path: Path) -> None:
+def test_observe_conversation_creates_database_contradiction_edges(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
     graph.observe_conversation(
         user_message="We chose PostgreSQL over MySQL because MySQL replication has been painful.",
@@ -1744,7 +1868,9 @@ def test_observe_conversation_creates_database_contradiction_edges(tmp_path: Pat
     )
 
     assert result.conflicts
-    decision_node = next(node for node in result.stored_nodes if node.label == "Database decision")
+    decision_node = next(
+        node for node in result.stored_nodes if node.label == "Database decision"
+    )
     related = graph.get_related(node_id=decision_node.id, max_depth=1)
     assert any(edge.relationship == RelationType.CONTRADICTS for edge in related.edges)
 
@@ -1769,10 +1895,16 @@ def test_query_supports_temporal_latest_and_oldest_bias(tmp_path: Path) -> None:
     _set_node_timestamp(graph, node_v2.id, datetime(2024, 1, 2, tzinfo=UTC))
 
     latest = graph.query(
-        query="latest auth architecture", max_nodes=1, max_depth=0, retrieval_mode="graph"
+        query="latest auth architecture",
+        max_nodes=1,
+        max_depth=0,
+        retrieval_mode="graph",
     )  # Benchmark
     originally = graph.query(
-        query="originally auth architecture", max_nodes=1, max_depth=0, retrieval_mode="graph"
+        query="originally auth architecture",
+        max_nodes=1,
+        max_depth=0,
+        retrieval_mode="graph",
     )  # Benchmark
 
     assert latest.nodes[0].label == "Auth v2"
@@ -1839,7 +1971,9 @@ def test_negation_query_prefers_rejected_node(tmp_path: Path) -> None:
     assert result.nodes[0].label == "No model auto-promotion"
 
 
-def test_implicit_reference_security_review_emergency_access_prefers_break_glass(tmp_path: Path) -> None:
+def test_implicit_reference_security_review_emergency_access_prefers_break_glass(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
     graph.add_node(
         label="RBAC only",
@@ -1908,7 +2042,9 @@ def test_temporal_current_phrase_prefers_latest_state(tmp_path: Path) -> None:
         node_type=NodeType.FACT,
     )
 
-    result = graph.query(query="what is the current jwt expiry", max_nodes=1, max_depth=0)
+    result = graph.query(
+        query="what is the current jwt expiry", max_nodes=1, max_depth=0
+    )
 
     assert result.nodes[0].label == "JWT expiry 1 hour"
 
@@ -1926,7 +2062,9 @@ def test_temporal_latest_database_choice_prefers_database_fact(tmp_path: Path) -
         node_type=NodeType.DECISION,
     )
 
-    result = graph.query(query="what is the latest production database choice", max_nodes=1, max_depth=0)
+    result = graph.query(
+        query="what is the latest production database choice", max_nodes=1, max_depth=0
+    )
 
     assert result.nodes[0].label == "PostgreSQL production"
 
@@ -1944,7 +2082,9 @@ def test_temporal_original_phrase_prefers_oldest_state(tmp_path: Path) -> None:
         node_type=NodeType.FACT,
     )
 
-    result = graph.query(query="what was the original export format", max_nodes=1, max_depth=0)
+    result = graph.query(
+        query="what was the original export format", max_nodes=1, max_depth=0
+    )
 
     assert result.nodes[0].label == "CSV only export"
 
@@ -1968,12 +2108,16 @@ def test_now_phrase_prefers_current_backend_choice(tmp_path: Path) -> None:
     _set_node_timestamp(graph, node_old.id, datetime(2024, 1, 1, tzinfo=UTC))
     _set_node_timestamp(graph, node_new.id, datetime(2024, 1, 2, tzinfo=UTC))
 
-    result = graph.query(query="which cache backend handles sessions now", max_nodes=1, max_depth=0)
+    result = graph.query(
+        query="which cache backend handles sessions now", max_nodes=1, max_depth=0
+    )
 
     assert result.nodes[0].label == "KeyDB session cache"
 
 
-def test_temporal_latest_privacy_export_policy_prefers_approval_fact(tmp_path: Path) -> None:
+def test_temporal_latest_privacy_export_policy_prefers_approval_fact(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
     graph.add_node(
         label="CSV and Parquet export",
@@ -1986,7 +2130,11 @@ def test_temporal_latest_privacy_export_policy_prefers_approval_fact(tmp_path: P
         node_type=NodeType.FACT,
     )
 
-    result = graph.query(query="what is the latest enterprise data export policy", max_nodes=1, max_depth=0)
+    result = graph.query(
+        query="what is the latest enterprise data export policy",
+        max_nodes=1,
+        max_depth=0,
+    )
 
     assert result.nodes[0].label == "Enterprise export approval"
 
@@ -2044,7 +2192,9 @@ def test_get_topics_returns_clusters(tmp_path: Path) -> None:
     assert topics.clusters[0].nodes
 
 
-def test_get_topics_caching_and_staleness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_topics_caching_and_staleness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     graph = make_graph(tmp_path)
     graph.add_node(
         label="Auth REST",
@@ -2061,24 +2211,32 @@ def test_get_topics_caching_and_staleness(tmp_path: Path, monkeypatch: pytest.Mo
 
     # Initially communities should be stale. Verify the db column.
     with graph._lock, graph._connect() as conn:
-        row = conn.execute("SELECT communities_stale, cached_communities FROM tenants WHERE tenant_id = ?", (graph.tenant_id,)).fetchone()
+        row = conn.execute(
+            "SELECT communities_stale, cached_communities FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
         assert row["communities_stale"] == 1
         assert row["cached_communities"] is None
 
     # Track how many times _build_topic_partition is called
     calls = 0
     orig_build = graph._build_topic_partition
+
     def mock_build(g, n):
         nonlocal calls
         calls += 1
         return orig_build(g, n)
+
     monkeypatch.setattr(graph, "_build_topic_partition", mock_build)
 
     # First call: should compute and cache
     topics1 = graph.get_topics()
     assert calls == 1
     with graph._lock, graph._connect() as conn:
-        row = conn.execute("SELECT communities_stale, cached_communities FROM tenants WHERE tenant_id = ?", (graph.tenant_id,)).fetchone()
+        row = conn.execute(
+            "SELECT communities_stale, cached_communities FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
         assert row["communities_stale"] == 0
         assert row["cached_communities"] is not None
 
@@ -2088,7 +2246,7 @@ def test_get_topics_caching_and_staleness(tmp_path: Path, monkeypatch: pytest.Mo
     assert topics1.total_clusters == topics2.total_clusters
 
     # Call with force_recompute=True: should recompute even if not stale (calls becomes 2)
-    topics3 = graph.get_topics(force_recompute=True)
+    graph.get_topics(force_recompute=True)
     assert calls == 2
 
     # Mutate the graph: add a node. This should mark communities stale.
@@ -2099,15 +2257,20 @@ def test_get_topics_caching_and_staleness(tmp_path: Path, monkeypatch: pytest.Mo
         tags=["database"],
     )
     with graph._lock, graph._connect() as conn:
-        row = conn.execute("SELECT communities_stale FROM tenants WHERE tenant_id = ?", (graph.tenant_id,)).fetchone()
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
         assert row["communities_stale"] == 1
 
     # Call after mutation: should compute again (calls becomes 3)
-    topics4 = graph.get_topics()
+    graph.get_topics()
     assert calls == 3
 
 
-def test_observe_conversation_round_trip_stamps_transcript_embeddings_and_turn_pairs(tmp_path: Path) -> None:
+def test_observe_conversation_round_trip_stamps_transcript_embeddings_and_turn_pairs(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
 
     for index in range(10):
@@ -2139,7 +2302,10 @@ def test_observe_conversation_round_trip_stamps_transcript_embeddings_and_turn_p
 
     assert len(transcript_rows) == 20
     assert all(row["embedding"] is not None for row in transcript_rows)
-    assert all(row["embedding_model_id"] == "fake-model:deterministic-v1" for row in transcript_rows)
+    assert all(
+        row["embedding_model_id"] == "fake-model:deterministic-v1"
+        for row in transcript_rows
+    )
     assert all(int(row["embedding_dim"]) == 8 for row in transcript_rows)
     assert all(row["content_hash"] for row in transcript_rows)
     assert len({row["turn_pair_id"] for row in transcript_rows}) == 10
@@ -2147,7 +2313,9 @@ def test_observe_conversation_round_trip_stamps_transcript_embeddings_and_turn_p
     assert all(row["source_turn_pair_id"] for row in node_rows)
 
 
-def test_observe_conversation_rolls_back_transcript_rows_on_extraction_failure(tmp_path: Path) -> None:
+def test_observe_conversation_rolls_back_transcript_rows_on_extraction_failure(
+    tmp_path: Path,
+) -> None:
     """Test that with verbatim-first architecture, extraction failures don't prevent verbatim storage.
 
     CHANGED: This test now verifies the new behavior where verbatim turns are stored even
@@ -2190,8 +2358,12 @@ def test_observe_conversation_rolls_back_transcript_rows_on_extraction_failure(t
     # With new verbatim-first architecture:
     # - Transcripts are stored (2: user + assistant)
     # - Nodes are NOT stored (extraction failed)
-    assert transcript_count == 2, "Verbatim transcripts should be stored even when extraction fails"
-    assert node_count == 0, "No nodes should be created when candidate application fails"
+    assert (
+        transcript_count == 2
+    ), "Verbatim transcripts should be stored even when extraction fails"
+    assert (
+        node_count == 0
+    ), "No nodes should be created when candidate application fails"
 
 
 def test_abhi_round_trip_200_turn_graph_preserves_query_results(tmp_path: Path) -> None:
@@ -2215,7 +2387,11 @@ def test_abhi_round_trip_200_turn_graph_preserves_query_results(tmp_path: Path) 
         )
 
     before = source.query(query="cobalt-137", project="roundtrip", max_nodes=3)
-    exported = source.export_abhi(output_path=tmp_path / "roundtrip.abhi", project="roundtrip", include_embeddings=True)
+    exported = source.export_abhi(
+        output_path=tmp_path / "roundtrip.abhi",
+        project="roundtrip",
+        include_embeddings=True,
+    )
 
     restored.import_abhi(input_path=exported.output_path)
     after = restored.query(query="cobalt-137", project="roundtrip", max_nodes=3)
@@ -2225,7 +2401,9 @@ def test_abhi_round_trip_200_turn_graph_preserves_query_results(tmp_path: Path) 
     assert before.nodes[0].content == after.nodes[0].content
 
     reexported = restored.export_abhi(
-        output_path=tmp_path / "roundtrip-reexport.abhi", project="roundtrip", include_embeddings=True
+        output_path=tmp_path / "roundtrip-reexport.abhi",
+        project="roundtrip",
+        include_embeddings=True,
     )
     first_doc = load_abhi_document(exported.output_path)
     second_doc = load_abhi_document(reexported.output_path)
@@ -2233,9 +2411,9 @@ def test_abhi_round_trip_200_turn_graph_preserves_query_results(tmp_path: Path) 
     assert [(node["id"], node["content"]) for node in first_doc["graph"]["nodes"]] == [
         (node["id"], node["content"]) for node in second_doc["graph"]["nodes"]
     ]
-    assert [(row["id"], row["transcript_text"]) for row in first_doc["transcripts"]] == [
-        (row["id"], row["transcript_text"]) for row in second_doc["transcripts"]
-    ]
+    assert [
+        (row["id"], row["transcript_text"]) for row in first_doc["transcripts"]
+    ] == [(row["id"], row["transcript_text"]) for row in second_doc["transcripts"]]
     assert first_doc["manifest"]["counts"] == second_doc["manifest"]["counts"]
 
 
@@ -2262,7 +2440,9 @@ def test_abhi_v1_file_starts_with_magic_bytes(tmp_path: Path) -> None:
     """Files written by write_abhi_document must start with the WGL\\x01 magic."""
     out = tmp_path / "test.abhi"
     write_abhi_document(_minimal_snapshot(), output_path=out)
-    assert out.read_bytes()[:4] == ABHI_MAGIC, "Expected WGL\\x01 magic bytes at the start of the exported file"
+    assert (
+        out.read_bytes()[:4] == ABHI_MAGIC
+    ), "Expected WGL\\x01 magic bytes at the start of the exported file"
 
 
 def test_abhi_v1_file_round_trips_through_load(tmp_path: Path) -> None:
@@ -2318,7 +2498,9 @@ def test_abhi_legacy_v0_bare_zip_still_loads(tmp_path: Path, caplog) -> None:
             ABHI_CONTEXT_WINDOWS_MEMBER,
         ):
             arc.writestr(_deterministic_zip_info(member), b"")
-        arc.writestr(_deterministic_zip_info(ABHI_MANIFEST_MEMBER), _canonical_json(manifest))
+        arc.writestr(
+            _deterministic_zip_info(ABHI_MANIFEST_MEMBER), _canonical_json(manifest)
+        )
 
     import logging
 
@@ -2326,9 +2508,9 @@ def test_abhi_legacy_v0_bare_zip_still_loads(tmp_path: Path, caplog) -> None:
         doc = load_abhi_document(out)
 
     assert "manifest" in doc
-    assert any("legacy" in record.message.lower() for record in caplog.records), (
-        "Expected a deprecation warning for v0 legacy files"
-    )
+    assert any(
+        "legacy" in record.message.lower() for record in caplog.records
+    ), "Expected a deprecation warning for v0 legacy files"
 
 
 def test_abhi_corrupted_magic_raises_validation_failure(tmp_path: Path) -> None:
@@ -2388,7 +2570,10 @@ def test_clear_scope_dry_run_and_audit_trail(tmp_path: Path) -> None:
     assert result_dry.dry_run is True
     assert result_dry.deleted_nodes > 0
     assert result_dry.deleted_transcripts > 0
-    assert any(k in result_dry.counts_by_node_type for k in ("decision", "note", "entity", "fact"))
+    assert any(
+        k in result_dry.counts_by_node_type
+        for k in ("decision", "note", "entity", "fact")
+    )
 
     # Verify data is STILL in the graph
     stats_after_dry = graph.get_stats()
@@ -2422,5 +2607,9 @@ def test_clear_scope_dry_run_and_audit_trail(tmp_path: Path) -> None:
 def test_read_to_write_lock_upgrade_raises_runtime_error() -> None:
     lock = _ReadWriteLock()
 
-    with lock.read(), pytest.raises(RuntimeError, match="Cannot upgrade a read lock to a write lock"), lock:
+    with (
+        lock.read(),
+        pytest.raises(RuntimeError, match="Cannot upgrade a read lock to a write lock"),
+        lock,
+    ):
         pass
