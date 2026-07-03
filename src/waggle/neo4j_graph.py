@@ -224,11 +224,11 @@ def _cypher_rel_type(relationship: str) -> str:
     return safe or "RELATES_TO"
 
 
-_RE_NON_LABEL = re.compile(r"[^A-Z0-9_]")
+_RE_NON_LABEL = re.compile(r"[^A-Za-z0-9_]")
 
 
 def _cypher_label(raw: str) -> str:
-    """Sanitize a string for use as a Cypher label (PascalCase, alphanumeric only)."""
+    """Sanitize a string for use as a Cypher label (PascalCase, alphanumeric and underscore)."""
     safe = _RE_NON_LABEL.sub("", raw.strip().title())
     if safe and safe[0].isdigit():
         safe = "_" + safe

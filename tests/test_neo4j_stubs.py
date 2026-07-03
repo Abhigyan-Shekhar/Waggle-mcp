@@ -9,7 +9,7 @@ import numpy as np
 from waggle.models import (
     SubgraphResult,
 )
-from waggle.neo4j_graph import Neo4jMemoryGraph
+from waggle.neo4j_graph import Neo4jMemoryGraph, _cypher_label, _cypher_rel_type
 
 
 class FakeEmbeddingModel:
@@ -250,3 +250,20 @@ def test_neo4j_for_tenant_returns_new_instance() -> None:
 # `_register_conflicts`, `_find_existing_edge`) that are also trapped in
 # the same dead-code region.  These methods cannot execute without fixing
 # the indentation first.
+
+
+def test_cypher_label_sanitizer() -> None:
+    """_cypher_label produces valid Cypher labels for common node types."""
+    assert _cypher_label("fact") == "Fact"
+    assert _cypher_label("decision") == "Decision"
+    assert _cypher_label("api_key") == "Api_Key"
+    assert _cypher_label("1foo") == "_1Foo"
+    assert _cypher_label("   ") == "Unknown"
+
+
+def test_cypher_rel_type_sanitizer() -> None:
+    """_cypher_rel_type produces valid Cypher relationship types."""
+    assert _cypher_rel_type("relates_to") == "RELATES_TO"
+    assert _cypher_rel_type("derived from") == "DERIVED_FROM"
+    assert _cypher_rel_type("1foo") == "_1FOO"
+    assert _cypher_rel_type("   ") == "RELATES_TO"
