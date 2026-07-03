@@ -2215,3 +2215,160 @@ class TestHookToolsFromArgs:
         )
         with pytest.raises(ValidationFailure):
             _run_setup(args)
+
+
+def test_parser_accepts_quiet_flag() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["--quiet", "serve"])
+    assert args.quiet is True
+    assert args.command == "serve"
+
+    args_default = parser.parse_args(["serve"])
+    assert args_default.quiet is False
+
+
+def test_startup_banner_tty_prints_correctly(capsys, monkeypatch):
+    import sys
+
+    from waggle.server import __version__, _print_startup_banner
+
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="all-MiniLM-L6-v2",
+        db_path="/tmp/waggle.db",
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    monkeypatch.delenv("WAGGLE_BANNER", raising=False)
+
+    _print_startup_banner(config)
+
+    captured = capsys.readouterr()
+    assert f"Waggle MCP {__version__}" in captured.out
+    assert "  Backend:    sqlite" in captured.out
+    assert "  Model:      all-MiniLM-L6-v2 (pytorch)" in captured.out
+    assert "  DB path:    /tmp/waggle.db" in captured.out
+    assert "  Transport:  stdio" in captured.out
+    assert "  Tenant:     local-default" in captured.out
+
+
+def test_startup_banner_no_tty_suppresses(capsys, monkeypatch):
+    import sys
+
+    from waggle.server import _print_startup_banner
+
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="all-MiniLM-L6-v2",
+        db_path="/tmp/waggle.db",
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: False)
+    monkeypatch.delenv("WAGGLE_BANNER", raising=False)
+
+    _print_startup_banner(config)
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+
+
+def test_startup_banner_quiet_suppresses(capsys, monkeypatch):
+    import argparse
+    import sys
+
+    from waggle.server import _print_startup_banner
+
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="all-MiniLM-L6-v2",
+        db_path="/tmp/waggle.db",
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    monkeypatch.delenv("WAGGLE_BANNER", raising=False)
+
+    args = argparse.Namespace(quiet=True)
+    _print_startup_banner(config, args)
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+
+
+def test_startup_banner_env_suppresses(capsys, monkeypatch):
+    import sys
+
+    from waggle.server import _print_startup_banner
+
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="all-MiniLM-L6-v2",
+        db_path="/tmp/waggle.db",
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    monkeypatch.setenv("WAGGLE_BANNER", "false")
+
+    _print_startup_banner(config)
+
+    captured = capsys.readouterr()
+    assert captured.out == ""

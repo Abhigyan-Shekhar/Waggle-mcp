@@ -4077,6 +4077,7 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("--quiet", action="store_true", help="Suppress startup banners and messages.")
     subparsers = parser.add_subparsers(dest="command")
     serve = subparsers.add_parser("serve", help="Run the MCP server using the configured stdio or HTTP transport.")
     serve.add_argument(
@@ -6504,6 +6505,25 @@ def _run_init() -> int:
     return 0
 
 
+def _print_startup_banner(config: AppConfig, args: argparse.Namespace | None = None) -> None:
+    if os.environ.get("WAGGLE_BANNER", "").lower() == "false":
+        return
+    if args is not None and getattr(args, "quiet", False):
+        return
+    if not sys.stdout.isatty():
+        return
+
+    banner = (
+        f"Waggle MCP {__version__}\n"
+        f"  Backend:    {config.backend}\n"
+        f"  Model:      {config.model_name} ({config.embedding_backend})\n"
+        f"  DB path:    {config.db_path}\n"
+        f"  Transport:  {config.transport}\n"
+        f"  Tenant:     {config.default_tenant_id}"
+    )
+    print(banner)
+
+
 def main() -> None:
     # ── Windows UTF-8 guard (Error 3 from field bug log) ────────────────────
     # Windows consoles default to cp1252. Unicode log lines / emoji cause
@@ -6550,6 +6570,8 @@ def main() -> None:
     if command == "serve" and getattr(args, "transport", None):
         config.transport = str(args.transport).strip().lower()
         config.validate()
+    if command in {"serve", "edit-graph", "view-graph", "ui", "graph-studio", "open-studio"}:
+        _print_startup_banner(config, args)
     log_stream = sys.stderr if config.transport == "stdio" else sys.stdout
     configure_logging(config.log_level, stream=log_stream)
     LOGGER.info("waggle_startup")
