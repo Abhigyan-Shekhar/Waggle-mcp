@@ -4,14 +4,13 @@ import base64
 import hashlib
 import json
 import secrets
+import sys
 import threading
 import urllib.parse
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
-
-import sys
 
 import requests
 from google.auth.transport.requests import Request
