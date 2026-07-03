@@ -194,18 +194,14 @@ class TraversalMixin(MemoryGraphBase):
             edges = related.edges
             scope = f"node:{node_id.strip()}"
         elif query.strip():
-            subgraph = self.query(
-                query=query, max_nodes=max(limit, 10), max_depth=max_depth
-            )
+            subgraph = self.query(query=query, max_nodes=max(limit, 10), max_depth=max_depth)
             nodes = subgraph.nodes
             edges = subgraph.edges
             scope = f"query:{query.strip()}"
         else:
             with self._lock, self._pool.checkout() as connection:
                 nodes = self.list_recent_nodes(limit=max(limit, 10))
-                edges = self._fetch_edges_for_nodes(
-                    connection, [node.id for node in nodes]
-                )
+                edges = self._fetch_edges_for_nodes(connection, [node.id for node in nodes])
             scope = "tenant"
 
         items = self._build_timeline_items(
@@ -240,9 +236,7 @@ class TraversalMixin(MemoryGraphBase):
         if expand_depth < 0:
             raise ValueError("expand_depth cannot be negative.")
         normalized_mode = retrieval_mode.strip().lower()
-        normalized_mode = {"replay": "verbatim", "fusion": "hybrid"}.get(
-            normalized_mode, normalized_mode
-        )
+        normalized_mode = {"replay": "verbatim", "fusion": "hybrid"}.get(normalized_mode, normalized_mode)
         # Accept "hybrid_no_rerank" as alias for "hybrid" (reranking is configurable via HybridRetrievalConfig)
         if normalized_mode == "hybrid_no_rerank":
             normalized_mode = "hybrid"
@@ -322,13 +316,9 @@ class TraversalMixin(MemoryGraphBase):
                 replay_hits=replay_hits,
                 retrieval_mode="verbatim",
                 query=query_text,
-                total_nodes_in_graph=(
-                    graph_result.total_nodes_in_graph if graph_result is not None else 0
-                ),
+                total_nodes_in_graph=(graph_result.total_nodes_in_graph if graph_result is not None else 0),
             )
-        fusion_hits = self._build_fusion_hits(
-            graph_result or SubgraphResult(query=query_text), replay_hits
-        )
+        fusion_hits = self._build_fusion_hits(graph_result or SubgraphResult(query=query_text), replay_hits)
         return SubgraphResult(
             nodes=graph_result.nodes if graph_result is not None else [],
             edges=graph_result.edges if graph_result is not None else [],
@@ -336,9 +326,7 @@ class TraversalMixin(MemoryGraphBase):
             fusion_hits=fusion_hits[:max_nodes],
             retrieval_mode="hybrid",
             query=query_text,
-            total_nodes_in_graph=(
-                graph_result.total_nodes_in_graph if graph_result is not None else 0
-            ),
+            total_nodes_in_graph=(graph_result.total_nodes_in_graph if graph_result is not None else 0),
         )
 
     def _subgraph_from_hybrid_hits(
@@ -351,9 +339,7 @@ class TraversalMixin(MemoryGraphBase):
         node_ids = sorted({node_id for hit in hybrid_hits for node_id in hit.node_ids})
         with self._lock, self._pool.checkout() as connection:
             nodes = self._fetch_nodes_by_ids(connection, node_ids)
-            edges = (
-                self._fetch_edges_for_nodes(connection, node_ids) if node_ids else []
-            )
+            edges = self._fetch_edges_for_nodes(connection, node_ids) if node_ids else []
             total_nodes = int(
                 connection.execute(
                     "SELECT COUNT(*) FROM nodes WHERE tenant_id = ?",
@@ -407,9 +393,7 @@ class TraversalMixin(MemoryGraphBase):
             raise ValueError("max_depth cannot be negative.")
 
         resolved_repo_id = repo_id or self.ensure_repo(project or "default")
-        query_embedding = self.embedding_model.embed(
-            self._expand_query_aliases(query_text)
-        )
+        query_embedding = self.embedding_model.embed(self._expand_query_aliases(query_text))
         windows = self.get_repo_windows(resolved_repo_id)
         now = time.time()
         replay_session_scores = self._query_replay_session_scores(
@@ -425,9 +409,7 @@ class TraversalMixin(MemoryGraphBase):
             if window_embedding is None:
                 continue
             similarity = max(
-                self.embedding_model.cosine_similarity(
-                    query_embedding, window_embedding
-                ),
+                self.embedding_model.cosine_similarity(query_embedding, window_embedding),
                 0.0,
             )
             similarity = self._blend_session_signal(
@@ -456,14 +438,9 @@ class TraversalMixin(MemoryGraphBase):
             fallback.retrieval_mode = "flat_fallback"
             return fallback
 
-        window_scores.sort(
-            key=lambda item: (item[0], item[1].updated_at.timestamp()), reverse=True
-        )
+        window_scores.sort(key=lambda item: (item[0], item[1].updated_at.timestamp()), reverse=True)
         selected_windows = [
-            window
-            for _, window in window_scores[
-                : max(1, top_k_windows or self.tiered_retrieval_top_k_windows)
-            ]
+            window for _, window in window_scores[: max(1, top_k_windows or self.tiered_retrieval_top_k_windows)]
         ]
         selected_window_ids = {window.id for window in selected_windows}
 
@@ -551,9 +528,7 @@ class TraversalMixin(MemoryGraphBase):
                     semantic = 0.0
                 else:
                     semantic = max(
-                        self.embedding_model.cosine_similarity(
-                            query_embedding, decoded_embedding
-                        ),
+                        self.embedding_model.cosine_similarity(query_embedding, decoded_embedding),
                         0.0,
                     )
                 lexical = self._lexical_score_for_node(query_text, node)
@@ -690,9 +665,7 @@ class TraversalMixin(MemoryGraphBase):
             window_embedding = self.get_window_embedding(window.id)
             if window_embedding is not None:
                 similarity = max(
-                    self.embedding_model.cosine_similarity(
-                        query_embedding, window_embedding
-                    ),
+                    self.embedding_model.cosine_similarity(query_embedding, window_embedding),
                     0.0,
                 )
                 similarity = self._blend_session_signal(
@@ -760,22 +733,14 @@ class TraversalMixin(MemoryGraphBase):
             "agent_id": agent_id,
             "session_id": session_id,
             "retrieval_mode": "tiered" if self.tiered_retrieval else "flat",
-            "embedding_preview": [
-                round(float(value), 6) for value in query_embedding[:5]
-            ],
+            "embedding_preview": [round(float(value), 6) for value in query_embedding[:5]],
             "windows_evaluated": len(window_details),
             "all_windows": window_details,
-            "selected_windows": [
-                window
-                for window in window_details
-                if window["routing_score"] is not None
-            ][: max(1, self.tiered_retrieval_top_k_windows)],
-            "flat_top_nodes": [
-                summarize_node(node) for node in flat_result.nodes[:max_nodes]
+            "selected_windows": [window for window in window_details if window["routing_score"] is not None][
+                : max(1, self.tiered_retrieval_top_k_windows)
             ],
-            "tiered_top_nodes": [
-                summarize_node(node) for node in tiered_result.nodes[:max_nodes]
-            ],
+            "flat_top_nodes": [summarize_node(node) for node in flat_result.nodes[:max_nodes]],
+            "tiered_top_nodes": [summarize_node(node) for node in tiered_result.nodes[:max_nodes]],
             "tiered_result_mode": tiered_result.retrieval_mode,
         }
 
@@ -855,14 +820,8 @@ class TraversalMixin(MemoryGraphBase):
                     as_of=as_of,
                 )
             }
-            nodes_by_id = {
-                nid: node for nid, node in nodes_by_id.items() if nid in valid_node_ids
-            }
-            embeddings_by_id = {
-                nid: emb
-                for nid, emb in embeddings_by_id.items()
-                if nid in valid_node_ids
-            }
+            nodes_by_id = {nid: node for nid, node in nodes_by_id.items() if nid in valid_node_ids}
+            embeddings_by_id = {nid: emb for nid, emb in embeddings_by_id.items() if nid in valid_node_ids}
 
             if not nodes_by_id:
                 return SubgraphResult(query=query, total_nodes_in_graph=total_nodes)
@@ -886,28 +845,23 @@ class TraversalMixin(MemoryGraphBase):
             similarity_by_id = {
                 node_id: self._blend_session_signal(
                     base_similarity=similarity,
-                    session_signal=replay_session_scores.get(
-                        nodes_by_id[node_id].session_id, 0.0
-                    ),
+                    session_signal=replay_session_scores.get(nodes_by_id[node_id].session_id, 0.0),
                 )
                 for node_id, similarity in similarity_by_id.items()
             }
             lexical_by_id = {
-                node_id: self._lexical_score_for_node(expanded_query, node)
-                for node_id, node in nodes_by_id.items()
+                node_id: self._lexical_score_for_node(expanded_query, node) for node_id, node in nodes_by_id.items()
             }
             negation_intent = self._has_negation_intent(query)
             negation_boost_by_id = {
-                node_id: self._negation_boost(node) if negation_intent else 0.0
-                for node_id, node in nodes_by_id.items()
+                node_id: self._negation_boost(node) if negation_intent else 0.0 for node_id, node in nodes_by_id.items()
             }
 
             seed_count = min(total_nodes, max(1, max_nodes // 2))
             seed_candidates = [
                 (
                     node_id,
-                    (0.7 * similarity_by_id.get(node_id, 0.0))
-                    + (0.3 * lexical_by_id.get(node_id, 0.0)),
+                    (0.7 * similarity_by_id.get(node_id, 0.0)) + (0.3 * lexical_by_id.get(node_id, 0.0)),
                     negation_boost_by_id.get(node_id, 0.0),
                     self._seed_temporal_order(nodes_by_id[node_id], temporal_hints),
                 )
@@ -920,8 +874,7 @@ class TraversalMixin(MemoryGraphBase):
                     if item[1] >= TOPIC_RELEVANCE_THRESHOLD
                     and (
                         lexical_by_id.get(item[0], 0.0) > 0.0
-                        or similarity_by_id.get(item[0], 0.0)
-                        >= TOPIC_SEMANTIC_ONLY_THRESHOLD
+                        or similarity_by_id.get(item[0], 0.0) >= TOPIC_SEMANTIC_ONLY_THRESHOLD
                     )
                 ]
                 if not temporal_seed_candidates:
@@ -968,25 +921,15 @@ class TraversalMixin(MemoryGraphBase):
             expanded_depths, expansion_metadata = self._expand_node_depths_with_context(
                 graph, ranked_seed_ids, max_depth
             )
-            candidate_nodes = [
-                nodes_by_id[node_id]
-                for node_id in expanded_depths
-                if node_id in nodes_by_id
-            ]
-            temporal_candidates = [
-                node
-                for node in candidate_nodes
-                if within_time_window(node, temporal_hints)
-            ]
+            candidate_nodes = [nodes_by_id[node_id] for node_id in expanded_depths if node_id in nodes_by_id]
+            temporal_candidates = [node for node in candidate_nodes if within_time_window(node, temporal_hints)]
             if temporal_candidates:
                 candidate_nodes = temporal_candidates
 
             max_access = max((node.access_count for node in candidate_nodes), default=0)
             degree_by_id = dict(graph.degree(expanded_depths.keys()))
             max_degree = max(degree_by_id.values(), default=0)
-            candidate_edges = self._fetch_edges_for_nodes(
-                connection, [node.id for node in candidate_nodes]
-            )
+            candidate_edges = self._fetch_edges_for_nodes(connection, [node.id for node in candidate_nodes])
             scored_nodes = self._sort_scored_nodes(
                 candidate_nodes,
                 max_nodes=max_nodes,
@@ -1008,9 +951,7 @@ class TraversalMixin(MemoryGraphBase):
                 embeddings_by_id=embeddings_by_id,
                 max_nodes=max_nodes,
             )
-            result_limit = (
-                max_nodes if expand_depth == 0 else max_nodes + max(1, max_nodes // 2)
-            )
+            result_limit = max_nodes if expand_depth == 0 else max_nodes + max(1, max_nodes // 2)
             selected_nodes = self._enforce_clause_coverage(
                 query=query,
                 selected_nodes=scored_nodes[:result_limit],
@@ -1019,9 +960,7 @@ class TraversalMixin(MemoryGraphBase):
                 max_nodes=result_limit,
             )
             candidate_pool = {node.id: node for node in candidate_nodes}
-            selected_nodes = self._ensure_support_coverage(
-                selected_nodes, candidate_pool, graph, result_limit
-            )
+            selected_nodes = self._ensure_support_coverage(selected_nodes, candidate_pool, graph, result_limit)
             selected_ids = [node.id for node in selected_nodes]
 
             edges = self._fetch_edges_for_nodes(connection, selected_ids)
@@ -1095,21 +1034,14 @@ class TraversalMixin(MemoryGraphBase):
                     self.embedding_model.cosine_similarity(query_embedding, embedding),
                     0.0,
                 )
-                lexical_score = lexical_overlap(
-                    query, record.role, record.transcript_text
-                )
+                lexical_score = lexical_overlap(query, record.role, record.transcript_text)
                 temporal_score = 0.0
                 if temporal_hints.recency_mode == "latest":
                     temporal_score = float((raw_timestamp - min_timestamp) / span)
                 elif temporal_hints.recency_mode == "oldest":
                     temporal_score = float((max_timestamp - raw_timestamp) / span)
                 role_score = 1.0 if record.role == "user" else 0.8
-                score = (
-                    (0.6 * semantic_score)
-                    + (0.2 * lexical_score)
-                    + (0.1 * temporal_score)
-                    + (0.1 * role_score)
-                )
+                score = (0.6 * semantic_score) + (0.2 * lexical_score) + (0.1 * temporal_score) + (0.1 * role_score)
                 hits.append(
                     (
                         score,
@@ -1179,11 +1111,7 @@ class TraversalMixin(MemoryGraphBase):
         if not rows:
             return {}
 
-        query_vector = (
-            query_embedding
-            if query_embedding is not None
-            else self.embedding_model.embed(query)
-        )
+        query_vector = query_embedding if query_embedding is not None else self.embedding_model.embed(query)
         _retrieval_session_scope(
             agent_id=agent_id,
             project=project,
@@ -1198,18 +1126,14 @@ class TraversalMixin(MemoryGraphBase):
             embedding = self._decode_embedding(row["embedding"])
             if embedding is None:
                 continue
-            semantic_score = max(
-                self.embedding_model.cosine_similarity(query_vector, embedding), 0.0
-            )
+            semantic_score = max(self.embedding_model.cosine_similarity(query_vector, embedding), 0.0)
             lexical_score = lexical_overlap(query, record.role, record.transcript_text)
             role_score = 1.0 if record.role == "user" else 0.8
             score = max(
                 0.0,
                 min(
                     1.0,
-                    (0.65 * semantic_score)
-                    + (0.25 * lexical_score)
-                    + (0.10 * role_score),
+                    (0.65 * semantic_score) + (0.25 * lexical_score) + (0.10 * role_score),
                 ),
             )
             previous = scores_by_session.get(scoped_session_id, 0.0)
@@ -1284,19 +1208,13 @@ class TraversalMixin(MemoryGraphBase):
     ) -> float:
         base = max(0.0, min(1.0, base_similarity))
         session = max(0.0, min(1.0, session_signal))
-        return max(
-            0.0, min(1.0, ((1.0 - session_weight) * base) + (session_weight * session))
-        )
+        return max(0.0, min(1.0, ((1.0 - session_weight) * base) + (session_weight * session)))
 
-    def _build_fusion_hits(
-        self, graph_result: SubgraphResult, replay_hits: list[ReplayHit]
-    ) -> list[FusionHit]:
+    def _build_fusion_hits(self, graph_result: SubgraphResult, replay_hits: list[ReplayHit]) -> list[FusionHit]:
         rrf_k = 60.0
         replay_by_session = {hit.session_id for hit in replay_hits if hit.session_id}
         graph_edge_map: dict[str, list[dict[str, Any]]] = {}
-        graph_nodes_by_session = {
-            node.session_id: node for node in graph_result.nodes if node.session_id
-        }
+        graph_nodes_by_session = {node.session_id: node for node in graph_result.nodes if node.session_id}
         combined: dict[str, FusionHit] = {}
 
         for edge in graph_result.edges:
@@ -1311,11 +1229,7 @@ class TraversalMixin(MemoryGraphBase):
             graph_edge_map.setdefault(edge.target_id, []).append(payload)
 
         for index, node in enumerate(graph_result.nodes, start=1):
-            source_lane = (
-                "both"
-                if node.session_id and node.session_id in replay_by_session
-                else "graph"
-            )
+            source_lane = "both" if node.session_id and node.session_id in replay_by_session else "graph"
             combined[f"graph:{node.id}"] = FusionHit(
                 content=node.content,
                 score=1.0 / (rrf_k + index),
@@ -1331,9 +1245,7 @@ class TraversalMixin(MemoryGraphBase):
 
         for index, hit in enumerate(replay_hits, start=1):
             contribution = 1.0 / (rrf_k + index)
-            matching_graph = (
-                graph_nodes_by_session.get(hit.session_id) if hit.session_id else None
-            )
+            matching_graph = graph_nodes_by_session.get(hit.session_id) if hit.session_id else None
             if matching_graph is not None:
                 existing = combined.get(f"graph:{matching_graph.id}")
                 if existing is not None:
@@ -1398,21 +1310,13 @@ class TraversalMixin(MemoryGraphBase):
                 seen.add(related_id)
                 ordered_nodes.append(nodes_by_id[related_id])
 
-            edges = self._fetch_edges_for_nodes(
-                connection, [node.id for node in ordered_nodes]
-            )
+            edges = self._fetch_edges_for_nodes(connection, [node.id for node in ordered_nodes])
             now = time.time()
             for node in ordered_nodes:
-                distance = (
-                    0
-                    if node.id == node_id
-                    else nx.shortest_path_length(graph, source=node_id, target=node.id)
-                )
+                distance = 0 if node.id == node_id else nx.shortest_path_length(graph, source=node_id, target=node.id)
                 edge_weight = self._strongest_edge_weight(node.id, edges)
                 similarity = max(0.0, 1.0 - (0.25 * distance))
-                self._apply_node_score(
-                    node, similarity=similarity, edge_weight=edge_weight, now=now
-                )
+                self._apply_node_score(node, similarity=similarity, edge_weight=edge_weight, now=now)
             ordered_nodes.sort(
                 key=lambda node: (
                     -(node.final_score if node.final_score is not None else 0.0),
@@ -1421,9 +1325,7 @@ class TraversalMixin(MemoryGraphBase):
                     node.label.lower(),
                 )
             )
-            self._increment_access_counts(
-                connection, [node.id for node in ordered_nodes]
-            )
+            self._increment_access_counts(connection, [node.id for node in ordered_nodes])
             for node in ordered_nodes:
                 node.access_count += 1
 
@@ -1437,19 +1339,13 @@ class TraversalMixin(MemoryGraphBase):
     def get_stats(self) -> GraphStats:
         with self._lock, self._pool.checkout() as connection:
             total_nodes = int(
-                connection.execute(
-                    "SELECT COUNT(*) FROM nodes WHERE tenant_id = ?", (self.tenant_id,)
-                ).fetchone()[0]
+                connection.execute("SELECT COUNT(*) FROM nodes WHERE tenant_id = ?", (self.tenant_id,)).fetchone()[0]
             )
             total_edges = int(
-                connection.execute(
-                    "SELECT COUNT(*) FROM edges WHERE tenant_id = ?", (self.tenant_id,)
-                ).fetchone()[0]
+                connection.execute("SELECT COUNT(*) FROM edges WHERE tenant_id = ?", (self.tenant_id,)).fetchone()[0]
             )
             total_repos = int(
-                connection.execute(
-                    "SELECT COUNT(*) FROM repos WHERE tenant_id = ?", (self.tenant_id,)
-                ).fetchone()[0]
+                connection.execute("SELECT COUNT(*) FROM repos WHERE tenant_id = ?", (self.tenant_id,)).fetchone()[0]
             )
             total_context_windows = int(
                 connection.execute(
@@ -1592,9 +1488,7 @@ class TraversalMixin(MemoryGraphBase):
                     partition = None
 
             if partition is None:
-                graph = self._load_graph(
-                    connection, node_ids=[node.id for node in nodes]
-                ).to_undirected()
+                graph = self._load_graph(connection, node_ids=[node.id for node in nodes]).to_undirected()
                 partition = self._build_topic_partition(graph, nodes)
                 connection.execute(
                     """
@@ -1647,9 +1541,7 @@ class TraversalMixin(MemoryGraphBase):
         # Count node types
         type_counts: dict[str, int] = {}
         for node in selected_nodes:
-            type_counts[node.node_type.value] = (
-                type_counts.get(node.node_type.value, 0) + 1
-            )
+            type_counts[node.node_type.value] = type_counts.get(node.node_type.value, 0) + 1
 
         # Count edge relationships
         relationship_counts: dict[str, int] = {}
@@ -1659,27 +1551,19 @@ class TraversalMixin(MemoryGraphBase):
 
         # Build type breakdown
         type_breakdown = (
-            ", ".join(
-                f"{count} {ttype}" for ttype, count in sorted(type_counts.items())
-            )
-            if type_counts
-            else "no nodes"
+            ", ".join(f"{count} {ttype}" for ttype, count in sorted(type_counts.items())) if type_counts else "no nodes"
         )
 
         # Build relationship breakdown
         relationship_breakdown = (
-            ", ".join(
-                f"{count} {rel}" for rel, count in sorted(relationship_counts.items())
-            )
+            ", ".join(f"{count} {rel}" for rel, count in sorted(relationship_counts.items()))
             if relationship_counts
             else "no edges"
         )
 
         # Check for contradictions
         has_contradictions = "contradicts" in relationship_counts
-        contradiction_warning = (
-            " [⚠ Contradictions present]" if has_contradictions else ""
-        )
+        contradiction_warning = " [⚠ Contradictions present]" if has_contradictions else ""
 
         # Check for questions
         has_questions = "question" in type_counts
@@ -1747,16 +1631,8 @@ class TraversalMixin(MemoryGraphBase):
                     )
         node_by_id = {node.id: node for node in nodes}
         for edge in edges:
-            source_label = (
-                node_by_id.get(edge.source_id).label
-                if edge.source_id in node_by_id
-                else edge.source_id[:8]
-            )
-            target_label = (
-                node_by_id.get(edge.target_id).label
-                if edge.target_id in node_by_id
-                else edge.target_id[:8]
-            )
+            source_label = node_by_id.get(edge.source_id).label if edge.source_id in node_by_id else edge.source_id[:8]
+            target_label = node_by_id.get(edge.target_id).label if edge.target_id in node_by_id else edge.target_id[:8]
             items.append(
                 ContextTimelineItem(
                     kind=f"edge_{edge.relationship}",
@@ -1853,13 +1729,9 @@ class TraversalMixin(MemoryGraphBase):
             lexical = lexical_by_id.get(node.id, 0.0)
             similarity = max(0.0, min(1.0, (0.8 * semantic) + (0.2 * lexical)))
             base_edge_weight = self._strongest_edge_weight(node.id, edges)
-            degree_component = (
-                degree_by_id.get(node.id, 0) / max_degree if max_degree > 0 else 0.0
-            )
+            degree_component = degree_by_id.get(node.id, 0) / max_degree if max_degree > 0 else 0.0
             depth_component = 1.0 / (1.0 + expanded_depths.get(node.id, max_depth + 1))
-            edge_weight = max(
-                base_edge_weight, (0.6 * degree_component) + (0.4 * depth_component)
-            )
+            edge_weight = max(base_edge_weight, (0.6 * degree_component) + (0.4 * depth_component))
             base = (
                 score_node(
                     similarity,
@@ -1877,9 +1749,7 @@ class TraversalMixin(MemoryGraphBase):
                 meta = expansion_metadata[node.id]
                 base += RELATION_SCORE_BOOST.get(meta.via_relation, 0.0)
 
-            self._apply_node_score(
-                node, similarity=similarity, edge_weight=edge_weight, now=now
-            )
+            self._apply_node_score(node, similarity=similarity, edge_weight=edge_weight, now=now)
             node.final_score = base
             return base
 
@@ -1896,8 +1766,7 @@ class TraversalMixin(MemoryGraphBase):
                 if topic_scores.get(node.id, 0.0) >= TOPIC_RELEVANCE_THRESHOLD
                 and (
                     lexical_by_id.get(node.id, 0.0) > 0.0
-                    or similarity_by_id.get(node.id, 0.0)
-                    >= TOPIC_SEMANTIC_ONLY_THRESHOLD
+                    or similarity_by_id.get(node.id, 0.0) >= TOPIC_SEMANTIC_ONLY_THRESHOLD
                 )
             ]
             if not topical_nodes:
@@ -1909,14 +1778,11 @@ class TraversalMixin(MemoryGraphBase):
                     ),
                 )[: max_nodes * 2]
             else:
-                best_topic_score = max(
-                    topic_scores.get(node.id, 0.0) for node in topical_nodes
-                )
+                best_topic_score = max(topic_scores.get(node.id, 0.0) for node in topical_nodes)
                 narrowed_topical_nodes = [
                     node
                     for node in topical_nodes
-                    if topic_scores.get(node.id, 0.0)
-                    >= best_topic_score - TEMPORAL_TOPIC_MARGIN
+                    if topic_scores.get(node.id, 0.0) >= best_topic_score - TEMPORAL_TOPIC_MARGIN
                 ]
                 if narrowed_topical_nodes:
                     topical_nodes = narrowed_topical_nodes
@@ -1992,9 +1858,7 @@ class TraversalMixin(MemoryGraphBase):
                 embedding = embeddings_by_id.get(node_id)
                 semantic = (
                     max(
-                        self.embedding_model.cosine_similarity(
-                            clause_embedding, embedding
-                        ),
+                        self.embedding_model.cosine_similarity(clause_embedding, embedding),
                         0.0,
                     )
                     if embedding is not None
@@ -2025,11 +1889,7 @@ class TraversalMixin(MemoryGraphBase):
 
     def _negation_boost(self, node: Node) -> float:
         text = normalize_text(" ".join([node.label, node.content, *node.tags]))
-        return (
-            NEGATION_SCORE_BOOST
-            if any(term in text for term in NEGATION_NODE_TERMS)
-            else 0.0
-        )
+        return NEGATION_SCORE_BOOST if any(term in text for term in NEGATION_NODE_TERMS) else 0.0
 
     def _split_query_intents(self, query: str) -> list[str]:
         normalized = re.sub(r"\s+", " ", query.strip())
@@ -2048,9 +1908,7 @@ class TraversalMixin(MemoryGraphBase):
 
     def _expand_query_aliases(self, query: str) -> str:
         normalized = query.lower()
-        aliases = [
-            alias for trigger, alias in QUERY_ALIAS_TERMS if trigger in normalized
-        ]
+        aliases = [alias for trigger, alias in QUERY_ALIAS_TERMS if trigger in normalized]
         if not aliases:
             return query
         return " ".join([query, *aliases])
@@ -2059,10 +1917,7 @@ class TraversalMixin(MemoryGraphBase):
         return self._expand_query_aliases(f"{intent} {full_query}".strip())
 
     def _lexical_score_for_node(self, query: str, node: Node) -> float:
-        tag_text = " ".join(
-            tag.replace(":", " ").replace("_", " ").replace("-", " ")
-            for tag in node.tags
-        )
+        tag_text = " ".join(tag.replace(":", " ").replace("_", " ").replace("-", " ") for tag in node.tags)
         content_score = lexical_overlap(query, node.label, node.content)
         if not tag_text:
             return content_score
@@ -2105,9 +1960,7 @@ class TraversalMixin(MemoryGraphBase):
             scored = lexical_scored or semantic_scored
             if not scored:
                 continue
-            score, node = max(
-                scored, key=lambda item: (item[0], item[1].updated_at.timestamp())
-            )
+            score, node = max(scored, key=lambda item: (item[0], item[1].updated_at.timestamp()))
             if score >= 0.18 and node.id not in selected_ids:
                 selected.append(node)
                 selected_ids.add(node.id)
@@ -2163,9 +2016,7 @@ class TraversalMixin(MemoryGraphBase):
             scored = lexical_scored or semantic_scored
             if not scored:
                 continue
-            score, node = max(
-                scored, key=lambda item: (item[0], item[1].updated_at.timestamp())
-            )
+            score, node = max(scored, key=lambda item: (item[0], item[1].updated_at.timestamp()))
             if score >= 0.20:
                 clause_candidates.append(node)
 
@@ -2207,9 +2058,7 @@ class TraversalMixin(MemoryGraphBase):
             _counter += 1
 
         while heap:
-            _neg_pri, _, node_id, depth, via_relation, from_node, effective_priority = (
-                heapq.heappop(heap)
-            )
+            _neg_pri, _, node_id, depth, via_relation, from_node, effective_priority = heapq.heappop(heap)
 
             if node_id in seen:
                 continue
@@ -2240,9 +2089,7 @@ class TraversalMixin(MemoryGraphBase):
                 relationship = data.get("relationship", "relates_to")
                 weight = float(data.get("weight", 1.0))
 
-                effective = (
-                    self._relation_priority(relationship) * weight * (decay**depth)
-                )
+                effective = self._relation_priority(relationship) * weight * (decay**depth)
 
                 if effective < min_priority:
                     continue
@@ -2324,9 +2171,7 @@ class TraversalMixin(MemoryGraphBase):
 
         return selected_nodes + coverage_nodes[: max_nodes - len(selected_nodes)]
 
-    def _build_topic_partition(
-        self, graph: nx.Graph, nodes: list[Node]
-    ) -> dict[str, int]:
+    def _build_topic_partition(self, graph: nx.Graph, nodes: list[Node]) -> dict[str, int]:
         if graph.number_of_edges() == 0:
             return {node.id: index for index, node in enumerate(nodes)}
         try:
@@ -2388,9 +2233,7 @@ class TraversalMixin(MemoryGraphBase):
         selected: list[str] = []
         for row in rows:
             node = self._row_to_node(row)
-            if not _scope_matches(
-                node, agent_id=agent_id, project=project, session_id=session_id
-            ):
+            if not _scope_matches(node, agent_id=agent_id, project=project, session_id=session_id):
                 continue
             selected.append(str(row["id"]))
             if len(selected) >= limit:
@@ -2420,25 +2263,14 @@ class TraversalMixin(MemoryGraphBase):
         scored: list[tuple[str, float, str]] = []
         for row in rows:
             node = self._row_to_node(row)
-            if not _scope_matches(
-                node, agent_id=agent_id, project=project, session_id=session_id
-            ):
+            if not _scope_matches(node, agent_id=agent_id, project=project, session_id=session_id):
                 continue
 
             tags = json.loads(row["tags"] or "[]")
             tag_match = (
-                1.0
-                if any(
-                    project_lower in {str(tag).lower(), f"project:{str(tag).lower()}"}
-                    for tag in tags
-                )
-                else 0.0
+                1.0 if any(project_lower in {str(tag).lower(), f"project:{str(tag).lower()}"} for tag in tags) else 0.0
             )
-            explicit_match = (
-                1.0
-                if str(row["project"] or "").strip().lower() == project_lower
-                else 0.0
-            )
+            explicit_match = 1.0 if str(row["project"] or "").strip().lower() == project_lower else 0.0
             lexical = lexical_overlap(project, row["label"], row["content"])
             score = max(explicit_match, tag_match, lexical)
             if score <= 0.0:

@@ -229,9 +229,7 @@ _EXPORT_SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     (
         "Secret/token assignment",
-        re.compile(
-            r"(?i)\b(api[_ -]?key|secret[_ -]?key|access[_ -]?token)\b\s*[:=]\s*['\"]?\S+"
-        ),
+        re.compile(r"(?i)\b(api[_ -]?key|secret[_ -]?key|access[_ -]?token)\b\s*[:=]\s*['\"]?\S+"),
     ),
 )
 
@@ -249,11 +247,7 @@ def _resolve_drive_token_path(args: argparse.Namespace, config: AppConfig) -> Pa
     raw = str(getattr(args, "token_path", "") or "").strip()
     if raw:
         return Path(raw).expanduser()
-    export_root = (
-        Path(config.export_dir).expanduser()
-        if config.export_dir
-        else Path.home() / ".waggle"
-    )
+    export_root = Path(config.export_dir).expanduser() if config.export_dir else Path.home() / ".waggle"
     return export_root / "google-drive-token.json"
 
 
@@ -267,9 +261,7 @@ def _serialize_api_key_record(record: ApiKeyRecord) -> dict[str, Any]:
         "created_at": record.created_at.isoformat(),
         "expires_at": record.expires_at.isoformat() if record.expires_at else None,
         "revoked_at": record.revoked_at.isoformat() if record.revoked_at else None,
-        "last_used_at": (
-            record.last_used_at.isoformat() if record.last_used_at else None
-        ),
+        "last_used_at": (record.last_used_at.isoformat() if record.last_used_at else None),
         "created_by": record.created_by,
         "scopes": record.scopes,
     }
@@ -278,17 +270,13 @@ def _serialize_api_key_record(record: ApiKeyRecord) -> dict[str, Any]:
 def _serialize_retention_policy(record: RetentionPolicyRecord) -> dict[str, Any]:
     next_due_at = None
     if record.last_pruned_at is not None:
-        next_due_at = record.last_pruned_at + timedelta(
-            hours=record.prune_interval_hours
-        )
+        next_due_at = record.last_pruned_at + timedelta(hours=record.prune_interval_hours)
     return {
         "tenant_id": record.tenant_id,
         "enabled": record.enabled,
         "retention_days": record.retention_days,
         "prune_interval_hours": record.prune_interval_hours,
-        "last_pruned_at": (
-            record.last_pruned_at.isoformat() if record.last_pruned_at else None
-        ),
+        "last_pruned_at": (record.last_pruned_at.isoformat() if record.last_pruned_at else None),
         "next_due_at": next_due_at.isoformat() if next_due_at else None,
         "created_at": record.created_at.isoformat(),
         "updated_at": record.updated_at.isoformat(),
@@ -302,9 +290,7 @@ def _serialize_retention_run(record: RetentionPruneRunRecord) -> dict[str, Any]:
         "status": record.status,
         "cutoff": record.cutoff.isoformat(),
         "started_at": record.started_at.isoformat(),
-        "completed_at": (
-            record.completed_at.isoformat() if record.completed_at else None
-        ),
+        "completed_at": (record.completed_at.isoformat() if record.completed_at else None),
         "deleted_nodes": record.deleted_nodes,
         "deleted_edges": record.deleted_edges,
         "deleted_transcripts": record.deleted_transcripts,
@@ -506,9 +492,7 @@ def _scope_properties() -> dict[str, dict[str, Any]]:
 
 
 def _assert_runtime_feature_parity() -> None:
-    missing = [
-        name for name in REQUIRED_RUNTIME_METHODS if not hasattr(MemoryGraph, name)
-    ]
+    missing = [name for name in REQUIRED_RUNTIME_METHODS if not hasattr(MemoryGraph, name)]
     if not missing:
         return
     joined = ", ".join(missing)
@@ -582,12 +566,8 @@ class WaggleServer:
             return self.build_tools()
 
         @self.server.call_tool()
-        async def call_tool(
-            name: str, arguments: dict[str, Any]
-        ) -> types.CallToolResult:
-            return await anyio.to_thread.run_sync(
-                self.handle_tool_call, name, arguments or {}
-            )
+        async def call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResult:
+            return await anyio.to_thread.run_sync(self.handle_tool_call, name, arguments or {})
 
         @self.server.list_resources()
         async def list_resources(
@@ -605,9 +585,7 @@ class WaggleServer:
             return self.build_prompts()
 
         @self.server.get_prompt()
-        async def get_prompt(
-            name: str, arguments: dict[str, str] | None
-        ) -> types.GetPromptResult:
+        async def get_prompt(name: str, arguments: dict[str, str] | None) -> types.GetPromptResult:
             return self.get_prompt_result(name, arguments or {})
 
     def build_tools(self) -> list[types.Tool]:
@@ -1679,9 +1657,7 @@ class WaggleServer:
             )
         ]
 
-    def get_prompt_result(
-        self, name: str, arguments: dict[str, str]
-    ) -> types.GetPromptResult:
+    def get_prompt_result(self, name: str, arguments: dict[str, str]) -> types.GetPromptResult:
         if name != "waggle_memory_policy":
             raise ValidationFailure(f"Unknown prompt: {name}")
         project = str(arguments.get("project", "")).strip()
@@ -1694,9 +1670,7 @@ class WaggleServer:
             scope_lines.append(f"- agent_id: {agent_id}")
         if session_id:
             scope_lines.append(f"- session_id: {session_id}")
-        scope_text = (
-            "\n".join(scope_lines) if scope_lines else "- no explicit scope supplied"
-        )
+        scope_text = "\n".join(scope_lines) if scope_lines else "- no explicit scope supplied"
         text = f"{MEMORY_AUTOMATION_POLICY}\nSuggested scope for this conversation:\n{scope_text}\n"
         return types.GetPromptResult(
             description="Automatic Waggle memory policy.",
@@ -1725,10 +1699,7 @@ class WaggleServer:
         graph = self.current_graph()
         started = time.perf_counter()
         graph.ensure_tenant(graph.tenant_id)
-        if (
-            self.config.api_key_environment == "live"
-            and self.config.default_tenant_id == "local-default"
-        ):
+        if self.config.api_key_environment == "live" and self.config.default_tenant_id == "local-default":
             LOGGER.warning(
                 "WAGGLE_API_KEY_ENVIRONMENT is set to 'live' but "
                 "WAGGLE_DEFAULT_TENANT_ID is still 'local-default'. "
@@ -1841,15 +1812,11 @@ class WaggleServer:
         if name in EMBEDDING_FREE_TOOLS:
             return None
         em = graph.embedding_model
-        if em.warmup_status in (
-            STATUS_READY,
-        ):  # shouldn't happen in fast mode, but guard it
+        if em.warmup_status in (STATUS_READY,):  # shouldn't happen in fast mode, but guard it
             return None
         # Best-effort: if the tool supports retrieval_mode, try replay fallback.
         retrieval_mode = (
-            arguments.get("retrieval_mode", "")
-            if name in ("query_graph", "export_context_bundle", "commit")
-            else ""
+            arguments.get("retrieval_mode", "") if name in ("query_graph", "export_context_bundle", "commit") else ""
         )
         if retrieval_mode in ("verbatim", "lexical"):
             return None  # let it through — no embeddings needed
@@ -1867,9 +1834,7 @@ class WaggleServer:
             },
         )
 
-    def handle_tool_call(
-        self, name: str, arguments: dict[str, Any]
-    ) -> types.CallToolResult:
+    def handle_tool_call(self, name: str, arguments: dict[str, Any]) -> types.CallToolResult:
         graph = self.current_graph()
         request = self._get_request()
         request_id = ""
@@ -1892,11 +1857,7 @@ class WaggleServer:
             tenant_id=getattr(graph, "tenant_id", self.config.default_tenant_id),
             transport="http" if request is not None else "stdio",
             backend=self.config.backend,
-            api_key_id=(
-                getattr(getattr(request, "state", object()), "api_key_id", "")
-                if request is not None
-                else ""
-            ),
+            api_key_id=(getattr(getattr(request, "state", object()), "api_key_id", "") if request is not None else ""),
             tool_name=name,
         ):
             try:
@@ -1910,9 +1871,7 @@ class WaggleServer:
                     name = canonical_name
                 if name == "build_context" and not RECURSIVE_CONTEXT_ENABLED:
                     return self._error_result(
-                        ValueError(
-                            "build_context is disabled by WAGGLE_RECURSIVE_CONTEXT_ENABLED=false."
-                        )
+                        ValueError("build_context is disabled by WAGGLE_RECURSIVE_CONTEXT_ENABLED=false.")
                     )
                 LOGGER.info("tool_call_started")
                 if name == "store_node":
@@ -1937,18 +1896,14 @@ class WaggleServer:
                     if not store_result.created:
                         self.metrics.increment(
                             "waggle_dedup_hits_total",
-                            tenant_id=getattr(
-                                graph, "tenant_id", self.config.default_tenant_id
-                            ),
+                            tenant_id=getattr(graph, "tenant_id", self.config.default_tenant_id),
                             dedup_reason=store_result.dedup_reason or "unknown",
                         )
                     if store_result.conflicts:
                         self.metrics.increment(
                             "waggle_conflicts_total",
                             value=len(store_result.conflicts),
-                            tenant_id=getattr(
-                                graph, "tenant_id", self.config.default_tenant_id
-                            ),
+                            tenant_id=getattr(graph, "tenant_id", self.config.default_tenant_id),
                         )
                     result = self._tool_result(
                         text,
@@ -1993,9 +1948,7 @@ class WaggleServer:
                         f"Merged {len(result_obj.merged_node_ids)} node(s) into canonical node '{result_obj.canonical_node.label}' ({result_obj.canonical_node.id}). "
                         f"Repointed {result_obj.edges_repointed} edge(s). Added {len(result_obj.aliases_added)} new alias(es).",
                         {
-                            "canonical_node": self._node_payload(
-                                result_obj.canonical_node
-                            ),
+                            "canonical_node": self._node_payload(result_obj.canonical_node),
                             "merged_node_ids": result_obj.merged_node_ids,
                             "edges_repointed": result_obj.edges_repointed,
                             "aliases_added": result_obj.aliases_added,
@@ -2041,11 +1994,7 @@ class WaggleServer:
                     )
                 elif name == "aggregate_graph":
                     _as_of_raw = arguments.get("as_of")
-                    _as_of = (
-                        datetime.fromisoformat(_as_of_raw).astimezone(UTC)
-                        if _as_of_raw
-                        else None
-                    )
+                    _as_of = datetime.fromisoformat(_as_of_raw).astimezone(UTC) if _as_of_raw else None
                     subgraph = graph.aggregate(
                         query=arguments.get("query", ""),
                         node_types=arguments.get("node_types"),
@@ -2055,9 +2004,7 @@ class WaggleServer:
                         agent_id=arguments.get("agent_id", ""),
                         project=arguments.get("project", ""),
                         session_id=arguments.get("session_id", ""),
-                        include_invalidated=bool(
-                            arguments.get("include_invalidated", False)
-                        ),
+                        include_invalidated=bool(arguments.get("include_invalidated", False)),
                         as_of=_as_of,
                     )
                     result = self._tool_result(
@@ -2066,11 +2013,7 @@ class WaggleServer:
                     )
                 elif name == "query_graph":
                     _as_of_raw = arguments.get("as_of")
-                    _as_of = (
-                        datetime.fromisoformat(_as_of_raw).astimezone(UTC)
-                        if _as_of_raw
-                        else None
-                    )
+                    _as_of = datetime.fromisoformat(_as_of_raw).astimezone(UTC) if _as_of_raw else None
                     subgraph = graph.query(
                         query=arguments["query"],
                         max_nodes=int(arguments.get("max_nodes", 20)),
@@ -2080,9 +2023,7 @@ class WaggleServer:
                         project=arguments.get("project", ""),
                         session_id=arguments.get("session_id", ""),
                         retrieval_mode=arguments.get("retrieval_mode", "hybrid"),
-                        include_invalidated=bool(
-                            arguments.get("include_invalidated", False)
-                        ),
+                        include_invalidated=bool(arguments.get("include_invalidated", False)),
                         as_of=_as_of,
                     )
                     result = self._tool_result(
@@ -2117,30 +2058,18 @@ class WaggleServer:
                     )
                     result = self._tool_result(
                         f"Context windows: {len(windows)}",
-                        {
-                            "windows": [
-                                self._context_window_payload(window)
-                                for window in windows
-                            ]
-                        },
+                        {"windows": [self._context_window_payload(window) for window in windows]},
                     )
                 elif name == "get_context_window":
                     window = graph.get_context_window(arguments["window_id"])
                     edges = graph.get_context_window_edges(window.id)
-                    nodes = (
-                        graph.get_window_nodes(window.id)
-                        if bool(arguments.get("include_nodes", True))
-                        else []
-                    )
+                    nodes = graph.get_window_nodes(window.id) if bool(arguments.get("include_nodes", True)) else []
                     result = self._tool_result(
                         f"Context window {window.id}: {window.node_count} nodes, {len(edges)} connected window edge(s).",
                         {
                             "window": self._context_window_payload(window),
                             "nodes": [self._node_payload(node) for node in nodes],
-                            "window_edges": [
-                                self._context_window_edge_payload(edge)
-                                for edge in edges
-                            ],
+                            "window_edges": [self._context_window_edge_payload(edge) for edge in edges],
                         },
                     )
                 elif name == "close_context_window":
@@ -2150,10 +2079,7 @@ class WaggleServer:
                         f"Closed context window {window.id} with {window.node_count} nodes and {len(edges)} connected window edge(s).",
                         {
                             "window": self._context_window_payload(window),
-                            "window_edges": [
-                                self._context_window_edge_payload(edge)
-                                for edge in edges
-                            ],
+                            "window_edges": [self._context_window_edge_payload(edge) for edge in edges],
                         },
                     )
                 elif name == "get_related":
@@ -2161,9 +2087,7 @@ class WaggleServer:
                         node_id=arguments["node_id"],
                         max_depth=int(arguments.get("max_depth", 2)),
                     )
-                    result = self._tool_result(
-                        serialize_subgraph(subgraph), self._subgraph_payload(subgraph)
-                    )
+                    result = self._tool_result(serialize_subgraph(subgraph), self._subgraph_payload(subgraph))
                 elif name == "get_node_history":
                     history = graph.get_node_history(
                         node_id=arguments["node_id"],
@@ -2181,9 +2105,7 @@ class WaggleServer:
                         max_depth=int(arguments.get("max_depth", 2)),
                         include_evidence=bool(arguments.get("include_evidence", True)),
                     )
-                    result = self._tool_result(
-                        serialize_timeline(timeline), self._timeline_payload(timeline)
-                    )
+                    result = self._tool_result(serialize_timeline(timeline), self._timeline_payload(timeline))
                 elif name == "list_conflicts":
                     conflicts = graph.list_conflicts(
                         include_resolved=bool(arguments.get("include_resolved", False)),
@@ -2228,9 +2150,7 @@ class WaggleServer:
                     dry_run = bool(arguments.get("dry_run", False))
                     if not dry_run:
                         self._require_clear_confirmation(arguments, "clear_session")
-                    cleared = graph.clear_session(
-                        session_id=arguments["session_id"], dry_run=dry_run
-                    )
+                    cleared = graph.clear_session(session_id=arguments["session_id"], dry_run=dry_run)
                     prefix = "[Preview] Would clear" if dry_run else "Cleared"
                     verb = "Would delete" if dry_run else "Deleted"
                     result = self._tool_result(
@@ -2242,9 +2162,7 @@ class WaggleServer:
                     dry_run = bool(arguments.get("dry_run", False))
                     if not dry_run:
                         self._require_clear_confirmation(arguments, "clear_project")
-                    cleared = graph.clear_project(
-                        project=arguments["project"], dry_run=dry_run
-                    )
+                    cleared = graph.clear_project(project=arguments["project"], dry_run=dry_run)
                     prefix = "[Preview] Would clear" if dry_run else "Cleared"
                     verb = "Would delete" if dry_run else "Deleted"
                     result = self._tool_result(
@@ -2269,9 +2187,7 @@ class WaggleServer:
                         content=arguments["content"],
                         context=arguments.get("context", ""),
                     )
-                    result = self._tool_result(
-                        serialize_subgraph(subgraph), self._subgraph_payload(subgraph)
-                    )
+                    result = self._tool_result(serialize_subgraph(subgraph), self._subgraph_payload(subgraph))
                 elif name == "observe_conversation":
                     observation = graph.observe_conversation(
                         user_message=arguments["user_message"],
@@ -2286,9 +2202,7 @@ class WaggleServer:
                     )
                 elif name == "graph_diff":
                     diff = graph.graph_diff(since=arguments.get("since", "24h"))
-                    result = self._tool_result(
-                        serialize_graph_diff(diff), self._graph_diff_payload(diff)
-                    )
+                    result = self._tool_result(serialize_graph_diff(diff), self._graph_diff_payload(diff))
                 elif name == "prime_context":
                     context_result = graph.prime_context(
                         project=arguments.get("project", ""),
@@ -2304,9 +2218,7 @@ class WaggleServer:
                     # topic detection runs across the full tenant graph.
                     force_recompute = bool(arguments.get("force_recompute", False))
                     topics = graph.get_topics(force_recompute=force_recompute)
-                    result = self._tool_result(
-                        serialize_topics(topics), self._topic_payload(topics)
-                    )
+                    result = self._tool_result(serialize_topics(topics), self._topic_payload(topics))
                 elif name == "get_stats":
                     stats = graph.get_stats()
                     em = graph.embedding_model
@@ -2321,11 +2233,7 @@ class WaggleServer:
                     result = self._tool_result(
                         serialize_stats(stats)
                         + f"\nEmbedding status: {embedding_status}"
-                        + (
-                            f" (error: {embedding_error}" + ")"
-                            if embedding_error
-                            else ""
-                        ),
+                        + (f" (error: {embedding_error}" + ")" if embedding_error else ""),
                         stats_payload,
                     )
                 elif name == "export_graph_html":
@@ -2349,13 +2257,8 @@ class WaggleServer:
                         output_path=arguments.get("output_path"),
                         include_physics=bool(arguments.get("include_physics", True)),
                     )
-                    windows = graph.list_context_windows(
-                        project=arguments.get("project", ""), limit=10_000
-                    )
-                    edge_count = sum(
-                        len(graph.get_context_window_edges(window.id))
-                        for window in windows
-                    )
+                    windows = graph.list_context_windows(project=arguments.get("project", ""), limit=10_000)
+                    edge_count = sum(len(graph.get_context_window_edges(window.id)) for window in windows)
                     result = self._tool_result(
                         f"Exported context-window graph visualization to {output_path}.",
                         {
@@ -2370,9 +2273,7 @@ class WaggleServer:
                     # waggle commit — unified export: abhi (default), backup, or bundle
                     commit_format = arguments.get("commit_format", "abhi")
                     if commit_format == "backup":
-                        backup = graph.export_graph_backup(
-                            output_path=arguments.get("output_path")
-                        )
+                        backup = graph.export_graph_backup(output_path=arguments.get("output_path"))
                         result = self._tool_result(
                             f"Committed graph backup to {backup.output_path}.",
                             {
@@ -2397,12 +2298,8 @@ class WaggleServer:
                             format=arguments.get("format", "both"),
                             output_path=arguments.get("output_path"),
                             include_edges=bool(arguments.get("include_edges", True)),
-                            include_timestamps=bool(
-                                arguments.get("include_timestamps", True)
-                            ),
-                            include_source_prompt=bool(
-                                arguments.get("include_source_prompt", False)
-                            ),
+                            include_timestamps=bool(arguments.get("include_timestamps", True)),
+                            include_source_prompt=bool(arguments.get("include_source_prompt", False)),
                             audience=arguments.get("audience", "llm"),
                         )
                         result = self._tool_result(
@@ -2423,9 +2320,7 @@ class WaggleServer:
                             project=arguments.get("project", ""),
                             agent_id=arguments.get("agent_id", ""),
                             session_id=arguments.get("session_id", ""),
-                            include_low_confidence_edges=bool(
-                                arguments.get("include_low_confidence_edges", False)
-                            ),
+                            include_low_confidence_edges=bool(arguments.get("include_low_confidence_edges", False)),
                         )
                         edge_filter = exported.export_context.get("edge_filter", {})
                         filter_summary = ""
@@ -2452,9 +2347,7 @@ class WaggleServer:
                     # waggle pull — unified import: abhi (default) or backup
                     pull_format = arguments.get("pull_format", "abhi")
                     if pull_format == "backup":
-                        imported = graph.import_graph_backup(
-                            input_path=arguments["input_path"]
-                        )
+                        imported = graph.import_graph_backup(input_path=arguments["input_path"])
                         result = self._tool_result(
                             f"Pulled graph backup from {imported.input_path}.",
                             {
@@ -2557,9 +2450,7 @@ class WaggleServer:
                         self._markdown_vault_export_payload(exported),
                     )
                 elif name == "import_markdown_vault":
-                    imported = graph.import_markdown_vault(
-                        root_path=arguments["root_path"]
-                    )
+                    imported = graph.import_markdown_vault(root_path=arguments["root_path"])
                     result = self._tool_result(
                         f"Imported Markdown vault from {imported.root_path}.",
                         self._markdown_vault_import_payload(imported),
@@ -2574,9 +2465,7 @@ class WaggleServer:
                         f"Edge quality report: {report['total_edges']} edges across {report['total_edge_types']} type(s)."
                     ]
                     for rel, stats in sorted(report.get("by_type", {}).items()):
-                        lines.append(
-                            f"  {rel}: count={stats['count']} avg_confidence={stats['avg_confidence']:.3f}"
-                        )
+                        lines.append(f"  {rel}: count={stats['count']} avg_confidence={stats['avg_confidence']:.3f}")
                     result = self._tool_result("\n".join(lines), report)
                 elif name == "build_context":
                     controller = RecursiveContextController(graph=graph)
@@ -2595,12 +2484,8 @@ class WaggleServer:
                     payload = {
                         "context_pack": ctx_result.context_pack,
                         "subqueries": [sq.model_dump() for sq in ctx_result.subqueries],
-                        "nodes_used": [
-                            self._node_payload(n) for n in ctx_result.nodes_used
-                        ],
-                        "edges_used": [
-                            self._edge_payload(e) for e in ctx_result.edges_used
-                        ],
+                        "nodes_used": [self._node_payload(n) for n in ctx_result.nodes_used],
+                        "edges_used": [self._edge_payload(e) for e in ctx_result.edges_used],
                         "transcript_evidence": [
                             (t.model_dump() if hasattr(t, "model_dump") else str(t))
                             for t in ctx_result.transcript_evidence
@@ -2618,9 +2503,7 @@ class WaggleServer:
                     "waggle_tool_requests_total",
                     tool=name,
                     status="success",
-                    tenant_id=getattr(
-                        graph, "tenant_id", self.config.default_tenant_id
-                    ),
+                    tenant_id=getattr(graph, "tenant_id", self.config.default_tenant_id),
                 )
                 self.metrics.observe("waggle_tool_latency_seconds", elapsed, tool=name)
                 self._record_graph_size(graph)
@@ -2632,24 +2515,18 @@ class WaggleServer:
                     "waggle_tool_requests_total",
                     tool=name,
                     status="error",
-                    tenant_id=getattr(
-                        graph, "tenant_id", self.config.default_tenant_id
-                    ),
+                    tenant_id=getattr(graph, "tenant_id", self.config.default_tenant_id),
                 )
                 self.metrics.observe("waggle_tool_latency_seconds", elapsed, tool=name)
                 if isinstance(exc, AuthenticationError):
                     self.metrics.increment(
                         "waggle_auth_failures_total",
-                        tenant_id=getattr(
-                            graph, "tenant_id", self.config.default_tenant_id
-                        ),
+                        tenant_id=getattr(graph, "tenant_id", self.config.default_tenant_id),
                     )
                 LOGGER.exception("tool_call_failed")
                 return self._error_result(exc)
 
-    def _tool_result(
-        self, text: str, structured: dict[str, Any]
-    ) -> types.CallToolResult:
+    def _tool_result(self, text: str, structured: dict[str, Any]) -> types.CallToolResult:
         return types.CallToolResult(
             content=[types.TextContent(type="text", text=text)],
             structuredContent=structured,
@@ -2658,9 +2535,7 @@ class WaggleServer:
     def _error_result(self, exc: Exception) -> types.CallToolResult:
         if isinstance(exc, WaggleError):
             return types.CallToolResult(
-                content=[
-                    types.TextContent(type="text", text=f"Error [{exc.code}]: {exc}")
-                ],
+                content=[types.TextContent(type="text", text=f"Error [{exc.code}]: {exc}")],
                 structuredContent={
                     "error": str(exc),
                     "error_type": type(exc).__name__,
@@ -2676,14 +2551,10 @@ class WaggleServer:
         )
 
     @staticmethod
-    def _require_clear_confirmation(
-        arguments: dict[str, Any], command_name: str
-    ) -> None:
+    def _require_clear_confirmation(arguments: dict[str, Any], command_name: str) -> None:
         if bool(arguments.get("confirm", False)):
             return
-        raise ValidationFailure(
-            f"{command_name} is destructive and requires confirm=true."
-        )
+        raise ValidationFailure(f"{command_name} is destructive and requires confirm=true.")
 
     def _node_payload(self, node: Node) -> dict[str, Any]:
         return {
@@ -2712,12 +2583,8 @@ class WaggleServer:
                 }
                 for record in node.evidence_records
             ],
-            "valid_from": (
-                node.valid_from.isoformat() if node.valid_from is not None else None
-            ),
-            "valid_to": (
-                node.valid_to.isoformat() if node.valid_to is not None else None
-            ),
+            "valid_from": (node.valid_from.isoformat() if node.valid_from is not None else None),
+            "valid_to": (node.valid_to.isoformat() if node.valid_to is not None else None),
             "created_at": node.created_at.isoformat(),
             "updated_at": node.updated_at.isoformat(),
             "access_count": node.access_count,
@@ -2783,11 +2650,7 @@ class WaggleServer:
                     "turn_pair_id": hit.turn_pair_id,
                     "node_ids": hit.node_ids,
                     "reasoning_from_reranker": hit.reasoning_from_reranker,
-                    "observed_at": (
-                        hit.observed_at.isoformat()
-                        if hit.observed_at is not None
-                        else None
-                    ),
+                    "observed_at": (hit.observed_at.isoformat() if hit.observed_at is not None else None),
                     "layer_scores": hit.layer_scores,
                 }
                 for hit in result.hybrid_hits
@@ -2818,9 +2681,7 @@ class WaggleServer:
     def _node_history_payload(self, result: NodeHistoryResult) -> dict[str, Any]:
         return {
             "node": self._node_payload(result.node),
-            "related_nodes": [
-                self._node_payload(node) for node in result.related_nodes
-            ],
+            "related_nodes": [self._node_payload(node) for node in result.related_nodes],
             "edges": [self._edge_payload(edge) for edge in result.edges],
         }
 
@@ -2848,17 +2709,13 @@ class WaggleServer:
             "target_node": self._node_payload(entry.target_node),
             "resolved": entry.resolved,
             "resolution_note": entry.resolution_note,
-            "resolved_at": (
-                entry.resolved_at.isoformat() if entry.resolved_at is not None else None
-            ),
+            "resolved_at": (entry.resolved_at.isoformat() if entry.resolved_at is not None else None),
         }
 
     def _conflict_list_payload(self, result: ConflictListResult) -> dict[str, Any]:
         return {
             "include_resolved": result.include_resolved,
-            "conflicts": [
-                self._conflict_entry_payload(entry) for entry in result.conflicts
-            ],
+            "conflicts": [self._conflict_entry_payload(entry) for entry in result.conflicts],
         }
 
     def _context_scope_payload(self, result: ContextScopeResult) -> dict[str, Any]:
@@ -2883,9 +2740,7 @@ class WaggleServer:
             "embedding_stale": window.embedding_stale,
             "created_at": window.created_at.isoformat(),
             "updated_at": window.updated_at.isoformat(),
-            "closed_at": (
-                window.closed_at.isoformat() if window.closed_at is not None else None
-            ),
+            "closed_at": (window.closed_at.isoformat() if window.closed_at is not None else None),
         }
 
     def _context_window_edge_payload(self, edge: ContextWindowEdge) -> dict[str, Any]:
@@ -2906,15 +2761,9 @@ class WaggleServer:
             "since": result.since,
             "generated_at": result.generated_at.isoformat(),
             "added_nodes": [self._node_payload(node) for node in result.added_nodes],
-            "updated_nodes": [
-                self._node_payload(node) for node in result.updated_nodes
-            ],
-            "created_edges": [
-                self._edge_payload(edge) for edge in result.created_edges
-            ],
-            "contradiction_edges": [
-                self._edge_payload(edge) for edge in result.contradiction_edges
-            ],
+            "updated_nodes": [self._node_payload(node) for node in result.updated_nodes],
+            "created_edges": [self._edge_payload(edge) for edge in result.created_edges],
+            "contradiction_edges": [self._edge_payload(edge) for edge in result.contradiction_edges],
         }
 
     def _prime_context_payload(self, result: PrimeContextResult) -> dict[str, Any]:
@@ -2926,9 +2775,7 @@ class WaggleServer:
             "edges": [self._edge_payload(edge) for edge in result.edges],
         }
 
-    def _context_bundle_payload(
-        self, result: ContextBundleExportResult
-    ) -> dict[str, Any]:
+    def _context_bundle_payload(self, result: ContextBundleExportResult) -> dict[str, Any]:
         return {
             "tenant_id": result.tenant_id,
             "project": result.project,
@@ -2995,9 +2842,7 @@ class WaggleServer:
             ],
         }
 
-    def _markdown_vault_export_payload(
-        self, result: MarkdownVaultExportResult
-    ) -> dict[str, Any]:
+    def _markdown_vault_export_payload(self, result: MarkdownVaultExportResult) -> dict[str, Any]:
         return {
             "root_path": result.root_path,
             "tenant_id": result.tenant_id,
@@ -3007,9 +2852,7 @@ class WaggleServer:
             "files_written": result.files_written,
         }
 
-    def _markdown_vault_import_payload(
-        self, result: MarkdownVaultImportResult
-    ) -> dict[str, Any]:
+    def _markdown_vault_import_payload(self, result: MarkdownVaultImportResult) -> dict[str, Any]:
         return {
             "root_path": result.root_path,
             "tenant_id": result.tenant_id,
@@ -3024,32 +2867,16 @@ class WaggleServer:
     def _validate_tool_payload(self, name: str, arguments: dict[str, Any]) -> None:
         limit = self.config.max_payload_bytes
         if name == "store_node":
-            self._assert_payload_size(
-                arguments.get("label", ""), limit, "store_node.label"
-            )
-            self._assert_payload_size(
-                arguments.get("content", ""), limit, "store_node.content"
-            )
-            self._assert_payload_size(
-                arguments.get("source_prompt", ""), limit, "store_node.source_prompt"
-            )
-            self._assert_payload_size(
-                arguments.get("agent_id", ""), limit, "store_node.agent_id"
-            )
-            self._assert_payload_size(
-                arguments.get("project", ""), limit, "store_node.project"
-            )
-            self._assert_payload_size(
-                arguments.get("session_id", ""), limit, "store_node.session_id"
-            )
+            self._assert_payload_size(arguments.get("label", ""), limit, "store_node.label")
+            self._assert_payload_size(arguments.get("content", ""), limit, "store_node.content")
+            self._assert_payload_size(arguments.get("source_prompt", ""), limit, "store_node.source_prompt")
+            self._assert_payload_size(arguments.get("agent_id", ""), limit, "store_node.agent_id")
+            self._assert_payload_size(arguments.get("project", ""), limit, "store_node.project")
+            self._assert_payload_size(arguments.get("session_id", ""), limit, "store_node.session_id")
             return
         if name == "decompose_and_store":
-            self._assert_payload_size(
-                arguments.get("content", ""), limit, "decompose_and_store.content"
-            )
-            self._assert_payload_size(
-                arguments.get("context", ""), limit, "decompose_and_store.context"
-            )
+            self._assert_payload_size(arguments.get("content", ""), limit, "decompose_and_store.content")
+            self._assert_payload_size(arguments.get("context", ""), limit, "decompose_and_store.context")
             return
         if name == "observe_conversation":
             self._assert_payload_size(
@@ -3062,12 +2889,8 @@ class WaggleServer:
                 limit,
                 "observe_conversation.assistant_response",
             )
-            self._assert_payload_size(
-                arguments.get("agent_id", ""), limit, "observe_conversation.agent_id"
-            )
-            self._assert_payload_size(
-                arguments.get("project", ""), limit, "observe_conversation.project"
-            )
+            self._assert_payload_size(arguments.get("agent_id", ""), limit, "observe_conversation.agent_id")
+            self._assert_payload_size(arguments.get("project", ""), limit, "observe_conversation.project")
             self._assert_payload_size(
                 arguments.get("session_id", ""),
                 limit,
@@ -3075,90 +2898,46 @@ class WaggleServer:
             )
             return
         if name == "aggregate_graph":
-            self._assert_payload_size(
-                arguments.get("query", ""), limit, "aggregate_graph.query"
-            )
-            self._assert_payload_size(
-                arguments.get("agent_id", ""), limit, "aggregate_graph.agent_id"
-            )
-            self._assert_payload_size(
-                arguments.get("project", ""), limit, "aggregate_graph.project"
-            )
-            self._assert_payload_size(
-                arguments.get("session_id", ""), limit, "aggregate_graph.session_id"
-            )
+            self._assert_payload_size(arguments.get("query", ""), limit, "aggregate_graph.query")
+            self._assert_payload_size(arguments.get("agent_id", ""), limit, "aggregate_graph.agent_id")
+            self._assert_payload_size(arguments.get("project", ""), limit, "aggregate_graph.project")
+            self._assert_payload_size(arguments.get("session_id", ""), limit, "aggregate_graph.session_id")
             return
         if name == "query_graph":
-            self._assert_payload_size(
-                arguments.get("query", ""), limit, "query_graph.query"
-            )
-            self._assert_payload_size(
-                arguments.get("agent_id", ""), limit, "query_graph.agent_id"
-            )
-            self._assert_payload_size(
-                arguments.get("project", ""), limit, "query_graph.project"
-            )
-            self._assert_payload_size(
-                arguments.get("session_id", ""), limit, "query_graph.session_id"
-            )
+            self._assert_payload_size(arguments.get("query", ""), limit, "query_graph.query")
+            self._assert_payload_size(arguments.get("agent_id", ""), limit, "query_graph.agent_id")
+            self._assert_payload_size(arguments.get("project", ""), limit, "query_graph.project")
+            self._assert_payload_size(arguments.get("session_id", ""), limit, "query_graph.session_id")
             return
         if name == "debug_retrieval":
-            self._assert_payload_size(
-                arguments.get("query", ""), limit, "debug_retrieval.query"
-            )
-            self._assert_payload_size(
-                arguments.get("agent_id", ""), limit, "debug_retrieval.agent_id"
-            )
-            self._assert_payload_size(
-                arguments.get("project", ""), limit, "debug_retrieval.project"
-            )
-            self._assert_payload_size(
-                arguments.get("session_id", ""), limit, "debug_retrieval.session_id"
-            )
+            self._assert_payload_size(arguments.get("query", ""), limit, "debug_retrieval.query")
+            self._assert_payload_size(arguments.get("agent_id", ""), limit, "debug_retrieval.agent_id")
+            self._assert_payload_size(arguments.get("project", ""), limit, "debug_retrieval.project")
+            self._assert_payload_size(arguments.get("session_id", ""), limit, "debug_retrieval.session_id")
             return
         if name in ("export_context_bundle", "commit"):
             self._assert_payload_size(arguments.get("query", ""), limit, "commit.query")
-            self._assert_payload_size(
-                arguments.get("project", ""), limit, "commit.project"
-            )
-            self._assert_payload_size(
-                arguments.get("agent_id", ""), limit, "commit.agent_id"
-            )
-            self._assert_payload_size(
-                arguments.get("session_id", ""), limit, "commit.session_id"
-            )
-            self._assert_payload_size(
-                arguments.get("output_path", ""), limit, "commit.output_path"
-            )
+            self._assert_payload_size(arguments.get("project", ""), limit, "commit.project")
+            self._assert_payload_size(arguments.get("agent_id", ""), limit, "commit.agent_id")
+            self._assert_payload_size(arguments.get("session_id", ""), limit, "commit.session_id")
+            self._assert_payload_size(arguments.get("output_path", ""), limit, "commit.output_path")
             return
         if name == "window_graph_viz":
-            self._assert_payload_size(
-                arguments.get("project", ""), limit, "window_graph_viz.project"
-            )
-            self._assert_payload_size(
-                arguments.get("output_path", ""), limit, "window_graph_viz.output_path"
-            )
+            self._assert_payload_size(arguments.get("project", ""), limit, "window_graph_viz.project")
+            self._assert_payload_size(arguments.get("output_path", ""), limit, "window_graph_viz.output_path")
             return
         if name == "timeline":
-            self._assert_payload_size(
-                arguments.get("query", ""), limit, "timeline.query"
-            )
-            self._assert_payload_size(
-                arguments.get("node_id", ""), limit, "timeline.node_id"
-            )
+            self._assert_payload_size(arguments.get("query", ""), limit, "timeline.query")
+            self._assert_payload_size(arguments.get("node_id", ""), limit, "timeline.node_id")
             return
         if name == "resolve_conflict":
-            self._assert_payload_size(
-                arguments.get("edge_id", ""), limit, "resolve_conflict.edge_id"
-            )
+            self._assert_payload_size(arguments.get("edge_id", ""), limit, "resolve_conflict.edge_id")
             self._assert_payload_size(
                 arguments.get("resolution_note", ""),
                 limit,
                 "resolve_conflict.resolution_note",
             )
-            self._assert_payload_size(
-                arguments.get("winner", ""), limit, "resolve_conflict.winner"
-            )
+            self._assert_payload_size(arguments.get("winner", ""), limit, "resolve_conflict.winner")
 
     @staticmethod
     def _assert_payload_size(value: Any, limit: int, field_name: str) -> None:
@@ -3166,19 +2945,13 @@ class WaggleServer:
             return
         size = len(str(value).encode("utf-8"))
         if size > limit:
-            raise PayloadTooLargeError(
-                f"{field_name} exceeds the configured payload limit."
-            )
+            raise PayloadTooLargeError(f"{field_name} exceeds the configured payload limit.")
 
     def _record_graph_size(self, graph: Any) -> None:
         stats = graph.get_stats()
         tenant_id = getattr(graph, "tenant_id", self.config.default_tenant_id)
-        self.metrics.set_gauge(
-            "waggle_graph_nodes", stats.total_nodes, tenant_id=tenant_id
-        )
-        self.metrics.set_gauge(
-            "waggle_graph_edges", stats.total_edges, tenant_id=tenant_id
-        )
+        self.metrics.set_gauge("waggle_graph_nodes", stats.total_nodes, tenant_id=tenant_id)
+        self.metrics.set_gauge("waggle_graph_edges", stats.total_edges, tenant_id=tenant_id)
 
 
 class MCPHttpApp:
@@ -3197,9 +2970,7 @@ class MCPHttpApp:
 
     @asynccontextmanager
     async def lifespan(self, app: Starlette):
-        self.transport = StreamableHTTPServerTransport(
-            mcp_session_id=None, is_json_response_enabled=False
-        )
+        self.transport = StreamableHTTPServerTransport(mcp_session_id=None, is_json_response_enabled=False)
         # Kick off background embedding warmup for HTTP transport (non-blocking).
         em = self.app_server._root_graph.embedding_model
         if (
@@ -3235,10 +3006,7 @@ class MCPHttpApp:
     async def mcp_asgi(self, scope: Any, receive: Any, send: Any) -> None:
         started = time.perf_counter()
         method = scope["method"]
-        headers = {
-            key.decode("latin-1").lower(): value.decode("latin-1")
-            for key, value in scope.get("headers", [])
-        }
+        headers = {key.decode("latin-1").lower(): value.decode("latin-1") for key, value in scope.get("headers", [])}
         request_id = headers.get("x-request-id", str(uuid.uuid4()))
         status_holder = {"status": 500}
 
@@ -3259,8 +3027,7 @@ class MCPHttpApp:
                     raise PayloadTooLargeError()
                 receive_callable = self._replay_receive(body)
                 headers = {
-                    key.decode("latin-1").lower(): value.decode("latin-1")
-                    for key, value in scope.get("headers", [])
+                    key.decode("latin-1").lower(): value.decode("latin-1") for key, value in scope.get("headers", [])
                 }
 
             raw_api_key = headers.get("x-api-key", "")
@@ -3286,12 +3053,8 @@ class MCPHttpApp:
             )
 
             tool_name = self._extract_tool_name(body)
-            principal.require_scope(
-                "graph:write" if tool_name in WRITE_HEAVY_TOOLS else "graph:read"
-            )
-            await self.rate_limiter.check_rate(
-                principal.api_key_id, is_write=tool_name in WRITE_HEAVY_TOOLS
-            )
+            principal.require_scope("graph:write" if tool_name in WRITE_HEAVY_TOOLS else "graph:read")
+            await self.rate_limiter.check_rate(principal.api_key_id, is_write=tool_name in WRITE_HEAVY_TOOLS)
             async with self.rate_limiter.concurrency_slot(principal.api_key_id):
                 with runtime_context(
                     request_id=request_id,
@@ -3303,9 +3066,7 @@ class MCPHttpApp:
                 ):
                     with anyio.fail_after(self.config.request_timeout_seconds):
                         assert self.transport is not None
-                        await self.transport.handle_request(
-                            scope, receive_callable, send_wrapper
-                        )
+                        await self.transport.handle_request(scope, receive_callable, send_wrapper)
         except WaggleError as exc:
             LOGGER.warning(
                 "http_request_failed",
@@ -3315,9 +3076,9 @@ class MCPHttpApp:
                 self.metrics.increment("waggle_auth_failures_total")
             if exc.code == "rate_limited":
                 self.metrics.increment("waggle_rate_limit_rejections_total")
-            await JSONResponse(
-                {"error": exc.code, "message": str(exc)}, status_code=exc.status_code
-            )(scope, receive, send)
+            await JSONResponse({"error": exc.code, "message": str(exc)}, status_code=exc.status_code)(
+                scope, receive, send
+            )
             status_holder["status"] = exc.status_code
         finally:
             elapsed = time.perf_counter() - started
@@ -3397,9 +3158,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             service.metrics.increment("waggle_auth_failures_total")
         if exc.code == "rate_limited":
             service.metrics.increment("waggle_rate_limit_rejections_total")
-        return JSONResponse(
-            {"error": exc.code, "message": str(exc)}, status_code=exc.status_code
-        )
+        return JSONResponse({"error": exc.code, "message": str(exc)}, status_code=exc.status_code)
 
     async def live(_: Request) -> Response:
         return JSONResponse({"status": "live"})
@@ -3411,9 +3170,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         return JSONResponse({"status": "ready"})
 
     async def metrics_endpoint(request: Request) -> Response:
-        return PlainTextResponse(
-            request.app.state.http_service.metrics.render_prometheus()
-        )
+        return PlainTextResponse(request.app.state.http_service.metrics.render_prometheus())
 
     def _scope_from_request(request: Request) -> dict[str, str]:
         return {
@@ -3422,17 +3179,13 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             "session_id": request.query_params.get("session_id", "").strip(),
         }
 
-    def _graph_from_request(
-        request: Request, *, tenant_override: str = ""
-    ) -> tuple[Any, Any | None]:
+    def _graph_from_request(request: Request, *, tenant_override: str = "") -> tuple[Any, Any | None]:
         raw_api_key = request.headers.get("x-api-key", "").strip()
         if raw_api_key:
             principal = app_server._root_graph.authenticate_api_key(raw_api_key)
             return app_server._root_graph.for_tenant(principal.tenant_id), principal
         tenant_id = (
-            tenant_override.strip()
-            or request.query_params.get("tenant_id", "").strip()
-            or config.default_tenant_id
+            tenant_override.strip() or request.query_params.get("tenant_id", "").strip() or config.default_tenant_id
         )
         return app_server.graph.for_tenant(tenant_id), None
 
@@ -3447,22 +3200,14 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         tenant_override: str = "",
     ) -> None:
         try:
-            graph, principal = _graph_from_request(
-                request, tenant_override=tenant_override
-            )
+            graph, principal = _graph_from_request(request, tenant_override=tenant_override)
         except AuthenticationError:
-            graph = app_server.graph.for_tenant(
-                tenant_override.strip() or config.default_tenant_id
-            )
+            graph = app_server.graph.for_tenant(tenant_override.strip() or config.default_tenant_id)
             principal = None
         graph.emit_audit_event(
             event_type=event_type,
             actor_type="api_key" if principal is not None else "admin",
-            actor_id=(
-                (principal.name or principal.api_key_id)
-                if principal is not None
-                else "local-http"
-            ),
+            actor_id=((principal.name or principal.api_key_id) if principal is not None else "local-http"),
             api_key_id=principal.api_key_id if principal is not None else "",
             resource_type=resource_type,
             resource_id=resource_id,
@@ -3480,21 +3225,16 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             principal.require_scope(required_scope)
         return graph, principal
 
-    def _build_scoped_abhi(
-        graph: Any, scope: dict[str, str]
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
+    def _build_scoped_abhi(graph: Any, scope: dict[str, str]) -> tuple[dict[str, Any], dict[str, Any]]:
         snapshot = graph.get_graph_snapshot(**scope)
         return snapshot, build_abhi_document(snapshot)
 
     def _validate_live_snapshot(snapshot: dict[str, Any]) -> None:
-        validation = validate_abhi_document(
-            build_abhi_document(snapshot), input_path="live://graph"
-        )
+        validation = validate_abhi_document(build_abhi_document(snapshot), input_path="live://graph")
         blocking_errors = [
             error
             for error in validation.errors
-            if "cannot originate from node type" not in error
-            and "cannot target node type" not in error
+            if "cannot originate from node type" not in error and "cannot target node type" not in error
         ]
         if blocking_errors:
             raise ValidationFailure("; ".join(blocking_errors))
@@ -3508,34 +3248,18 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         current = existing or {}
         now = time.strftime("%Y-%m-%dT%H:%M:%S%z")
         return {
-            "id": str(
-                current.get("id") or payload.get("id") or f"preview-{uuid.uuid4()}"
-            ).strip(),
+            "id": str(current.get("id") or payload.get("id") or f"preview-{uuid.uuid4()}").strip(),
             "tenant_id": str(snapshot.get("tenant_id", "")),
-            "agent_id": str(
-                payload.get("agent_id", current.get("agent_id", ""))
-                or current.get("agent_id", "")
-            ),
-            "project": str(
-                payload.get("project", current.get("project", ""))
-                or current.get("project", "")
-            ),
+            "agent_id": str(payload.get("agent_id", current.get("agent_id", "")) or current.get("agent_id", "")),
+            "project": str(payload.get("project", current.get("project", "")) or current.get("project", "")),
             "session_id": str(
-                payload.get("session_id", current.get("session_id", ""))
-                or current.get("session_id", "")
+                payload.get("session_id", current.get("session_id", "")) or current.get("session_id", "")
             ),
             "context_window_id": current.get("context_window_id"),
-            "label": str(
-                payload.get("label", current.get("label", ""))
-                or current.get("label", "")
-            ).strip(),
-            "content": str(
-                payload.get("content", current.get("content", ""))
-                or current.get("content", "")
-            ).strip(),
+            "label": str(payload.get("label", current.get("label", "")) or current.get("label", "")).strip(),
+            "content": str(payload.get("content", current.get("content", "")) or current.get("content", "")).strip(),
             "node_type": str(
-                payload.get("node_type", current.get("node_type", "note"))
-                or current.get("node_type", "note")
+                payload.get("node_type", current.get("node_type", "note")) or current.get("node_type", "note")
             ).strip(),
             "tags": payload.get("tags", current.get("tags", [])) or [],
             "source_prompt": current.get("source_prompt", ""),
@@ -3557,26 +3281,18 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         current = existing or {}
         now = time.strftime("%Y-%m-%dT%H:%M:%S%z")
         return {
-            "id": str(
-                current.get("id") or payload.get("id") or f"preview-{uuid.uuid4()}"
-            ).strip(),
+            "id": str(current.get("id") or payload.get("id") or f"preview-{uuid.uuid4()}").strip(),
             "tenant_id": str(snapshot.get("tenant_id", "")),
             "source_id": str(
-                payload.get("source_id", current.get("source_id", ""))
-                or current.get("source_id", "")
+                payload.get("source_id", current.get("source_id", "")) or current.get("source_id", "")
             ).strip(),
             "target_id": str(
-                payload.get("target_id", current.get("target_id", ""))
-                or current.get("target_id", "")
+                payload.get("target_id", current.get("target_id", "")) or current.get("target_id", "")
             ).strip(),
             "relationship": str(
-                payload.get("relationship", current.get("relationship", ""))
-                or current.get("relationship", "")
+                payload.get("relationship", current.get("relationship", "")) or current.get("relationship", "")
             ).strip(),
-            "weight": float(
-                payload.get("weight", current.get("weight", 1.0))
-                or current.get("weight", 1.0)
-            ),
+            "weight": float(payload.get("weight", current.get("weight", 1.0)) or current.get("weight", 1.0)),
             "metadata": current.get("metadata", {}),
             "created_at": current.get("created_at", now),
         }
@@ -3606,17 +3322,13 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
     async def graph_snapshot(request: Request) -> Response:
         scope = _scope_from_request(request)
         graph, _ = _require_http_scope(request, "graph:read")
-        include_source_prompt = request.query_params.get(
-            "include_source_prompt", ""
-        ).strip().lower() in {
+        include_source_prompt = request.query_params.get("include_source_prompt", "").strip().lower() in {
             "1",
             "true",
             "yes",
         }
         try:
-            snapshot = graph.get_graph_snapshot(
-                include_source_prompt=include_source_prompt, **scope
-            )
+            snapshot = graph.get_graph_snapshot(include_source_prompt=include_source_prompt, **scope)
         except TypeError:
             snapshot = graph.get_graph_snapshot(**scope)
         _emit_http_audit(
@@ -3649,9 +3361,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         query_text = request.query_params.get("query", "").strip()
         graph, _ = _require_http_scope(request, "graph:read")
         if query_text and hasattr(graph, "search_transcript_records"):
-            hits = graph.search_transcript_records(
-                query=query_text, limit=limit, **scope
-            )
+            hits = graph.search_transcript_records(query=query_text, limit=limit, **scope)
             _emit_http_audit(
                 request,
                 event_type="record.read",
@@ -3667,9 +3377,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 }
             )
         if not hasattr(graph, "list_transcript_records"):
-            raise ValidationFailure(
-                "Transcript listing is not available in this backend."
-            )
+            raise ValidationFailure("Transcript listing is not available in this backend.")
         records = graph.list_transcript_records(limit=limit, offset=offset, **scope)
         total_count = graph.count_transcript_records(**scope)
         _emit_http_audit(
@@ -3751,8 +3459,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                     "session_id": hit.session_id,
                     "turn_index": hit.turn_index,
                     "transcript_snippet": hit.transcript_snippet,
-                    "reasoning": ", ".join(reasoning)
-                    or "ranked by reciprocal-rank fusion",
+                    "reasoning": ", ".join(reasoning) or "ranked by reciprocal-rank fusion",
                 }
             )
         _emit_http_audit(
@@ -3769,9 +3476,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         return JSONResponse(
             {
                 "debug": debug,
-                "replay_hits": [
-                    hit.model_dump(mode="json") for hit in fusion.replay_hits
-                ],
+                "replay_hits": [hit.model_dump(mode="json") for hit in fusion.replay_hits],
                 "fusion_hits": fused_ranking,
                 "token_estimate": int(token_estimate),
             }
@@ -3847,18 +3552,10 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         return JSONResponse(
             {
                 "since": diff.since,
-                "added_nodes": [
-                    node.model_dump(mode="json") for node in diff.added_nodes
-                ],
-                "updated_nodes": [
-                    node.model_dump(mode="json") for node in diff.updated_nodes
-                ],
-                "created_edges": [
-                    edge.model_dump(mode="json") for edge in diff.created_edges
-                ],
-                "contradiction_edges": [
-                    edge.model_dump(mode="json") for edge in diff.contradiction_edges
-                ],
+                "added_nodes": [node.model_dump(mode="json") for node in diff.added_nodes],
+                "updated_nodes": [node.model_dump(mode="json") for node in diff.updated_nodes],
+                "created_edges": [edge.model_dump(mode="json") for edge in diff.created_edges],
+                "contradiction_edges": [edge.model_dump(mode="json") for edge in diff.contradiction_edges],
             }
         )
 
@@ -3870,11 +3567,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             agent_id=str(payload.get("agent_id", "")).strip(),
             session_id=str(payload.get("session_id", "")).strip(),
             positions=payload.get("positions"),
-            zoom=(
-                float(payload["zoom"])
-                if "zoom" in payload and payload.get("zoom") is not None
-                else None
-            ),
+            zoom=(float(payload["zoom"]) if "zoom" in payload and payload.get("zoom") is not None else None),
             viewport=payload.get("viewport"),
             groups=payload.get("groups"),
             collapsed_groups=payload.get("collapsed_groups"),
@@ -3921,11 +3614,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 graph.delete_node(node_id=node_id)
 
         for node_id, node_payload in desired_nodes.items():
-            tags = [
-                str(tag).strip()
-                for tag in node_payload.get("tags", [])
-                if str(tag).strip()
-            ]
+            tags = [str(tag).strip() for tag in node_payload.get("tags", []) if str(tag).strip()]
             if node_id in current_nodes:
                 graph.update_node(
                     node_id=node_id,
@@ -3938,15 +3627,11 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 node_id=node_id,
                 label=str(node_payload.get("label", "")).strip(),
                 content=str(node_payload.get("content", "")).strip(),
-                node_type=NodeType(
-                    str(node_payload.get("node_type", "note")).strip() or "note"
-                ),
+                node_type=NodeType(str(node_payload.get("node_type", "note")).strip() or "note"),
                 tags=tags,
                 agent_id=str(node_payload.get("agent_id", scope["agent_id"])).strip(),
                 project=str(node_payload.get("project", scope["project"])).strip(),
-                session_id=str(
-                    node_payload.get("session_id", scope["session_id"])
-                ).strip(),
+                session_id=str(node_payload.get("session_id", scope["session_id"])).strip(),
             )
 
         for edge_id, edge_payload in desired_edges.items():
@@ -3955,12 +3640,10 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                     edge_id=edge_id,
                     source_id=str(edge_payload.get("source_id", "")).strip() or None,
                     target_id=str(edge_payload.get("target_id", "")).strip() or None,
-                    relationship=str(edge_payload.get("relationship", "")).strip()
-                    or None,
+                    relationship=str(edge_payload.get("relationship", "")).strip() or None,
                     weight=(
                         float(edge_payload["weight"])
-                        if "weight" in edge_payload
-                        and edge_payload.get("weight") is not None
+                        if "weight" in edge_payload and edge_payload.get("weight") is not None
                         else None
                     ),
                 )
@@ -3979,11 +3662,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             agent_id=scope["agent_id"],
             session_id=scope["session_id"],
             positions=ui.get("positions"),
-            zoom=(
-                float(ui["zoom"])
-                if "zoom" in ui and ui.get("zoom") is not None
-                else None
-            ),
+            zoom=(float(ui["zoom"]) if "zoom" in ui and ui.get("zoom") is not None else None),
             viewport=ui.get("viewport"),
             groups=ui.get("groups"),
             collapsed_groups=ui.get("collapsed_groups"),
@@ -4017,9 +3696,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             label=str(payload.get("label", "")).strip(),
             content=str(payload.get("content", "")).strip(),
             node_type=NodeType(str(payload.get("node_type", "note")).strip() or "note"),
-            tags=[
-                str(tag).strip() for tag in payload.get("tags", []) if str(tag).strip()
-            ],
+            tags=[str(tag).strip() for tag in payload.get("tags", []) if str(tag).strip()],
             agent_id=str(payload.get("agent_id", "")).strip(),
             project=str(payload.get("project", "")).strip(),
             session_id=str(payload.get("session_id", "")).strip(),
@@ -4032,20 +3709,14 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         graph, _ = _require_http_scope(request, "graph:write")
         snapshot = graph.get_graph_snapshot()
         existing = next(
-            (
-                node
-                for node in snapshot.get("nodes", [])
-                if str(node.get("id", "")).strip() == node_id
-            ),
+            (node for node in snapshot.get("nodes", []) if str(node.get("id", "")).strip() == node_id),
             None,
         )
         if existing is None:
             raise ValidationFailure(f"Node not found: {node_id}")
         snapshot["nodes"] = [
             (
-                _node_snapshot_payload(
-                    snapshot=snapshot, payload=payload, existing=existing
-                )
+                _node_snapshot_payload(snapshot=snapshot, payload=payload, existing=existing)
                 if str(node.get("id", "")).strip() == node_id
                 else node
             )
@@ -4073,13 +3744,9 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         try:
             weight_value = float(raw_weight)
         except (TypeError, ValueError):
-            raise ValidationFailure(
-                "Edge weight must be a numeric value between 0 and 1."
-            )
+            raise ValidationFailure("Edge weight must be a numeric value between 0 and 1.")
         if not (0 <= weight_value <= 1):
-            raise ValidationFailure(
-                "Edge weight must be a numeric value between 0 and 1."
-            )
+            raise ValidationFailure("Edge weight must be a numeric value between 0 and 1.")
         snapshot = graph.get_graph_snapshot()
         snapshot["edges"] = [
             *snapshot.get("edges", []),
@@ -4103,29 +3770,19 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             try:
                 weight_value = float(payload["weight"])
             except (TypeError, ValueError):
-                raise ValidationFailure(
-                    "Edge weight must be a numeric value between 0 and 1."
-                )
+                raise ValidationFailure("Edge weight must be a numeric value between 0 and 1.")
             if not (0 <= weight_value <= 1):
-                raise ValidationFailure(
-                    "Edge weight must be a numeric value between 0 and 1."
-                )
+                raise ValidationFailure("Edge weight must be a numeric value between 0 and 1.")
         snapshot = graph.get_graph_snapshot()
         existing = next(
-            (
-                item
-                for item in snapshot.get("edges", [])
-                if str(item.get("id", "")).strip() == edge_id
-            ),
+            (item for item in snapshot.get("edges", []) if str(item.get("id", "")).strip() == edge_id),
             None,
         )
         if existing is None:
             raise ValidationFailure(f"Edge not found: {edge_id}")
         snapshot["edges"] = [
             (
-                _edge_snapshot_payload(
-                    snapshot=snapshot, payload=payload, existing=existing
-                )
+                _edge_snapshot_payload(snapshot=snapshot, payload=payload, existing=existing)
                 if str(item.get("id", "")).strip() == edge_id
                 else item
             )
@@ -4138,11 +3795,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             source_id=str(payload.get("source_id", "")).strip() or None,
             target_id=str(payload.get("target_id", "")).strip() or None,
             relationship=str(payload.get("relationship", "")).strip() or None,
-            weight=(
-                float(payload["weight"])
-                if "weight" in payload and payload.get("weight") is not None
-                else None
-            ),
+            weight=(float(payload["weight"]) if "weight" in payload and payload.get("weight") is not None else None),
         )
         return JSONResponse(edge.model_dump(mode="json"))
 
@@ -4170,9 +3823,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             return Response(
                 content,
                 media_type="application/octet-stream",
-                headers={
-                    "Content-Disposition": 'attachment; filename="waggle-memory.abhi"'
-                },
+                headers={"Content-Disposition": 'attachment; filename="waggle-memory.abhi"'},
             )
         if export_format == "json":
             snapshot = graph.get_graph_snapshot(**scope)
@@ -4186,9 +3837,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             return Response(
                 json.dumps(snapshot, indent=2),
                 media_type="application/json",
-                headers={
-                    "Content-Disposition": 'attachment; filename="waggle-backup.json"'
-                },
+                headers={"Content-Disposition": 'attachment; filename="waggle-backup.json"'},
             )
         raise ValidationFailure("format must be one of: abhi, json.")
 
@@ -4210,9 +3859,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 document = load_abhi_document(temp_path)
                 imported_node_ids = [
                     str(node.get("id", "")).strip()
-                    for node in abhi_to_snapshot(
-                        document, fallback_tenant_id=graph.tenant_id
-                    ).get("nodes", [])
+                    for node in abhi_to_snapshot(document, fallback_tenant_id=graph.tenant_id).get("nodes", [])
                     if str(node.get("id", "")).strip()
                 ]
                 imported = graph.import_abhi(input_path=temp_path)
@@ -4252,9 +3899,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 validation = graph.validate_abhi(input_path=temp_path)
                 inspect_result = graph.inspect_abhi(input_path=temp_path)
                 document = load_abhi_document(temp_path)
-                snapshot = abhi_to_snapshot(
-                    document, fallback_tenant_id=graph.tenant_id
-                )
+                snapshot = abhi_to_snapshot(document, fallback_tenant_id=graph.tenant_id)
                 return JSONResponse(
                     {
                         "validation": validation.model_dump(mode="json"),
@@ -4316,12 +3961,8 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         try:
             graph, _ = _require_http_scope(request, "graph:read")
             diff = graph.diff_abhi(input_path_a=path_a, input_path_b=path_b)
-            snapshot_a = abhi_to_snapshot(
-                load_abhi_document(path_a), fallback_tenant_id=graph.tenant_id
-            )
-            snapshot_b = abhi_to_snapshot(
-                load_abhi_document(path_b), fallback_tenant_id=graph.tenant_id
-            )
+            snapshot_a = abhi_to_snapshot(load_abhi_document(path_a), fallback_tenant_id=graph.tenant_id)
+            snapshot_b = abhi_to_snapshot(load_abhi_document(path_b), fallback_tenant_id=graph.tenant_id)
             return JSONResponse(
                 {
                     "diff": diff.model_dump(mode="json"),
@@ -4347,9 +3988,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             default_prune_interval_hours=config.retention_prune_interval_hours,
         )
         payload = _serialize_retention_policy(policy)
-        payload["recent_runs"] = [
-            _serialize_retention_run(run) for run in graph.list_retention_runs(limit=5)
-        ]
+        payload["recent_runs"] = [_serialize_retention_run(run) for run in graph.list_retention_runs(limit=5)]
         return JSONResponse(payload)
 
     async def admin_retention_update(request: Request) -> Response:
@@ -4370,11 +4009,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         graph.emit_audit_event(
             event_type="retention.policy.updated",
             actor_type="api_key" if principal is not None else "admin",
-            actor_id=(
-                (principal.name or principal.api_key_id)
-                if principal is not None
-                else "local-http"
-            ),
+            actor_id=((principal.name or principal.api_key_id) if principal is not None else "local-http"),
             api_key_id=principal.api_key_id if principal is not None else "",
             resource_type="retention_policy",
             resource_id=policy.tenant_id,
@@ -4439,48 +4074,30 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             Route("/graph", graph_editor),
             Route("/api/graph", graph_snapshot, methods=["GET"]),
             Route("/api/graph/transcripts", graph_transcripts, methods=["GET"]),
-            Route(
-                "/api/graph/retrieval-debug", graph_retrieval_debug, methods=["POST"]
-            ),
+            Route("/api/graph/retrieval-debug", graph_retrieval_debug, methods=["POST"]),
             Route("/api/graph/abhi", graph_abhi_preview, methods=["GET"]),
-            Route(
-                "/api/graph/abhi/preview-import", graph_import_preview, methods=["POST"]
-            ),
+            Route("/api/graph/abhi/preview-import", graph_import_preview, methods=["POST"]),
             Route("/api/graph/abhi/diff", graph_abhi_diff, methods=["POST"]),
             Route("/api/graph/query", graph_query, methods=["POST"]),
             Route("/api/graph/diff", graph_diff_feed, methods=["GET"]),
             Route("/api/graph/ui", graph_save_ui, methods=["PATCH"]),
             Route("/api/graph/restore", graph_restore, methods=["POST"]),
             Route("/api/graph/nodes", graph_create_node, methods=["POST"]),
-            Route(
-                "/api/graph/nodes/{node_id:str}", graph_update_node, methods=["PATCH"]
-            ),
-            Route(
-                "/api/graph/nodes/{node_id:str}", graph_delete_node, methods=["DELETE"]
-            ),
+            Route("/api/graph/nodes/{node_id:str}", graph_update_node, methods=["PATCH"]),
+            Route("/api/graph/nodes/{node_id:str}", graph_delete_node, methods=["DELETE"]),
             Route("/api/graph/edges", graph_create_edge, methods=["POST"]),
-            Route(
-                "/api/graph/edges/{edge_id:str}", graph_update_edge, methods=["PATCH"]
-            ),
-            Route(
-                "/api/graph/edges/{edge_id:str}", graph_delete_edge, methods=["DELETE"]
-            ),
+            Route("/api/graph/edges/{edge_id:str}", graph_update_edge, methods=["PATCH"]),
+            Route("/api/graph/edges/{edge_id:str}", graph_delete_edge, methods=["DELETE"]),
             Route("/api/graph/export", graph_export, methods=["GET"]),
             Route("/api/graph/import", graph_import, methods=["POST"]),
             Route("/api/admin/retention", admin_retention_status, methods=["GET"]),
-            Route(
-                "/api/admin/retention", admin_retention_update, methods=["PUT", "PATCH"]
-            ),
-            Route(
-                "/api/admin/retention/prune", admin_retention_prune, methods=["POST"]
-            ),
+            Route("/api/admin/retention", admin_retention_update, methods=["PUT", "PATCH"]),
+            Route("/api/admin/retention/prune", admin_retention_prune, methods=["POST"]),
             Route("/api/admin/retention/runs", admin_retention_runs, methods=["GET"]),
             Route("/api/admin/audit-events", admin_audit_events, methods=["GET"]),
             Mount(
                 "/graph-assets",
-                app=StaticFiles(
-                    packages=[("waggle", "static/graph")], html=False, check_dir=False
-                ),
+                app=StaticFiles(packages=[("waggle", "static/graph")], html=False, check_dir=False),
             ),
             Mount("/mcp", app=service.mcp_asgi),
         ],
@@ -4513,9 +4130,7 @@ def _run_graph_editor_command(config: AppConfig, args: argparse.Namespace) -> in
             try:
                 webbrowser.open(url)
             except Exception as exc:  # pragma: no cover
-                LOGGER.warning(
-                    "graph_editor_open_failed", extra={"error": str(exc), "url": url}
-                )
+                LOGGER.warning("graph_editor_open_failed", extra={"error": str(exc), "url": url})
 
         timer = threading.Timer(0.4, _open_browser)
         timer.daemon = True
@@ -4561,9 +4176,7 @@ async def run_stdio(config: AppConfig) -> None:
         em.start_background_warmup()
     if config.is_strict_mode:
         # Block until the model is ready before accepting any requests.
-        LOGGER.info(
-            "stdio_strict_mode_waiting_for_embedding", extra={"model": em.model_name}
-        )
+        LOGGER.info("stdio_strict_mode_waiting_for_embedding", extra={"model": em.model_name})
         if hasattr(em, "_ready_event"):
             em._ready_event.wait(timeout=120.0)
         LOGGER.info(
@@ -4680,13 +4293,9 @@ def _build_parser() -> argparse.ArgumentParser:
         epilog="Examples: 'waggle-mcp setup --yes', 'waggle-mcp serve', 'waggle-mcp features'.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
-        "--version", action="version", version=f"%(prog)s {__version__}"
-    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     subparsers = parser.add_subparsers(dest="command")
-    serve = subparsers.add_parser(
-        "serve", help="Run the MCP server using the configured stdio or HTTP transport."
-    )
+    serve = subparsers.add_parser("serve", help="Run the MCP server using the configured stdio or HTTP transport.")
     serve.add_argument(
         "--transport",
         choices=["stdio", "http"],
@@ -4703,9 +4312,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     graph_editor.add_argument("--host", default="127.0.0.1")
     graph_editor.add_argument("--port", type=int, default=8686)
-    graph_editor.add_argument(
-        "--open", action=argparse.BooleanOptionalAction, default=True
-    )
+    graph_editor.add_argument("--open", action=argparse.BooleanOptionalAction, default=True)
 
     graph_viewer = subparsers.add_parser(
         "view-graph",
@@ -4714,9 +4321,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     graph_viewer.add_argument("--host", default="127.0.0.1")
     graph_viewer.add_argument("--port", type=int, default=8686)
-    graph_viewer.add_argument(
-        "--open", action=argparse.BooleanOptionalAction, default=True
-    )
+    graph_viewer.add_argument("--open", action=argparse.BooleanOptionalAction, default=True)
 
     graph_ui = subparsers.add_parser(
         "ui",
@@ -4734,9 +4339,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     graph_studio.add_argument("--host", default="127.0.0.1")
     graph_studio.add_argument("--port", type=int, default=8686)
-    graph_studio.add_argument(
-        "--open", action=argparse.BooleanOptionalAction, default=True
-    )
+    graph_studio.add_argument("--open", action=argparse.BooleanOptionalAction, default=True)
 
     open_studio = subparsers.add_parser(
         "open-studio",
@@ -4745,9 +4348,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     open_studio.add_argument("--host", default="127.0.0.1")
     open_studio.add_argument("--port", type=int, default=8686)
-    open_studio.add_argument(
-        "--open", action=argparse.BooleanOptionalAction, default=True
-    )
+    open_studio.add_argument("--open", action=argparse.BooleanOptionalAction, default=True)
 
     create_tenant = subparsers.add_parser(
         "create-tenant", help="Create or update a tenant record in the active backend."
@@ -4755,44 +4356,30 @@ def _build_parser() -> argparse.ArgumentParser:
     create_tenant.add_argument("--tenant-id", required=True)
     create_tenant.add_argument("--name", default="")
 
-    create_api_key = subparsers.add_parser(
-        "create-api-key", help="Issue an API key for a tenant."
-    )
+    create_api_key = subparsers.add_parser("create-api-key", help="Issue an API key for a tenant.")
     create_api_key.add_argument("--tenant-id", required=True)
     create_api_key.add_argument("--name", default="")
     create_api_key.add_argument("--expires-in-days", type=int, default=0)
     create_api_key.add_argument("--created-by", default="")
-    create_api_key.add_argument(
-        "--scopes", default="graph:read,graph:write,admin:read,admin:write"
-    )
+    create_api_key.add_argument("--scopes", default="graph:read,graph:write,admin:read,admin:write")
 
-    list_api_keys = subparsers.add_parser(
-        "list-api-keys", help="List API keys for a tenant."
-    )
+    list_api_keys = subparsers.add_parser("list-api-keys", help="List API keys for a tenant.")
     list_api_keys.add_argument("--tenant-id", required=True)
 
     revoke_api_key = subparsers.add_parser("revoke-api-key", help="Revoke an API key.")
     revoke_api_key.add_argument("--api-key-id", required=True)
     revoke_api_key.add_argument("--tenant-id", default="")
 
-    retention_status = subparsers.add_parser(
-        "retention-status", help="Show the active retention policy for a tenant."
-    )
+    retention_status = subparsers.add_parser("retention-status", help="Show the active retention policy for a tenant.")
     retention_status.add_argument("--tenant-id", default="")
 
-    set_retention = subparsers.add_parser(
-        "set-retention", help="Create or update the retention policy for a tenant."
-    )
+    set_retention = subparsers.add_parser("set-retention", help="Create or update the retention policy for a tenant.")
     set_retention.add_argument("--tenant-id", default="")
-    set_retention.add_argument(
-        "--enabled", action=argparse.BooleanOptionalAction, default=None
-    )
+    set_retention.add_argument("--enabled", action=argparse.BooleanOptionalAction, default=None)
     set_retention.add_argument("--days", type=int, default=None)
     set_retention.add_argument("--interval-hours", type=int, default=None)
 
-    prune_retention = subparsers.add_parser(
-        "prune-retention", help="Run retention pruning immediately for a tenant."
-    )
+    prune_retention = subparsers.add_parser("prune-retention", help="Run retention pruning immediately for a tenant.")
     prune_retention.add_argument("--tenant-id", default="")
     prune_retention.add_argument("--batch-size", type=int, default=1000)
 
@@ -4802,9 +4389,7 @@ def _build_parser() -> argparse.ArgumentParser:
     list_retention_runs.add_argument("--tenant-id", default="")
     list_retention_runs.add_argument("--limit", type=int, default=20)
 
-    list_audit_events = subparsers.add_parser(
-        "list-audit-events", help="List recent audit events for a tenant."
-    )
+    list_audit_events = subparsers.add_parser("list-audit-events", help="List recent audit events for a tenant.")
     list_audit_events.add_argument("--tenant-id", default="")
     list_audit_events.add_argument("--limit", type=int, default=100)
     list_audit_events.add_argument("--type", dest="event_type", default="")
@@ -4828,19 +4413,13 @@ def _build_parser() -> argparse.ArgumentParser:
     export_abhi.add_argument("--project", default="")
     export_abhi.add_argument("--agent-id", default="")
     export_abhi.add_argument("--session-id", default="")
-    export_abhi.add_argument(
-        "--scope", choices=["all", "project", "session", "since-date"], default="all"
-    )
+    export_abhi.add_argument("--scope", choices=["all", "project", "session", "since-date"], default="all")
     export_abhi.add_argument("--since-date", default="")
-    export_abhi.add_argument(
-        "--include-embeddings", action=argparse.BooleanOptionalAction, default=True
-    )
+    export_abhi.add_argument("--include-embeddings", action=argparse.BooleanOptionalAction, default=True)
     export_abhi.add_argument("--encrypt", action="store_true")
     export_abhi.add_argument("--sign", action="store_true")
     export_abhi.add_argument("--signing-key-dir", default="~/.waggle/keys")
-    export_abhi.add_argument(
-        "--redact", dest="redact_patterns", action="append", default=[]
-    )
+    export_abhi.add_argument("--redact", dest="redact_patterns", action="append", default=[])
     export_abhi.add_argument("--passphrase-env", default="")
     export_abhi.add_argument(
         "--force",
@@ -4861,19 +4440,13 @@ def _build_parser() -> argparse.ArgumentParser:
     commit_abhi.add_argument("--project", default="")
     commit_abhi.add_argument("--agent-id", default="")
     commit_abhi.add_argument("--session-id", default="")
-    commit_abhi.add_argument(
-        "--scope", choices=["all", "project", "session", "since-date"], default="all"
-    )
+    commit_abhi.add_argument("--scope", choices=["all", "project", "session", "since-date"], default="all")
     commit_abhi.add_argument("--since-date", default="")
-    commit_abhi.add_argument(
-        "--include-embeddings", action=argparse.BooleanOptionalAction, default=True
-    )
+    commit_abhi.add_argument("--include-embeddings", action=argparse.BooleanOptionalAction, default=True)
     commit_abhi.add_argument("--encrypt", action="store_true")
     commit_abhi.add_argument("--sign", action="store_true")
     commit_abhi.add_argument("--signing-key-dir", default="~/.waggle/keys")
-    commit_abhi.add_argument(
-        "--redact", dest="redact_patterns", action="append", default=[]
-    )
+    commit_abhi.add_argument("--redact", dest="redact_patterns", action="append", default=[])
     commit_abhi.add_argument("--passphrase-env", default="")
     commit_abhi.add_argument(
         "--force",
@@ -4894,19 +4467,13 @@ def _build_parser() -> argparse.ArgumentParser:
     checkpoint_context.add_argument("--project", default="")
     checkpoint_context.add_argument("--agent-id", default="")
     checkpoint_context.add_argument("--session-id", default="")
-    checkpoint_context.add_argument(
-        "--scope", choices=["project", "session", "all", "since-date"], default=""
-    )
+    checkpoint_context.add_argument("--scope", choices=["project", "session", "all", "since-date"], default="")
     checkpoint_context.add_argument("--since-date", default="")
-    checkpoint_context.add_argument(
-        "--include-embeddings", action=argparse.BooleanOptionalAction, default=True
-    )
+    checkpoint_context.add_argument("--include-embeddings", action=argparse.BooleanOptionalAction, default=True)
     checkpoint_context.add_argument("--encrypt", action="store_true")
     checkpoint_context.add_argument("--sign", action="store_true")
     checkpoint_context.add_argument("--signing-key-dir", default="~/.waggle/keys")
-    checkpoint_context.add_argument(
-        "--redact", dest="redact_patterns", action="append", default=[]
-    )
+    checkpoint_context.add_argument("--redact", dest="redact_patterns", action="append", default=[])
     checkpoint_context.add_argument("--passphrase-env", default="")
     checkpoint_context.add_argument(
         "--force",
@@ -4919,9 +4486,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Delete all graph memory data for one session.",
     )
     clear_session.add_argument("--session-id", required=True)
-    clear_session.add_argument(
-        "--yes", action="store_true", help="Confirm the destructive clear operation."
-    )
+    clear_session.add_argument("--yes", action="store_true", help="Confirm the destructive clear operation.")
     clear_session.add_argument(
         "--dry-run",
         action="store_true",
@@ -4933,9 +4498,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Delete all graph memory data for one project/repository scope.",
     )
     clear_project.add_argument("--project", required=True)
-    clear_project.add_argument(
-        "--yes", action="store_true", help="Confirm the destructive clear operation."
-    )
+    clear_project.add_argument("--yes", action="store_true", help="Confirm the destructive clear operation.")
     clear_project.add_argument(
         "--dry-run",
         action="store_true",
@@ -4946,9 +4509,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "clear-all",
         help="Delete all graph memory data for the current tenant.",
     )
-    clear_all.add_argument(
-        "--yes", action="store_true", help="Confirm the destructive clear operation."
-    )
+    clear_all.add_argument("--yes", action="store_true", help="Confirm the destructive clear operation.")
     clear_all.add_argument(
         "--dry-run",
         action="store_true",
@@ -5063,9 +4624,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Load selected or query-relevant chunks from an .abhi memory file.",
     )
     load_abhi_chunks.add_argument("--input", dest="input_path", required=True)
-    load_abhi_chunks.add_argument(
-        "--chunk-id", dest="chunk_ids", action="append", default=[]
-    )
+    load_abhi_chunks.add_argument("--chunk-id", dest="chunk_ids", action="append", default=[])
     load_abhi_chunks.add_argument("--query-id", default="")
     load_abhi_chunks.add_argument("--query-text", default="")
     load_abhi_chunks.add_argument("--passphrase-env", default="")
@@ -5079,16 +4638,10 @@ def _build_parser() -> argparse.ArgumentParser:
     push_abhi.add_argument("--project", default="")
     push_abhi.add_argument("--agent-id", default="")
     push_abhi.add_argument("--session-id", default="")
-    push_abhi.add_argument(
-        "--scope", choices=["all", "project", "session", "since-date"], default="all"
-    )
+    push_abhi.add_argument("--scope", choices=["all", "project", "session", "since-date"], default="all")
     push_abhi.add_argument("--since-date", default="")
-    push_abhi.add_argument(
-        "--include-embeddings", action=argparse.BooleanOptionalAction, default=True
-    )
-    push_abhi.add_argument(
-        "--encrypt", action=argparse.BooleanOptionalAction, default=True
-    )
+    push_abhi.add_argument("--include-embeddings", action=argparse.BooleanOptionalAction, default=True)
+    push_abhi.add_argument("--encrypt", action=argparse.BooleanOptionalAction, default=True)
     push_abhi.add_argument("--passphrase-env", default="")
     push_abhi.add_argument(
         "--force",
@@ -5097,13 +4650,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     push_abhi.add_argument("--folder-id", default="")
     push_abhi.add_argument("--remote-name", default="")
-    push_abhi.add_argument(
-        "--client-secret-path", default="~/.waggle/google-client-secret.json"
-    )
+    push_abhi.add_argument("--client-secret-path", default="~/.waggle/google-client-secret.json")
     push_abhi.add_argument("--token-path", default="")
-    push_abhi.add_argument(
-        "--open-browser", action=argparse.BooleanOptionalAction, default=True
-    )
+    push_abhi.add_argument("--open-browser", action=argparse.BooleanOptionalAction, default=True)
 
     pull_abhi = subparsers.add_parser(
         "pull",
@@ -5156,13 +4705,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     share_abhi.add_argument("file_ref")
     share_abhi.add_argument("--folder-id", default="")
-    share_abhi.add_argument(
-        "--client-secret-path", default="~/.waggle/google-client-secret.json"
-    )
+    share_abhi.add_argument("--client-secret-path", default="~/.waggle/google-client-secret.json")
     share_abhi.add_argument("--token-path", default="")
-    share_abhi.add_argument(
-        "--open-browser", action=argparse.BooleanOptionalAction, default=True
-    )
+    share_abhi.add_argument("--open-browser", action=argparse.BooleanOptionalAction, default=True)
 
     export_context_bundle = subparsers.add_parser(
         "export-context-bundle",
@@ -5173,34 +4718,20 @@ def _build_parser() -> argparse.ArgumentParser:
             "and mode=graph for a broader graph export."
         ),
     )
-    export_context_bundle.add_argument(
-        "--mode", choices=["prime", "query", "graph"], default="prime"
-    )
+    export_context_bundle.add_argument("--mode", choices=["prime", "query", "graph"], default="prime")
     export_context_bundle.add_argument("--query", default="")
     export_context_bundle.add_argument("--project", default="")
     export_context_bundle.add_argument("--agent-id", default="")
     export_context_bundle.add_argument("--session-id", default="")
     export_context_bundle.add_argument("--max-nodes", type=int, default=25)
     export_context_bundle.add_argument("--max-depth", type=int, default=2)
-    export_context_bundle.add_argument(
-        "--retrieval-mode", choices=["graph", "verbatim", "hybrid"], default="graph"
-    )
-    export_context_bundle.add_argument(
-        "--format", choices=["markdown", "json", "both"], default="both"
-    )
+    export_context_bundle.add_argument("--retrieval-mode", choices=["graph", "verbatim", "hybrid"], default="graph")
+    export_context_bundle.add_argument("--format", choices=["markdown", "json", "both"], default="both")
     export_context_bundle.add_argument("--output-path", default=None)
-    export_context_bundle.add_argument(
-        "--include-edges", action=argparse.BooleanOptionalAction, default=True
-    )
-    export_context_bundle.add_argument(
-        "--include-timestamps", action=argparse.BooleanOptionalAction, default=True
-    )
-    export_context_bundle.add_argument(
-        "--include-source-prompt", action=argparse.BooleanOptionalAction, default=False
-    )
-    export_context_bundle.add_argument(
-        "--audience", choices=["llm", "human"], default="llm"
-    )
+    export_context_bundle.add_argument("--include-edges", action=argparse.BooleanOptionalAction, default=True)
+    export_context_bundle.add_argument("--include-timestamps", action=argparse.BooleanOptionalAction, default=True)
+    export_context_bundle.add_argument("--include-source-prompt", action=argparse.BooleanOptionalAction, default=False)
+    export_context_bundle.add_argument("--audience", choices=["llm", "human"], default="llm")
 
     export_markdown_vault = subparsers.add_parser(
         "export-markdown-vault",
@@ -5243,18 +4774,10 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="PATH_OR_DASH",
         help="Path to the JSON transcript file, or '-' to read from stdin (default: stdin).",
     )
-    ingest_transcript_handoff.add_argument(
-        "--project", default="", help="Scope override: project name."
-    )
-    ingest_transcript_handoff.add_argument(
-        "--agent-id", default="", help="Scope override: agent identifier."
-    )
-    ingest_transcript_handoff.add_argument(
-        "--session-id", default="", help="Scope override: session identifier."
-    )
-    ingest_transcript_handoff.add_argument(
-        "--output-path", default=None, help="Optional export output path prefix."
-    )
+    ingest_transcript_handoff.add_argument("--project", default="", help="Scope override: project name.")
+    ingest_transcript_handoff.add_argument("--agent-id", default="", help="Scope override: agent identifier.")
+    ingest_transcript_handoff.add_argument("--session-id", default="", help="Scope override: session identifier.")
+    ingest_transcript_handoff.add_argument("--output-path", default=None, help="Optional export output path prefix.")
     ingest_transcript_handoff.add_argument(
         "--export-format",
         choices=["markdown", "json", "both"],
@@ -5295,9 +4818,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "Supported: codex, claude-desktop, cursor, gemini, antigravity, other."
         ),
     )
-    setup.add_argument(
-        "--db", default="", help="Database path. Default: ~/.waggle/waggle.db"
-    )
+    setup.add_argument("--db", default="", help="Database path. Default: ~/.waggle/waggle.db")
     setup.add_argument(
         "--model",
         default="all-MiniLM-L6-v2",
@@ -5314,9 +4835,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show what would change without writing files.",
     )
-    setup.add_argument(
-        "--run-doctor", action=argparse.BooleanOptionalAction, default=True
-    )
+    setup.add_argument("--run-doctor", action=argparse.BooleanOptionalAction, default=True)
     setup.add_argument(
         "--hooks",
         default="auto",
@@ -5445,9 +4964,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         return 0
     if args.command == "create-api-key":
         expires_in_days = int(getattr(args, "expires_in_days", 0) or 0)
-        expires_at = (
-            utc_now() + timedelta(days=expires_in_days) if expires_in_days > 0 else None
-        )
+        expires_at = utc_now() + timedelta(days=expires_in_days) if expires_in_days > 0 else None
         tenant_backend = backend.for_tenant(args.tenant_id)
         created = tenant_backend.create_api_key(
             args.tenant_id,
@@ -5466,11 +4983,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             metadata={
                 "name": created.record.name,
                 "prefix": created.record.prefix,
-                "expires_at": (
-                    created.record.expires_at.isoformat()
-                    if created.record.expires_at
-                    else None
-                ),
+                "expires_at": (created.record.expires_at.isoformat() if created.record.expires_at else None),
                 "scopes": created.record.scopes,
             },
         )
@@ -5482,11 +4995,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
                     "prefix": created.record.prefix,
                     "name": created.record.name,
                     "status": created.record.status,
-                    "expires_at": (
-                        created.record.expires_at.isoformat()
-                        if created.record.expires_at
-                        else None
-                    ),
+                    "expires_at": (created.record.expires_at.isoformat() if created.record.expires_at else None),
                     "created_by": created.record.created_by,
                     "scopes": created.record.scopes,
                     "raw_api_key": created.raw_api_key,
@@ -5498,18 +5007,13 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
     if args.command == "list-api-keys":
         print(
             json.dumps(
-                [
-                    _serialize_api_key_record(record)
-                    for record in backend.list_api_keys(args.tenant_id)
-                ],
+                [_serialize_api_key_record(record) for record in backend.list_api_keys(args.tenant_id)],
                 indent=2,
             )
         )
         return 0
     if args.command == "revoke-api-key":
-        tenant_backend = backend.for_tenant(
-            getattr(args, "tenant_id", "") or config.default_tenant_id
-        )
+        tenant_backend = backend.for_tenant(getattr(args, "tenant_id", "") or config.default_tenant_id)
         tenant_backend.revoke_api_key(args.api_key_id)
         tenant_backend.emit_audit_event(
             event_type="api_key.revoked",
@@ -5528,9 +5032,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         "list-retention-runs",
         "list-audit-events",
     }:
-        retention_backend = backend.for_tenant(
-            getattr(args, "tenant_id", "") or config.default_tenant_id
-        )
+        retention_backend = backend.for_tenant(getattr(args, "tenant_id", "") or config.default_tenant_id)
         policy_kwargs = {
             "default_enabled": config.retention_enabled,
             "default_retention_days": config.retention_days,
@@ -5540,8 +5042,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             policy = retention_backend.get_retention_policy(**policy_kwargs)
             payload = _serialize_retention_policy(policy)
             payload["recent_runs"] = [
-                _serialize_retention_run(run)
-                for run in retention_backend.list_retention_runs(limit=5)
+                _serialize_retention_run(run) for run in retention_backend.list_retention_runs(limit=5)
             ]
             print(json.dumps(payload, indent=2))
             return 0
@@ -5573,9 +5074,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
                 **policy_kwargs,
             )
             payload = _serialize_retention_run(run)
-            payload["policy"] = _serialize_retention_policy(
-                retention_backend.get_retention_policy(**policy_kwargs)
-            )
+            payload["policy"] = _serialize_retention_policy(retention_backend.get_retention_policy(**policy_kwargs))
             print(json.dumps(payload, indent=2))
             return 0
         if args.command == "list-audit-events":
@@ -5587,20 +5086,14 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
                 resource_type=getattr(args, "resource_type", ""),
                 status=getattr(args, "status", ""),
             )
-            print(
-                json.dumps(
-                    [_serialize_audit_event(event) for event in events], indent=2
-                )
-            )
+            print(json.dumps([_serialize_audit_event(event) for event in events], indent=2))
             return 0
         runs = retention_backend.list_retention_runs(limit=getattr(args, "limit", 20))
         print(json.dumps([_serialize_retention_run(run) for run in runs], indent=2))
         return 0
     if args.command == "migrate-sqlite":
         if config.backend != "neo4j":
-            raise ValidationFailure(
-                "migrate-sqlite requires WAGGLE_BACKEND=neo4j for the target environment."
-            )
+            raise ValidationFailure("migrate-sqlite requires WAGGLE_BACKEND=neo4j for the target environment.")
         source = MemoryGraph(
             args.db_path,
             EmbeddingModel(
@@ -5708,9 +5201,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         print(json.dumps(cleared.model_dump(mode="json"), indent=2))
         return 0
     if args.command == "import":
-        input_path = getattr(args, "input_path", None) or getattr(
-            args, "input_path_flag", ""
-        )
+        input_path = getattr(args, "input_path", None) or getattr(args, "input_path_flag", "")
         imported = backend.import_abhi(
             input_path=input_path,
             passphrase=_resolve_passphrase(args),
@@ -5723,34 +5214,22 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         print(json.dumps(imported.model_dump(mode="json"), indent=2))
         return 0
     if args.command == "validate":
-        validation = backend.validate_abhi(
-            input_path=args.input_path, passphrase=_resolve_passphrase(args)
-        )
+        validation = backend.validate_abhi(input_path=args.input_path, passphrase=_resolve_passphrase(args))
         print(json.dumps(validation.model_dump(mode="json"), indent=2))
         return 0 if validation.valid else 1
     if args.command == "inspect":
-        inspected = backend.inspect_abhi(
-            input_path=args.input_path, passphrase=_resolve_passphrase(args)
-        )
+        inspected = backend.inspect_abhi(input_path=args.input_path, passphrase=_resolve_passphrase(args))
         print(json.dumps(inspected.model_dump(mode="json"), indent=2))
         return 0
     if args.command == "diff":
-        input_path_a = getattr(args, "input_path_a", None) or getattr(
-            args, "input_path_a_flag", ""
-        )
-        input_path_b = getattr(args, "input_path_b", None) or getattr(
-            args, "input_path_b_flag", ""
-        )
+        input_path_a = getattr(args, "input_path_a", None) or getattr(args, "input_path_a_flag", "")
+        input_path_b = getattr(args, "input_path_b", None) or getattr(args, "input_path_b_flag", "")
         diff = backend.diff_abhi(input_path_a=input_path_a, input_path_b=input_path_b)
         print(json.dumps(diff.model_dump(mode="json"), indent=2))
         return 0
     if args.command == "merge":
-        left_input_path = (
-            getattr(args, "left_input_path_flag", "") or args.left_input_path
-        )
-        right_input_path = (
-            getattr(args, "right_input_path_flag", "") or args.right_input_path
-        )
+        left_input_path = getattr(args, "left_input_path_flag", "") or args.left_input_path
+        right_input_path = getattr(args, "right_input_path_flag", "") or args.right_input_path
         merged = backend.merge_abhi(
             base_input_path=args.base_input_path or left_input_path,
             left_input_path=left_input_path,
@@ -5828,10 +5307,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             credentials=credentials,
             folder_id=str(getattr(args, "folder_id", "") or ""),
         )
-        download_path = Path(
-            getattr(args, "download_path", "")
-            or backend.export_dir / f"{remote_file_id}.abhi"
-        )
+        download_path = Path(getattr(args, "download_path", "") or backend.export_dir / f"{remote_file_id}.abhi")
         _, resolved_name = download_drive_file(
             file_id=remote_file_id,
             destination_path=download_path,
@@ -5839,16 +5315,9 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         )
         local_document = build_abhi_document(backend.get_graph_snapshot())
         remote_document = load_abhi_document(download_path, passphrase=passphrase)
-        merged_output = Path(
-            getattr(args, "merged_output", "")
-            or backend.export_dir / f"merged-{remote_file_id}.abhi"
-        )
-        selected_merge_strategy = (
-            getattr(args, "merge_strategy", None) or DEFAULT_ABHI_MERGE_STRATEGY
-        )
-        selected_import_strategy = (
-            getattr(args, "import_strategy", None) or "skip-existing"
-        )
+        merged_output = Path(getattr(args, "merged_output", "") or backend.export_dir / f"merged-{remote_file_id}.abhi")
+        selected_merge_strategy = getattr(args, "merge_strategy", None) or DEFAULT_ABHI_MERGE_STRATEGY
+        selected_import_strategy = getattr(args, "import_strategy", None) or "skip-existing"
 
         merged_path = merge_downloaded_abhi(
             local_document=local_document,
@@ -5930,9 +5399,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         from waggle.backfill import backfill_context_windows
 
         if not isinstance(backend, MemoryGraph):
-            raise ValidationFailure(
-                "backfill-windows is currently supported only for the SQLite backend."
-            )
+            raise ValidationFailure("backfill-windows is currently supported only for the SQLite backend.")
         stats = backfill_context_windows(backend, dry_run=bool(args.dry_run))
         print(json.dumps(stats.model_dump(mode="json"), indent=2))
         return 1 if stats.errors else 0
@@ -5997,9 +5464,7 @@ Known API gotchas (from the Waggle field error log):
 """
 
 
-def _run_doctor(
-    config: AppConfig, *, fix: bool = False, json_output: bool = False
-) -> int:
+def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = False) -> int:
     """waggle-mcp doctor — surface configuration and environment issues."""
     issues: list[str] = []
     warnings: list[str] = []
@@ -6026,9 +5491,7 @@ def _run_doctor(
     emit(_c(_BOLD, "\n[1] MCP client config files"))
     waggle_found_in: list[str] = []
     for label, template in _KNOWN_CONFIG_PATHS:
-        raw = template.replace("%APPDATA%", os.environ.get("APPDATA", "")).replace(
-            "%USERPROFILE%", str(Path.home())
-        )
+        raw = template.replace("%APPDATA%", os.environ.get("APPDATA", "")).replace("%USERPROFILE%", str(Path.home()))
         path = Path(raw).expanduser()
         exists = path.exists()
         has_waggle = False
@@ -6048,29 +5511,17 @@ def _run_doctor(
                     waggle_found_in.append(label)
                     ok(f"{label}\n     {path}  [waggle entry found]")
                 else:
-                    emit(
-                        f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [exists, no waggle entry]"
-                    )
+                    emit(f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [exists, no waggle entry]")
             except Exception:
-                emit(
-                    f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [exists, could not parse]"
-                )
+                emit(f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [exists, could not parse]")
         # only show missing paths that are plausible for this platform
         elif (
             (
                 sys.platform == "darwin"
-                and (
-                    "macOS" in label
-                    or "Cursor" in label
-                    or "Antigravity" in label
-                    or "Codex" in label
-                )
+                and ("macOS" in label or "Cursor" in label or "Antigravity" in label or "Codex" in label)
             )
             or (sys.platform == "win32" and "Windows" in label)
-            or (
-                sys.platform.startswith("linux")
-                and ("Linux" in label or "Cursor" in label)
-            )
+            or (sys.platform.startswith("linux") and ("Linux" in label or "Cursor" in label))
         ):
             emit(f"  {_c(_CYAN, chr(0x2022))} {label}\n     {path}  [not found]")
 
@@ -6102,9 +5553,7 @@ def _run_doctor(
         ok_items.append("DB directory writable")
         checks["db_connection"] = {"status": "ok", "path": str(db_path)}
     else:
-        issues.append(
-            f"DB directory does not exist: {db_dir}. Create it with: mkdir -p <dir>"
-        )
+        issues.append(f"DB directory does not exist: {db_dir}. Create it with: mkdir -p <dir>")
         fail(f"DB directory missing: {db_dir}")
         checks["db_connection"] = {
             "status": "fail",
@@ -6171,9 +5620,7 @@ def _run_doctor(
         graph = _default_graph(config)
         if isinstance(graph, MemoryGraph):
             store_health = graph.get_embedding_store_health()
-            if fix and (
-                store_health["transcript_stale_rows"] or store_health["node_stale_rows"]
-            ):
+            if fix and (store_health["transcript_stale_rows"] or store_health["node_stale_rows"]):
                 repair = graph.reembed_stale_embeddings(batch_size=100)
                 ok(
                     "Re-embedded stale rows: "
@@ -6210,9 +5657,7 @@ def _run_doctor(
                 # (membership changes flag windows stale without corrupting anything);
                 # the corrupt-clear path above only runs on failures.
                 windows_rebuilt = graph.recompute_stale_window_embeddings()
-                ok(
-                    f"Recomputed stale context-window embeddings: {windows_rebuilt} window rows."
-                )
+                ok(f"Recomputed stale context-window embeddings: {windows_rebuilt} window rows.")
                 if windows_rebuilt:
                     ok_items.append("Stale context-window embeddings recomputed")
                 store_health = graph.get_embedding_store_health()
@@ -6239,9 +5684,7 @@ def _run_doctor(
             store_reason: str | None = None
             if store_health["mixed_models"]:
                 issues.append("Mixed embedding_model_id values detected in the store.")
-                fail(
-                    "Mixed embedding model IDs detected across transcript_records/nodes."
-                )
+                fail("Mixed embedding model IDs detected across transcript_records/nodes.")
                 store_status = "fail"
                 store_reason = "Mixed embedding_model_id values detected across transcript_records/nodes."
             else:
@@ -6249,9 +5692,7 @@ def _run_doctor(
                 ok_items.append("Embedding store model IDs consistent")
 
             if checksum_failures:
-                issues.append(
-                    f"{checksum_failures} embedding row(s) fail the integrity checksum (corruption)."
-                )
+                issues.append(f"{checksum_failures} embedding row(s) fail the integrity checksum (corruption).")
                 fail(
                     "Embedding checksum failures: "
                     f"{store_health['transcript_checksum_failures']} transcript rows, "
@@ -6263,9 +5704,7 @@ def _run_doctor(
                 if store_reason is None:
                     store_reason = f"{checksum_failures} embedding row(s) fail the integrity checksum (corruption)."
             elif legacy_rows:
-                emit(
-                    "  No checksum failures in checksummed rows; legacy rows cannot be checksum-verified yet."
-                )
+                emit("  No checksum failures in checksummed rows; legacy rows cannot be checksum-verified yet.")
                 warnings.append(
                     f"{legacy_rows} embedding row(s) use the legacy pre-checksum format "
                     "and cannot be checksum-verified until rewritten."
@@ -6296,9 +5735,7 @@ def _run_doctor(
                 "window_stale_rows": store_health["window_stale_rows"],
                 "mixed_models": store_health["mixed_models"],
                 "checksum_failures": checksum_failures,
-                "transcript_checksum_failures": store_health[
-                    "transcript_checksum_failures"
-                ],
+                "transcript_checksum_failures": store_health["transcript_checksum_failures"],
                 "node_checksum_failures": store_health["node_checksum_failures"],
                 "window_checksum_failures": store_health["window_checksum_failures"],
                 "legacy_rows": legacy_rows,
@@ -6316,9 +5753,7 @@ def _run_doctor(
     emit(_c(_BOLD, "\n[5] Startup mode"))
     emit(f"  WAGGLE_STARTUP_MODE = {config.startup_mode!r}")
     if config.is_fast_mode:
-        ok(
-            "fast mode: zero ML overhead. Schema/tool listing only. Semantic tools return 'unavailable'."
-        )
+        ok("fast mode: zero ML overhead. Schema/tool listing only. Semantic tools return 'unavailable'.")
         ok_items.append("Startup mode: fast")
         checks["startup_mode"] = {"status": "ok", "mode": "fast"}
     elif config.is_strict_mode:
@@ -6326,9 +5761,7 @@ def _run_doctor(
         ok_items.append("Startup mode: strict")
         checks["startup_mode"] = {"status": "ok", "mode": "strict"}
     else:
-        ok(
-            "normal mode: embedding loads in background. First semantic call may wait up to ~30 s."
-        )
+        ok("normal mode: embedding loads in background. First semantic call may wait up to ~30 s.")
         ok_items.append("Startup mode: normal")
         checks["startup_mode"] = {"status": "ok", "mode": "normal"}
 
@@ -6394,9 +5827,7 @@ def _run_doctor(
         print()
         return 0
     else:
-        print(
-            _c(_GREEN, f"All checks passed ({len(ok_items)} OK). Waggle looks healthy.")
-        )
+        print(_c(_GREEN, f"All checks passed ({len(ok_items)} OK). Waggle looks healthy."))
         print()
         return 0
 
@@ -6432,9 +5863,7 @@ def _run_ingest_transcript_handoff(config: AppConfig, args: argparse.Namespace) 
         else:
             path = Path(input_arg)
             if not path.exists():
-                _emit_cli_error(
-                    "input_not_found", f"Input file not found: {input_arg}", {}
-                )
+                _emit_cli_error("input_not_found", f"Input file not found: {input_arg}", {})
                 return 1
             raw = path.read_bytes()[: max_bytes + 1]
     except OSError as exc:
@@ -6461,9 +5890,7 @@ def _run_ingest_transcript_handoff(config: AppConfig, args: argparse.Namespace) 
         return 1
 
     if "messages" not in payload_dict:
-        _emit_cli_error(
-            "missing_field", "Input JSON must contain a 'messages' key.", {}
-        )
+        _emit_cli_error("missing_field", "Input JSON must contain a 'messages' key.", {})
         return 1
 
     # ── Validate via Pydantic ───────────────────────────────────────────────
@@ -6725,9 +6152,7 @@ def _write_codex(db_path: str, python_exe: str) -> Path:
         'WAGGLE_MODEL = "all-MiniLM-L6-v2"\n'
     )
     existing = config_file.read_text() if config_file.exists() else ""
-    pattern = re.compile(
-        r"(?ms)^\[mcp_servers\.waggle\]\n.*?(?=^\[(?!mcp_servers\.waggle(?:\.env)?\])[^\n]+\]\n|\Z)"
-    )
+    pattern = re.compile(r"(?ms)^\[mcp_servers\.waggle\]\n.*?(?=^\[(?!mcp_servers\.waggle(?:\.env)?\])[^\n]+\]\n|\Z)")
     replacement = toml_block.rstrip() + "\n"
     if pattern.search(existing):
         updated = pattern.sub(lambda m: replacement, existing, count=1)
@@ -6810,11 +6235,7 @@ def _client_config_probe_paths() -> dict[str, list[Path]]:
     return {
         "Claude Desktop": [
             Path.home() / ".config" / "claude" / "claude_desktop_config.json",
-            Path.home()
-            / "Library"
-            / "Application Support"
-            / "Claude"
-            / "claude_desktop_config.json",
+            Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json",
         ],
         "Cursor": [
             Path.home() / ".cursor" / "mcp.json",
@@ -6835,9 +6256,7 @@ def _normalize_setup_clients(raw_clients: str) -> list[str]:
         client = _CLIENT_ALIASES.get(key)
         if client is None:
             supported = ", ".join(sorted(_CLIENT_ALIASES))
-            raise ValidationFailure(
-                f"Unsupported setup client: {raw_client!r}. Supported values: auto, {supported}."
-            )
+            raise ValidationFailure(f"Unsupported setup client: {raw_client!r}. Supported values: auto, {supported}.")
         if client not in clients:
             clients.append(client)
     if not clients:
@@ -6896,9 +6315,7 @@ def _hook_tools_from_args(raw_hooks: str, no_hooks: bool) -> list[str]:
         tool = _HOOK_TOOL_ALIASES.get(key)
         if tool is None:
             supported = ", ".join(sorted(_HOOK_TOOL_ALIASES))
-            raise ValidationFailure(
-                f"Unsupported hook target: {part!r}. Supported values: auto, none, {supported}."
-            )
+            raise ValidationFailure(f"Unsupported hook target: {part!r}. Supported values: auto, none, {supported}.")
         if tool not in tools:
             tools.append(tool)
     if not tools:
@@ -7010,9 +6427,7 @@ def _install_claude_hooks(hook_dir: Path, *, dry_run: bool = False) -> Path | No
         existing_entries = [
             e
             for e in existing_hooks.get(event, [])
-            if not any(
-                "waggle" in str(h.get("command", "")) for h in e.get("hooks", [])
-            )
+            if not any("waggle" in str(h.get("command", "")) for h in e.get("hooks", []))
         ]
         existing_entries.extend(entries)
         existing_hooks[event] = existing_entries
@@ -7040,11 +6455,7 @@ def _uninstall_claude_hooks() -> Path | None:
     changed = False
     for event in list(hooks.keys()):
         filtered = [
-            e
-            for e in hooks[event]
-            if not any(
-                "waggle" in str(h.get("command", "")) for h in e.get("hooks", [])
-            )
+            e for e in hooks[event] if not any("waggle" in str(h.get("command", "")) for h in e.get("hooks", []))
         ]
         if len(filtered) != len(hooks[event]):
             changed = True
@@ -7113,26 +6524,16 @@ def _run_demo(args: argparse.Namespace) -> int:
             tenant_id="local-default",
             enable_dedup=False,
         )
-        imported = graph.import_abhi(
-            input_path=demo_abhi, merge_strategy="skip-existing"
-        )
-        print(
-            f"  Imported {imported.nodes_created} nodes, {imported.edges_created} edges from demo.abhi"
-        )
+        imported = graph.import_abhi(input_path=demo_abhi, merge_strategy="skip-existing")
+        print(f"  Imported {imported.nodes_created} nodes, {imported.edges_created} edges from demo.abhi")
         print()
 
         # ── Query 1: What database did we choose? ─────────────────────────────
         print(_c(_BOLD, "Query 1: What database did we choose?"))
-        result1 = graph.query(
-            query="What database did we choose?", max_nodes=6, max_depth=2
-        )
+        result1 = graph.query(query="What database did we choose?", max_nodes=6, max_depth=2)
         if result1.nodes:
             for node in result1.nodes[:4]:
-                marker = (
-                    "  [decision]"
-                    if node.node_type.value == "decision"
-                    else "  [note]    "
-                )
+                marker = "  [decision]" if node.node_type.value == "decision" else "  [note]    "
                 print(f"{marker} {node.label}")
         else:
             print("  (no results)")
@@ -7146,9 +6547,7 @@ def _run_demo(args: argparse.Namespace) -> int:
             max_depth=2,
         )
         # Show contradiction/update edges
-        contradiction_edges = [
-            e for e in result2.edges if e.relationship in ("contradicts", "updates")
-        ]
+        contradiction_edges = [e for e in result2.edges if e.relationship in ("contradicts", "updates")]
         if contradiction_edges:
             for edge in contradiction_edges[:3]:
                 src = next((n for n in result2.nodes if n.id == edge.source_id), None)
@@ -7186,9 +6585,7 @@ def _run_demo(args: argparse.Namespace) -> int:
             for dec in decision_nodes[:3]:
                 print(f"  [decision] {dec.label}")
                 # Find reason nodes connected via derived_from
-                reason_ids = {
-                    e.target_id for e in reason_edges if e.source_id == dec.id
-                }
+                reason_ids = {e.target_id for e in reason_edges if e.source_id == dec.id}
                 for node in result4.nodes:
                     if node.id in reason_ids:
                         print(f"    ↳ [reason] {node.label}")
@@ -7218,18 +6615,14 @@ def _run_demo(args: argparse.Namespace) -> int:
 def _run_setup(args: argparse.Namespace) -> int:
     """Non-interactive setup command for one-line installs."""
     if not args.yes and not args.dry_run:
-        _fail(
-            "Refusing to patch config without --yes. Use --dry-run to preview changes."
-        )
+        _fail("Refusing to patch config without --yes. Use --dry-run to preview changes.")
         return 1
 
     db_path_raw = args.db or DEFAULT_DB_PATH
     db_path = str(Path(db_path_raw).expanduser().resolve())
     python_exe = _python_exe()
     clients = _setup_clients_from_args(args.clients)
-    hook_tools = _hook_tools_from_args(
-        getattr(args, "hooks", "auto"), bool(getattr(args, "no_hooks", False))
-    )
+    hook_tools = _hook_tools_from_args(getattr(args, "hooks", "auto"), bool(getattr(args, "no_hooks", False)))
 
     print()
     print(_c(_BOLD, "waggle-mcp setup"))
@@ -7291,9 +6684,7 @@ def _run_setup(args: argparse.Namespace) -> int:
                         _ok(f"Claude Code hooks installed in {hooks_path}")
                 except OSError as exc:
                     # Non-fatal: hooks are optional
-                    LOGGER.warning(
-                        "claude_hooks_install_failed", extra={"error": str(exc)}
-                    )
+                    LOGGER.warning("claude_hooks_install_failed", extra={"error": str(exc)})
 
     if args.run_doctor:
         doctor_config = AppConfig.from_env()
@@ -7301,9 +6692,7 @@ def _run_setup(args: argparse.Namespace) -> int:
         doctor_config.model_name = args.model
         doctor_exit = _run_doctor_command(doctor_config, args)
         if doctor_exit:
-            print(
-                _c(_CYAN, "Setup completed; doctor reported follow-up warnings above.")
-            )
+            print(_c(_CYAN, "Setup completed; doctor reported follow-up warnings above."))
         return 0
     return 0
 
