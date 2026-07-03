@@ -2,10 +2,9 @@
   "name": "waggle-memory",
   "displayName": "Waggle: Local Memory for AI Agents",
   "description": "Local graph memory for coding agents using MCP.",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "publisher": "Abhigyan-Shekhar",
   "license": "Apache-2.0",
-  "icon": "icon.png",
   "homepage": "https://github.com/Abhigyan-Shekhar/Waggle-mcp",
   "bugs": {
     "url": "https://github.com/Abhigyan-Shekhar/Waggle-mcp/issues"
@@ -21,6 +20,12 @@
   "engines": {
     "vscode": "^1.96.0"
   },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Waggle will not download binaries or start servers until this workspace is trusted."
+    }
+  },
   "categories": [
     "AI",
     "Other"
@@ -34,16 +39,12 @@
     "Knowledge Graph"
   ],
   "activationEvents": [
-    "onStartupFinished",
-    "onCommand:waggle.enableWorkspace",
-    "onCommand:waggle.install",
-    "onCommand:waggle.doctor",
-    "onCommand:waggle.openGraphStudio",
-    "onCommand:waggle.showStatus",
-    "onCommand:waggle.exportMemory",
-    "onCommand:waggle.openInstallDocs"
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
   "contributes": {
     "commands": [
       {
@@ -73,15 +74,41 @@
       {
         "command": "waggle.openInstallDocs",
         "title": "Waggle: Open Install Docs"
+      },
+      {
+        "command": "waggle.queryMemory",
+        "title": "Waggle: Query Memory"
+      },
+      {
+        "command": "waggle.observeConversation",
+        "title": "Waggle: Observe Conversation"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "waggle",
+          "title": "Waggle",
+          "icon": "$(graph)"
+        }
+      ]
+    },
+    "views": {
+      "waggle": [
+        {
+          "id": "waggle.graphStudio",
+          "name": "Graph Studio",
+          "type": "webview"
+        }
+      ]
+    },
     "configuration": {
       "title": "Waggle",
       "properties": {
         "waggle.commandPath": {
           "type": "string",
           "default": "waggle-mcp",
-          "description": "Command used to start the Waggle CLI."
+          "description": "Command used when installMethod is pipx."
         },
         "waggle.dbPath": {
           "type": "string",
@@ -95,14 +122,34 @@
         },
         "waggle.autoStart": {
           "type": "boolean",
-          "default": false,
-          "description": "Reserved for future automatic startup behavior."
+          "default": true,
+          "description": "Start the local Waggle HTTP server when a workspace opens."
         },
         "waggle.installMethod": {
           "type": "string",
-          "default": "pipx",
+          "default": "binary",
           "enum": ["pipx", "binary"],
-          "description": "Preferred install method."
+          "description": "Install method: bundled binary download or pipx."
+        },
+        "waggle.binaryReleaseRepo": {
+          "type": "string",
+          "default": "Abhigyan-Shekhar/Waggle-mcp",
+          "description": "GitHub owner/repo used to download release binaries."
+        },
+        "waggle.binaryVersion": {
+          "type": "string",
+          "default": "",
+          "description": "Override the GitHub release version for the bundled binary (defaults to extension version)."
+        },
+        "waggle.binaryAllowLatestFallback": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, use GitHub releases/latest when the requested version tag is missing. Cache keys match the resolved release version."
+        },
+        "waggle.model": {
+          "type": "string",
+          "default": "deterministic",
+          "description": "WAGGLE_MODEL value for extension-managed server processes."
         },
         "waggle.mcpConfigScope": {
           "type": "string",
@@ -115,20 +162,22 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "package": "vsce package",
-    "pretest": "node -e \"const fs = require('fs'); if (!fs.existsSync('test-workspace')) fs.mkdirSync('test-workspace');\" && npm run compile",
-    "test": "vscode-test"
+    "compile": "node esbuild.mjs",
+    "typecheck": "tsc -p ./ --noEmit",
+    "test:smoke": "npm run compile && node scripts/test-platform.mjs",
+    "test:regression": "npm run compile && node scripts/test-regression.mjs",
+    "test:commands": "node scripts/validate-commands.js",
+    "test": "npm run test:commands && npm run test:smoke && npm run test:regression",
+    "package": "vsce package"
   },
   "devDependencies": {
-    "@types/mocha": "^10.0.10",
     "@types/node": "^22.10.2",
-    "@types/sinon": "^21.0.1",
     "@types/vscode": "^1.96.0",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^3.0.0",
-    "@vscode/vsce": "^3.2.2",
-    "sinon": "^22.0.0",
-    "typescript": "^5.7.2"
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.2",
+    "@vscode/vsce": "^3.2.2"
+  },
+  "overrides": {
+    "hono": ">=4.12.25"
   }
 }

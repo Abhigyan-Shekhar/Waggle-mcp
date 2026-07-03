@@ -10,8 +10,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
-  # ── Lint ──────────────────────────────────────────────────────────────────
+  # â”€â”€ Lint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   lint:
     name: Lint (ruff)
     runs-on: ubuntu-latest
@@ -35,7 +38,7 @@ jobs:
       - name: Check markdown links
         run: python scripts/check_markdown_links.py
 
-  # ── Tests ─────────────────────────────────────────────────────────────────
+  # â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test:
     name: Test (Python ${{ matrix.python-version }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -75,7 +78,7 @@ jobs:
           PYTHONUTF8: "1"   # prevents UnicodeEncodeError on Windows
         run: pytest -v --tb=long
 
-  # ── Packaging smoke-test ───────────────────────────────────────────────────
+  # â”€â”€ Packaging smoke-test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   package:
     name: Package smoke-test
     runs-on: ubuntu-latest
@@ -107,7 +110,7 @@ jobs:
       - name: Validate bundled runtime layout
         run: python scripts/build_codex_plugin_runtime.py
 
-  # ── VS Code extension ────────────────────────────────────────────────────
+  # â”€â”€ VS Code extension â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   vscode-extension:
     name: VS Code extension validation
     runs-on: ubuntu-latest
@@ -128,13 +131,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Compile extension
-        run: npm run compile
+      - name: Compile and smoke-test extension
+        run: npm run test:smoke
+
       - name: Run command validation
         run: node scripts/validate-commands.js
 
-      - name: Run extension integration tests
-        run: xvfb-run npm test
+      - name: Run regression tests
+        run: npm run test:regression
 
   graph-studio:
     name: Graph Studio validation

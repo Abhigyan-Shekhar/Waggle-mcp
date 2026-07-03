@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import Cytoscape from "cytoscape";
 import coseBilkent from "cytoscape-cose-bilkent";
 import { apiRequest, buildScopeQuery } from "./lib/api";
+import { readBootConfig } from "./lib/boot-config";
 import {
   buildExtractionHealth,
   buildFilterBuckets,
@@ -31,26 +32,12 @@ const DATE_RANGES = [
 
 const RELATION_TYPES = ["relates_to", "contradicts", "depends_on", "part_of", "updates", "derived_from", "similar_to"];
 
-function getBootConfig() {
-  const config = window.__WAGGLE_GRAPH_CONFIG__ || {};
-  return {
-    mode: config.mode === "view" ? "view" : "edit",
-    sampleMode: Boolean(config.sampleMode),
-    scope: {
-      project: config.project || "",
-      agent_id: config.agent_id || "",
-      session_id: config.session_id || ""
-    }
-  };
-}
-
 function Pill({ active, children, color, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-xs transition ${
-        active ? "border-white/20 bg-white/12 text-white" : "border-white/10 bg-black/15 text-graph-muted hover:bg-white/8"
-      }`}
+      className={`rounded-full border px-3 py-1 text-xs transition ${active ? "border-white/20 bg-white/12 text-white" : "border-white/10 bg-black/15 text-graph-muted hover:bg-white/8"
+        }`}
       style={active && color ? { boxShadow: `0 0 0 1px ${color} inset`, color } : undefined}
       type="button"
     >
@@ -150,9 +137,8 @@ function EdgeDialog({ edge, onCancel, onSave }) {
 function FileInputButton({ label, accept, onChange, disabled }) {
   return (
     <label
-      className={`rounded-xl border border-white/10 px-3 py-2 text-sm text-white ${
-        disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
-      }`}
+      className={`rounded-xl border border-white/10 px-3 py-2 text-sm text-white ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+        }`}
     >
       {label}
       <input className="hidden" type="file" accept={accept} onChange={onChange} disabled={disabled} />
@@ -183,7 +169,7 @@ function readFileBase64(file) {
 }
 
 export function App() {
-  const boot = useMemo(getBootConfig, []);
+  const boot = useMemo(() => readBootConfig(), []);
   const mode = boot.mode;
   const readOnly = mode === "view";
   const cyRef = useRef(null);
@@ -852,23 +838,23 @@ export function App() {
   const visibleTranscriptRecords = transcriptSearch.trim()
     ? transcriptHits
     : transcriptRecords.filter((record) => {
-        const activeSessions = new Set(filters.sessions || []);
-        const activeAgents = new Set(filters.agents || []);
-        const activeProjects = new Set(filters.projects || []);
-        if (activeSessions.size && !activeSessions.has(record.session_id || "")) {
-          return false;
-        }
+      const activeSessions = new Set(filters.sessions || []);
+      const activeAgents = new Set(filters.agents || []);
+      const activeProjects = new Set(filters.projects || []);
+      if (activeSessions.size && !activeSessions.has(record.session_id || "")) {
+        return false;
+      }
 
-        if (activeAgents.size && !activeAgents.has(record.agent_id || "")) {
-          return false;
-        }
+      if (activeAgents.size && !activeAgents.has(record.agent_id || "")) {
+        return false;
+      }
 
-        if (activeProjects.size && !activeProjects.has(record.project || "")) {
-          return false;
-        }
+      if (activeProjects.size && !activeProjects.has(record.project || "")) {
+        return false;
+      }
 
-        return true;
-      });
+      return true;
+    });
 
   const selectedGraphNode = graph.nodes.find((node) => node.id === selectedNodeId) || null;
   const selectedPair = transcriptPairs.find((pair) => pair.id === selectedNodeId) || null;
@@ -880,7 +866,11 @@ export function App() {
   const nodeDiffRecords = diffPayload.node_records || diffPayload.nodes || [];
   const edgeDiffRecords = diffPayload.edge_records || diffPayload.edges || [];
   const diffCount = (records, classification) => records.filter((record) => record.classification === classification).length;
-  const legacyDiffCount = (key) => (diffPayload[key] || []).length;
+  const legacyDiffCount = (key) => (diffPayload[key] ?? []).length;
+  const diffSummaryCount = (records, classification, legacyKey) => {
+    const modernCount = diffCount(records, classification);
+    return records.length > 0 ? modernCount : legacyDiffCount(legacyKey);
+  };
 
   return (
     <div className="min-h-screen p-4">
@@ -909,7 +899,7 @@ export function App() {
 
           <Section title="Views">
             <div className="flex flex-wrap gap-2">
-              {["graph", "transcripts", "retrieval", "diff"].map((tab) => (
+              {["graph", "transcripts", "retrieval", ...(boot.sampleMode ? [] : ["diff"])].map((tab) => (
                 <Pill key={tab} active={activeTab === tab} onClick={() => setActiveTab(tab)}>
                   {tab[0].toUpperCase() + tab.slice(1)}
                 </Pill>
@@ -1200,27 +1190,27 @@ export function App() {
                   <div className="mt-4 grid gap-3 md:grid-cols-3">
                     <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Nodes added</div>
-                      <div className="mt-2 text-2xl font-semibold text-white">{diffCount(nodeDiffRecords, "added") || legacyDiffCount("nodes_added")}</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">{diffSummaryCount(nodeDiffRecords, "added", "nodes_added")}</div>
                     </div>
                     <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Nodes removed</div>
-                      <div className="mt-2 text-2xl font-semibold text-white">{diffCount(nodeDiffRecords, "removed") || legacyDiffCount("nodes_removed")}</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">{diffSummaryCount(nodeDiffRecords, "removed", "nodes_removed")}</div>
                     </div>
                     <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Nodes modified</div>
-                      <div className="mt-2 text-2xl font-semibold text-white">{diffCount(nodeDiffRecords, "modified") || legacyDiffCount("nodes_updated")}</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">{diffSummaryCount(nodeDiffRecords, "modified", "nodes_updated")}</div>
                     </div>
                     <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Edges added</div>
-                      <div className="mt-2 text-2xl font-semibold text-white">{diffCount(edgeDiffRecords, "added") || legacyDiffCount("edges_added")}</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">{diffSummaryCount(edgeDiffRecords, "added", "edges_added")}</div>
                     </div>
                     <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Edges removed</div>
-                      <div className="mt-2 text-2xl font-semibold text-white">{diffCount(edgeDiffRecords, "removed") || legacyDiffCount("edges_removed")}</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">{diffSummaryCount(edgeDiffRecords, "removed", "edges_removed")}</div>
                     </div>
                     <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Edges modified</div>
-                      <div className="mt-2 text-2xl font-semibold text-white">{diffCount(edgeDiffRecords, "modified") || legacyDiffCount("edges_updated")}</div>
+                      <div className="mt-2 text-2xl font-semibold text-white">{diffSummaryCount(edgeDiffRecords, "modified", "edges_updated")}</div>
                     </div>
                   </div>
                 ) : null}
@@ -1418,19 +1408,21 @@ export function App() {
                     <div key={node.id}>{node.label}</div>
                   ))}
                 </div>
-                {!boot.sampleMode ? (
-                  <button className="mt-3 w-full rounded-xl bg-white px-3 py-2 text-sm font-medium text-black" onClick={() => commitImport().catch((error) => setToast(error.message))} disabled={readOnly} type="button">
-                    Commit import
-                  </button>
-                ) : null}
               </div>
             ) : null}
-            <div className="mt-4 rounded-2xl border border-white/8 bg-black/15 p-3 text-sm text-graph-muted">
-              Use the Diff view to compare two .abhi artifacts without changing the current graph editor state.
-              <button className="mt-3 w-full rounded-xl border border-white/10 px-3 py-2 text-sm text-white" onClick={() => setActiveTab("diff")} type="button">
-                Open Diff Inspector
-              </button>
-            </div>
+
+            {!boot.sampleMode ? (
+              <div className="mt-4 rounded-2xl border border-white/8 bg-black/15 p-3 text-sm text-graph-muted">
+                Use the Diff view to compare two .abhi artifacts without changing the current graph editor state.
+                <button
+                  className="mt-3 w-full rounded-xl border border-white/10 px-3 py-2 text-sm text-white"
+                  onClick={() => setActiveTab("diff")}
+                  type="button"
+                >
+                  Open Diff Inspector
+                </button>
+              </div>
+            ) : null}
           </Section>
         </div>
       </div>

@@ -34,13 +34,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Compile extension
-        run: npm run compile
-
-      - name: Run command validation
+      - name: Run extension validation tests
         run: npm test
 
       - name: Package VSIX
+        env:
+          WAGGLE_RELEASE_REPO: Abhigyan-Shekhar/Waggle-mcp
         run: npx @vscode/vsce package
 
       - name: Upload VSIX artifact
@@ -52,6 +51,7 @@ jobs:
       - name: Publish to Marketplace
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          WAGGLE_RELEASE_REPO: Abhigyan-Shekhar/Waggle-mcp
         run: |
           if [ -z "$VSCE_PAT" ]; then
             echo "::notice::VSCE_PAT not set; skipping marketplace publish."
