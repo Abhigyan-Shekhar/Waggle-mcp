@@ -33,6 +33,74 @@ def test_parser_exposes_graph_studio_aliases(command_name: str) -> None:
     assert args.open is False
 
 
+def test_distribution_commands_present_in_help(capsys):
+    parser = _build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--help"])
+
+    output = capsys.readouterr().out
+
+    for command in ("export", "push", "pull", "share"):
+        assert command in output
+
+
+@pytest.mark.parametrize(
+    ("command", "expected_flags"),
+    [
+        (
+            "export",
+            [
+                "--output",
+                "--scope",
+                "--project",
+                "--session-id",
+            ],
+        ),
+        (
+            "push",
+            [
+                "--drive",
+                "--folder-id",
+                "--client-secret-path",
+                "--token-path",
+            ],
+        ),
+        (
+            "pull",
+            [
+                "--folder-id",
+                "--client-secret-path",
+                "--token-path",
+                "--merge-strategy",
+            ],
+        ),
+        (
+            "share",
+            [
+                "--folder-id",
+                "--client-secret-path",
+                "--token-path",
+            ],
+        ),
+    ],
+)
+def test_distribution_command_help_contains_expected_flags(
+    command: str,
+    expected_flags: list[str],
+    capsys,
+):
+    parser = _build_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args([command, "--help"])
+
+    output = capsys.readouterr().out
+
+    for flag in expected_flags:
+        assert flag in output, f"Expected flag {flag!r} missing from `{command} --help`"
+
+
 def test_write_codex_config_uses_packaged_stdio_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))

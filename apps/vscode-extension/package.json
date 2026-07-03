@@ -116,7 +116,8 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "package": "vsce package"
+    "package": "vsce package",
+    "test": "node scripts/validate-commands.js"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

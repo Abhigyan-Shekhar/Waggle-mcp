@@ -507,12 +507,16 @@ class TraversalMixin(MemoryGraphBase):
             final_candidates: list[Node] = []
             for node in candidates:
                 row = next(r for r in candidate_rows if r["id"] == node.id)
-                semantic = max(
-                    self.embedding_model.cosine_similarity(
-                        query_embedding, self.embedding_model.from_bytes(row["embedding"])
-                    ),
-                    0.0,
-                )
+                decoded_embedding = self._decode_embedding(row["embedding"])
+                if decoded_embedding is None:
+                    # No usable embedding (missing or failed checksum): degrade to
+                    # lexical-only scoring rather than trusting corrupt bytes.
+                    semantic = 0.0
+                else:
+                    semantic = max(
+                        self.embedding_model.cosine_similarity(query_embedding, decoded_embedding),
+                        0.0,
+                    )
                 lexical = self._lexical_score_for_node(query_text, node)
                 similarity = max(0.0, min(1.0, (0.8 * semantic) + (0.2 * lexical)))
                 similarity = self._blend_session_signal(
@@ -776,7 +780,9 @@ class TraversalMixin(MemoryGraphBase):
                     if not _scope_matches(node, agent_id=agent_id, project=project, session_id=active_session_id):
                         continue
                     scoped_nodes[node.id] = node
-                    scoped_embeddings[node.id] = self.embedding_model.from_bytes(row["embedding"])
+                    decoded_embedding = self._decode_embedding(row["embedding"])
+                    if decoded_embedding is not None:
+                        scoped_embeddings[node.id] = decoded_embedding
                 return scoped_nodes, scoped_embeddings
 
             nodes_by_id, embeddings_by_id = collect_scoped_nodes(active_session_id)
@@ -980,7 +986,9 @@ class TraversalMixin(MemoryGraphBase):
             hits: list[tuple[float, ReplayHit]] = []
             for row, raw_timestamp in zip(rows, timestamps, strict=True):
                 record = self._row_to_transcript_record(row)
-                embedding = self.embedding_model.from_bytes(row["embedding"])
+                embedding = self._decode_embedding(row["embedding"])
+                if embedding is None:
+                    continue
                 semantic_score = max(self.embedding_model.cosine_similarity(query_embedding, embedding), 0.0)
                 lexical_score = lexical_overlap(query, record.role, record.transcript_text)
                 temporal_score = 0.0
@@ -1066,7 +1074,9 @@ class TraversalMixin(MemoryGraphBase):
             scoped_session_id = record.session_id.strip()
             if not scoped_session_id:
                 continue
-            embedding = self.embedding_model.from_bytes(row["embedding"])
+            embedding = self._decode_embedding(row["embedding"])
+            if embedding is None:
+                continue
             semantic_score = max(self.embedding_model.cosine_similarity(query_vector, embedding), 0.0)
             lexical_score = lexical_overlap(query, record.role, record.transcript_text)
             role_score = 1.0 if record.role == "user" else 0.8
@@ -1739,9 +1749,11 @@ class TraversalMixin(MemoryGraphBase):
             lexical_candidates: list[tuple[float, str]] = []
             semantic_candidates: list[tuple[float, str]] = []
             for node_id, node in nodes_by_id.items():
-                semantic = max(
-                    self.embedding_model.cosine_similarity(clause_embedding, embeddings_by_id[node_id]),
-                    0.0,
+                embedding = embeddings_by_id.get(node_id)
+                semantic = (
+                    max(self.embedding_model.cosine_similarity(clause_embedding, embedding), 0.0)
+                    if embedding is not None
+                    else 0.0
                 )
                 lexical = self._lexical_score_for_node(expanded_clause, node)
                 score = (0.45 * semantic) + (0.55 * lexical)

@@ -19,6 +19,20 @@ No cloud account. No API key. Local by default.
 - [Troubleshooting](./troubleshooting.md)
 - [Windows setup & troubleshooting](./troubleshooting.md#windows-specific-troubleshooting)
 
+## Client support matrix
+
+| Client              | Method                   | Config location                   |
+| ------------------- | ------------------------ | --------------------------------- |
+| VS Code             | Extension / Manual       | `.vscode/mcp.json`                |
+| Claude Code         | CLI Add / Manual JSON    | Claude Code MCP configuration     |
+| Claude Desktop      | `setup --yes` / Manual   | `claude_desktop_config.json`      |
+| Cursor              | `setup --yes` / Manual   | `~/.cursor/mcp.json`              |
+| Codex               | `setup --yes` / Manual   | `~/.codex/config.toml`            |
+| Smithery            | Manual stdio config      | `smithery.yaml`                   |
+| Antigravity         | `setup --yes` / Manual   | Generic stdio MCP configuration   |
+| Generic MCP Clients | Manual JSON stdio config | Client-specific MCP configuration |
+
+
 ## One-line install
 
 For Cursor, Antigravity, Claude, generic MCP clients, and direct Codex CLI

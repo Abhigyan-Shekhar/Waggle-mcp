@@ -505,6 +505,11 @@ export function App() {
   const provenanceTrail = selectedGraphNode ? buildProvenanceTrail(selectedGraphNode, graph) : [];
   const sourcePrompts = selectedGraphNode ? summarizeSourcePrompts(selectedGraphNode) : [];
   const sourceTurnPairId = selectedGraphNode ? firstTurnPairId(selectedGraphNode) : "";
+  const diffPayload = abhiDiff?.payload?.diff || {};
+  const nodeDiffRecords = diffPayload.node_records || diffPayload.nodes || [];
+  const edgeDiffRecords = diffPayload.edge_records || diffPayload.edges || [];
+  const diffCount = (records, classification) => records.filter((record) => record.classification === classification).length;
+  const legacyDiffCount = (key) => (diffPayload[key] || []).length;
 
   return (
     <div className="min-h-screen p-4">

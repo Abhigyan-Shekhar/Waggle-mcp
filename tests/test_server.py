@@ -443,13 +443,13 @@ def test_doctor_json_output_reports_status(
     assert exit_code == 1
     assert captured.err == ""
     assert "\x1b[" not in captured.out
-    assert payload["schema_version"] == 1
-    assert payload["platform"]
-    assert payload["status"] == "issues_found"
-    assert payload["warnings"] == []
-    assert payload["fix_requested"] is False
-    assert any("No MCP client config file" in issue for issue in payload["issues"])
-    assert "Deterministic model — no download needed" in payload["successful_checks"]
+    assert payload["version"] == waggle.__version__
+    assert payload["checks"]["mcp_config"]["status"] == "fail"
+    assert "reason" in payload["checks"]["mcp_config"]
+    assert payload["checks"]["embedding_model"] == {"status": "ok", "model_id": "deterministic"}
+    assert payload["summary"]["fail"] >= 1
+    total_checks = sum(payload["summary"].values())
+    assert total_checks == len(payload["checks"])
     assert "waggle-mcp doctor" not in captured.out
 
 
@@ -495,12 +495,16 @@ def test_doctor_json_output_ok_status(
     assert exit_code == 0
     assert captured.err == ""
     assert "\x1b[" not in captured.out
-    assert payload["schema_version"] == 1
-    assert payload["status"] == "ok"
-    assert payload["issues"] == []
-    assert payload["warnings"] == []
-    assert payload["fix_requested"] is False
-    assert any(item.startswith("Waggle found in:") for item in payload["successful_checks"])
+    assert payload["version"] == waggle.__version__
+    assert payload["summary"]["fail"] == 0
+    assert payload["checks"]["mcp_config"] == {"status": "ok", "found_in": ["Codex"]}
+    assert payload["checks"]["db_connection"]["status"] == "ok"
+    assert payload["checks"]["embedding_model"] == {"status": "ok", "model_id": "deterministic"}
+    assert payload["checks"]["graph_schema"]["status"] == "ok"
+    assert payload["checks"]["startup_mode"] == {"status": "ok", "mode": "normal"}
+    assert "stdout_encoding" in payload["checks"]
+    total_checks = sum(payload["summary"].values())
+    assert total_checks == len(payload["checks"])
 
 
 def test_doctor_json_output_warning_status_for_uncached_model(
@@ -543,9 +547,109 @@ def test_doctor_json_output_warning_status_for_uncached_model(
     payload = json.loads(captured.out)
 
     assert exit_code == 0
-    assert payload["status"] == "warnings"
-    assert payload["issues"] == []
-    assert any("not found in cache" in warning for warning in payload["warnings"])
+    assert payload["summary"]["fail"] == 0
+    assert payload["summary"]["warn"] >= 1
+    embedding_model_check = payload["checks"]["embedding_model"]
+    assert embedding_model_check["status"] == "warn"
+    assert embedding_model_check["model_id"] == "sentence-transformers/not-cached-for-waggle-test"
+    assert "not found in cache" in embedding_model_check["reason"]
+
+
+def test_doctor_json_output_shape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    appdata = home / "AppData" / "Roaming"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("APPDATA", str(appdata))
+
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="deterministic",
+        db_path=str(tmp_path / "server-memory.db"),
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    exit_code = _run_doctor(config, json_output=True)
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert payload["checks"], "checks must not be empty"
+    recomputed_summary = {"ok": 0, "warn": 0, "fail": 0}
+    for name, check in payload["checks"].items():
+        assert check["status"] in ("ok", "warn", "fail"), f"{name} has unexpected status"
+        recomputed_summary[check["status"]] += 1
+
+    assert payload["summary"] == recomputed_summary
+
+    # No MCP config file is present, so mcp_config fails and the exit code
+    # must reflect that.
+    assert payload["summary"]["fail"] >= 1
+    assert exit_code == 1
+
+
+def test_doctor_text_output_unchanged_without_json_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    appdata = home / "AppData" / "Roaming"
+    db_path = tmp_path / "server-memory.db"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("APPDATA", str(appdata))
+    write_waggle_codex_config(home, db_path)
+
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="deterministic",
+        db_path=str(db_path),
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    exit_code = _run_doctor(config)
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "waggle-mcp doctor" in captured.out
+    assert "[1] MCP client config files" in captured.out
+    assert "All checks passed" in captured.out
+    with pytest.raises(json.JSONDecodeError):
+        json.loads(captured.out)
 
 
 def test_create_and_list_api_keys_cli_redacts_hash(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
