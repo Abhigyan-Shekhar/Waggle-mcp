@@ -273,6 +273,22 @@ After Waggle is installed as an MCP server, the normal workflow is conversationa
   - `observe_conversation`
   - `decompose_and_store`
   - automatic contradiction/update detection in some cases
+
+#### Edge confidence
+
+Waggle stores edge confidence in edge metadata as one of three labels: `explicit`, `inferred`, or `weak`.
+
+| Creation path | Confidence | When this value is set |
+| --- | --- | --- |
+| Manual edge creation (`store_edge` and Graph Studio edge creation) | `explicit` | The edge is intentionally created by a user or operator action, so it is treated as explicit by default. |
+| Conversation extraction (`observe_conversation`) | `inferred` | The extractor infers a typed relationship from user/assistant content with normal evidence strength. |
+| Low-signal extraction (single shared token / low cosine similarity) | `weak` | The extractor links nodes with limited lexical/semantic evidence and marks the edge as low-confidence. |
+
+Graph Studio renders confidence visually so weak links are easier to spot:
+
+- `weak` edges are shown with de-emphasized styling (for example dashed/faded treatment).
+- The edge inspector shows the confidence badge so you can see whether a link is `explicit`, `inferred`, or `weak`.
+
 - The graph-aware retrieval tools are what return connected context to the model:
   - `query_graph`
   - `get_related`
