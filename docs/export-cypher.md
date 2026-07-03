@@ -53,7 +53,7 @@ CREATE (:Memory:fact {id: 'abc123', label: 'Project deadline', content: 'Due nex
 One `MATCH` + `CREATE` per edge. Nodes are matched by `id`, then an edge is created with the edge's `weight` value.
 
 ```cypher
-MATCH (a:Memory {id: 'abc123'}), (b:Memory {id: 'def456'}) CREATE (a)-[:RELATES_TO {weight: 1.0}]->(b);
+MATCH (a:Memory {id: 'abc123'}), (b:Memory {id: 'def456'}) CREATE (a)-[:RELATES_TO {weight: 1.0, confidence: 1.0}]->(b);
 ```
 
 Relationship types are sanitized to uppercase snake_case (e.g. `relates_to` → `RELATES_TO`, `derived_from` → `DERIVED_FROM`). String values are escaped to prevent Cypher injection.

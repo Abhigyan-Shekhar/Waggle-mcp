@@ -219,6 +219,8 @@ _RE_NON_REL = re.compile(r"[^A-Z0-9_]")
 def _cypher_rel_type(relationship: str) -> str:
     """Sanitize a relationship string to uppercase snake_case Cypher rel type."""
     safe = _RE_NON_REL.sub("", relationship.upper().strip())
+    if safe and safe[0].isdigit():
+        safe = "_" + safe
     return safe or "RELATES_TO"
 
 
@@ -228,6 +230,8 @@ _RE_NON_LABEL = re.compile(r"[^A-Z0-9_]")
 def _cypher_label(raw: str) -> str:
     """Sanitize a string for use as a Cypher label (PascalCase, alphanumeric only)."""
     safe = _RE_NON_LABEL.sub("", raw.strip().title())
+    if safe and safe[0].isdigit():
+        safe = "_" + safe
     return safe or "Unknown"
 
 
