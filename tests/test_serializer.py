@@ -145,3 +145,103 @@ def test_serialize_timeline_nonempty():
     output = serialize_timeline(result)
     assert "2024-06-15" in output
     assert "Decision stored" in output
+
+
+def test_serialize_recent_nodes_multiple_nodes():
+    nodes = [
+        Node(
+            label="Decision A",
+            content="PostgreSQL",
+            node_type=NodeType.DECISION,
+        ),
+        Node(
+            label="Preference B",
+            content="Dark mode",
+            node_type=NodeType.PREFERENCE,
+        ),
+    ]
+
+    output = serialize_recent_nodes(nodes)
+
+    assert "Decision A" in output
+    assert "Preference B" in output
+
+
+def test_serialize_observation_result_multiple_nodes():
+    result = ObservationResult(
+        stored_nodes=[
+            Node(
+                label="Decision A",
+                content="PostgreSQL",
+                node_type=NodeType.DECISION,
+            ),
+            Node(
+                label="Decision B",
+                content="Redis",
+                node_type=NodeType.DECISION,
+            ),
+        ]
+    )
+
+    output = serialize_observation_result(result)
+
+    assert "Decision A" in output
+    assert "Decision B" in output
+
+
+def test_serialize_observation_result_multiple_conflicts():
+    result = ObservationResult(
+        conflicts=[
+            ConflictRecord(
+                other_node_id="1",
+                other_node_label="MySQL",
+                reason="Old decision",
+            ),
+            ConflictRecord(
+                other_node_id="2",
+                other_node_label="SQLite",
+                reason="Legacy",
+            ),
+        ]
+    )
+
+    output = serialize_observation_result(result)
+
+    assert "MySQL" in output
+    assert "SQLite" in output
+
+
+def test_serialize_timeline_multiple_items():
+    result = TimelineResult(
+        items=[
+            ContextTimelineItem(
+                kind="created",
+                timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+                label="Node A",
+                summary="Created",
+            ),
+            ContextTimelineItem(
+                kind="updated",
+                timestamp=datetime(2024, 2, 1, tzinfo=UTC),
+                label="Node B",
+                summary="Updated",
+            ),
+        ]
+    )
+
+    output = serialize_timeline(result)
+
+    assert "Node A" in output
+    assert "Node B" in output
+
+
+def test_serialize_recent_nodes_unicode():
+    node = Node(
+        label="🚀 Launch",
+        content="Unicode test",
+        node_type=NodeType.NOTE,
+    )
+
+    output = serialize_recent_nodes([node])
+
+    assert "🚀 Launch" in output
