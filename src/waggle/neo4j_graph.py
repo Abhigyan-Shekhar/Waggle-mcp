@@ -218,7 +218,7 @@ _RE_NON_REL = re.compile(r"[^A-Z0-9_]")
 
 def _cypher_rel_type(relationship: str) -> str:
     """Sanitize a relationship string to uppercase snake_case Cypher rel type."""
-    safe = _RE_NON_REL.sub("", relationship.upper().strip())
+    safe = _RE_NON_REL.sub("", relationship.upper().strip().replace(" ", "_"))
     if safe and safe[0].isdigit():
         safe = "_" + safe
     return safe or "RELATES_TO"
