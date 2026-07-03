@@ -1699,6 +1699,40 @@ class Neo4jMemoryGraph:
                 total_nodes_in_graph=total_nodes,
             )
 
+    def _transcript_from_props(self, props: Any) -> TranscriptRecord:
+        return TranscriptRecord(
+            id=props["id"],
+            tenant_id=props.get("tenant_id") or self.tenant_id,
+            agent_id=props.get("agent_id") or "",
+            project=props.get("project") or "",
+            session_id=props.get("session_id") or "",
+            observed_at=_parse_datetime(props["observed_at"]),
+            turn_index=int(props.get("turn_index") or 0),
+            role=props.get("role") or "",
+            transcript_text=props["transcript_text"],
+            embedding_model_id=props.get("embedding_model_id") or "",
+            embedding_dim=int(props.get("embedding_dim") or 0),
+            content_hash=props.get("content_hash") or "",
+            turn_pair_id=props.get("turn_pair_id") or "",
+            metadata=_decode_metadata(props.get("metadata")),
+        )
+
+    def _transcript_scope_matches(
+        self,
+        record: TranscriptRecord,
+        *,
+        agent_id: str = "",
+        project: str = "",
+        session_id: str = "",
+    ) -> bool:
+        if project.strip() and record.project != project.strip():
+            return False
+        if session_id.strip():
+            return record.session_id == session_id.strip()
+        if agent_id.strip():
+            return record.agent_id == agent_id.strip()
+        return True
+
     def _query_replay_hits(
         self,
         *,
@@ -1708,15 +1742,34 @@ class Neo4jMemoryGraph:
         project: str,
         session_id: str,
     ) -> list[ReplayHit]:
+        filters = [
+            "t.tenant_id = $tenant_id",
+            "t.embedding IS NOT NULL",
+        ]
+        params: dict[str, Any] = {
+            "tenant_id": self.tenant_id,
+        }
+
+        if project.strip():
+            filters.append("t.project = $project")
+            params["project"] = project.strip()
+
+        if session_id.strip():
+            filters.append("t.session_id = $session_id")
+            params["session_id"] = session_id.strip()
+        elif agent_id.strip():
+            filters.append("t.agent_id = $agent_id")
+            params["agent_id"] = agent_id.strip()
+
         with self._lock, self._session() as session:
             records = list(
                 session.run(
-                    """
-                    MATCH (t:MemoryTranscript {tenant_id: $tenant_id})
+                    f"""
+                    MATCH (t:MemoryTranscript)
+                    WHERE {" AND ".join(filters)}
                     RETURN t
-                    ORDER BY t.observed_at DESC, t.turn_index DESC
                     """,
-                    tenant_id=self.tenant_id,
+                    **params,
                 )
             )
         if not records:

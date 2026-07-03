@@ -3,10 +3,12 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import secrets
 import threading
 import urllib.parse
 import webbrowser
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any
@@ -17,11 +19,23 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
-from waggle.abhi import merge_abhi_documents
+from waggle.abhi import (
+    ABHI_MERGE_STRATEGIES,
+    DEFAULT_ABHI_MERGE_STRATEGY,
+    merge_abhi_documents,
+)
+from waggle.errors import ValidationFailure
 from waggle.models import DrivePushResult, DriveShareResult
 
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
 TOKEN_URI = "https://oauth2.googleapis.com/token"
+
+LOGGER = logging.getLogger(__name__)
+
+RESUMABLE_UPLOAD_THRESHOLD_BYTES = 5 * 1024 * 1024
+RESUMABLE_UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024
+GOOGLE_DRIVE_RESUMABLE_CHUNK_ALIGNMENT_BYTES = 256 * 1024
+DEFAULT_UPLOAD_RETRIES = 3
 
 
 def ensure_drive_credentials(
@@ -54,6 +68,55 @@ def build_drive_service(*, credentials: Credentials) -> Any:
     return build("drive", "v3", credentials=credentials, cache_discovery=False)
 
 
+def should_use_resumable_upload(
+    path: Path,
+    *,
+    threshold_bytes: int = RESUMABLE_UPLOAD_THRESHOLD_BYTES,
+) -> bool:
+    """Return whether an upload should use Google Drive resumable mode."""
+    if threshold_bytes < 0:
+        raise ValueError("threshold_bytes cannot be negative.")
+
+    return path.stat().st_size >= threshold_bytes
+
+
+def _execute_resumable_upload(
+    request: Any,
+    *,
+    max_retries: int,
+    progress_callback: Callable[[int], None] | None = None,
+) -> dict[str, Any]:
+    """Execute a resumable Drive request until its final response is returned."""
+    response: dict[str, Any] | None = None
+    last_progress = -1
+
+    while response is None:
+        status, response = request.next_chunk(num_retries=max_retries)
+
+        if status is None:
+            continue
+
+        progress = max(0, min(100, int(status.progress() * 100)))
+
+        if progress == last_progress:
+            continue
+
+        LOGGER.info("Google Drive upload progress: %s%%", progress)
+
+        if progress_callback is not None:
+            progress_callback(progress)
+
+        last_progress = progress
+
+    if last_progress < 100:
+        LOGGER.info("Google Drive upload progress: 100%%")
+
+        if progress_callback is not None:
+            progress_callback(100)
+
+    return response
+
+
 def push_file_to_drive(
     *,
     local_path: str | Path,
@@ -61,21 +124,72 @@ def push_file_to_drive(
     credentials: Credentials,
     remote_name: str = "",
     encrypted: bool = False,
+    resumable_threshold_bytes: int = RESUMABLE_UPLOAD_THRESHOLD_BYTES,
+    chunk_size: int = RESUMABLE_UPLOAD_CHUNK_SIZE,
+    max_retries: int = DEFAULT_UPLOAD_RETRIES,
+    progress_callback: Callable[[int], None] | None = None,
 ) -> DrivePushResult:
     path = Path(local_path).expanduser()
+
+    if not path.is_file():
+        raise FileNotFoundError(f"Drive upload file not found: {path}")
+
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive.")
+
+    if chunk_size % GOOGLE_DRIVE_RESUMABLE_CHUNK_ALIGNMENT_BYTES != 0:
+        raise ValueError("chunk_size must be a multiple of 256 KiB for resumable uploads.")
+
+    if max_retries < 0:
+        raise ValueError("max_retries cannot be negative.")
+
+    use_resumable = should_use_resumable_upload(
+        path,
+        threshold_bytes=resumable_threshold_bytes,
+    )
+
     service = build_drive_service(credentials=credentials)
-    metadata: dict[str, Any] = {"name": remote_name or path.name}
+
+    metadata: dict[str, Any] = {
+        "name": remote_name or path.name,
+    }
+
     if folder_id.strip():
         metadata["parents"] = [folder_id.strip()]
-    created = (
-        service.files()
-        .create(
-            body=metadata,
-            media_body=MediaFileUpload(str(path), mimetype="application/zip", resumable=False),
-            fields="id,name,webViewLink",
+
+    if use_resumable:
+        media = MediaFileUpload(
+            str(path),
+            mimetype="application/zip",
+            chunksize=chunk_size,
+            resumable=True,
         )
-        .execute()
+    else:
+        media = MediaFileUpload(
+            str(path),
+            mimetype="application/zip",
+            resumable=False,
+        )
+
+    request = service.files().create(
+        body=metadata,
+        media_body=media,
+        fields="id,name,webViewLink",
     )
+
+    try:
+        if use_resumable:
+            created = _execute_resumable_upload(
+                request,
+                max_retries=max_retries,
+                progress_callback=progress_callback,
+            )
+        else:
+            created = request.execute(num_retries=max_retries)
+    except Exception as exc:
+        upload_mode = "resumable" if use_resumable else "simple"
+        raise RuntimeError(f"Google Drive {upload_mode} upload failed for '{path.name}': {exc}") from exc
+
     return DrivePushResult(
         local_path=str(path),
         remote_file_id=str(created.get("id", "")),
@@ -146,7 +260,29 @@ def merge_downloaded_abhi(
     local_document: dict[str, Any],
     remote_document: dict[str, Any],
     output_path: str | Path,
+    merge_strategy: str = DEFAULT_ABHI_MERGE_STRATEGY,
 ) -> str:
+    """Merge a downloaded remote .abhi document with the local document.
+
+    Args:
+        local_document: The current local .abhi document.
+        remote_document: The downloaded remote .abhi document.
+        output_path: Destination path for the merged .abhi file.
+        merge_strategy: Conflict-resolution strategy used when both documents
+            modify the same object. Supported values are contradict,
+            last_write_wins, prefer_left, and prefer_right.
+
+    Returns:
+        The path to the written merged .abhi file.
+
+    Raises:
+        ValidationFailure: If merge_strategy is unsupported.
+    """
+    normalized_merge_strategy = str(merge_strategy).strip()
+    if normalized_merge_strategy not in ABHI_MERGE_STRATEGIES:
+        supported = ", ".join(ABHI_MERGE_STRATEGIES)
+        raise ValidationFailure(f"Invalid merge_strategy {merge_strategy!r}. Expected one of: {supported}.")
+
     merged = merge_abhi_documents(
         {
             "graph": {"nodes": [], "edges": []},
@@ -169,8 +305,9 @@ def merge_downloaded_abhi(
         left_input_path="local://current",
         right_input_path="local://remote",
         output_path=output_path,
-        merge_strategy="last_write_wins",
+        merge_strategy=normalized_merge_strategy,
     )
+
     return merged.output_path
 
 

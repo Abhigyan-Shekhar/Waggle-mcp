@@ -1,22 +1,22 @@
 # VS Code
 
-Use this when you want Waggle enabled from a VS Code extension with a one-click setup flow for the current workspace.
-
-Waggle is local graph memory for coding agents.
-
-No cloud account. No API key. Local by default.
+Use the Waggle VS Code extension for one-click workspace setup with a bundled release binary (no pip install required by default).
 
 ## One-line install
 
-Install the Marketplace extension, then run:
+Install the Marketplace extension, open a workspace, then run:
 
-```bash
-Waggle: Enable for this Workspace
-```
+**Waggle: Enable for this Workspace**
 
-## Manual config
+## Default behavior
 
-VS Code MCP examples commonly use `.vscode/mcp.json` with a `servers` root:
+- Downloads `waggle-mcp` from [GitHub Releases](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases) for your platform
+- Starts a local HTTP server (`edit-graph`) when the workspace opens
+- Writes `.vscode/mcp.json` for agent MCP over stdio (after you confirm)
+
+## Manual MCP config
+
+If you prefer not to use the extension, add to `.vscode/mcp.json`:
 
 ```json
 {
@@ -27,12 +27,19 @@ VS Code MCP examples commonly use `.vscode/mcp.json` with a `servers` root:
       "args": ["serve", "--transport", "stdio"],
       "env": {
         "WAGGLE_DEFAULT_TENANT_ID": "${workspaceFolderBasename}",
-        "WAGGLE_DB_PATH": "~/.waggle/waggle.db"
+        "WAGGLE_DB_PATH": "~/.waggle/waggle.db",
+        "WAGGLE_STARTUP_MODE": "fast"
       }
     }
   }
 }
 ```
+
+With the extension's binary install, `command` is the cached executable path under VS Code global storage.
+
+## pipx fallback
+
+Set `waggle.installMethod` to `pipx` in VS Code settings if you already use `pipx install waggle-mcp`.
 
 ## `waggle.mcpConfigScope`
 
@@ -44,7 +51,6 @@ The `waggle.mcpConfigScope` setting controls which root key the extension uses w
 | `mcpServers`        | Use when your tooling expects the legacy MCP configuration format |
 
 If `.vscode/mcp.json` already contains a `servers` or `mcpServers` object, the extension follows
-
 the existing file structure and ignores this setting.
 
 This setting is mainly used when creating a new `.vscode/mcp.json` file.
@@ -89,19 +95,22 @@ After:
 }
 ```
 
+
 ## Verify
 
 ```bash
 waggle-mcp doctor
 ```
 
-The extension will install `waggle-mcp` if needed, write `.vscode/mcp.json` after confirmation, and run `waggle-mcp doctor`.
+Or use **Waggle: Run Doctor** in the command palette.
 
 Reload VS Code, switch the agent UI into MCP-capable mode, and confirm the Waggle server is enabled.
 
 ## Troubleshooting
 
-See [troubleshooting.md](./troubleshooting.md).
+- **Binary download fails** — check `waggle.binaryReleaseRepo` and network; try `waggle.binaryVersion` matching an existing tag (e.g. `0.1.15`).
+- **Antivirus blocks the binary** — allow the file under VS Code global storage or use `pipx`.
+- See [troubleshooting.md](./troubleshooting.md).
 
 ## Security and privacy
 

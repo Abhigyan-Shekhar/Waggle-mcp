@@ -11,7 +11,8 @@ Thank you for your interest in improving Waggle. This document covers everything
 - [First Contribution Paths](#first-contribution-paths)
 - [Project Architecture](#project-architecture)
 - [Running Tests](#running-tests)
-- [Writing Tests](#writing-tests)      <-- ADD THIS LINE
+- [Documentation Link Checks](#documentation-link-checks)
+- [Writing Tests](#writing-tests)
 - [Code Style](#code-style)
 - [Key Concepts](#key-concepts)
 - [How to Submit a PR](#how-to-submit-a-pr)
@@ -247,6 +248,17 @@ Follow these rules when adding tests to the repository:
 * **One function per behavior:** Do not bundle multiple unrelated assertions into a single test function. Keeping tests isolated ensures failure logs remain specific and actionable.
 
 ---
+
+## Documentation Link Checks
+
+To validate repository-local Markdown links:
+
+```bash
+python scripts/check_markdown_links.py
+```
+
+The script checks internal Markdown links across the repository and reports the source file and broken path when an invalid link is found.
+
 ## Code Style
 
 This project uses [ruff](https://docs.astral.sh/ruff/) for both linting and formatting.
