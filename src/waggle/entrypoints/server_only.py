@@ -48,12 +48,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     from waggle.config import AppConfig
-    from waggle.server import _print_startup_banner, run_stdio
+    from waggle.server import print_startup_banner, run_stdio
 
     os.environ.setdefault("WAGGLE_TRANSPORT", "stdio")
     config = AppConfig.from_env()
     config.transport = "stdio"
-    _print_startup_banner(config, args)
+    print_startup_banner(config, args)
     asyncio.run(run_stdio(config))
     return 0
 
