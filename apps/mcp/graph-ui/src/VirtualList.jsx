@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
 
 /**
  * VirtualList - A high-performance virtualization list for React 19.
@@ -22,10 +22,10 @@ export function VirtualList({
   const itemRefs = useRef({});
 
   // Get unique key for an item
-  const getItemKey = (item, index) => {
+  const getItemKey = useCallback((item, index) => {
     if (itemKey) return itemKey(item, index);
     return item.id || item.key || index;
-  };
+  }, [itemKey]);
 
   // Monitor container scroll and height
   useEffect(() => {
@@ -55,32 +55,6 @@ export function VirtualList({
       resizeObserver.disconnect();
     };
   }, []);
-
-  // Measure rendered items and update heights in state if changed
-  useEffect(() => {
-    let changed = false;
-    const newHeights = { ...measuredHeights };
-
-    Object.entries(itemRefs.current).forEach(([indexStr, el]) => {
-      if (el) {
-        const index = parseInt(indexStr, 10);
-        const item = items[index];
-        if (item) {
-          const key = getItemKey(item, index);
-          const height = el.getBoundingClientRect().height;
-          // Use a small epsilon to avoid unnecessary updates from floating point precision
-          if (newHeights[key] === undefined || Math.abs(newHeights[key] - height) > 0.5) {
-            newHeights[key] = height;
-            changed = true;
-          }
-        }
-      }
-    });
-
-    if (changed) {
-      setMeasuredHeights(newHeights);
-    }
-  }); // Run on every render to measure the DOM elements
 
   // Compute prefix sums of heights (offsets) and total height
   const { offsets, totalHeight } = useMemo(() => {
@@ -135,6 +109,32 @@ export function VirtualList({
 
     return { startIndex, endIndex };
   }, [offsets, scrollTop, containerHeight, buffer, items.length]);
+
+  // Measure rendered items and update heights in state if changed before paint
+  useLayoutEffect(() => {
+    let changed = false;
+    const newHeights = { ...measuredHeights };
+
+    for (let i = startIndex; i < endIndex; i++) {
+      const el = itemRefs.current[i];
+      if (el) {
+        const item = items[i];
+        if (item) {
+          const key = getItemKey(item, i);
+          const height = el.getBoundingClientRect().height;
+          // Use a small epsilon to avoid unnecessary updates from floating point precision
+          if (newHeights[key] === undefined || Math.abs(newHeights[key] - height) > 0.5) {
+            newHeights[key] = height;
+            changed = true;
+          }
+        }
+      }
+    }
+
+    if (changed) {
+      setMeasuredHeights(newHeights);
+    }
+  }, [items, startIndex, endIndex, measuredHeights, getItemKey]);
 
   const topSpacerHeight = offsets[startIndex] || 0;
   const bottomSpacerHeight = Math.max(0, totalHeight - (offsets[endIndex] || totalHeight));
