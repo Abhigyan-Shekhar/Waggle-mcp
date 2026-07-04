@@ -53,3 +53,25 @@ class TestCodeExtraction:
         assert isinstance(entity, CodeEntity)
         assert entity.language == "python"
         assert "greet" in entity.snippet
+
+    def test_empty_fenced_block_returns_empty(self) -> None:
+        text = "```python\n```"
+
+        assert extract_code_entities(text) == []
+
+    def test_unknown_language_python_fallback(self) -> None:
+        text = "```foobar\nclass Service:\n    pass\n```"
+
+        entities = extract_code_entities(text)
+
+        names = {(e.name, e.entity_type) for e in entities}
+
+        assert ("Service", "class") in names
+
+    def test_unknown_language_without_symbols_returns_empty(self) -> None:
+        text = "```foo\nhello world\n12345\n```"
+
+        assert extract_code_entities(text) == []
+
+    def test_empty_text_returns_empty(self) -> None:
+        assert extract_code_entities("") == []
