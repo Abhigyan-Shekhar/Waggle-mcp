@@ -69,7 +69,7 @@ export function VirtualList({
           const key = getItemKey(item, index);
           const height = el.getBoundingClientRect().height;
           // Use a small epsilon to avoid unnecessary updates from floating point precision
-          if (!newHeights[key] || Math.abs(newHeights[key] - height) > 0.5) {
+          if (newHeights[key] === undefined || Math.abs(newHeights[key] - height) > 0.5) {
             newHeights[key] = height;
             changed = true;
           }
@@ -94,24 +94,42 @@ export function VirtualList({
     }
     offsets.push(currentOffset); // Add total height at the end
     return { offsets, totalHeight: currentOffset };
-  }, [items, measuredHeights, estimatedItemHeight]);
+  }, [items, measuredHeights, estimatedItemHeight, itemKey]);
 
-  // Find start and end indices using binary search / linear scan
+  // Find start and end indices using binary search
   const { startIndex, endIndex } = useMemo(() => {
     if (items.length === 0) {
       return { startIndex: 0, endIndex: 0 };
     }
 
-    let start = 0;
-    while (start < items.length - 1 && offsets[start + 1] < scrollTop) {
-      start++;
+    // Binary search for the first visible item (first item ending after scrollTop)
+    let lowStart = 0;
+    let highStart = items.length - 1;
+    let start = items.length - 1;
+    while (lowStart <= highStart) {
+      const mid = (lowStart + highStart) >> 1;
+      if (offsets[mid + 1] > scrollTop) {
+        start = mid;
+        highStart = mid - 1;
+      } else {
+        lowStart = mid + 1;
+      }
     }
     const startIndex = Math.max(0, start - buffer);
 
-    let end = startIndex;
+    // Binary search for the first item starting after the viewport
+    let lowEnd = startIndex;
+    let highEnd = items.length - 1;
+    let end = items.length;
     const viewportEnd = scrollTop + containerHeight;
-    while (end < items.length - 1 && offsets[end] < viewportEnd) {
-      end++;
+    while (lowEnd <= highEnd) {
+      const mid = (lowEnd + highEnd) >> 1;
+      if (offsets[mid] >= viewportEnd) {
+        end = mid;
+        highEnd = mid - 1;
+      } else {
+        lowEnd = mid + 1;
+      }
     }
     const endIndex = Math.min(items.length, end + buffer);
 
@@ -145,7 +163,7 @@ export function VirtualList({
       );
     }
     return rendered;
-  }, [startIndex, endIndex, items, renderItem]);
+  }, [startIndex, endIndex, items, renderItem, itemKey, spacingClass]);
 
   return (
     <div

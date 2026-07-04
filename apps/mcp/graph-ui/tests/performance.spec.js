@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
           turn_index: i,
           role: i % 2 === 0 ? "user" : "assistant",
           transcript_text: `This is dynamic transcript message number ${i} to test virtualization performance.`,
-          observed_at: new Date(Date.now() - i * 60000).toISOString()
+          observed_at: new Date(new Date("2026-06-13T08:00:00Z").getTime() - i * 60000).toISOString()
         });
       }
       await route.fulfill({
@@ -67,19 +67,14 @@ test.describe("Graph UI - Virtualization Performance", () => {
     await expect(page.locator('input[placeholder*="Search transcripts"]')).toBeVisible();
 
     // Verify list responsiveness and count visible nodes
-    // Each transcript record renders a role (user / assistant) in a div.
-    // Count divs that contain role text "user" or "assistant"
-    const userRoleLocators = page.locator('div:has-text("user")');
-    const assistantRoleLocators = page.locator('div:has-text("assistant")');
-    
-    const userCount = await userRoleLocators.count();
-    const assistantCount = await assistantRoleLocators.count();
-    const totalVisibleRoles = userCount + assistantCount;
+    // Each transcript record renders a card styled with border-white/8 and bg-black/15
+    const cardLocators = page.locator('.flex-1.overflow-auto.p-4.scrollbar-thin .rounded-2xl.border.border-white\\/8');
+    const totalVisibleCards = await cardLocators.count();
 
-    console.log(`Total visible role indicators (user + assistant): ${totalVisibleRoles}`);
+    console.log(`Total visible transcript cards: ${totalVisibleCards}`);
 
     // Out of 1000 records, only the visible window + buffer (typically < 30) should be rendered in the DOM
-    expect(totalVisibleRoles).toBeLessThan(100);
-    expect(totalVisibleRoles).toBeGreaterThan(0);
+    expect(totalVisibleCards).toBeLessThan(100);
+    expect(totalVisibleCards).toBeGreaterThan(0);
   });
 });
