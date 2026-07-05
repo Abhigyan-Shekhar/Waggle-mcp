@@ -619,7 +619,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         def _decode_trigger_blob(blob: bytes | None) -> bytes | None:
             if not blob:
                 return None
-            if len(blob) == (dim * 4) + 8:
+            if len(blob) == (dim * 4) + 8 and blob.startswith(b"WEB1"):
                 return blob[4:-4]
             if len(blob) == dim * 4:
                 return blob
@@ -660,8 +660,10 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         if _HAS_SQLITE_VEC and getattr(self, "_sqlite_vec_loaded", True):
             try:
                 connection.enable_load_extension(True)
-                sqlite_vec.load(connection)
-                connection.enable_load_extension(False)
+                try:
+                    sqlite_vec.load(connection)
+                finally:
+                    connection.enable_load_extension(False)
             except Exception:
                 pass
 
@@ -718,34 +720,31 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                     dummy_vector = self.embedding_model.embed("dim_check")
                     dim = len(dummy_vector)
 
-                    row = connection.execute(
-                        "SELECT sql FROM sqlite_master WHERE type='table' AND name='vec_nodes'"
-                    ).fetchone()
-                    if row:
-                        if f"float[{dim}]" not in row[0]:
-                            LOGGER.info("sqlite-vec: Existing virtual table dimension mismatch. Re-creating vec_nodes.")
-                            connection.execute("DROP TABLE IF EXISTS vec_nodes")
-                            row = None
+                    # Recreate vec_nodes and reattach triggers on startup
+                    # to backfill any writes that occurred while sqlite-vec was disabled.
+                    connection.execute("DROP TRIGGER IF EXISTS t_nodes_insert")
+                    connection.execute("DROP TRIGGER IF EXISTS t_nodes_update")
+                    connection.execute("DROP TRIGGER IF EXISTS t_nodes_delete")
+                    connection.execute("DROP TABLE IF EXISTS vec_nodes")
 
-                    if not row:
-                        connection.execute(f"""
-                            CREATE VIRTUAL TABLE vec_nodes USING vec0(
-                                embedding float[{dim}] distance_metric=cosine,
-                                tenant_id TEXT,
-                                project TEXT,
-                                session_id TEXT,
-                                agent_id TEXT
-                            )
-                        """)
-                        connection.execute("""
-                            INSERT INTO vec_nodes(rowid, embedding, tenant_id, project, session_id, agent_id)
-                            SELECT rowid, vec_decode_embedding(embedding), tenant_id, project, session_id, agent_id
-                            FROM nodes
-                            WHERE embedding IS NOT NULL
-                        """)
+                    connection.execute(f"""
+                        CREATE VIRTUAL TABLE vec_nodes USING vec0(
+                            embedding float[{dim}] distance_metric=cosine,
+                            tenant_id TEXT,
+                            project TEXT,
+                            session_id TEXT,
+                            agent_id TEXT
+                        )
+                    """)
+                    connection.execute("""
+                        INSERT INTO vec_nodes(rowid, embedding, tenant_id, project, session_id, agent_id)
+                        SELECT rowid, vec_decode_embedding(embedding), tenant_id, project, session_id, agent_id
+                        FROM nodes
+                        WHERE embedding IS NOT NULL
+                    """)
 
                     connection.execute("""
-                        CREATE TRIGGER IF NOT EXISTS t_nodes_insert AFTER INSERT ON nodes
+                        CREATE TRIGGER t_nodes_insert AFTER INSERT ON nodes
                         BEGIN
                             INSERT INTO vec_nodes(rowid, embedding, tenant_id, project, session_id, agent_id)
                             SELECT NEW.rowid, vec_decode_embedding(NEW.embedding), NEW.tenant_id, NEW.project, NEW.session_id, NEW.agent_id
@@ -753,7 +752,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                         END;
                     """)
                     connection.execute("""
-                        CREATE TRIGGER IF NOT EXISTS t_nodes_update AFTER UPDATE OF embedding, tenant_id, project, session_id, agent_id ON nodes
+                        CREATE TRIGGER t_nodes_update AFTER UPDATE OF embedding, tenant_id, project, session_id, agent_id ON nodes
                         BEGIN
                             DELETE FROM vec_nodes WHERE rowid = NEW.rowid;
                             INSERT INTO vec_nodes(rowid, embedding, tenant_id, project, session_id, agent_id)
@@ -762,7 +761,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                         END;
                     """)
                     connection.execute("""
-                        CREATE TRIGGER IF NOT EXISTS t_nodes_delete AFTER DELETE ON nodes
+                        CREATE TRIGGER t_nodes_delete AFTER DELETE ON nodes
                         BEGIN
                             DELETE FROM vec_nodes WHERE rowid = OLD.rowid;
                         END;
@@ -770,6 +769,14 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 except Exception as e:
                     LOGGER.warning("Failed to initialize sqlite-vec: %s. Falling back to pure Python.", e)
                     self._sqlite_vec_loaded = False
+
+            if not self._sqlite_vec_loaded:
+                try:
+                    connection.execute("DROP TRIGGER IF EXISTS t_nodes_insert")
+                    connection.execute("DROP TRIGGER IF EXISTS t_nodes_update")
+                    connection.execute("DROP TRIGGER IF EXISTS t_nodes_delete")
+                except Exception as e:
+                    LOGGER.warning("Failed to drop sqlite-vec triggers: %s", e)
 
     def for_tenant(self, tenant_id: str) -> MemoryGraph:
         clone = object.__new__(MemoryGraph)
