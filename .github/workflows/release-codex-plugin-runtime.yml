@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      enable_signing:
+        description: "Use configured Apple/Windows signing credentials for this manual run"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -54,11 +60,16 @@ jobs:
       - name: Sign macOS runtime
         if: startsWith(matrix.target, 'darwin-')
         env:
+          ENABLE_SIGNING: ${{ github.event_name == 'push' || inputs.enable_signing }}
           APPLE_DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
         run: |
+          if [ "$ENABLE_SIGNING" != "true" ]; then
+            echo "Skipping macOS signing/notarization because signing is disabled for this run."
+            exit 0
+          fi
           if [ -z "$APPLE_DEVELOPER_ID" ] || [ -z "$APPLE_ID" ] || [ -z "$APPLE_TEAM_ID" ] || [ -z "$APPLE_NOTARY_PASSWORD" ]; then
             echo "Skipping macOS signing/notarization because Apple Developer ID credentials are not configured."
             exit 0
@@ -107,10 +118,15 @@ jobs:
       - name: Sign Windows runtime
         if: startsWith(matrix.target, 'win32-')
         env:
+          ENABLE_SIGNING: ${{ github.event_name == 'push' || inputs.enable_signing }}
           WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
           WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
         shell: pwsh
         run: |
+          if ($env:ENABLE_SIGNING -ne "true") {
+            Write-Host "Skipping Windows Authenticode signing because signing is disabled for this run."
+            exit 0
+          }
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERT_BASE64)) {
             Write-Host "Skipping Windows Authenticode signing because WINDOWS_CERT_BASE64 is not configured."
             exit 0
@@ -126,8 +142,13 @@ jobs:
       - name: Verify macOS signature when configured
         if: startsWith(matrix.target, 'darwin-')
         env:
+          ENABLE_SIGNING: ${{ github.event_name == 'push' || inputs.enable_signing }}
           APPLE_DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
         run: |
+          if [ "$ENABLE_SIGNING" != "true" ]; then
+            echo "Skipping macOS signature verification because signing is disabled for this run."
+            exit 0
+          fi
           if [ -z "$APPLE_DEVELOPER_ID" ]; then
             echo "Skipping macOS signature verification because signing was skipped."
             exit 0
@@ -137,9 +158,14 @@ jobs:
       - name: Verify Windows signature when configured
         if: startsWith(matrix.target, 'win32-')
         env:
+          ENABLE_SIGNING: ${{ github.event_name == 'push' || inputs.enable_signing }}
           WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
         shell: pwsh
         run: |
+          if ($env:ENABLE_SIGNING -ne "true") {
+            Write-Host "Skipping Windows signature verification because signing is disabled for this run."
+            exit 0
+          }
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERT_BASE64)) {
             Write-Host "Skipping Windows signature verification because signing was skipped."
             exit 0

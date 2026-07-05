@@ -85,18 +85,22 @@ Linux has no OS-level signing gate in this release flow.
 
 ## Signing
 
-The release workflow builds unsigned runtimes when Apple Developer ID and
-Windows Authenticode credentials are not configured. This is acceptable for the
+Manual `workflow_dispatch` runs build unsigned runtimes by default, even if
+signing secrets are present. Set the workflow's `enable_signing` input to
+`true` only when you intentionally want to exercise the signed release path.
+The workflow also builds unsigned runtimes when Apple Developer ID and Windows
+Authenticode credentials are not configured. This is acceptable for the
 repo-hosted v1 validation path, but users should expect macOS Gatekeeper and
 Windows SmartScreen warnings because the binaries are not notarized/signed.
 
-When signing credentials are later configured, macOS release binaries are signed
-with a Developer ID certificate and submitted for notarization before plugin
-packaging. Windows release binaries are Authenticode signed. The automated
-Windows path supports an OV PFX certificate; EV signing requires a cloud signing
-provider such as Azure Trusted Signing, DigiCert KeyLocker, or SSL.com eSigner
-rather than a portable PFX secret. OV-signed binaries can still see SmartScreen
-reputation prompts until the publisher and binary build reputation mature.
+For `v*` tag releases, signing is attempted when credentials are configured.
+macOS release binaries are signed with a Developer ID certificate and submitted
+for notarization before plugin packaging. Windows release binaries are
+Authenticode signed. The automated Windows path supports an OV PFX certificate;
+EV signing requires a cloud signing provider such as Azure Trusted Signing,
+DigiCert KeyLocker, or SSL.com eSigner rather than a portable PFX secret.
+OV-signed binaries can still see SmartScreen reputation prompts until the
+publisher and binary build reputation mature.
 
 Store signing material in CI secrets and rotate it using the provider's normal
 renewal process. Add calendar reminders or scheduled checks for Apple Developer

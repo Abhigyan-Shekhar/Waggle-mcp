@@ -60,11 +60,13 @@ gh attestation verify waggle-codex-marketplace-<tag>.zip \
   --repo Abhigyan-Shekhar/Waggle-mcp
 ```
 
-The repo-hosted v1 release may be unsigned if Apple Developer ID and Windows
-Authenticode credentials are not configured in CI. In that case macOS Gatekeeper
-and Windows SmartScreen can show warnings. Verify the checksum and GitHub
-attestation before installing. If signing credentials are later enabled, Windows
-builds use OV Authenticode signing unless EV cloud signing is explicitly added.
+The repo-hosted v1 release may be unsigned. Manual release-validation workflow
+runs are unsigned by default unless `enable_signing` is set, and releases are
+also unsigned when Apple Developer ID and Windows Authenticode credentials are
+not configured in CI. In that case macOS Gatekeeper and Windows SmartScreen can
+show warnings. Verify the checksum and GitHub attestation before installing. If
+signing credentials are later enabled, Windows builds use OV Authenticode
+signing unless EV cloud signing is explicitly added.
 
 To upgrade, install the newer marketplace bundle from the GitHub release and
 refresh the plugin directory in Codex. Waggle memory is stored outside the
