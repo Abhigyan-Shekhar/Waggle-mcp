@@ -470,7 +470,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         try:
             limit = int(request.query_params.get("limit", "200") or "200")
             offset = int(request.query_params.get("offset", "0") or "0")
-        except ValueError:
+        except (ValueError, TypeError):
             raise ValidationFailure("limit and offset query parameters must be integers.")
         query_text = request.query_params.get("query", "").strip()
         graph, _ = _require_http_scope(request, "graph:read")
@@ -526,7 +526,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         try:
             max_nodes = int(payload.get("max_nodes", 8) or 8)
             max_depth = int(payload.get("max_depth", 1) or 1)
-        except ValueError:
+        except (ValueError, TypeError):
             raise ValidationFailure("max_nodes and max_depth must be integers.")
         graph, _ = _require_http_scope(request, "graph:read")
         debug = graph.debug_retrieval(
@@ -668,7 +668,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         if "zoom" in payload and payload.get("zoom") is not None:
             try:
                 zoom_val = float(payload["zoom"])
-            except ValueError:
+            except (ValueError, TypeError):
                 raise ValidationFailure("zoom must be a float number.")
         saved = graph.save_ui_state(
             project=str(payload.get("project", "")).strip(),
@@ -719,13 +719,13 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         if "zoom" in ui and ui.get("zoom") is not None:
             try:
                 zoom_val = float(ui["zoom"])
-            except ValueError:
+            except (ValueError, TypeError):
                 raise ValidationFailure("zoom must be a float number.")
 
         for node_payload in desired_nodes.values():
             try:
                 NodeType(str(node_payload.get("node_type", "note")).strip() or "note")
-            except ValueError:
+            except (ValueError, TypeError):
                 raise ValidationFailure(f"node_type must be one of {[nt.value for nt in NodeType]}.")
 
         parsed_weights = {}
@@ -738,13 +738,13 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                         else None
                     )
                     parsed_weights[edge_id] = weight_val
-                except ValueError:
+                except (ValueError, TypeError):
                     raise ValidationFailure("weight must be a float number.")
             else:
                 try:
                     weight_val = float(edge_payload.get("weight", 1.0))
                     parsed_weights[edge_id] = weight_val
-                except ValueError:
+                except (ValueError, TypeError):
                     raise ValidationFailure("weight must be a float number.")
 
             rel_str = str(edge_payload.get("relationship", "")).strip()
@@ -752,7 +752,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 raise ValidationFailure("relationship is required for edges.")
             try:
                 RelationType(rel_str)
-            except ValueError:
+            except (ValueError, TypeError):
                 raise ValidationFailure(f"relationship must be one of {[rt.value for rt in RelationType]}.")
 
             source_id = str(edge_payload.get("source_id", "")).strip()
@@ -1168,7 +1168,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         graph, _ = _require_http_scope(request, "admin:write", tenant_override=str(payload.get("tenant_id", "") or ""))
         try:
             batch_size = int(payload.get("batch_size", 1000) or 1000)
-        except ValueError:
+        except (ValueError, TypeError):
             raise ValidationFailure("batch_size must be an integer.")
         run = graph.prune_retention(
             batch_size=batch_size,
@@ -1190,7 +1190,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         graph, _ = _require_http_scope(request, "admin:read")
         try:
             limit = int(request.query_params.get("limit", "20") or "20")
-        except ValueError:
+        except (ValueError, TypeError):
             raise ValidationFailure("limit query parameter must be an integer.")
         runs = graph.list_retention_runs(limit=limit)
         return JSONResponse([_serialize_retention_run(run) for run in runs])
@@ -1199,7 +1199,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         graph, _ = _require_http_scope(request, "admin:read")
         try:
             limit = int(request.query_params.get("limit", "100") or "100")
-        except ValueError:
+        except (ValueError, TypeError):
             raise ValidationFailure("limit query parameter must be an integer.")
         events = graph.list_audit_events(
             limit=limit,
