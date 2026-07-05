@@ -136,13 +136,14 @@ For self-hosted production review and security posture:
 - [Hardening checklist](docs/security/hardening-checklist.md)
 - [Reference](docs/reference.md)
 
-## Contributing & Community
+## Repository Docs
+
+Internal contributors can use the docs in this repo as the source of truth:
 
 - [Contributing guide](./CONTRIBUTING.md)
 - [Repository map](./docs/repository-map.md)
 - [Starter issues](./docs/good-first-issues.md)
 - [Label catalog](./.github/labels.yml)
-- Contact channel: open a GitHub issue for bugs, feature proposals, and contributor assignment requests. Use `SECURITY.md` for vulnerability reports.
 
 Contributor layout note:
 - The repo root is reserved for packaging, deployment entrypoints, and external registry manifests. Contributor-facing docs, examples, and utilities should live under `docs/`, `examples/`, `scripts/`, or `deploy/`.
@@ -372,7 +373,7 @@ Shared JSON config for clients that accept `mcpServers` JSON:
 ```
 
 > First run takes ~30 s — `all-MiniLM-L6-v2` (~420 MB) downloads on first use.
-> To skip the download: set `"WAGGLE_MODEL": "deterministic"` (offline-safe, instant start, slightly lower retrieval quality).
+> **⚠️ `WAGGLE_MODEL=deterministic` is for CI/testing only.** It replaces semantic embeddings with SHA-256 hash bucketing, completely disabling semantic similarity. Do not use in production — retrieval quality will be fundamentally degraded.
 
 ### Claude Desktop
 
