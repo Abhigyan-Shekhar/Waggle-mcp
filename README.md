@@ -373,7 +373,7 @@ Shared JSON config for clients that accept `mcpServers` JSON:
 ```
 
 > First run takes ~30 s — `all-MiniLM-L6-v2` (~420 MB) downloads on first use.
-> To skip the download: set `"WAGGLE_MODEL": "deterministic"` (offline-safe, instant start, slightly lower retrieval quality).
+> **⚠️ `WAGGLE_MODEL=deterministic` is for CI/testing only.** It replaces semantic embeddings with SHA-256 hash bucketing, completely disabling semantic similarity. Do not use in production — retrieval quality will be fundamentally degraded.
 
 ### Claude Desktop
 
@@ -399,7 +399,15 @@ Claude Code also supports **automatic memory hooks** — see the [Hooks](#automa
 
 ### Codex
 
-Add to `~/.codex/config.toml`:
+The easiest install path is the Codex app plugin via the marketplace bundle
+published on the [`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17)
+— download `waggle-codex-marketplace-v0.1.17.zip`, extract it, then run
+`codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.17` and
+install `Waggle` from the added marketplace. `v0.1.16` was a partial release
+and is not a viable Codex marketplace install source. See
+[`docs/install/codex.md`](docs/install/codex.md) for full details.
+
+For direct Codex CLI usage instead, add Waggle to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.waggle]
