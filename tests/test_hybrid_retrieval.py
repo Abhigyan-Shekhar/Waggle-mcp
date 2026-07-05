@@ -543,34 +543,33 @@ def test_hybrid_retriever_caching_and_correctness(tmp_path: Path) -> None:
             turn_pair_id="tp-1",
         )
 
-    retriever = graph.hybrid_retriever()
-
     # Run a query to populate the cache
-    res1 = retriever.retrieve(
+    res1 = graph.query(
         query="first",
         project="alpha",
         agent_id="codex",
         session_id="sess-1",
-        top_k=5,
-        mode="hybrid",
+        retrieval_mode="hybrid",
     )
-    assert len(res1) > 0
-    sig1 = retriever._lexical_cache_sig
+    assert res1.hybrid_hits
+    cache1 = graph.root_graph._lexical_cache
+    assert cache1 is not None
+    sig1, bm25_1, _ = cache1
     assert sig1 is not None
-    bm25_1 = retriever._lexical_cache_bm25
     assert bm25_1 is not None
 
     # 2. Repeated query: verify cache hit (same signature and same bm25 object ID)
-    retriever.retrieve(
+    graph.query(
         query="first",
         project="alpha",
         agent_id="codex",
         session_id="sess-1",
-        top_k=5,
-        mode="hybrid",
+        retrieval_mode="hybrid",
     )
-    assert retriever._lexical_cache_sig == sig1
-    assert retriever._lexical_cache_bm25 is bm25_1
+    cache2 = graph.root_graph._lexical_cache
+    assert cache2 is not None
+    assert cache2[0] == sig1
+    assert cache2[1] is bm25_1
 
     # 3. Insert new transcript: verify cache invalidates
     with graph._lock, graph._connect() as connection:
@@ -585,18 +584,19 @@ def test_hybrid_retriever_caching_and_correctness(tmp_path: Path) -> None:
             transcript_text="second transcript content",
             turn_pair_id="tp-2",
         )
-    retriever.retrieve(
+    graph.query(
         query="second",
         project="alpha",
         agent_id="codex",
         session_id="sess-1",
-        top_k=5,
-        mode="hybrid",
+        retrieval_mode="hybrid",
     )
-    sig2 = retriever._lexical_cache_sig
+    cache3 = graph.root_graph._lexical_cache
+    assert cache3 is not None
+    sig2 = cache3[0]
+    bm25_2 = cache3[1]
     assert sig2 != sig1
-    assert retriever._lexical_cache_bm25 is not bm25_1
-    bm25_2 = retriever._lexical_cache_bm25
+    assert bm25_2 is not bm25_1
 
     # 4. Add node: verify cache invalidates
     with graph._lock, graph._connect() as connection:
@@ -609,93 +609,99 @@ def test_hybrid_retriever_caching_and_correctness(tmp_path: Path) -> None:
             session_id="sess-1",
             connection=connection,
         ).node
-    retriever.retrieve(
+    graph.query(
         query="node",
         project="alpha",
         agent_id="codex",
         session_id="sess-1",
-        top_k=5,
-        mode="hybrid",
+        retrieval_mode="hybrid",
     )
-    sig3 = retriever._lexical_cache_sig
+    cache4 = graph.root_graph._lexical_cache
+    assert cache4 is not None
+    sig3 = cache4[0]
+    bm25_3 = cache4[1]
     assert sig3 != sig2
-    assert retriever._lexical_cache_bm25 is not bm25_2
-    bm25_3 = retriever._lexical_cache_bm25
+    assert bm25_3 is not bm25_2
 
     # 5. Update node: verify cache invalidates
     graph.update_node(
         node_id=node_a.id,
         content="Updated node content",
     )
-    retriever.retrieve(
+    graph.query(
         query="updated",
         project="alpha",
         agent_id="codex",
         session_id="sess-1",
-        top_k=5,
-        mode="hybrid",
+        retrieval_mode="hybrid",
     )
-    sig4 = retriever._lexical_cache_sig
+    cache5 = graph.root_graph._lexical_cache
+    assert cache5 is not None
+    sig4 = cache5[0]
+    bm25_4 = cache5[1]
     assert sig4 != sig3
-    assert retriever._lexical_cache_bm25 is not bm25_3
-    bm25_4 = retriever._lexical_cache_bm25
+    assert bm25_4 is not bm25_3
 
     # 6. Delete node: verify cache invalidates
     graph.delete_node(node_id=node_a.id)
-    retriever.retrieve(
+    graph.query(
         query="deleted",
         project="alpha",
         agent_id="codex",
         session_id="sess-1",
-        top_k=5,
-        mode="hybrid",
+        retrieval_mode="hybrid",
     )
-    sig5 = retriever._lexical_cache_sig
+    cache6 = graph.root_graph._lexical_cache
+    assert cache6 is not None
+    sig5 = cache6[0]
+    bm25_5 = cache6[1]
     assert sig5 != sig4
-    assert retriever._lexical_cache_bm25 is not bm25_4
-    bm25_5 = retriever._lexical_cache_bm25
+    assert bm25_5 is not bm25_4
 
     # 7. Scope change: project change
-    retriever.retrieve(
+    graph.query(
         query="deleted",
         project="beta",
         agent_id="codex",
         session_id="sess-1",
-        top_k=5,
-        mode="hybrid",
+        retrieval_mode="hybrid",
     )
-    sig6 = retriever._lexical_cache_sig
+    cache7 = graph.root_graph._lexical_cache
+    assert cache7 is not None
+    sig6 = cache7[0]
+    bm25_6 = cache7[1]
     assert sig6 != sig5
-    assert retriever._lexical_cache_bm25 is not bm25_5
-    bm25_6 = retriever._lexical_cache_bm25
+    assert bm25_6 is not bm25_5
 
     # 8. Scope change: agent change
-    retriever.retrieve(
+    graph.query(
         query="deleted",
         project="beta",
         agent_id="other-agent",
         session_id="",
-        top_k=5,
-        mode="hybrid",
+        retrieval_mode="hybrid",
     )
-    sig7 = retriever._lexical_cache_sig
+    cache8 = graph.root_graph._lexical_cache
+    assert cache8 is not None
+    sig7 = cache8[0]
+    bm25_7 = cache8[1]
     assert sig7 != sig6
-    assert retriever._lexical_cache_bm25 is not bm25_6
-    bm25_7 = retriever._lexical_cache_bm25
+    assert bm25_7 is not bm25_6
 
     # 9. Tenant change
     graph.tenant_id = "new-tenant"
-    retriever.retrieve(
+    graph.query(
         query="deleted",
         project="beta",
         agent_id="other-agent",
         session_id="",
-        top_k=5,
-        mode="hybrid",
+        retrieval_mode="hybrid",
     )
-    sig8 = retriever._lexical_cache_sig
+    cache9 = graph.root_graph._lexical_cache
+    assert cache9 is not None
+    sig8 = cache9[0]
     assert sig8 != sig7
-    assert retriever._lexical_cache_bm25 is not bm25_7
+    assert cache9[1] is not bm25_7
 
 
 def test_hybrid_retrieval_performance_caching(tmp_path: Path) -> None:
@@ -827,15 +833,14 @@ def test_lexical_cache_invalidated_on_transcript_update(tmp_path: Path) -> None:
             turn_pair_id="tp-secret",
         )
 
-    retriever = graph.hybrid_retriever()
-    res1 = retriever.retrieve(
+    res1 = graph.query(
         query="what is the secret",
         project="alpha",
         agent_id="codex",
         session_id="sess-update-test",
-        mode="hybrid",
+        retrieval_mode="hybrid",
     )
-    assert any("ruby-rabbit" in hit.content for hit in res1)
+    assert any("ruby-rabbit" in hit.content for hit in res1.hybrid_hits)
 
     cache_entry_1 = graph.root_graph._lexical_cache
     assert cache_entry_1 is not None
@@ -856,17 +861,16 @@ def test_lexical_cache_invalidated_on_transcript_update(tmp_path: Path) -> None:
             (new_text, new_hash, "sess-update-test", "tp-secret"),
         )
 
-    # Next query on a new retriever should trigger a cache invalidation and return new content
-    retriever_new = graph.hybrid_retriever()
-    res2 = retriever_new.retrieve(
+    # Next query should trigger a cache invalidation and return new content
+    res2 = graph.query(
         query="what is the secret",
         project="alpha",
         agent_id="codex",
         session_id="sess-update-test",
-        mode="hybrid",
+        retrieval_mode="hybrid",
     )
-    assert any("sapphire-snake" in hit.content for hit in res2)
-    assert not any("ruby-rabbit" in hit.content for hit in res2)
+    assert any("sapphire-snake" in hit.content for hit in res2.hybrid_hits)
+    assert not any("ruby-rabbit" in hit.content for hit in res2.hybrid_hits)
 
     cache_entry_2 = graph.root_graph._lexical_cache
     assert cache_entry_2 is not None
@@ -891,7 +895,7 @@ def test_lexical_cache_reuse_via_public_query_path(tmp_path: Path) -> None:
         )
 
     # First public query: should populate the cache
-    res1 = graph.query(
+    graph.query(
         query="retrieval data",
         project="alpha",
         agent_id="codex",
@@ -902,7 +906,7 @@ def test_lexical_cache_reuse_via_public_query_path(tmp_path: Path) -> None:
     assert cache_entry_1 is not None
 
     # Second public query: should reuse the cache
-    res2 = graph.query(
+    graph.query(
         query="retrieval data",
         project="alpha",
         agent_id="codex",

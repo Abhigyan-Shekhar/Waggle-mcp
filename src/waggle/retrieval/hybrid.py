@@ -483,7 +483,7 @@ class HybridRetriever:
 
         tx_rows = connection.execute(
             f"""
-            SELECT id, role, transcript_text, observed_at, content_hash
+            SELECT id, role, content_hash, observed_at
             FROM transcript_records
             WHERE {" AND ".join(tx_filters)}
             ORDER BY id
@@ -493,7 +493,7 @@ class HybridRetriever:
 
         tx_hasher = hashlib.sha256()
         for r in tx_rows:
-            tx_hasher.update(f"{r[0]}|{r[1]}|{r[2]}|{r[3]}|{r[4]}".encode("utf-8"))
+            tx_hasher.update(f"{r[0]}|{r[1]}|{r[2]}|{r[3]}".encode())
         tx_hash = tx_hasher.hexdigest()
 
         node_count = 0
@@ -523,7 +523,7 @@ class HybridRetriever:
             node_count = len(node_rows)
             node_hasher = hashlib.sha256()
             for r in node_rows:
-                node_hasher.update(f"{r[0]}|{r[1]}|{r[2]}|{r[3]}|{r[4]}".encode("utf-8"))
+                node_hasher.update(f"{r[0]}|{r[1]}|{r[2]}|{r[3]}|{r[4]}".encode())
             node_hash = node_hasher.hexdigest()
 
         effective_agent_id = "" if session_id.strip() else agent_id.strip()
