@@ -364,3 +364,52 @@ def test_neo4j_update_edge_deduplication() -> None:
         if "DELETE r" in query and "MEMORY_EDGE" in query:
             delete_called = True
     assert delete_called
+
+
+def test_neo4j_snapshot_scope_persistence() -> None:
+    graph = make_mock_graph()
+    mock_session = graph._session.return_value
+
+    raw_node = {
+        "id": "node_123",
+        "label": "TestNode",
+        "content": "test content",
+        "node_type": "note",
+        "agent_id": "my-agent",
+        "project": "my-project",
+        "session_id": "my-session",
+        "tags": [],
+        "created_at": "2026-01-01T00:00:00+00:00",
+        "updated_at": "2026-01-01T00:00:00+00:00",
+    }
+
+    graph._insert_snapshot_node(mock_session, raw_node)
+
+    # Verify CREATE query contains agent_id, project, and session_id
+    create_called = False
+    for call in mock_session.run.call_args_list:
+        query = call[0][0]
+        kwargs = call[1]
+        if "CREATE (n:MemoryNode" in query:
+            create_called = True
+            assert "agent_id" in kwargs
+            assert kwargs["agent_id"] == "my-agent"
+            assert kwargs["project"] == "my-project"
+            assert kwargs["session_id"] == "my-session"
+    assert create_called
+
+    mock_session.run.reset_mock()
+    graph._update_snapshot_node(mock_session, raw_node)
+
+    # Verify SET query contains agent_id, project, and session_id
+    update_called = False
+    for call in mock_session.run.call_args_list:
+        query = call[0][0]
+        kwargs = call[1]
+        if "MATCH (n:MemoryNode" in query and "SET" in query:
+            update_called = True
+            assert "agent_id" in kwargs
+            assert kwargs["agent_id"] == "my-agent"
+            assert kwargs["project"] == "my-project"
+            assert kwargs["session_id"] == "my-session"
+    assert update_called

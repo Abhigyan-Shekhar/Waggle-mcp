@@ -3544,6 +3544,17 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 )
             }
             label_index: dict[str, list[Node]] = {}
+
+            def _index_node(node: Node) -> None:
+                label_index.setdefault(node.label.strip().lower(), []).append(node)
+
+            def _replace_indexed_node(node: Node) -> None:
+                for key in list(label_index):
+                    label_index[key] = [candidate for candidate in label_index[key] if candidate.id != node.id]
+                    if not label_index[key]:
+                        del label_index[key]
+                _index_node(node)
+
             all_rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata,
@@ -3555,7 +3566,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             ).fetchall()
             for row in all_rows:
                 node = self._row_to_node(row)
-                label_index.setdefault(node.label.strip().lower(), []).append(node)
+                _index_node(node)
                 nodes_by_id.setdefault(node.id, node)
 
             imported_id_map: dict[str, str] = {}
@@ -3566,7 +3577,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 if original_node_id:
                     imported_id_map[original_node_id] = node.id
                     nodes_by_id[original_node_id] = node
-                label_index.setdefault(node.label.strip().lower(), []).append(node)
+                _replace_indexed_node(node)
                 if created:
                     result.nodes_created += 1
                 else:
@@ -3601,7 +3612,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                             session_id=source_node.session_id,
                         )
                         nodes_by_id[target_node.id] = target_node
-                        label_index.setdefault(target_node.label.strip().lower(), []).append(target_node)
+                        _index_node(target_node)
                         result.stub_nodes_created += 1
                     if target_node is None:
                         result.conflicts.append(

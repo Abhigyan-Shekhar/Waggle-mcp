@@ -890,7 +890,8 @@ class Neo4jMutationMixin(MemoryGraphBase):
         session.run(
             """
             CREATE (n:MemoryNode {
-                id: $id, tenant_id: $tenant_id, label: $label, content: $content, node_type: $node_type,
+                id: $id, tenant_id: $tenant_id, agent_id: $agent_id, project: $project, session_id: $session_id,
+                label: $label, content: $content, node_type: $node_type,
                 tags: $tags, embedding: $embedding, source_prompt: $source_prompt,
                 evidence_records: $evidence_records, valid_from: $valid_from, valid_to: $valid_to,
                 created_at: $created_at, updated_at: $updated_at, access_count: $access_count
@@ -898,6 +899,9 @@ class Neo4jMutationMixin(MemoryGraphBase):
             """,
             id=raw_node["id"],
             tenant_id=self.tenant_id,
+            agent_id=raw_node.get("agent_id", ""),
+            project=raw_node.get("project", ""),
+            session_id=raw_node.get("session_id", ""),
             label=raw_node["label"],
             content=raw_node["content"],
             node_type=raw_node["node_type"],
@@ -923,6 +927,9 @@ class Neo4jMutationMixin(MemoryGraphBase):
             """
             MATCH (n:MemoryNode {tenant_id: $existing_tenant_id, id: $id})
             SET n.tenant_id = $tenant_id,
+                n.agent_id = $agent_id,
+                n.project = $project,
+                n.session_id = $session_id,
                 n.label = $label,
                 n.content = $content,
                 n.node_type = $node_type,
@@ -939,6 +946,9 @@ class Neo4jMutationMixin(MemoryGraphBase):
             id=raw_node["id"],
             existing_tenant_id=self.tenant_id,
             tenant_id=self.tenant_id,
+            agent_id=raw_node.get("agent_id", ""),
+            project=raw_node.get("project", ""),
+            session_id=raw_node.get("session_id", ""),
             label=raw_node["label"],
             content=raw_node["content"],
             node_type=raw_node["node_type"],

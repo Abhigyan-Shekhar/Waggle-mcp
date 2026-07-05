@@ -604,6 +604,18 @@ class MutationMixin(MemoryGraphBase):
                     "DELETE FROM edges WHERE id = ? AND tenant_id = ?",
                     (edge_id, self.tenant_id),
                 )
+                self.emit_audit_event(
+                    event_type="graph.relationship.deleted",
+                    resource_type="edge",
+                    resource_id=edge.id,
+                    action="delete",
+                    metadata={
+                        "relationship": edge.relationship,
+                        "reason": "deduplicate_on_update",
+                        "replacement_edge_id": existing_duplicate.id,
+                    },
+                    connection=connection,
+                )
                 return existing_duplicate
 
             connection.execute(

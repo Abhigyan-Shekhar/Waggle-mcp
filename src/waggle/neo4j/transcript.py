@@ -60,7 +60,7 @@ class Neo4jTranscriptMixin(MemoryGraphBase):
             ids = [record["id"] for record in rows]
             if not ids:
                 return deleted
-            session.run(delete_query, ids=ids).consume()
+            session.run(delete_query, ids=ids, tenant_id=self.tenant_id).consume()
             deleted += len(ids)
 
     def _delete_old_export_files(self, *, cutoff: datetime) -> int:
@@ -186,7 +186,7 @@ class Neo4jTranscriptMixin(MemoryGraphBase):
                 ip_address=event.ip_address,
                 user_agent=event.user_agent,
                 created_at=event.created_at.isoformat(),
-                metadata=event.metadata,
+                metadata=_encode_metadata(event.metadata),
             ).consume()
         finally:
             if owns_session:
@@ -244,7 +244,7 @@ class Neo4jTranscriptMixin(MemoryGraphBase):
                 ip_address=props.get("ip_address") or "",
                 user_agent=props.get("user_agent") or "",
                 created_at=_parse_datetime(props["created_at"]),
-                metadata=props.get("metadata") or {},
+                metadata=_decode_metadata(props.get("metadata")),
             )
             for props in rows
         ]
@@ -504,7 +504,7 @@ class Neo4jTranscriptMixin(MemoryGraphBase):
                         LIMIT $limit
                     """,
                     delete_query="""
-                        MATCH ()-[r:CONTEXT_WINDOW_EDGE]->()
+                        MATCH ()-[r:CONTEXT_WINDOW_EDGE {tenant_id: $tenant_id}]->()
                         WHERE r.id IN $ids
                         DELETE r
                     """,
@@ -520,7 +520,7 @@ class Neo4jTranscriptMixin(MemoryGraphBase):
                         LIMIT $limit
                     """,
                     delete_query="""
-                        MATCH ()-[r:MEMORY_EDGE]->()
+                        MATCH ()-[r:MEMORY_EDGE {tenant_id: $tenant_id}]->()
                         WHERE r.id IN $ids
                         DELETE r
                     """,
@@ -536,7 +536,7 @@ class Neo4jTranscriptMixin(MemoryGraphBase):
                         LIMIT $limit
                     """,
                     delete_query="""
-                        MATCH (n:MemoryNode)
+                        MATCH (n:MemoryNode {tenant_id: $tenant_id})
                         WHERE n.id IN $ids
                         DETACH DELETE n
                     """,
@@ -552,7 +552,7 @@ class Neo4jTranscriptMixin(MemoryGraphBase):
                         LIMIT $limit
                     """,
                     delete_query="""
-                        MATCH (t:MemoryTranscript)
+                        MATCH (t:MemoryTranscript {tenant_id: $tenant_id})
                         WHERE t.id IN $ids
                         DELETE t
                     """,
@@ -568,7 +568,7 @@ class Neo4jTranscriptMixin(MemoryGraphBase):
                         LIMIT $limit
                     """,
                     delete_query="""
-                        MATCH (w:ContextWindow)
+                        MATCH (w:ContextWindow {tenant_id: $tenant_id})
                         WHERE w.id IN $ids
                         DETACH DELETE w
                     """,

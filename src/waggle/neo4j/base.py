@@ -75,22 +75,29 @@ class Neo4jMemoryGraphBase(MemoryGraphBase):
 
     def _initialize_database(self) -> None:
         with self._lock, self._session() as session:
+            # Drop old global constraints if they exist
+            import contextlib
+
+            for old_constraint in ["waggle_node_id", "waggle_edge_id", "waggle_transcript_id"]:
+                with contextlib.suppress(Exception):
+                    session.run(f"DROP CONSTRAINT {old_constraint}").consume()
+
             session.run(
                 """
-                CREATE CONSTRAINT waggle_node_id IF NOT EXISTS
-                FOR (n:MemoryNode) REQUIRE n.id IS UNIQUE
+                CREATE CONSTRAINT waggle_node_tenant_id IF NOT EXISTS
+                FOR (n:MemoryNode) REQUIRE (n.tenant_id, n.id) IS UNIQUE
                 """
             ).consume()
             session.run(
                 """
-                CREATE CONSTRAINT waggle_edge_id IF NOT EXISTS
-                FOR ()-[r:MEMORY_EDGE]-() REQUIRE r.id IS UNIQUE
+                CREATE CONSTRAINT waggle_edge_tenant_id IF NOT EXISTS
+                FOR ()-[r:MEMORY_EDGE]-() REQUIRE (r.tenant_id, r.id) IS UNIQUE
                 """
             ).consume()
             session.run(
                 """
-                CREATE CONSTRAINT waggle_transcript_id IF NOT EXISTS
-                FOR (t:MemoryTranscript) REQUIRE t.id IS UNIQUE
+                CREATE CONSTRAINT waggle_transcript_tenant_id IF NOT EXISTS
+                FOR (t:MemoryTranscript) REQUIRE (t.tenant_id, t.id) IS UNIQUE
                 """
             ).consume()
             session.run(

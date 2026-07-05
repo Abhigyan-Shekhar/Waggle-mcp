@@ -324,7 +324,8 @@ class Neo4jTraversalMixin(MemoryGraphBase):
                 selected_ids = [node.id for node in selected_nodes]
                 graph = self._load_graph(session)
                 expanded_depths = self._expand_node_depths(graph, selected_ids, max_depth)
-                expanded_ids = set(expanded_depths.keys())
+                scoped_ids = {node.id for node in candidates}
+                expanded_ids = set(expanded_depths.keys()) & scoped_ids
                 missing_ids = expanded_ids - {node.id for node in selected_nodes}
                 if missing_ids:
                     for props in node_records:
@@ -492,7 +493,7 @@ class Neo4jTraversalMixin(MemoryGraphBase):
 
             graph = self._load_graph(session)
             expanded_depths = self._expand_node_depths(graph, ranked_seed_ids, max_depth)
-            candidate_nodes = [nodes_by_id[node_id] for node_id in expanded_depths]
+            candidate_nodes = [nodes_by_id[node_id] for node_id in expanded_depths if node_id in nodes_by_id]
             temporal_candidates = [node for node in candidate_nodes if within_time_window(node, temporal_hints)]
             if temporal_candidates:
                 candidate_nodes = temporal_candidates
@@ -1010,7 +1011,7 @@ class Neo4jTraversalMixin(MemoryGraphBase):
                     )
                     for node in [self._node_from_props(record["n"])]
                     if _scope_matches(node, agent_id=agent_id, project=project, session_id=session_id)
-                ]
+                ][:max_nodes]
                 selected_edges = (
                     [
                         Edge(
@@ -1142,6 +1143,17 @@ class Neo4jTraversalMixin(MemoryGraphBase):
 
         nodes_by_id: dict[str, Node] = {}
         label_index: dict[str, list[Node]] = {}
+
+        def _index_node(node: Node) -> None:
+            label_index.setdefault(node.label.strip().lower(), []).append(node)
+
+        def _replace_indexed_node(node: Node) -> None:
+            for key in list(label_index):
+                label_index[key] = [candidate for candidate in label_index[key] if candidate.id != node.id]
+                if not label_index[key]:
+                    del label_index[key]
+            _index_node(node)
+
         with self._lock, self._session() as session:
             for record in session.run(
                 "MATCH (n:MemoryNode {tenant_id: $tenant_id}) RETURN n",
@@ -1149,7 +1161,7 @@ class Neo4jTraversalMixin(MemoryGraphBase):
             ):
                 node = self._node_from_props(record["n"])
                 nodes_by_id[node.id] = node
-                label_index.setdefault(node.label.strip().lower(), []).append(node)
+                _index_node(node)
 
         imported_id_map: dict[str, str] = {}
         for document in documents:
@@ -1170,7 +1182,7 @@ class Neo4jTraversalMixin(MemoryGraphBase):
                 if node_id:
                     imported_id_map[node_id] = updated.id
                     nodes_by_id[node_id] = updated
-                label_index.setdefault(updated.label.strip().lower(), []).append(updated)
+                _replace_indexed_node(updated)
                 result.nodes_updated += 1
             else:
                 created = self.add_node(
@@ -1189,7 +1201,7 @@ class Neo4jTraversalMixin(MemoryGraphBase):
                 if node_id:
                     imported_id_map[node_id] = created.id
                     nodes_by_id[node_id] = created
-                label_index.setdefault(created.label.strip().lower(), []).append(created)
+                _replace_indexed_node(created)
                 result.nodes_created += 1
 
         for document in documents:
@@ -1223,7 +1235,7 @@ class Neo4jTraversalMixin(MemoryGraphBase):
                         session_id=source_node.session_id,
                     ).node
                     nodes_by_id[target.id] = target
-                    label_index.setdefault(target.label.strip().lower(), []).append(target)
+                    _index_node(target)
                     result.stub_nodes_created += 1
                 if target is None:
                     result.conflicts.append(
