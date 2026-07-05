@@ -866,6 +866,14 @@ export function App() {
   const diffPayload = abhiDiff?.payload?.diff || {};
   const nodeDiffRecords = diffPayload.node_records || diffPayload.nodes || [];
   const edgeDiffRecords = diffPayload.edge_records || diffPayload.edges || [];
+
+  const filteredNodeDiffRecords = useMemo(() => {
+    return nodeDiffRecords.filter((record) => record.classification !== "identical");
+  }, [nodeDiffRecords]);
+
+  const filteredEdgeDiffRecords = useMemo(() => {
+    return edgeDiffRecords.filter((record) => record.classification !== "identical");
+  }, [edgeDiffRecords]);
   const diffCount = (records, classification) => records.filter((record) => record.classification === classification).length;
   const legacyDiffCount = (key) => (diffPayload[key] ?? []).length;
   const diffSummaryCount = (records, classification, legacyKey) => {
@@ -1050,7 +1058,7 @@ export function App() {
               <VirtualList
                 items={visibleTranscriptRecords}
                 className="flex-1 overflow-auto p-4 scrollbar-thin"
-                itemKey={(record) => record.id || `${record.session_id || "default"}:${record.turn_index || 0}:${record.role || "user"}`}
+                itemKey={(record, index) => record.id || `${record.session_id || "default"}:${record.turn_index || 0}:${record.role || "user"}:${index}`}
                 spacingClass="pb-3"
                 footer={
                   !transcriptSearch.trim() && transcriptTotalCount > transcriptRecords.length ? (
@@ -1117,7 +1125,7 @@ export function App() {
                         <VirtualList
                           items={retrievalResult.debug?.flat_top_nodes || []}
                           className="max-h-64 overflow-auto scrollbar-thin"
-                          itemKey={(node) => node.node_id}
+                          itemKey={(node, index) => node.node_id || `node-${index}`}
                           spacingClass="pb-2"
                           renderItem={(node) => (
                             <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
@@ -1152,7 +1160,7 @@ export function App() {
                     <VirtualList
                       items={retrievalResult.fusion_hits || []}
                       className="max-h-96 overflow-auto scrollbar-thin"
-                      itemKey={(hit) => `${hit.fused_rank}:${hit.content}`}
+                      itemKey={(hit, index) => `${hit.fused_rank ?? ""}:${hit.content ?? ""}:${index}`}
                       spacingClass="pb-2"
                       renderItem={(hit) => (
                         <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
@@ -1172,7 +1180,7 @@ export function App() {
                     <VirtualList
                       items={retrievalResult.debug?.all_windows || []}
                       className="max-h-64 overflow-auto scrollbar-thin"
-                      itemKey={(window) => window.window_id}
+                      itemKey={(window, index) => window.window_id || `window-${index}`}
                       spacingClass="pb-2"
                       renderItem={(window) => (
                         <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
@@ -1241,9 +1249,9 @@ export function App() {
                     <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Node changes</div>
                       <VirtualList
-                        items={nodeDiffRecords.filter((record) => record.classification !== "identical")}
+                        items={filteredNodeDiffRecords}
                         className="mt-3 max-h-72 overflow-auto scrollbar-thin"
-                        itemKey={(record) => record.node_id || record.id}
+                        itemKey={(record, index) => record.node_id || record.id || `node-diff-${index}`}
                         spacingClass="pb-2"
                         renderItem={(record) => (
                           <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-xs">
@@ -1264,9 +1272,9 @@ export function App() {
                     <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Edge changes</div>
                       <VirtualList
-                        items={edgeDiffRecords.filter((record) => record.classification !== "identical")}
+                        items={filteredEdgeDiffRecords}
                         className="mt-3 max-h-72 overflow-auto scrollbar-thin"
-                        itemKey={(record) => record.edge_id || record.id}
+                        itemKey={(record, index) => record.edge_id || record.id || `edge-diff-${index}`}
                         spacingClass="pb-2"
                         renderItem={(record) => (
                           <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-xs">
