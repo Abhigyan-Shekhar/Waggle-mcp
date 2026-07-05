@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 from pathlib import Path
@@ -80,6 +81,21 @@ def test_bundled_server_info_is_versioned() -> None:
     assert WAGGLE_SERVER_INFO["version"] == waggle.__version__
     assert WAGGLE_SERVER_INFO["minimum_supported_protocol_version"]
     assert WAGGLE_SERVER_INFO["runtime_scope"] == "mcp-server-stdio"
+
+
+def test_codex_plugin_versions_match_pyproject() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    expected_version = pyproject["project"]["version"]
+
+    for manifest_path in [
+        ROOT / ".codex-plugin" / "plugin.json",
+        ROOT / "plugins" / "waggle" / ".codex-plugin" / "plugin.json",
+    ]:
+        manifest = json.loads(manifest_path.read_text())
+        assert manifest["version"] == expected_version, (
+            f"{manifest_path.relative_to(ROOT)} must match pyproject.toml version "
+            f"{expected_version!r}."
+        )
 
 
 def _extract_toml_fence(markdown: str, *, expected_table: str) -> str:

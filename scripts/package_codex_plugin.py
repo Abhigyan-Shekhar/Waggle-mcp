@@ -5,6 +5,7 @@ import hashlib
 import json
 import shutil
 import tempfile
+import tomllib
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
@@ -26,6 +27,9 @@ PLUGIN_BUNDLE_FILES = [
     Path("bin") / "waggle-server-launcher.js",
     Path("runtime") / "README.md",
 ]
+
+MAX_RELEASE_BUNDLE_BYTES = 450 * 1024 * 1024
+MARKETPLACE_DISTRIBUTION = "single-bundle"
 
 
 def validate_bundle_inputs(root: Path) -> list[str]:
@@ -59,11 +63,14 @@ def validate_bundle_inputs(root: Path) -> list[str]:
                     ".agents/plugins/marketplace.json must point waggle to ./plugins/waggle for release bundles"
                 )
 
+    failures.extend(_validate_version_consistency(root))
+
     return failures
 
 
 def package_release(root: Path, output_dir: Path, bundle_version: str) -> list[Path]:
     failures = validate_bundle_inputs(root)
+    failures.extend(_validate_bundle_version(root, bundle_version))
     if failures:
         raise SystemExit(_format_failures(failures))
 
@@ -75,6 +82,7 @@ def package_release(root: Path, output_dir: Path, bundle_version: str) -> list[P
         created_files.extend(_build_plugin_bundle(root, tmp_root, output_dir, bundle_version))
         created_files.extend(_build_marketplace_bundle(root, tmp_root, output_dir, bundle_version))
 
+    created_files.append(_write_release_manifest(output_dir, bundle_version, created_files))
     return created_files
 
 
@@ -129,7 +137,99 @@ def _write_bundle(bundle_root: Path, output_dir: Path) -> list[Path]:
 
     checksum_path = archive_path.with_suffix(f"{archive_path.suffix}.sha256")
     checksum_path.write_text(f"{_sha256(archive_path)}  {archive_path.name}\n")
+    _validate_written_bundle(archive_path)
     return [archive_path, checksum_path]
+
+
+def _validate_version_consistency(root: Path) -> list[str]:
+    failures: list[str] = []
+    pyproject_path = root / "pyproject.toml"
+    plugin_paths = [
+        root / ".codex-plugin" / "plugin.json",
+        root / PLUGIN_DIR / ".codex-plugin" / "plugin.json",
+    ]
+
+    if not pyproject_path.exists():
+        return ["Missing pyproject.toml for release version validation"]
+
+    package_version = tomllib.loads(pyproject_path.read_text())["project"]["version"]
+    for plugin_path in plugin_paths:
+        if not plugin_path.exists():
+            continue
+        plugin_version = json.loads(plugin_path.read_text()).get("version")
+        if plugin_version != package_version:
+            failures.append(
+                f"{plugin_path.relative_to(root).as_posix()} version {plugin_version!r} "
+                f"does not match pyproject.toml version {package_version!r}"
+            )
+
+    return failures
+
+
+def _validate_bundle_version(root: Path, bundle_version: str) -> list[str]:
+    if not bundle_version.startswith("v"):
+        return []
+
+    package_version = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
+    tag_version = bundle_version.removeprefix("v")
+    if tag_version != package_version:
+        return [f"release tag {bundle_version!r} does not match pyproject.toml version {package_version!r}"]
+    return []
+
+
+def _validate_written_bundle(archive_path: Path) -> None:
+    if archive_path.stat().st_size > MAX_RELEASE_BUNDLE_BYTES:
+        raise SystemExit(
+            f"{archive_path.name} is {archive_path.stat().st_size} bytes; "
+            f"limit is {MAX_RELEASE_BUNDLE_BYTES} bytes"
+        )
+
+    failures: list[str] = []
+    with ZipFile(archive_path) as archive:
+        names = set(archive.namelist())
+        for target, executable in TARGETS.items():
+            if target.startswith("win32-"):
+                continue
+            matching_names = [name for name in names if name.endswith(f"runtime/{target}/{executable}")]
+            if not matching_names:
+                failures.append(f"{archive_path.name} is missing executable runtime for {target}")
+                continue
+            for name in matching_names:
+                mode = (archive.getinfo(name).external_attr >> 16) & 0o777
+                if not mode & 0o111:
+                    failures.append(f"{archive_path.name}:{name} does not preserve executable permissions")
+
+    if failures:
+        raise SystemExit(_format_failures(failures))
+
+
+def _write_release_manifest(output_dir: Path, bundle_version: str, files: list[Path]) -> Path:
+    artifact_entries = []
+    for path in files:
+        artifact_entries.append(
+            {
+                "name": path.name,
+                "sha256": _sha256(path),
+                "bytes": path.stat().st_size,
+            }
+        )
+
+    manifest_path = output_dir / f"waggle-codex-release-{_sanitize_version(bundle_version)}.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "name": "waggle",
+                "version": bundle_version,
+                "distribution": MARKETPLACE_DISTRIBUTION,
+                "platform_artifact_resolution": "not-supported-by-current-codex-marketplace-schema",
+                "artifacts": artifact_entries,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    return manifest_path
 
 
 def _write_install_notes(path: Path, *, marketplace_bundle: bool, bundle_version: str) -> None:
@@ -158,8 +258,11 @@ asset, which includes a ready-to-add local marketplace root for Codex.
 
 
 def _bundle_name(kind: str, bundle_version: str) -> str:
-    sanitized_version = bundle_version.replace("/", "-").replace("\\", "-").replace(" ", "-")
-    return f"waggle-codex-{kind}-{sanitized_version}"
+    return f"waggle-codex-{kind}-{_sanitize_version(bundle_version)}"
+
+
+def _sanitize_version(bundle_version: str) -> str:
+    return bundle_version.replace("/", "-").replace("\\", "-").replace(" ", "-")
 
 
 def _zip_mode(path: Path) -> int:

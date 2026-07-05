@@ -164,6 +164,8 @@ def validate_layout(require_artifacts: bool, probe: bool, verify_signatures: boo
             if require_artifacts:
                 failures.append(f"Missing runtime artifact: {binary.relative_to(ROOT)}")
             continue
+        if not target.startswith("win32-") and not binary.stat().st_mode & 0o111:
+            failures.append(f"{binary.relative_to(ROOT)} is not executable")
 
         size = binary.stat().st_size
         if size > MAX_BINARY_BYTES:
