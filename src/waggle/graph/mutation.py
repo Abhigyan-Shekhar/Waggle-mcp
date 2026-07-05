@@ -593,6 +593,19 @@ class MutationMixin(MemoryGraphBase):
             )
             self._require_node(connection, updated_edge.source_id)
             self._require_node(connection, updated_edge.target_id)
+            existing_duplicate = self._find_existing_edge(
+                connection,
+                source_id=updated_edge.source_id,
+                target_id=updated_edge.target_id,
+                relationship=updated_edge.relationship,
+            )
+            if existing_duplicate is not None and existing_duplicate.id != updated_edge.id:
+                connection.execute(
+                    "DELETE FROM edges WHERE id = ? AND tenant_id = ?",
+                    (edge_id, self.tenant_id),
+                )
+                return existing_duplicate
+
             connection.execute(
                 """
                 UPDATE edges
