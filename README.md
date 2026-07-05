@@ -138,7 +138,7 @@ For self-hosted production review and security posture:
 
 ## Repository Docs
 
-Internal contributors can use the docs in this repo as the source of truth:
+Use these docs to install, evaluate, and contribute to Waggle:
 
 - [Contributing guide](./CONTRIBUTING.md)
 - [Repository map](./docs/repository-map.md)
@@ -842,4 +842,6 @@ Run `waggle-mcp doctor` first — it usually identifies the actual failure mode.
 
 ## Contributing
 
-This repository is maintained privately. Internal contributors can use the docs in this repo as the source of truth.
+If Waggle is useful, please star the repo to help more developers find it. Before opening an issue or pull request, install the latest package from [PyPI](https://pypi.org/project/waggle-mcp/) and confirm the behavior with the published build.
+
+To contribute, fork the repository and follow the setup, testing, style, and pull request guidelines in [CONTRIBUTING.md](./CONTRIBUTING.md).
