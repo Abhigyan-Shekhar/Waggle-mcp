@@ -114,3 +114,33 @@ $env:WAGGLE_DB_PATH = "$env:APPDATA\waggle\waggle.db"
 $env:WAGGLE_LOG_LEVEL = "DEBUG"
 waggle-mcp serve --transport stdio
 ```
+
+---
+
+## Codex plugin binary blocked by OS
+
+The bundled Waggle runtime shipped with the Codex plugin is unsigned. macOS and Windows will block it on first run. This is expected behavior, not a broken install.
+
+### macOS — approve and retry
+
+1. Open **System Settings → Privacy & Security**
+2. Find the blocked binary entry and click **Allow Anyway**
+3. Restart Codex
+
+Or remove the quarantine flag manually:
+
+```bash
+xattr -dr com.apple.quarantine /path/to/waggle-runtime
+```
+
+### Windows — approve and retry
+
+1. When SmartScreen appears, click **More info**
+2. Click **Run anyway**
+3. Restart Codex
+
+If the plugin still fails after approval, run:
+
+```bash
+waggle-mcp doctor
+```

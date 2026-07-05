@@ -51,6 +51,9 @@ waggle-mcp
 > `AttributeError`.  See `tests/test_neo4j_stubs.py` for the full
 > documented list.
 
+**Transcript and temporal query limitations:** Neo4j supports transcript replay through `query(..., retrieval_mode="verbatim")`. Direct transcript collection methods such as `list_transcript_records`, `search_transcript_records`, and `count_transcript_records` are not currently available on the usable `Neo4jMemoryGraph` API. Natural-language temporal ranking is supported, but the SQLite-only point-in-time controls `as_of` and `include_invalidated` are not accepted by `Neo4jMemoryGraph.query`.
+
+
 ### Docker
 
 ```bash
@@ -270,6 +273,22 @@ After Waggle is installed as an MCP server, the normal workflow is conversationa
   - `observe_conversation`
   - `decompose_and_store`
   - automatic contradiction/update detection in some cases
+
+#### Edge confidence
+
+Waggle stores edge confidence in edge metadata as one of three labels: `explicit`, `inferred`, or `weak`.
+
+| Creation path | Confidence | When this value is set |
+| --- | --- | --- |
+| Manual edge creation (`store_edge` and Graph Studio edge creation) | `explicit` | The edge is intentionally created by a user or operator action, so it is treated as explicit by default. |
+| Conversation extraction (`observe_conversation`) | `inferred` | The extractor infers a typed relationship from user/assistant content with normal evidence strength. |
+| Low-signal extraction (single shared token / low cosine similarity) | `weak` | The extractor links nodes with limited lexical/semantic evidence and marks the edge as low-confidence. |
+
+Graph Studio renders confidence visually so weak links are easier to spot:
+
+- `weak` edges are shown with de-emphasized styling (for example dashed/faded treatment).
+- The edge inspector shows the confidence badge so you can see whether a link is `explicit`, `inferred`, or `weak`.
+
 - The graph-aware retrieval tools are what return connected context to the model:
   - `query_graph`
   - `get_related`

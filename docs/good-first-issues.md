@@ -33,8 +33,6 @@ Status:
 - Implemented by the root layout policy in `docs/repository-map.md`, `CONTRIBUTING.md`, and `README.md`
 - Guarded by `tests/test_repository_layout.py`
 
-## Open starter issues
-
 ### 3. Add a `doctor --json` mode
 
 - Problem: `waggle-mcp doctor` is useful for humans, but automation and issue templates benefit from structured output.
@@ -44,6 +42,13 @@ Status:
   - Preserve the current human-friendly output by default.
   - Cover the new mode with tests.
 - Suggested labels: `good first issue`, `enhancement`, `tooling`
+
+Status:
+- Implemented in `src/waggle/server.py` by adding the `--json` flag to the doctor CLI parser and threading it through `json_output`.
+- Guarded by JSON output tests in `tests/test_server.py`.
+- Documented in `docs/reference.md`.
+
+## Open starter issues
 
 ### 4. Improve Windows troubleshooting coverage
 

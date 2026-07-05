@@ -36,28 +36,68 @@ For more details on how these rules govern agent behavior, see the [Automatic Me
 
 ## Codex app plugin
 
+## First-run OS warnings (unsigned binary)
+
+The bundled Waggle runtime binary is currently unsigned. This means macOS and Windows will show a security warning on first launch. This is expected — it does not mean the binary is malicious.
+
+### macOS (Gatekeeper)
+
+You may see: *"waggle-runtime cannot be opened because it is from an unidentified developer."*
+
+To approve:
+
+1. Open **System Settings → Privacy & Security**
+2. Scroll to the bottom — you'll see a message about the blocked binary
+3. Click **Allow Anyway**
+4. Re-launch Codex — macOS will ask once more; click **Open**
+
+Or via terminal:
+
+```bash
+xattr -dr com.apple.quarantine /path/to/waggle-runtime
+```
+
+### Windows (SmartScreen)
+
+You may see: *"Windows protected your PC"*
+
+To approve:
+
+1. Click **More info**
+2. Click **Run anyway**
+
+Then retry the Codex plugin install.
+
+> These warnings appear only on first run. Once approved, the binary launches without prompting.
+
 This repository also ships a Codex app plugin manifest at `.codex-plugin/plugin.json`
 with its MCP companion config in `.mcp.json`.
 
 For the Codex app plugin, Waggle bundles its own plugin-local MCP server runtime.
 Users do not need to install `waggle-mcp` from PyPI separately. The plugin
-launcher resolves a signed executable under `plugins/waggle/runtime/<target>/`
+launcher resolves a bundled executable under `plugins/waggle/runtime/<target>/`
 and starts it with `serve --transport stdio`.
 
 Bundled runtime updates are delivered only through plugin upgrades. If a bundled
 binary is stale or missing, reinstall or upgrade the Waggle Codex plugin.
 
-Tagged Waggle releases now publish two Codex plugin assets:
+Tagged Waggle releases publish two Codex plugin assets. The current Codex
+marketplace artifacts are published on the
+[`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17):
 
-- `waggle-codex-marketplace-<tag>.zip`: a complete local marketplace root that
+- `waggle-codex-marketplace-v0.1.17.zip`: a complete local marketplace root that
   can be added with `codex plugin marketplace add`
-- `waggle-codex-plugin-<tag>.zip`: the bare `plugins/waggle` plugin folder
+- `waggle-codex-plugin-v0.1.17.zip`: the bare `plugins/waggle` plugin folder
 
-For the easiest install path, download and extract the marketplace bundle, then
-run:
+> `v0.1.16` was a partial release and should not be used as a Codex
+> marketplace install source. Use `v0.1.17` instead.
+
+For the easiest install path, download and extract the marketplace bundle
+from the [`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17),
+then run:
 
 ```bash
-codex plugin marketplace add /path/to/waggle-codex-marketplace-<tag>
+codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.17
 ```
 
 After that, refresh the plugin directory in Codex and install `Waggle` from the

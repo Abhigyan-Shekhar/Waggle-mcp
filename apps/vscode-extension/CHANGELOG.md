@@ -1,6 +1,12 @@
 # Changelog
 
-# Changelog
+## 0.1.0
+
+- Bundled Waggle via lazy download from GitHub Releases (no pip required by default)
+- Auto-start local HTTP server on workspace open
+- Commands: Query Memory, Observe Conversation
+- Graph Studio activity bar sidebar
+- Binary resolver with pipx fallback
 
 ## 0.0.2
 

@@ -118,6 +118,65 @@ test.describe("Graph UI - Gating in View Mode", () => {
   });
 });
 
+test.describe("Graph UI - Boot Config Validation", () => {
+  test("falls back to edit mode and warns for malformed boot config", async ({
+    page,
+  }) => {
+
+    await page.addInitScript(() => {
+      window.__WAGGLE_GRAPH_CONFIG__ = {
+        mode: "admin",
+        sampleMode: "yes",
+        scope: {
+          project: 123,
+          agent_id: ["bad-agent"],
+          session_id: null,
+        },
+      };
+    });
+
+    const invalidConfigWarning = page.waitForEvent("console", (message) =>
+      message.type() === "warning" &&
+      message.text().includes("Invalid graph boot config"),
+    );
+
+    await page.goto("/");
+
+    await expect(page.locator("text=Edit mode")).toBeVisible();
+    await expect(page.locator('button:has-text("New node")')).toBeEnabled();
+
+    await invalidConfigWarning;
+  });
+
+  test("accepts nested scope from a validated boot config", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__WAGGLE_GRAPH_CONFIG__ = {
+        schemaVersion: 1,
+        mode: "view",
+        sampleMode: false,
+        scope: {
+          project: "nested-project",
+          agent_id: "nested-agent",
+          session_id: "nested-session",
+        },
+      };
+    });
+
+    await page.goto("/");
+
+    await expect(page.locator("text=View mode")).toBeVisible();
+    await expect(page.locator('input[placeholder="Project"]')).toHaveValue(
+      "nested-project",
+    );
+    await expect(page.locator('input[placeholder="Agent"]')).toHaveValue(
+      "nested-agent",
+    );
+    await expect(page.locator('input[placeholder="Session"]')).toHaveValue(
+      "nested-session",
+    );
+  });
+});
+
 test.describe("Graph UI - Allowed Actions in Edit Mode", () => {
   test.beforeEach(async ({ page }) => {
     // Set the boot config to edit mode
