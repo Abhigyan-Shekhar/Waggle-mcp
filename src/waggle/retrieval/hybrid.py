@@ -468,6 +468,7 @@ class HybridRetriever:
         session_id: str,
         include_nodes: bool,
     ) -> tuple[Any, ...]:
+        import hashlib
         tx_filters = ["tenant_id = ?"]
         tx_params: list[Any] = [self.graph.tenant_id]
         if project.strip():
@@ -480,31 +481,23 @@ class HybridRetriever:
             tx_filters.append("agent_id = ?")
             tx_params.append(agent_id.strip())
 
-        tx_row = connection.execute(
+        tx_rows = connection.execute(
             f"""
-            SELECT COUNT(*),
-                   MAX(observed_at),
-                   COALESCE(SUM(
-                       COALESCE(instr('0123456789abcdef', substr(content_hash, 1, 1)), 0) +
-                       COALESCE(instr('0123456789abcdef', substr(content_hash, 2, 1)), 0) +
-                       COALESCE(instr('0123456789abcdef', substr(content_hash, 3, 1)), 0) +
-                       COALESCE(instr('0123456789abcdef', substr(content_hash, 4, 1)), 0) +
-                       COALESCE(instr('0123456789abcdef', substr(content_hash, 5, 1)), 0) +
-                       COALESCE(instr('0123456789abcdef', substr(content_hash, 6, 1)), 0) +
-                       COALESCE(instr('0123456789abcdef', substr(content_hash, 7, 1)), 0) +
-                       COALESCE(instr('0123456789abcdef', substr(content_hash, 8, 1)), 0)
-                   ), 0)
+            SELECT id, role, transcript_text, observed_at, content_hash
             FROM transcript_records
             WHERE {" AND ".join(tx_filters)}
+            ORDER BY id
             """,
             tuple(tx_params),
-        ).fetchone()
-        tx_count = tx_row[0] if tx_row else 0
-        tx_max = tx_row[1] if tx_row else None
-        tx_hash_sum = tx_row[2] if tx_row else 0
+        ).fetchall()
+
+        tx_hasher = hashlib.sha256()
+        for r in tx_rows:
+            tx_hasher.update(f"{r[0]}|{r[1]}|{r[2]}|{r[3]}|{r[4]}".encode("utf-8"))
+        tx_hash = tx_hasher.hexdigest()
 
         node_count = 0
-        node_max = None
+        node_hash = ""
         if include_nodes:
             node_filters = ["tenant_id = ?"]
             node_params: list[Any] = [self.graph.tenant_id]
@@ -518,24 +511,32 @@ class HybridRetriever:
                 node_filters.append("agent_id = ?")
                 node_params.append(agent_id.strip())
 
-            node_row = connection.execute(
-                f"SELECT COUNT(*), MAX(updated_at) FROM nodes WHERE {' AND '.join(node_filters)}",
+            node_rows = connection.execute(
+                f"""
+                SELECT id, label, node_type, content, updated_at
+                FROM nodes
+                WHERE {" AND ".join(node_filters)}
+                ORDER BY id
+                """,
                 tuple(node_params),
-            ).fetchone()
-            node_count = node_row[0] if node_row else 0
-            node_max = node_row[1] if node_row else None
+            ).fetchall()
+            node_count = len(node_rows)
+            node_hasher = hashlib.sha256()
+            for r in node_rows:
+                node_hasher.update(f"{r[0]}|{r[1]}|{r[2]}|{r[3]}|{r[4]}".encode("utf-8"))
+            node_hash = node_hasher.hexdigest()
 
+        effective_agent_id = "" if session_id.strip() else agent_id.strip()
         return (
             self.graph.tenant_id,
             project.strip(),
-            agent_id.strip(),
+            effective_agent_id,
             session_id.strip(),
             include_nodes,
-            tx_count,
-            tx_max,
-            tx_hash_sum,
+            len(tx_rows),
+            tx_hash,
             node_count,
-            node_max,
+            node_hash,
         )
 
     def _rank_lexical(

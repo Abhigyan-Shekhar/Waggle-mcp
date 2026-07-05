@@ -872,3 +872,128 @@ def test_lexical_cache_invalidated_on_transcript_update(tmp_path: Path) -> None:
     assert cache_entry_2 is not None
     # Signature must be different, hence cache entry must be different
     assert cache_entry_1[0] != cache_entry_2[0]
+
+
+def test_lexical_cache_reuse_via_public_query_path(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+    with graph._lock, graph._connect() as connection:
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-public-test",
+            observed_at=observed_at,
+            turn_index=0,
+            role="user",
+            transcript_text="Important retrieval data here.",
+            turn_pair_id="tp-public",
+        )
+
+    # First public query: should populate the cache
+    res1 = graph.query(
+        query="retrieval data",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-public-test",
+        retrieval_mode="hybrid",
+    )
+    cache_entry_1 = graph.root_graph._lexical_cache
+    assert cache_entry_1 is not None
+
+    # Second public query: should reuse the cache
+    res2 = graph.query(
+        query="retrieval data",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-public-test",
+        retrieval_mode="hybrid",
+    )
+    cache_entry_2 = graph.root_graph._lexical_cache
+    assert cache_entry_2 is cache_entry_1
+
+
+def test_session_scoped_query_normalizes_agent_id_signature(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+    with graph._lock, graph._connect() as connection:
+        graph._store_transcript_record(
+            connection,
+            agent_id="agent-1",
+            project="alpha",
+            session_id="sess-shared",
+            observed_at=observed_at,
+            turn_index=0,
+            role="user",
+            transcript_text="Shared session data.",
+            turn_pair_id="tp-shared",
+        )
+
+    # Query with agent-1
+    graph.query(
+        query="Shared session",
+        project="alpha",
+        agent_id="agent-1",
+        session_id="sess-shared",
+        retrieval_mode="hybrid",
+    )
+    cache_entry_1 = graph.root_graph._lexical_cache
+    assert cache_entry_1 is not None
+
+    # Query with agent-2 (session_id is same, so agent_id is ignored)
+    graph.query(
+        query="Shared session",
+        project="alpha",
+        agent_id="agent-2",
+        session_id="sess-shared",
+        retrieval_mode="hybrid",
+    )
+    cache_entry_2 = graph.root_graph._lexical_cache
+    # The cache entry should be the exact same one because the signature collapses agent_id when session_id is present
+    assert cache_entry_2 is cache_entry_1
+
+
+def test_lexical_cache_invalidated_on_node_content_update(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    # Store a node
+    node = graph.add_node(
+        label="TestNode",
+        content="Secret code: alpha-centauri",
+        node_type="note",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-node-test",
+    )
+
+    # Query to populate cache
+    res1 = graph.query(
+        query="Secret code",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-node-test",
+        retrieval_mode="hybrid",
+    )
+    assert any("alpha-centauri" in hit.content for hit in res1.hybrid_hits)
+    cache_entry_1 = graph.root_graph._lexical_cache
+    assert cache_entry_1 is not None
+
+    # Update node content directly in DB without changing updated_at to simulate a content-only change
+    with graph._lock, graph._connect() as connection:
+        connection.execute(
+            "UPDATE nodes SET content = ? WHERE id = ?",
+            ("Secret code: beta-centauri", node.node.id),
+        )
+
+    # Query again: cache should be invalidated because node content changed
+    res2 = graph.query(
+        query="Secret code",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-node-test",
+        retrieval_mode="hybrid",
+    )
+    assert any("beta-centauri" in hit.content for hit in res2.hybrid_hits)
+    assert not any("alpha-centauri" in hit.content for hit in res2.hybrid_hits)
+    cache_entry_2 = graph.root_graph._lexical_cache
+    assert cache_entry_2[0] != cache_entry_1[0]
+
