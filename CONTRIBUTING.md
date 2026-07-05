@@ -199,6 +199,14 @@ Every node and transcript record carries three scope fields:
 
 Always pass a stable `project` value for the same codebase across sessions — fragmenting scope by accident is the most common source of poor recall.
 
+### Multi-Tenant Isolation Guarantees
+
+When deploying Waggle in a central server for multiple users, it is critical to understand the isolation guarantees provided by the `tenant_id` field:
+
+1. **Logical Isolation, Not Enforced RLS:** The `tenant_id` provides **logical namespace filtering** (e.g., `WHERE tenant_id = ?`). It does **not** enforce cryptographic row-level security (RLS) at the database engine level.
+2. **SQLite vs Neo4j:** Both SQLite and Neo4j backends rely on application-level filtering. A bug in the query builder could potentially leak data across tenants.
+3. **Security Recommendation:** For high-security or strict compliance multi-tenant environments, do not rely on `tenant_id` multiplexing in a single database. Instead, deploy separate Waggle instances with dedicated database files/URIs per tenant.
+
 ### High-blast-radius files
 
 Be extra careful with these files because they affect multiple features at once:
