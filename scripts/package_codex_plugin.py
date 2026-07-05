@@ -4,14 +4,18 @@ import argparse
 import hashlib
 import json
 import shutil
+import sys
 import tempfile
 import tomllib
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from scripts.build_codex_plugin_runtime import TARGETS
 
-ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_DIR = Path("plugins") / "waggle"
 FIXED_TIMESTAMP = (2000, 1, 1, 0, 0, 0)
 
