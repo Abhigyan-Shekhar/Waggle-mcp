@@ -180,6 +180,11 @@ jobs:
             mkdir -p "plugins/waggle/runtime/${target}"
             find "$artifact_dir" -mindepth 1 -maxdepth 1 -exec mv {} "plugins/waggle/runtime/${target}/" \;
             rmdir "$artifact_dir"
+            case "$target" in
+              darwin-*|linux-*)
+                chmod +x "plugins/waggle/runtime/${target}/waggle-server"
+                ;;
+            esac
           done
 
       - name: Set up Python
