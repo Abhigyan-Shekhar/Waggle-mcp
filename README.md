@@ -372,7 +372,7 @@ Shared JSON config for clients that accept `mcpServers` JSON:
 ```
 
 > First run takes ~30 s — `all-MiniLM-L6-v2` (~420 MB) downloads on first use.
-> To skip the download: set `"WAGGLE_MODEL": "deterministic"` (offline-safe, instant start, slightly lower retrieval quality).
+> **⚠️ `WAGGLE_MODEL=deterministic` is for CI/testing only.** It replaces semantic embeddings with SHA-256 hash bucketing, completely disabling semantic similarity. Do not use in production — retrieval quality will be fundamentally degraded.
 
 ### Claude Desktop
 
