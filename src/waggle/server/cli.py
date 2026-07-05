@@ -203,8 +203,17 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument(
+        "--quiet", dest="global_quiet", action="store_true", help="Suppress startup banners and messages."
+    )
+    quiet_parent = argparse.ArgumentParser(add_help=False)
+    quiet_parent.add_argument("--quiet", action="store_true", help="Suppress startup banners and messages.")
     subparsers = parser.add_subparsers(dest="command")
-    serve = subparsers.add_parser("serve", help="Run the MCP server using the configured stdio or HTTP transport.")
+    serve = subparsers.add_parser(
+        "serve",
+        parents=[quiet_parent],
+        help="Run the MCP server using the configured stdio or HTTP transport.",
+    )
     serve.add_argument(
         "--transport",
         choices=["stdio", "http"],
@@ -213,6 +222,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     graph_editor = subparsers.add_parser(
         "edit-graph",
+        parents=[quiet_parent],
         help="Launch the visual graph editor in a browser window.",
         description=(
             "Start the Waggle HTTP app for local graph editing and open /graph in the browser by default. "
@@ -225,6 +235,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     graph_viewer = subparsers.add_parser(
         "view-graph",
+        parents=[quiet_parent],
         help="Launch the visual graph viewer/editor in a browser window.",
         description="Alias for edit-graph. Starts the local graph UI and opens it in the browser by default.",
     )
@@ -234,6 +245,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     graph_ui = subparsers.add_parser(
         "ui",
+        parents=[quiet_parent],
         help="Launch the local graph UI in the browser.",
         description="Alias for edit-graph. Starts the localhost Graph Studio and opens it by default.",
     )
@@ -243,6 +255,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     graph_studio = subparsers.add_parser(
         "graph-studio",
+        parents=[quiet_parent],
         help="Alias for the local Graph Studio browser UI.",
         description="Alias for ui/edit-graph. Starts the localhost Graph Studio and opens it by default.",
     )
@@ -252,6 +265,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     open_studio = subparsers.add_parser(
         "open-studio",
+        parents=[quiet_parent],
         help="Alias for graph-studio.",
         description="Alias for graph-studio/ui/edit-graph. Starts the localhost Graph Studio and opens it by default.",
     )
@@ -2552,6 +2566,25 @@ def run_http(config: AppConfig) -> None:
     uvicorn.run(http_app, host=config.http_host, port=config.http_port, log_level=config.log_level.lower())
 
 
+def print_startup_banner(config: AppConfig, args: argparse.Namespace | None = None) -> None:
+    if os.environ.get("WAGGLE_BANNER", "").lower() == "false":
+        return
+    if args is not None and getattr(args, "quiet", False):
+        return
+    if not sys.stdout.isatty():
+        return
+
+    banner = (
+        f"Waggle MCP {__version__}\n"
+        f"  Backend:    {config.backend}\n"
+        f"  Model:      {config.model_name} ({config.embedding_backend})\n"
+        f"  DB path:    {config.db_path}\n"
+        f"  Transport:  {config.transport}\n"
+        f"  Tenant:     {config.default_tenant_id}"
+    )
+    print(banner)
+
+
 def main() -> None:
     if sys.platform == "win32":
         try:
@@ -2566,6 +2599,7 @@ def main() -> None:
     _assert_runtime_feature_parity()
     parser = _build_parser()
     args = _normalize_pull_strategy_args(parser.parse_args())
+    args.quiet = getattr(args, "global_quiet", False) or getattr(args, "quiet", False)
     command = args.command or "serve"
 
     if command == "setup":
@@ -2595,6 +2629,8 @@ def main() -> None:
     if command == "serve" and getattr(args, "transport", None):
         config.transport = str(args.transport).strip().lower()
         config.validate()
+    if command in {"serve", "edit-graph", "view-graph", "ui", "graph-studio", "open-studio"}:
+        print_startup_banner(config, args)
     log_stream = sys.stderr if config.transport == "stdio" else sys.stdout
     from waggle.logging_utils import configure_logging
 

@@ -1078,3 +1078,35 @@ def test_new_safety_features_regression(tmp_path: Path) -> None:
             headers={**headers, "Content-Type": "application/json"},
         )
         assert resp.status_code == 413
+
+        # 5. Test graph_save_ui validation failure: invalid positions
+        resp = client.patch(
+            "/api/graph/ui",
+            json={
+                "project": "studio",
+                "positions": "invalid-positions-type-not-dict",
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        assert "positions must be a dictionary" in resp.json()["message"]
+
+        resp = client.patch(
+            "/api/graph/ui",
+            json={
+                "project": "studio",
+                "positions": {"node-1": {"x": "not-a-float", "y": 10.0}},
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        assert "must be float numbers" in resp.json()["message"]
+
+        # 6. Test graph_restore validation failure: invalid viewport in ui
+        resp = client.post(
+            "/api/graph/restore",
+            json={"project": "studio", "nodes": [], "edges": [], "ui": {"viewport": {"x": "invalid-float", "y": 10.0}}},
+            headers=headers,
+        )
+        assert resp.status_code == 400
+        assert "viewport x must be a float number" in resp.json()["message"]

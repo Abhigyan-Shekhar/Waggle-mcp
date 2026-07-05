@@ -57,10 +57,14 @@ from .utils import (
 LOGGER = logging.getLogger(__name__)
 
 
-def _decode_base64_content(value: str, field_name: str = "content_base64") -> bytes:
+def _decode_base64_content(value: Any, field_name: str = "content_base64") -> bytes:
     try:
+        if not isinstance(value, str):
+            raise ValidationFailure(f"{field_name} must be a string.")
         return base64.b64decode(value.strip(), validate=True)
-    except (binascii.Error, ValueError) as exc:
+    except (binascii.Error, ValueError, TypeError) as exc:
+        if isinstance(exc, ValidationFailure):
+            raise
         raise ValidationFailure(f"{field_name} must be valid base64.") from exc
 
 
@@ -670,13 +674,35 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 zoom_val = float(payload["zoom"])
             except (ValueError, TypeError):
                 raise ValidationFailure("zoom must be a float number.")
+        positions = payload.get("positions")
+        if positions is not None:
+            if not isinstance(positions, dict):
+                raise ValidationFailure("positions must be a dictionary.")
+            for node_id, pos in positions.items():
+                if not isinstance(pos, dict) or "x" not in pos or "y" not in pos:
+                    raise ValidationFailure(f"positions for node '{node_id}' must contain 'x' and 'y'.")
+                try:
+                    float(pos["x"])
+                    float(pos["y"])
+                except (ValueError, TypeError):
+                    raise ValidationFailure(f"coordinates for node '{node_id}' must be float numbers.")
+        viewport = payload.get("viewport")
+        if viewport is not None:
+            if not isinstance(viewport, dict):
+                raise ValidationFailure("viewport must be a dictionary.")
+            for key in ("x", "y"):
+                if key in viewport and viewport.get(key) is not None:
+                    try:
+                        float(viewport[key])
+                    except (ValueError, TypeError):
+                        raise ValidationFailure(f"viewport {key} must be a float number.")
         saved = graph.save_ui_state(
             project=str(payload.get("project", "")).strip(),
             agent_id=str(payload.get("agent_id", "")).strip(),
             session_id=str(payload.get("session_id", "")).strip(),
-            positions=payload.get("positions"),
+            positions=positions,
             zoom=zoom_val,
-            viewport=payload.get("viewport"),
+            viewport=viewport,
             groups=payload.get("groups"),
             collapsed_groups=payload.get("collapsed_groups"),
             selected_nodes=payload.get("selected_nodes"),
@@ -721,6 +747,28 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 zoom_val = float(ui["zoom"])
             except (ValueError, TypeError):
                 raise ValidationFailure("zoom must be a float number.")
+        positions = ui.get("positions")
+        if positions is not None:
+            if not isinstance(positions, dict):
+                raise ValidationFailure("positions must be a dictionary.")
+            for node_id, pos in positions.items():
+                if not isinstance(pos, dict) or "x" not in pos or "y" not in pos:
+                    raise ValidationFailure(f"positions for node '{node_id}' must contain 'x' and 'y'.")
+                try:
+                    float(pos["x"])
+                    float(pos["y"])
+                except (ValueError, TypeError):
+                    raise ValidationFailure(f"coordinates for node '{node_id}' must be float numbers.")
+        viewport = ui.get("viewport")
+        if viewport is not None:
+            if not isinstance(viewport, dict):
+                raise ValidationFailure("viewport must be a dictionary.")
+            for key in ("x", "y"):
+                if key in viewport and viewport.get(key) is not None:
+                    try:
+                        float(viewport[key])
+                    except (ValueError, TypeError):
+                        raise ValidationFailure(f"viewport {key} must be a float number.")
 
         for node_payload in desired_nodes.values():
             try:
