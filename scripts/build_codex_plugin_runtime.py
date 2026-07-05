@@ -15,9 +15,9 @@ RUNTIME_ROOT = PLUGIN_ROOT / "runtime"
 LAUNCHER_PATH = PLUGIN_ROOT / "bin" / "waggle-server-launcher.js"
 ENTRYPOINT = ROOT / "src" / "waggle" / "entrypoints" / "server_only.py"
 MAX_BINARY_BYTES = 80 * 1024 * 1024
-STARTUP_TIMEOUT_SECONDS = 3.0
+STARTUP_TIMEOUT_SECONDS = 10.0
 BUILD_TIMEOUT_SECONDS = 600.0
-BUNDLE_MODE = "onedir"
+BUNDLE_MODE = "onefile"
 
 HEAVY_EXCLUDES = [
     # The bundled Codex runtime must stay small and fast to launch. These
@@ -98,6 +98,7 @@ def build_current() -> Path:
         "PyInstaller",
         "--noconfirm",
         "--clean",
+        *(["--onefile"] if BUNDLE_MODE == "onefile" else []),
         "--name",
         name,
         *[flag for module in HEAVY_EXCLUDES for flag in ("--exclude-module", module)],
