@@ -5,6 +5,12 @@ import json
 import logging
 import sqlite3
 import threading
+
+try:
+    import sqlite_vec
+    _HAS_SQLITE_VEC = True
+except ImportError:
+    _HAS_SQLITE_VEC = False
 from collections.abc import Iterable
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
@@ -485,6 +491,14 @@ class _ReadWriteLock:
                 self._cond.notify_all()
 
 
+def _decode_trigger_blob(blob: bytes | None) -> bytes | None:
+    if not blob:
+        return None
+    if len(blob) >= 8 and blob.startswith(b"WEB1"):
+        return blob[4:-4]
+    return blob
+
+
 class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBase):
     """SQLite-backed graph memory with embedding-assisted retrieval."""
 
@@ -524,6 +538,18 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         # concurrent access without changing the external API.
         self._lock = _ReadWriteLock()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        self._sqlite_vec_loaded = True
+        if _HAS_SQLITE_VEC:
+            try:
+                with self._connect() as conn:
+                    conn.execute("SELECT vec_version()")
+            except Exception as e:
+                LOGGER.warning("sqlite-vec is installed but failed to load or initialize: %s. Falling back to pure Python.", e)
+                self._sqlite_vec_loaded = False
+        else:
+            self._sqlite_vec_loaded = False
+                
         self._initialize_database()
         # Reuse a small pool of pre-configured connections instead of opening a
         # fresh one (and re-running every PRAGMA) on each operation. Created
@@ -578,6 +604,27 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         connection = sqlite3.connect(str(self.db_path), timeout=timeout, check_same_thread=check_same_thread)
         connection.row_factory = sqlite3.Row
 
+        # Resolve expected embedding dimension
+        dim = getattr(self, "_sqlite_vec_dim", None)
+        if dim is None and hasattr(self, "embedding_model"):
+            try:
+                dim = len(self.embedding_model.embed("dim_check"))
+                self._sqlite_vec_dim = dim
+            except Exception:
+                dim = 256
+
+        def _decode_trigger_blob(blob: bytes | None) -> bytes | None:
+            if not blob:
+                return None
+            if len(blob) == (dim * 4) + 8:
+                return blob[4:-4]
+            if len(blob) == dim * 4:
+                return blob
+            # Return zero vector fallback for corrupt payloads to avoid SQL errors
+            return b"\x00" * (dim * 4)
+
+        connection.create_function("vec_decode_embedding", 1, _decode_trigger_blob)
+
         # WAL mode: enables concurrent reads while maintaining single-writer safety
         connection.execute("PRAGMA journal_mode=WAL")
 
@@ -605,6 +652,15 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         # Allow SQLite to keep 32 MB of pages in its pager cache.
         # Negative value = number of KiB; -32000 = 32 MB.
         connection.execute("PRAGMA cache_size=-32000")
+
+        # Load sqlite-vec extension if available
+        if _HAS_SQLITE_VEC and getattr(self, "_sqlite_vec_loaded", True):
+            try:
+                connection.enable_load_extension(True)
+                sqlite_vec.load(connection)
+                connection.enable_load_extension(False)
+            except Exception:
+                pass
 
         return connection
 
@@ -642,6 +698,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             connection.executescript(INDEX_SQL)
 
             # Ensure tenant record
+            # Ensure tenant record
             created_at = utc_now().isoformat()
             connection.execute(
                 """
@@ -651,6 +708,65 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                     """,
                 (self.tenant_id, created_at),
             )
+
+            # Initialize sqlite-vec virtual table and triggers if loaded
+            if self._sqlite_vec_loaded:
+                try:
+                    dummy_vector = self.embedding_model.embed("dim_check")
+                    dim = len(dummy_vector)
+
+                    row = connection.execute(
+                        "SELECT sql FROM sqlite_master WHERE type='table' AND name='vec_nodes'"
+                    ).fetchone()
+                    if row:
+                        if f"float[{dim}]" not in row[0]:
+                            LOGGER.info("sqlite-vec: Existing virtual table dimension mismatch. Re-creating vec_nodes.")
+                            connection.execute("DROP TABLE IF EXISTS vec_nodes")
+                            row = None
+
+                    if not row:
+                        connection.execute(f"""
+                            CREATE VIRTUAL TABLE vec_nodes USING vec0(
+                                embedding float[{dim}] distance_metric=cosine,
+                                tenant_id TEXT,
+                                project TEXT,
+                                session_id TEXT,
+                                agent_id TEXT
+                            )
+                        """)
+                        connection.execute("""
+                            INSERT INTO vec_nodes(rowid, embedding, tenant_id, project, session_id, agent_id)
+                            SELECT rowid, vec_decode_embedding(embedding), tenant_id, project, session_id, agent_id
+                            FROM nodes
+                            WHERE embedding IS NOT NULL
+                        """)
+
+                    connection.execute("""
+                        CREATE TRIGGER IF NOT EXISTS t_nodes_insert AFTER INSERT ON nodes
+                        BEGIN
+                            INSERT INTO vec_nodes(rowid, embedding, tenant_id, project, session_id, agent_id)
+                            SELECT NEW.rowid, vec_decode_embedding(NEW.embedding), NEW.tenant_id, NEW.project, NEW.session_id, NEW.agent_id
+                            WHERE NEW.embedding IS NOT NULL;
+                        END;
+                    """)
+                    connection.execute("""
+                        CREATE TRIGGER IF NOT EXISTS t_nodes_update AFTER UPDATE OF embedding, tenant_id, project, session_id, agent_id ON nodes
+                        BEGIN
+                            DELETE FROM vec_nodes WHERE rowid = NEW.rowid;
+                            INSERT INTO vec_nodes(rowid, embedding, tenant_id, project, session_id, agent_id)
+                            SELECT NEW.rowid, vec_decode_embedding(NEW.embedding), NEW.tenant_id, NEW.project, NEW.session_id, NEW.agent_id
+                            WHERE NEW.embedding IS NOT NULL;
+                        END;
+                    """)
+                    connection.execute("""
+                        CREATE TRIGGER IF NOT EXISTS t_nodes_delete AFTER DELETE ON nodes
+                        BEGIN
+                            DELETE FROM vec_nodes WHERE rowid = OLD.rowid;
+                        END;
+                    """)
+                except Exception as e:
+                    LOGGER.warning("Failed to initialize sqlite-vec: %s. Falling back to pure Python.", e)
+                    self._sqlite_vec_loaded = False
 
     def for_tenant(self, tenant_id: str) -> MemoryGraph:
         clone = object.__new__(MemoryGraph)
@@ -669,6 +785,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         clone._lock = self._lock
         clone._pool = self._pool
         clone._owns_pool = False
+        clone._sqlite_vec_loaded = self._sqlite_vec_loaded
 
         clone._pool_owner = self
         clone.ensure_tenant(clone.tenant_id)

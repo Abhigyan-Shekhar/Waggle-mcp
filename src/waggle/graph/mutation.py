@@ -936,15 +936,51 @@ class MutationMixin(MemoryGraphBase):
             filters.append("agent_id = ?")
             params.append(node.agent_id)
 
-        rows = connection.execute(
-            f"""
-            SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt, metadata, evidence_records,
-                   valid_from, valid_to, created_at, updated_at, access_count, embedding, tenant_id
-            FROM nodes
-            WHERE {" AND ".join(filters)}
-            """,
-            tuple(params),
-        ).fetchall()
+        if getattr(self, "_sqlite_vec_loaded", False):
+            # Get count of filtered nodes to set appropriate k limit for MATCH
+            count = connection.execute(
+                f"SELECT COUNT(*) FROM nodes WHERE {' AND '.join(filters)}",
+                tuple(params),
+            ).fetchone()[0]
+            if count == 0:
+                return None
+
+            vec_filters = ["v.tenant_id = ?"]
+            vec_params = [self.tenant_id]
+            if node.project:
+                vec_filters.append("v.project = ?")
+                vec_params.append(node.project)
+            if node.session_id:
+                vec_filters.append("v.session_id = ?")
+                vec_params.append(node.session_id)
+            elif node.agent_id:
+                vec_filters.append("v.agent_id = ?")
+                vec_params.append(node.agent_id)
+
+            k = min(count, 1000)
+            rows = connection.execute(
+                f"""
+                SELECT n.id, n.agent_id, n.project, n.session_id, n.context_window_id, n.label, n.content, n.node_type, n.tags, n.source_prompt, n.metadata, n.evidence_records,
+                       n.valid_from, n.valid_to, n.created_at, n.updated_at, n.access_count, n.embedding, n.tenant_id
+                FROM vec_nodes v
+                JOIN nodes n ON v.rowid = n.rowid
+                WHERE v.embedding MATCH ?
+                  AND {" AND ".join(vec_filters)}
+                  AND k = ?
+                ORDER BY n.rowid ASC
+                """,
+                (embedding.astype(np.float32).tobytes(), *vec_params, k),
+            ).fetchall()
+        else:
+            rows = connection.execute(
+                f"""
+                SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt, metadata, evidence_records,
+                       valid_from, valid_to, created_at, updated_at, access_count, embedding, tenant_id
+                FROM nodes
+                WHERE {" AND ".join(filters)}
+                """,
+                tuple(params),
+            ).fetchall()
 
         normalized_label = normalize_text(node.label)
         normalized_content = normalize_text(node.content)
