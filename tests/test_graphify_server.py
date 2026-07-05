@@ -255,3 +255,116 @@ class TestHttpEndpoints:
             )
             assert resp.status_code == 200
             assert resp.json()["nodes_created"] == 1
+
+
+# ---------------------------------------------------------------------------
+# POST /api/graph/shortest-path - error paths
+# ---------------------------------------------------------------------------
+
+
+def test_shortest_path_rejects_missing_source_id(tmp_path: Path) -> None:
+    """source_id is required; omitting it must return 400."""
+    client, key = _http_client_and_key(tmp_path)
+    headers = {"X-API-Key": key}
+
+    with client:
+        resp = client.post(
+            "/api/graph/shortest-path",
+            json={"target_id": "node-b"},
+            headers=headers,
+        )
+
+    assert resp.status_code == 400
+    assert "source_id" in resp.json()["message"].lower()
+
+
+def test_shortest_path_rejects_missing_target_id(tmp_path: Path) -> None:
+    """target_id is required; omitting it must return 400."""
+    client, key = _http_client_and_key(tmp_path)
+    headers = {"X-API-Key": key}
+
+    with client:
+        resp = client.post(
+            "/api/graph/shortest-path",
+            json={"source_id": "node-a"},
+            headers=headers,
+        )
+
+    assert resp.status_code == 400
+    assert "target_id" in resp.json()["message"].lower()
+
+
+def test_shortest_path_rejects_malformed_json(tmp_path: Path) -> None:
+    """A non-JSON body must not produce a 2xx response."""
+    graph = MemoryGraph(tmp_path / "memory.db", FakeEmbeddingModel())
+    app_server = WaggleServer(graph=graph, config=_config(tmp_path, transport="http"))
+    created = graph.create_api_key("local-default", "shortest-path-test")
+    app = create_http_application(app_server, app_server.config)
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        resp = client.post(
+            "/api/graph/shortest-path",
+            content=b"{not valid json",
+            headers={"X-API-Key": created.raw_api_key, "Content-Type": "application/json"},
+        )
+
+    assert resp.status_code >= 400
+
+
+# ---------------------------------------------------------------------------
+# POST /api/graph/import-graphify - error paths
+# ---------------------------------------------------------------------------
+
+
+def test_import_graphify_rejects_empty_content(tmp_path: Path) -> None:
+    """An empty content string must return 400."""
+    client, key = _http_client_and_key(tmp_path)
+    headers = {"X-API-Key": key}
+
+    with client:
+        resp = client.post(
+            "/api/graph/import-graphify",
+            json={"content": ""},
+            headers=headers,
+        )
+
+    assert resp.status_code == 400
+    assert "content" in resp.json()["message"].lower()
+
+
+def test_import_graphify_rejects_malformed_json(tmp_path: Path) -> None:
+    """A non-JSON request body must not produce a 2xx response."""
+    graph = MemoryGraph(tmp_path / "memory.db", FakeEmbeddingModel())
+    app_server = WaggleServer(graph=graph, config=_config(tmp_path, transport="http"))
+    created = graph.create_api_key("local-default", "import-graphify-test")
+    app = create_http_application(app_server, app_server.config)
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        resp = client.post(
+            "/api/graph/import-graphify",
+            content=b"{not valid json",
+            headers={"X-API-Key": created.raw_api_key, "Content-Type": "application/json"},
+        )
+
+    assert resp.status_code >= 400
+
+
+# ---------------------------------------------------------------------------
+# GET /api/graph/export - unknown format (cypher added by #419; others still 400)
+# ---------------------------------------------------------------------------
+
+
+def test_graph_export_rejects_unknown_format(tmp_path: Path) -> None:
+    """An unrecognised export format must return 400."""
+    client, key = _http_client_and_key(tmp_path)
+    headers = {"X-API-Key": key}
+
+    with client:
+        resp = client.get(
+            "/api/graph/export",
+            params={"format": "xml"},
+            headers=headers,
+        )
+
+    assert resp.status_code == 400
+    assert "format" in resp.json()["message"].lower()
