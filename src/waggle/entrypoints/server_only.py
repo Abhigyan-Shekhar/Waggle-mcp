@@ -25,6 +25,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Only stdio transport is available in the bundled runtime.",
     )
     parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress startup banners and messages.",
+    )
+    parser.add_argument(
         "--server-info",
         action="store_true",
         help="Print bundled runtime compatibility metadata as JSON and exit.",
@@ -43,11 +48,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     from waggle.config import AppConfig
-    from waggle.server import run_stdio
+    from waggle.server import print_startup_banner, run_stdio
 
     os.environ.setdefault("WAGGLE_TRANSPORT", "stdio")
     config = AppConfig.from_env()
     config.transport = "stdio"
+    print_startup_banner(config, args)
     asyncio.run(run_stdio(config))
     return 0
 

@@ -2215,3 +2215,110 @@ class TestHookToolsFromArgs:
         )
         with pytest.raises(ValidationFailure):
             _run_setup(args)
+
+
+@pytest.fixture
+def banner_config() -> AppConfig:
+    return AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="all-MiniLM-L6-v2",
+        db_path="/tmp/waggle.db",
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+
+def test_parser_accepts_quiet_flag() -> None:
+    parser = _build_parser()
+
+    # Check top-level quiet flag
+    args = parser.parse_args(["--quiet", "serve"])
+    args.quiet = getattr(args, "global_quiet", False) or getattr(args, "quiet", False)
+    assert args.quiet is True
+    assert args.command == "serve"
+
+    # Check subcommand quiet flag
+    args_sub = parser.parse_args(["serve", "--quiet"])
+    args_sub.quiet = getattr(args_sub, "global_quiet", False) or getattr(args_sub, "quiet", False)
+    assert args_sub.quiet is True
+    assert args_sub.command == "serve"
+
+    args_default = parser.parse_args(["serve"])
+    args_default.quiet = getattr(args_default, "global_quiet", False) or getattr(args_default, "quiet", False)
+    assert args_default.quiet is False
+
+
+def test_startup_banner_tty_prints_correctly(capsys, monkeypatch, banner_config):
+    import sys
+
+    from waggle.server import __version__, print_startup_banner
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    monkeypatch.delenv("WAGGLE_BANNER", raising=False)
+
+    print_startup_banner(banner_config)
+
+    captured = capsys.readouterr()
+    assert f"Waggle MCP {__version__}" in captured.out
+    assert "  Backend:    sqlite" in captured.out
+    assert "  Model:      all-MiniLM-L6-v2 (pytorch)" in captured.out
+    assert "  DB path:    /tmp/waggle.db" in captured.out
+    assert "  Transport:  stdio" in captured.out
+    assert "  Tenant:     local-default" in captured.out
+
+
+def test_startup_banner_no_tty_suppresses(capsys, monkeypatch, banner_config):
+    import sys
+
+    from waggle.server import print_startup_banner
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: False)
+    monkeypatch.delenv("WAGGLE_BANNER", raising=False)
+
+    print_startup_banner(banner_config)
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+
+
+def test_startup_banner_quiet_suppresses(capsys, monkeypatch, banner_config):
+    import argparse
+    import sys
+
+    from waggle.server import print_startup_banner
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    monkeypatch.delenv("WAGGLE_BANNER", raising=False)
+
+    args = argparse.Namespace(quiet=True)
+    print_startup_banner(banner_config, args)
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+
+
+def test_startup_banner_env_suppresses(capsys, monkeypatch, banner_config):
+    import sys
+
+    from waggle.server import print_startup_banner
+
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    monkeypatch.setenv("WAGGLE_BANNER", "false")
+
+    print_startup_banner(banner_config)
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
