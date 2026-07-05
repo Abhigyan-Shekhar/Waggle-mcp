@@ -8,6 +8,7 @@ import threading
 
 try:
     import sqlite_vec
+
     _HAS_SQLITE_VEC = True
 except ImportError:
     _HAS_SQLITE_VEC = False
@@ -538,18 +539,20 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         # concurrent access without changing the external API.
         self._lock = _ReadWriteLock()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         self._sqlite_vec_loaded = True
         if _HAS_SQLITE_VEC:
             try:
                 with self._connect() as conn:
                     conn.execute("SELECT vec_version()")
             except Exception as e:
-                LOGGER.warning("sqlite-vec is installed but failed to load or initialize: %s. Falling back to pure Python.", e)
+                LOGGER.warning(
+                    "sqlite-vec is installed but failed to load or initialize: %s. Falling back to pure Python.", e
+                )
                 self._sqlite_vec_loaded = False
         else:
             self._sqlite_vec_loaded = False
-                
+
         self._initialize_database()
         # Reuse a small pool of pre-configured connections instead of opening a
         # fresh one (and re-running every PRAGMA) on each operation. Created

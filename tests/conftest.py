@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -13,20 +15,21 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 # Auto-load sqlite-vec and register vec_decode_embedding on all test sqlite3 connections
-import sqlite3
-import re
+
 _original_connect = sqlite3.connect
+
 
 def _patched_connect(*args, **kwargs):
     conn = _original_connect(*args, **kwargs)
     try:
         import sqlite_vec
+
         conn.enable_load_extension(True)
         sqlite_vec.load(conn)
         conn.enable_load_extension(False)
     except Exception:
         pass
-    
+
     # Register custom vec_decode_embedding for triggers on direct connections
     try:
         # Resolve dimension from vec_nodes schema if it exists
@@ -50,9 +53,11 @@ def _patched_connect(*args, **kwargs):
                 return blob
             # Return zero vector for corrupt/mismatched sizes
             return b"\x00" * (dim * 4)
+
         conn.create_function("vec_decode_embedding", 1, _decode_trigger_blob)
     except Exception:
         pass
     return conn
+
 
 sqlite3.connect = _patched_connect

@@ -1,37 +1,36 @@
-import pytest
-import numpy as np
 from pathlib import Path
-from waggle.graph import MemoryGraph
+
+import numpy as np
+import pytest
+
+from tests.test_dedup import make_graph
 from waggle.models import Node, NodeType
-from tests.test_dedup import FakeEmbeddingModel, make_graph
+
 
 def test_sqlite_vec_triggers_and_parity(tmp_path: Path) -> None:
     # 1. Initialize MemoryGraph
     graph = make_graph(tmp_path)
-    
+
     # Verify if sqlite-vec is actually loaded (it should be in our test env)
     assert graph._sqlite_vec_loaded is True
-    
+
     # 2. Add some nodes and verify triggers copied them to vec_nodes
     node1 = graph.add_node(
         label="Database",
         content="We use PostgreSQL as our primary database system.",
         node_type=NodeType.DECISION,
-        project="proj-alpha"
+        project="proj-alpha",
     )
-    node2 = graph.add_node(
+    graph.add_node(
         label="Database",
         content="We use MySQL as our primary database system.",
         node_type=NodeType.DECISION,
-        project="proj-alpha"
+        project="proj-alpha",
     )
     node3 = graph.add_node(
-        label="Authentication",
-        content="We use JWT for session tokens.",
-        node_type=NodeType.FACT,
-        project="proj-beta"
+        label="Authentication", content="We use JWT for session tokens.", node_type=NodeType.FACT, project="proj-beta"
     )
-    
+
     # Query vec_nodes directly to verify triggers
     with graph._pool.checkout() as connection:
         rows = connection.execute("SELECT rowid, tenant_id, project FROM vec_nodes ORDER BY rowid ASC").fetchall()
@@ -46,13 +45,13 @@ def test_sqlite_vec_triggers_and_parity(tmp_path: Path) -> None:
     with graph._pool.checkout() as connection:
         connection.execute(
             "UPDATE nodes SET embedding = ?, project = ? WHERE id = ?",
-            (new_embedding.astype(np.float32).tobytes(), "proj-gamma", node3.node.id)
+            (new_embedding.astype(np.float32).tobytes(), "proj-gamma", node3.node.id),
         )
-        
+
         # Verify update in vec_nodes
         row = connection.execute("SELECT project FROM vec_nodes WHERE rowid = 3").fetchone()
         assert row["project"] == "proj-gamma"
-        
+
     # 4. Test delete trigger
     with graph._pool.checkout() as connection:
         connection.execute("DELETE FROM nodes WHERE id = ?", (node1.node.id,))
@@ -64,31 +63,40 @@ def test_sqlite_vec_triggers_and_parity(tmp_path: Path) -> None:
     # Recreate clean graph
     graph2 = make_graph(tmp_path / "parity")
     assert graph2._sqlite_vec_loaded is True
-    
+
     # Add a set of nodes
-    n1 = graph2.add_node(label="Python", content="We use Python for backend services", node_type=NodeType.DECISION, project="proj-X")
-    n2 = graph2.add_node(label="Go", content="We use Go for high performance microservices", node_type=NodeType.DECISION, project="proj-X")
-    n3 = graph2.add_node(label="Rust", content="We use Rust for critical system binaries", node_type=NodeType.DECISION, project="proj-Y")
-    
+    graph2.add_node(
+        label="Python", content="We use Python for backend services", node_type=NodeType.DECISION, project="proj-X"
+    )
+    graph2.add_node(
+        label="Go",
+        content="We use Go for high performance microservices",
+        node_type=NodeType.DECISION,
+        project="proj-X",
+    )
+    graph2.add_node(
+        label="Rust", content="We use Rust for critical system binaries", node_type=NodeType.DECISION, project="proj-Y"
+    )
+
     # Run _find_duplicate_node with ANN enabled
     incoming = Node(
         tenant_id=graph2.tenant_id,
         project="proj-X",
         label="Python Backend",
         content="Python is used for backend",
-        node_type=NodeType.DECISION
+        node_type=NodeType.DECISION,
     )
     incoming_emb = graph2.embedding_model.embed(incoming.content)
-    
+
     with graph2._pool.checkout() as conn:
         # Get result with ANN
         graph2._sqlite_vec_loaded = True
         dup_ann = graph2._find_duplicate_node(conn, node=incoming, embedding=incoming_emb)
-        
+
         # Get result with pure-Python fallback
         graph2._sqlite_vec_loaded = False
         dup_fallback = graph2._find_duplicate_node(conn, node=incoming, embedding=incoming_emb)
-        
+
     assert dup_ann is not None
     assert dup_fallback is not None
     assert dup_ann[0].id == dup_fallback[0].id
@@ -99,17 +107,17 @@ def test_sqlite_vec_triggers_and_parity(tmp_path: Path) -> None:
     retriever = graph2.hybrid_retriever()
     query = "Where do we use Python?"
     query_emb = graph2.embedding_model.embed(query)
-    
+
     # Enable ANN
     graph2._sqlite_vec_loaded = True
     rank_ann = retriever._rank_nodes(query_emb, project="proj-X", agent_id="", session_id="")
-    
+
     # Disable ANN
     graph2._sqlite_vec_loaded = False
     rank_fallback = retriever._rank_nodes(query_emb, project="proj-X", agent_id="", session_id="")
-    
+
     assert len(rank_ann) == len(rank_fallback)
-    for a, f in zip(rank_ann, rank_fallback):
+    for a, f in zip(rank_ann, rank_fallback, strict=True):
         assert a.candidate_id == f.candidate_id
         assert a.content == f.content
         assert a.source == f.source
