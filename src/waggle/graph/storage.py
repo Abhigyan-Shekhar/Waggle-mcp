@@ -147,7 +147,8 @@ CREATE TABLE IF NOT EXISTS edges (
     metadata TEXT DEFAULT '{}',
     created_at TEXT NOT NULL,
     FOREIGN KEY (source_id) REFERENCES nodes(id) ON DELETE CASCADE,
-    FOREIGN KEY (target_id) REFERENCES nodes(id) ON DELETE CASCADE
+    FOREIGN KEY (target_id) REFERENCES nodes(id) ON DELETE CASCADE,
+    UNIQUE(tenant_id, source_id, target_id, relationship)
 );
 
 CREATE TABLE IF NOT EXISTS transcript_records (

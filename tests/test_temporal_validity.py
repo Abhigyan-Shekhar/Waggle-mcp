@@ -403,8 +403,8 @@ def test_resolve_conflict_loser_returned_with_include_invalidated(tmp_path: Path
     assert node_b.id in returned_ids, "Loser node must be retrievable via include_invalidated=True"
 
 
-def test_resolve_conflict_without_winner_does_not_set_valid_to(tmp_path: Path) -> None:
-    """resolve_conflict without winner must NOT set valid_to on either node (legacy behaviour)."""
+def test_resolve_conflict_without_winner_invalidates_target(tmp_path: Path) -> None:
+    """resolve_conflict without winner must invalidate the target node by setting valid_to."""
     graph = make_graph(tmp_path)
 
     node_a = graph.add_node(
@@ -431,7 +431,7 @@ def test_resolve_conflict_without_winner_does_not_set_valid_to(tmp_path: Path) -
     refreshed_b = graph.get_node(node_b.id)
 
     assert refreshed_a.valid_to is None, "Source node must not have valid_to set when no winner given"
-    assert refreshed_b.valid_to is None, "Target node must not have valid_to set when no winner given"
+    assert refreshed_b.valid_to is not None, "Target node must have valid_to set when no winner given"
 
 
 # ---------------------------------------------------------------------------

@@ -440,3 +440,46 @@ class TestDedupCandidates:
 
         similarities = [pair.similarity for pair in result.pairs]
         assert similarities == sorted(similarities, reverse=True)
+
+    def test_dedup_safeguard_different_models_and_dimensions(self, tmp_path: Path) -> None:
+        """Verify that _find_duplicate_node and dedup_candidates filter by model ID and dimensions."""
+        graph_8 = MemoryGraph(
+            tmp_path / "memory_8.db",
+            FakeEmbeddingModel(),
+            dedup_similarity_threshold=0.80,
+            dedup_same_label_threshold=0.80,
+        )
+        graph_8.add_node(
+            label="Database",
+            content="We use PostgreSQL for production",
+            node_type=NodeType.DECISION,
+        )
+
+        class FakeEmbeddingModel16:
+            model_name = "different-model"
+            model_id = "different-model:v1"
+            def embed(self, text: str) -> np.ndarray:
+                return np.zeros(16, dtype=np.float32)
+            def to_bytes(self, embedding: np.ndarray) -> bytes:
+                return embedding.tobytes()
+            def from_bytes(self, data: bytes) -> np.ndarray:
+                return np.frombuffer(data, dtype=np.float32)
+            def cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
+                return 0.0
+
+        graph_16 = MemoryGraph(
+            tmp_path / "memory_8.db",
+            FakeEmbeddingModel16(),
+            dedup_similarity_threshold=0.80,
+            dedup_same_label_threshold=0.80,
+        )
+
+        res = graph_16.dedup_candidates(threshold=0.50)
+        assert res.total_nodes_scanned == 0
+
+        added = graph_16.add_node(
+            label="Database",
+            content="We use PostgreSQL for production",
+            node_type=NodeType.DECISION,
+        )
+        assert added.created is True

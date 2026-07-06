@@ -287,41 +287,10 @@ class TraversalMixin(MemoryGraphBase):
                 include_invalidated=include_invalidated,
                 as_of=as_of,
             )
-            if normalized_mode in {"graph", "fusion"}
-            else None
         )
-        replay_hits = (
-            self._query_replay_hits(
-                query=query_text,
-                max_hits=max_nodes,
-                agent_id=agent_id,
-                project=project,
-                session_id=session_id,
-            )
-            if normalized_mode in {"verbatim", "hybrid"}
-            else []
-        )
-        if normalized_mode == "graph":
-            if graph_result.retrieval_mode not in {"tiered", "flat_fallback"}:
-                graph_result.retrieval_mode = "graph"
-            return graph_result
-        if normalized_mode == "verbatim":
-            return SubgraphResult(
-                replay_hits=replay_hits,
-                retrieval_mode="verbatim",
-                query=query_text,
-                total_nodes_in_graph=graph_result.total_nodes_in_graph if graph_result is not None else 0,
-            )
-        fusion_hits = self._build_fusion_hits(graph_result or SubgraphResult(query=query_text), replay_hits)
-        return SubgraphResult(
-            nodes=graph_result.nodes if graph_result is not None else [],
-            edges=graph_result.edges if graph_result is not None else [],
-            replay_hits=replay_hits,
-            fusion_hits=fusion_hits[:max_nodes],
-            retrieval_mode="hybrid",
-            query=query_text,
-            total_nodes_in_graph=graph_result.total_nodes_in_graph if graph_result is not None else 0,
-        )
+        if graph_result.retrieval_mode not in {"tiered", "flat_fallback"}:
+            graph_result.retrieval_mode = "graph"
+        return graph_result
 
     def _subgraph_from_hybrid_hits(
         self,

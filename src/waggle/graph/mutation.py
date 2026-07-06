@@ -280,6 +280,14 @@ class MutationMixin(MemoryGraphBase):
                     edge.created_at.isoformat(),
                 ),
             )
+            self.emit_audit_event(
+                event_type="graph.relationship.created",
+                resource_type="edge",
+                resource_id=edge.id,
+                action="create",
+                metadata={"relationship": edge.relationship},
+                connection=active_connection,
+            )
             if edge.relationship in {RelationType.UPDATES.value, RelationType.CONTRADICTS.value}:
                 self._mark_node_superseded(
                     active_connection, old_node=target_node, new_node=source_node, relationship=edge.relationship
@@ -395,12 +403,20 @@ class MutationMixin(MemoryGraphBase):
                     relationship=edge.relationship,
                 )
             else:
-                self._mark_node_superseded(
-                    connection,
-                    old_node=self.get_node(edge.target_id),
-                    new_node=self.get_node(edge.source_id),
-                    relationship=edge.relationship,
+                now = utc_now()
+                connection.execute(
+                    "UPDATE nodes SET valid_to = ?, updated_at = ? WHERE id = ? AND tenant_id = ?",
+                    (now.isoformat(), now.isoformat(), edge.target_id, self.tenant_id),
                 )
+                target_row = self._fetch_node_row(connection, edge.target_id)
+                source_row = self._fetch_node_row(connection, edge.source_id)
+                if target_row is not None and source_row is not None:
+                    self._mark_node_superseded(
+                        connection,
+                        old_node=self._row_to_node(target_row),
+                        new_node=self._row_to_node(source_row),
+                        relationship=edge.relationship,
+                    )
 
             updated_edge = Edge(
                 id=edge.id,
@@ -924,8 +940,8 @@ class MutationMixin(MemoryGraphBase):
         node: Node,
         embedding: np.ndarray,
     ) -> tuple[Node, str, float | None] | None:
-        filters = ["tenant_id = ?", "embedding IS NOT NULL"]
-        params: list[Any] = [self.tenant_id]
+        filters = ["tenant_id = ?", "embedding IS NOT NULL", "embedding_model_id = ?", "embedding_dim = ?"]
+        params: list[Any] = [self.tenant_id, self._current_embedding_model_id(), len(embedding)]
         if node.project:
             filters.append("project = ?")
             params.append(node.project)
@@ -1305,8 +1321,9 @@ class MutationMixin(MemoryGraphBase):
         agent_id = str(scope.get("agent_id", "")).strip()
         session_id = str(scope.get("session_id", "")).strip()
 
-        filters = ["tenant_id = ?", "embedding IS NOT NULL"]
-        params: list[Any] = [self.tenant_id]
+        _, current_model_id, current_dim = self._embed_with_metadata("test")
+        filters = ["tenant_id = ?", "embedding IS NOT NULL", "embedding_model_id = ?", "embedding_dim = ?"]
+        params: list[Any] = [self.tenant_id, current_model_id, current_dim]
         if project:
             filters.append("project = ?")
             params.append(project)
