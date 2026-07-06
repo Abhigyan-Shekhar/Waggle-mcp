@@ -354,9 +354,9 @@ def _run_local_oauth_flow(
         webbrowser.open(auth_url)
     else:
         print(
-        "\nAuthorize Waggle Drive access by visiting this URL:\n",
-        file=sys.stderr,
-        flush=True,
+            "\nAuthorize Waggle Drive access by visiting this URL:\n",
+            file=sys.stderr,
+            flush=True,
         )
         print(auth_url, file=sys.stderr, flush=True)
         print("\nWaiting for authorization...\n", file=sys.stderr, flush=True)
