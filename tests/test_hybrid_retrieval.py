@@ -1000,4 +1000,3 @@ def test_lexical_cache_invalidated_on_node_content_update(tmp_path: Path) -> Non
     assert not any("alpha-centauri" in hit.content for hit in res2.hybrid_hits)
     cache_entry_2 = graph.root_graph._lexical_cache
     assert cache_entry_2[0] != cache_entry_1[0]
-

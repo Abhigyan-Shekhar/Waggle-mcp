@@ -469,6 +469,7 @@ class HybridRetriever:
         include_nodes: bool,
     ) -> tuple[Any, ...]:
         import hashlib
+
         tx_filters = ["tenant_id = ?"]
         tx_params: list[Any] = [self.graph.tenant_id]
         if project.strip():
