@@ -106,6 +106,7 @@ def test_codex_install_guide_matches_shipped_example_config() -> None:
 
 def test_version_consistency() -> None:
     import sys
+
     sys.path.append(str(ROOT))
     from scripts.sync_version import FILES, read_version
 
