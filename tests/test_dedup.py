@@ -458,12 +458,16 @@ class TestDedupCandidates:
         class FakeEmbeddingModel16:
             model_name = "different-model"
             model_id = "different-model:v1"
+
             def embed(self, text: str) -> np.ndarray:
                 return np.zeros(16, dtype=np.float32)
+
             def to_bytes(self, embedding: np.ndarray) -> bytes:
                 return embedding.tobytes()
+
             def from_bytes(self, data: bytes) -> np.ndarray:
                 return np.frombuffer(data, dtype=np.float32)
+
             def cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
                 return 0.0
 
