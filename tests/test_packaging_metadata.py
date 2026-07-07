@@ -105,6 +105,7 @@ def test_codex_install_guide_matches_shipped_example_config() -> None:
 
 
 def test_version_consistency() -> None:
+    """Verify that all manifest versions are identical and in sync with pyproject.toml."""
     import sys
 
     sys.path.append(str(ROOT))
