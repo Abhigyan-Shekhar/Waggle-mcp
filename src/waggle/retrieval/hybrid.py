@@ -468,6 +468,11 @@ class HybridRetriever:
         session_id: str,
         include_nodes: bool,
     ) -> tuple[Any, ...]:
+        """Compute a content-sensitive signature of the current database state
+        for cached hybrid retrieval. Uses fast aggregates and hashes row metadata
+        (such as content_hash) instead of loading large transcript_text fields
+        to optimize memory consumption and speed up cache lookups.
+        """
         import hashlib
 
         tx_filters = ["tenant_id = ?"]
