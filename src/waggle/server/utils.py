@@ -173,7 +173,6 @@ def _parse_api_key_scopes(raw: str | None) -> list[str]:
         return []
     return [item.strip() for item in str(raw).split(",") if item.strip()]
 
-
 def _scan_export_transcripts_for_secrets(
     backend: MemoryGraph,
     *,
@@ -195,32 +194,82 @@ def _scan_export_transcripts_for_secrets(
         include_embeddings=False,
         encrypted=False,
     )
+
     findings: list[dict[str, Any]] = []
-    for row in document.get("transcripts", []):
-        text = str(row.get("transcript_text", ""))
+
+    def scan_text(
+        text: str,
+        *,
+        source: str,
+        metadata: dict[str, Any],
+    ) -> bool:
         if not text.strip():
-            continue
+            return False
+
         for label, pattern in _EXPORT_SECRET_PATTERNS:
             match = pattern.search(text)
             if match is None:
                 continue
+
             secret = match.group(0)
             preview = text.replace(secret, "[REDACTED]")
+
             findings.append(
                 {
                     "pattern": label,
-                    "transcript_id": str(row.get("id", "")),
-                    "session_id": str(row.get("session_id", "")),
-                    "turn_index": int(row.get("turn_index", 0) or 0),
-                    "role": str(row.get("role", "")),
+                    "source": source,
                     "preview": preview[:180],
+                    **metadata,
                 }
             )
-            break
-        if len(findings) >= max_findings:
-            break
-    return findings
+            return True
 
+        return False
+
+    # Scan transcript records
+    for row in document.get("transcripts", []):
+        scan_text(
+            str(row.get("transcript_text", "")),
+            source="transcript",
+            metadata={
+                "transcript_id": str(row.get("id", "")),
+                "session_id": str(row.get("session_id", "")),
+                "turn_index": int(row.get("turn_index", 0) or 0),
+                "role": str(row.get("role", "")),
+            },
+        )
+
+        if len(findings) >= max_findings:
+            return findings
+
+    # Scan exported nodes
+    for node in document.get("nodes", []):
+
+        fields = [
+            ("label", str(node.get("label", ""))),
+            ("content", str(node.get("content", ""))),
+            ("source_prompt", str(node.get("source_prompt", ""))),
+            (
+                "metadata",
+                json.dumps(node.get("metadata", {}), default=str),
+            ),
+        ]
+
+        for field_name, text in fields:
+
+            scan_text(
+                text,
+                source=f"node:{field_name}",
+                metadata={
+                    "node_id": str(node.get("id", "")),
+                    "label": str(node.get("label", "")),
+                },
+            )
+
+            if len(findings) >= max_findings:
+                return findings
+
+    return findings
 
 def _assert_export_safe(
     backend: MemoryGraph,
@@ -232,6 +281,7 @@ def _assert_export_safe(
     scope: str = "all",
     since_date: str = "",
 ) -> None:
+
     findings = _scan_export_transcripts_for_secrets(
         backend,
         project=project,
@@ -240,16 +290,18 @@ def _assert_export_safe(
         scope=scope,
         since_date=since_date,
     )
+
     if findings and not force:
+
         summary = "; ".join(
-            f"{item['pattern']} in {item['role']} turn {item['turn_index']} of session {item['session_id'] or 'default'}"
+            f"{item['pattern']} ({item['source']})"
             for item in findings[:3]
         )
+
         raise ValidationFailure(
-            "Export refused because transcript_records appear to contain secrets. "
+            "Export refused because exported data appears to contain secrets. "
             f"Run again with --force only after redacting or confirming the export scope is safe. Findings: {summary}."
         )
-
 
 def _object_input_schema(
     properties: dict[str, Any] | None = None,
