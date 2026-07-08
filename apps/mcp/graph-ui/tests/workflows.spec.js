@@ -107,14 +107,24 @@ test.beforeEach(async ({ page }) => {
             {
               node_id: "node-1",
               label: "Retrieved Node 1",
-              score: 0.85
+              score: 0.85,
+              session_id: "session-1",
+              turn_index: 0,
+              role: "user",
+              transcript_snippet: "Hello from mock user"
             }
           ],
           fusion_hits: [
             {
               id: "node-1",
               label: "Retrieved Node 1",
-              score: 0.85
+              score: 0.85,
+              fused_rank: 1,
+              content: "Fused Node Content 1",
+              source_lane: "graph",
+              graph_rank: 1,
+              replay_rank: 2,
+              reasoning: "Matched query terms perfectly"
             }
           ]
         })

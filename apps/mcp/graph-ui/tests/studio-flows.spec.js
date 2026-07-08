@@ -90,34 +90,43 @@ test.describe("Graph Studio - Workflow Flows", () => {
   });
 
   test("should import .abhi file successfully", async ({ page }) => {
-    // Intercept preview-import and import APIs
     await page.route("**/api/graph/abhi/preview-import", async (route) => {
-      expect(route.request().method()).toBe("POST");
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          snapshot: {
-            nodes: [
-              { id: "imported-1", label: "Imported Node 1" },
-              { id: "imported-2", label: "Imported Node 2" }
-            ],
-            edges: []
-          },
-          validation: { valid: true, errors: [] }
-        })
-      });
+      try {
+        expect(route.request().method()).toBe("POST");
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            snapshot: {
+              nodes: [
+                { id: "imported-1", label: "Imported Node 1" },
+                { id: "imported-2", label: "Imported Node 2" }
+              ],
+              edges: []
+            },
+            validation: { valid: true, errors: [] }
+          })
+        });
+      } catch (err) {
+        await route.abort();
+        throw err;
+      }
     });
 
     await page.route("**/api/graph/import", async (route) => {
-      expect(route.request().method()).toBe("POST");
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          imported_node_ids: ["imported-1", "imported-2"]
-        })
-      });
+      try {
+        expect(route.request().method()).toBe("POST");
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            imported_node_ids: ["imported-1", "imported-2"]
+          })
+        });
+      } catch (err) {
+        await route.abort();
+        throw err;
+      }
     });
 
     // Upload mock file using input files API on the hidden file input
@@ -143,12 +152,17 @@ test.describe("Graph Studio - Workflow Flows", () => {
   test("should export graph successfully", async ({ page }) => {
     // Mock export API response
     await page.route("**/api/graph/export**", async (route) => {
-      expect(route.request().method()).toBe("GET");
-      await route.fulfill({
-        status: 200,
-        contentType: "application/octet-stream",
-        body: Buffer.from("mock export contents")
-      });
+      try {
+        expect(route.request().method()).toBe("GET");
+        await route.fulfill({
+          status: 200,
+          contentType: "application/octet-stream",
+          body: Buffer.from("mock export contents")
+        });
+      } catch (err) {
+        await route.abort();
+        throw err;
+      }
     });
 
     // Trigger export and wait for download event
@@ -170,57 +184,62 @@ test.describe("Graph Studio - Workflow Flows", () => {
 
     // Mock retrieval-debug API response
     await page.route("**/api/graph/retrieval-debug", async (route) => {
-      expect(route.request().method()).toBe("POST");
-      const body = JSON.parse(route.request().postData() || "{}");
-      expect(body.query).toBe("find relevant documents");
+      try {
+        expect(route.request().method()).toBe("POST");
+        const body = JSON.parse(route.request().postData() || "{}");
+        expect(body.query).toBe("find relevant documents");
 
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          debug: {
-            flat_top_nodes: [
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            debug: {
+              flat_top_nodes: [
+                {
+                  node_id: "n-1",
+                  label: "Debugger Node 1",
+                  final_score: 0.95,
+                  similarity_score: 0.85,
+                  recency_score: 0.90
+                }
+              ],
+              all_windows: [
+                {
+                  window_id: "w-1",
+                  title: "Debugger Window 1",
+                  routing_score: 0.80,
+                  similarity: 0.70,
+                  recency: 0.90
+                }
+              ]
+            },
+            replay_hits: [
               {
-                node_id: "n-1",
-                label: "Debugger Node 1",
-                final_score: 0.95,
-                similarity_score: 0.85,
-                recency_score: 0.90
+                role: "user",
+                score: 0.75,
+                session_id: "session-1",
+                turn_index: 2,
+                transcript_snippet: "This is a transcript snippet"
               }
             ],
-            all_windows: [
+            fusion_hits: [
               {
-                window_id: "w-1",
-                title: "Debugger Window 1",
-                routing_score: 0.80,
-                similarity: 0.70,
-                recency: 0.90
+                fused_rank: 1,
+                content: "Fused result 1",
+                source_lane: "hybrid",
+                graph_rank: 2,
+                replay_rank: 1,
+                score: 0.88,
+                reasoning: "Reasoning for fusion 1"
               }
-            ]
-          },
-          replay_hits: [
-            {
-              role: "user",
-              score: 0.75,
-              session_id: "session-1",
-              turn_index: 2,
-              transcript_snippet: "This is a transcript snippet"
-            }
-          ],
-          fusion_hits: [
-            {
-              fused_rank: 1,
-              content: "Fused result 1",
-              source_lane: "hybrid",
-              graph_rank: 2,
-              replay_rank: 1,
-              score: 0.88,
-              reasoning: "Reasoning for fusion 1"
-            }
-          ],
-          token_estimate: 120
-        })
-      });
+            ],
+            token_estimate: 120
+          })
+        });
+      } catch (err) {
+        await route.abort();
+        throw err;
+      }
     });
 
     // Run debugger
@@ -244,26 +263,31 @@ test.describe("Graph Studio - Workflow Flows", () => {
 
     // Mock search API response
     await page.route("**/api/graph/transcripts**", async (route) => {
-      const url = route.request().url();
-      expect(url).toContain("query=filter+query");
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          hits: [
-            {
-              id: "t-hit",
-              session_id: "test-session",
-              project: "test-project",
-              agent_id: "test-agent",
-              turn_index: 5,
-              role: "assistant",
-              transcript_text: "Filtered transcript result",
-              observed_at: "2026-06-13T08:05:00Z"
-            }
-          ]
-        })
-      });
+      try {
+        const url = route.request().url();
+        expect(url).toContain("query=filter+query");
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            hits: [
+              {
+                id: "t-hit",
+                session_id: "test-session",
+                project: "test-project",
+                agent_id: "test-agent",
+                turn_index: 5,
+                role: "assistant",
+                transcript_text: "Filtered transcript result",
+                observed_at: "2026-06-13T08:05:00Z"
+              }
+            ]
+          })
+        });
+      } catch (err) {
+        await route.abort();
+        throw err;
+      }
     });
 
     // Click Search button
