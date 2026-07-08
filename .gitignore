@@ -32,6 +32,8 @@ docs/context_assembly_failure_analysis.json
 docs/context-handoff-dogfood.md
 graph-ui/node_modules/
 apps/mcp/graph-ui/node_modules/
+apps/vscode-extension/node_modules/
+apps/vscode-extension/*.vsix
 graph-ui/dist/
 graph-ui/screenshots-*.png
 graph-ui/shot-*.png
