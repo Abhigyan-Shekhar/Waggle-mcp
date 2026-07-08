@@ -842,6 +842,6 @@ Run `waggle-mcp doctor` first — it usually identifies the actual failure mode.
 
 ## Contributing
 
-If Waggle is useful, please star the repo to help more developers find it. Before opening an issue or pull request, install the latest package from [PyPI](https://pypi.org/project/waggle-mcp/) and confirm the behavior with the published build.
+We welcome contributions from the community! Please read our [Contribution Guidelines](CONTRIBUTING.md) before submitting a pull request to ensure your code matches our project standards.
 
 To contribute, fork the repository and follow the setup, testing, style, and pull request guidelines in [CONTRIBUTING.md](./CONTRIBUTING.md).
