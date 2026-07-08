@@ -25,8 +25,10 @@ def _patched_connect(*args, **kwargs):
         import sqlite_vec
 
         conn.enable_load_extension(True)
-        sqlite_vec.load(conn)
-        conn.enable_load_extension(False)
+        try:
+            sqlite_vec.load(conn)
+        finally:
+            conn.enable_load_extension(False)
     except Exception:
         pass
 
@@ -47,7 +49,7 @@ def _patched_connect(*args, **kwargs):
         def _decode_trigger_blob(blob: bytes | None) -> bytes | None:
             if not blob:
                 return None
-            if len(blob) == (dim * 4) + 8:
+            if len(blob) == (dim * 4) + 8 and blob.startswith(b"WEB1"):
                 return blob[4:-4]
             if len(blob) == dim * 4:
                 return blob

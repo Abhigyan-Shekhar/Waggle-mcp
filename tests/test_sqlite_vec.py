@@ -125,3 +125,47 @@ def test_sqlite_vec_triggers_and_parity(tmp_path: Path) -> None:
         assert a.source == f.source
         assert a.node_ids == f.node_ids
         assert pytest.approx(a.layer_scores["vector_node"]) == f.layer_scores["vector_node"]
+
+
+def test_sqlite_vec_robustness(tmp_path: Path) -> None:
+    pytest.importorskip("sqlite_vec")
+    graph = make_graph(tmp_path)
+    if not graph._sqlite_vec_loaded:
+        pytest.skip("sqlite-vec extension is not loaded in this environment.")
+
+    # Test 1: Verify _decode_trigger_blob corrupt blobs safety
+    with graph._pool.checkout() as connection:
+        dim = graph._sqlite_vec_dim
+        corrupt_blob = b"NOT1" + b"\x00" * (dim * 4 + 4)
+        result = connection.execute("SELECT vec_decode_embedding(?)", (corrupt_blob,)).fetchone()[0]
+        assert result == b"\x00" * (dim * 4)
+
+        # Test 2: Fallback path drops triggers and table
+        # Pre-check: triggers and vec_nodes should exist
+        for trigger in ["t_nodes_insert", "t_nodes_update", "t_nodes_delete"]:
+            row = connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='trigger' AND name=?", (trigger,)
+            ).fetchone()
+            assert row is not None
+
+        row = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='vec_nodes'"
+        ).fetchone()
+        assert row is not None
+
+        # Simulate fallback by setting load variable to False and running _initialize_database
+        graph._sqlite_vec_loaded = False
+        graph._initialize_database()
+
+        # Check they are now dropped
+        for trigger in ["t_nodes_insert", "t_nodes_update", "t_nodes_delete"]:
+            row = connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='trigger' AND name=?", (trigger,)
+            ).fetchone()
+            assert row is None
+
+        row = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='vec_nodes'"
+        ).fetchone()
+        assert row is None
+

@@ -771,12 +771,16 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                     self._sqlite_vec_loaded = False
 
             if not self._sqlite_vec_loaded:
-                try:
-                    connection.execute("DROP TRIGGER IF EXISTS t_nodes_insert")
-                    connection.execute("DROP TRIGGER IF EXISTS t_nodes_update")
-                    connection.execute("DROP TRIGGER IF EXISTS t_nodes_delete")
-                except Exception as e:
-                    LOGGER.warning("Failed to drop sqlite-vec triggers: %s", e)
+                for stmt in [
+                    "DROP TRIGGER IF EXISTS t_nodes_insert",
+                    "DROP TRIGGER IF EXISTS t_nodes_update",
+                    "DROP TRIGGER IF EXISTS t_nodes_delete",
+                    "DROP TABLE IF EXISTS vec_nodes",
+                ]:
+                    try:
+                        connection.execute(stmt)
+                    except Exception as e:
+                        LOGGER.warning("Failed to clean up sqlite-vec artifact '%s': %s", stmt, e)
 
     def for_tenant(self, tenant_id: str) -> MemoryGraph:
         clone = object.__new__(MemoryGraph)

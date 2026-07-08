@@ -1121,8 +1121,8 @@ class MutationMixin(MemoryGraphBase):
         if res is not None:
             return res
 
-        # Fallback to full scoped scan if ANN finds no duplicate and count > 1000
-        if getattr(self, "_sqlite_vec_loaded", False) and count > 1000:
+        # Fallback to full scoped scan if ANN finds no duplicate
+        if getattr(self, "_sqlite_vec_loaded", False):
             fallback_rows = connection.execute(
                 f"""
                 SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt, metadata, evidence_records,
