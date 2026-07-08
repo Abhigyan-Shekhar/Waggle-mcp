@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      enable_signing:
+        description: "Use configured Apple/Windows signing credentials for this manual run"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -54,14 +60,19 @@ jobs:
       - name: Sign macOS runtime
         if: startsWith(matrix.target, 'darwin-')
         env:
+          ENABLE_SIGNING: ${{ github.event_name == 'push' || inputs.enable_signing }}
           APPLE_DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
         run: |
+          if [ "$ENABLE_SIGNING" != "true" ]; then
+            echo "Skipping macOS signing/notarization because signing is disabled for this run."
+            exit 0
+          fi
           if [ -z "$APPLE_DEVELOPER_ID" ] || [ -z "$APPLE_ID" ] || [ -z "$APPLE_TEAM_ID" ] || [ -z "$APPLE_NOTARY_PASSWORD" ]; then
-            echo "APPLE_DEVELOPER_ID, APPLE_ID, APPLE_TEAM_ID, and APPLE_NOTARY_PASSWORD are required for macOS runtime signing."
-            exit 1
+            echo "Skipping macOS signing/notarization because Apple Developer ID credentials are not configured."
+            exit 0
           fi
           codesign --force --deep --timestamp --options runtime \
             --sign "$APPLE_DEVELOPER_ID" \
@@ -69,22 +80,56 @@ jobs:
           ditto -c -k --keepParent \
             "plugins/waggle/runtime/${{ matrix.target }}" \
             "codex-plugin-runtime-${{ matrix.target }}.zip"
-          xcrun notarytool submit "codex-plugin-runtime-${{ matrix.target }}.zip" \
-            --apple-id "$APPLE_ID" \
-            --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_NOTARY_PASSWORD" \
-            --wait
+          ZIP_PATH="codex-plugin-runtime-${{ matrix.target }}.zip" python3 - <<'PY'
+          import os
+          import subprocess
+          import sys
+          import time
+
+          command = [
+              "xcrun",
+              "notarytool",
+              "submit",
+              os.environ["ZIP_PATH"],
+              "--apple-id",
+              os.environ["APPLE_ID"],
+              "--team-id",
+              os.environ["APPLE_TEAM_ID"],
+              "--password",
+              os.environ["APPLE_NOTARY_PASSWORD"],
+              "--wait",
+          ]
+
+          for attempt in range(1, 4):
+              try:
+                  subprocess.run(command, check=True, timeout=1800)
+                  sys.exit(0)
+              except subprocess.TimeoutExpired:
+                  print(f"macOS notarization timed out on attempt {attempt}.")
+              except subprocess.CalledProcessError as exc:
+                  print(f"macOS notarization failed on attempt {attempt}: exit {exc.returncode}.")
+
+              if attempt == 3:
+                  sys.exit(1)
+              time.sleep(attempt * 60)
+          PY
           xcrun stapler staple "plugins/waggle/runtime/${{ matrix.target }}/${{ matrix.artifact }}" || true
 
       - name: Sign Windows runtime
         if: startsWith(matrix.target, 'win32-')
         env:
+          ENABLE_SIGNING: ${{ github.event_name == 'push' || inputs.enable_signing }}
           WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
           WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
         shell: pwsh
         run: |
+          if ($env:ENABLE_SIGNING -ne "true") {
+            Write-Host "Skipping Windows Authenticode signing because signing is disabled for this run."
+            exit 0
+          }
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERT_BASE64)) {
-            throw "WINDOWS_CERT_BASE64 is required for Windows runtime signing."
+            Write-Host "Skipping Windows Authenticode signing because WINDOWS_CERT_BASE64 is not configured."
+            exit 0
           }
           $certPath = "$env:RUNNER_TEMP\codesign.pfx"
           [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
@@ -92,7 +137,40 @@ jobs:
           Remove-Item $certPath
 
       - name: Validate runtime artifact
-        run: python scripts/build_codex_plugin_runtime.py --probe --verify-signatures
+        run: python scripts/build_codex_plugin_runtime.py --probe
+
+      - name: Verify macOS signature when configured
+        if: startsWith(matrix.target, 'darwin-')
+        env:
+          ENABLE_SIGNING: ${{ github.event_name == 'push' || inputs.enable_signing }}
+          APPLE_DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
+        run: |
+          if [ "$ENABLE_SIGNING" != "true" ]; then
+            echo "Skipping macOS signature verification because signing is disabled for this run."
+            exit 0
+          fi
+          if [ -z "$APPLE_DEVELOPER_ID" ]; then
+            echo "Skipping macOS signature verification because signing was skipped."
+            exit 0
+          fi
+          python scripts/build_codex_plugin_runtime.py --verify-signatures
+
+      - name: Verify Windows signature when configured
+        if: startsWith(matrix.target, 'win32-')
+        env:
+          ENABLE_SIGNING: ${{ github.event_name == 'push' || inputs.enable_signing }}
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+        shell: pwsh
+        run: |
+          if ($env:ENABLE_SIGNING -ne "true") {
+            Write-Host "Skipping Windows signature verification because signing is disabled for this run."
+            exit 0
+          }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERT_BASE64)) {
+            Write-Host "Skipping Windows signature verification because signing was skipped."
+            exit 0
+          }
+          python scripts/build_codex_plugin_runtime.py --verify-signatures
 
       - name: Upload runtime artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -105,7 +183,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-runtime
     permissions:
+      attestations: write
       contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
@@ -126,6 +206,11 @@ jobs:
             mkdir -p "plugins/waggle/runtime/${target}"
             find "$artifact_dir" -mindepth 1 -maxdepth 1 -exec mv {} "plugins/waggle/runtime/${target}/" \;
             rmdir "$artifact_dir"
+            case "$target" in
+              darwin-*|linux-*)
+                chmod +x "plugins/waggle/runtime/${target}/waggle-server"
+                ;;
+            esac
           done
 
       - name: Set up Python
@@ -143,6 +228,28 @@ jobs:
           python scripts/package_codex_plugin.py \
             --bundle-version "$BUNDLE_VERSION" \
             --output-dir dist/codex-plugin
+
+      - name: Attest Codex plugin bundles
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45
+        with:
+          subject-path: dist/codex-plugin/*
+
+      - name: Verify Codex plugin bundle attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for artifact in dist/codex-plugin/*; do
+            for attempt in 1 2 3; do
+              if gh attestation verify "$artifact" --repo "$GITHUB_REPOSITORY"; then
+                break
+              fi
+              if [ "$attempt" -eq 3 ]; then
+                echo "Attestation verification failed for $artifact after $attempt attempts."
+                exit 1
+              fi
+              sleep $((attempt * 30))
+            done
+          done
 
       - name: Upload Codex plugin bundle artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
