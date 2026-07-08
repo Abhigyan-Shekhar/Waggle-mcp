@@ -148,9 +148,7 @@ def test_sqlite_vec_robustness(tmp_path: Path) -> None:
             ).fetchone()
             assert row is not None
 
-        row = connection.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='vec_nodes'"
-        ).fetchone()
+        row = connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='vec_nodes'").fetchone()
         assert row is not None
 
         # Simulate fallback by setting load variable to False and running _initialize_database
@@ -164,8 +162,5 @@ def test_sqlite_vec_robustness(tmp_path: Path) -> None:
             ).fetchone()
             assert row is None
 
-        row = connection.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='vec_nodes'"
-        ).fetchone()
+        row = connection.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='vec_nodes'").fetchone()
         assert row is None
-
