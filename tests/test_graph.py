@@ -12,6 +12,7 @@ import networkx as nx
 import numpy as np
 import pytest
 
+import waggle.abhi as abhi_module
 from waggle.abhi import (
     ABHI_MAGIC,
     diff_abhi_files,
@@ -2208,6 +2209,65 @@ def test_abhi_v1_file_round_trips_through_load(tmp_path: Path) -> None:
     write_abhi_document(_minimal_snapshot(), output_path=out)
     doc = load_abhi_document(out)
     assert "manifest" in doc
+
+
+def test_abhi_read_member_rejects_zip_bomb_metadata_before_read() -> None:
+    class BombArchive:
+        def getinfo(self, member_name: str):
+            return type("ZipInfoStub", (), {"file_size": abhi_module.ABHI_MAX_MEMBER_PAYLOAD_BYTES + 1})()
+
+        def read(self, member_name: str) -> bytes:
+            raise AssertionError("oversized member should be rejected before decompression")
+
+    manifest = {"members": {abhi_module.ABHI_NODES_MEMBER: {}}}
+    with pytest.raises(ValidationFailure, match="too large to import"):
+        abhi_module._read_member(BombArchive(), manifest, abhi_module.ABHI_NODES_MEMBER, passphrase="")
+
+
+def test_abhi_load_rejects_manifest_declared_oversized_member(tmp_path: Path) -> None:
+    archive_path = tmp_path / "oversized.zip"
+    abhi_path = tmp_path / "oversized.abhi"
+    manifest = {
+        "schema_version": abhi_module.ABHI_SPEC_VERSION,
+        "tenant": "test",
+        "agent_id": "",
+        "project": "",
+        "session_id": "",
+        "embedding_model_id": "",
+        "embedding_dim": 0,
+        "encryption": {"enabled": False, "algorithm": ""},
+        "signatures": {"algorithm": "ed25519", "present": False},
+        "scope": "all",
+        "includes_embeddings": False,
+        "export_context": {},
+        "counts": {"transcripts": 0, "nodes": 0, "edges": 0, "context_windows": 0},
+        "members": {
+            abhi_module.ABHI_NODES_MEMBER: {
+                "size": abhi_module.ABHI_MAX_MEMBER_PAYLOAD_BYTES + 1,
+                "encrypted": False,
+            }
+        },
+        "ui": {},
+        "repos": [],
+        "context_window_edges": [],
+        "content_hash": "sha256:0",
+    }
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for member in (
+            abhi_module.ABHI_TRANSCRIPTS_MEMBER,
+            abhi_module.ABHI_NODES_MEMBER,
+            abhi_module.ABHI_EDGES_MEMBER,
+            abhi_module.ABHI_CONTEXT_WINDOWS_MEMBER,
+        ):
+            archive.writestr(abhi_module._deterministic_zip_info(member), b"")
+        archive.writestr(
+            abhi_module._deterministic_zip_info(abhi_module.ABHI_MANIFEST_MEMBER),
+            abhi_module._canonical_json(manifest),
+        )
+    abhi_path.write_bytes(ABHI_MAGIC + archive_path.read_bytes())
+
+    with pytest.raises(ValidationFailure, match="declares an oversized payload"):
+        load_abhi_document(abhi_path)
 
 
 def test_abhi_legacy_v0_bare_zip_still_loads(tmp_path: Path, caplog) -> None:
