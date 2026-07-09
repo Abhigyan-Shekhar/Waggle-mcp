@@ -399,6 +399,51 @@ See [Environment variables](./environment-variables.md) for the complete `WAGGLE
 
 No extra extraction runtime is required. `observe_conversation` uses the built-in deterministic parser and stores only structured facts that map cleanly onto Waggle node types.
 
+### Code-aware memory
+
+When a turn contains fenced code blocks (Markdown `` ```lang ... ``` ``), `observe_conversation` also extracts named symbols (functions and classes) and stores them as `ENTITY` nodes tagged `code-entity`. Prose-only turns behave the same as before.
+
+Parsing uses tree-sitter when the optional extra is installed; otherwise a regex fallback handles common Python and JavaScript/TypeScript patterns:
+
+```bash
+pip install "waggle-mcp[code-analysis]"
+```
+
+**Example turn**
+
+Call `observe_conversation` with a fenced Python block in the assistant message:
+
+| Field | Example |
+| --- | --- |
+| `user_message` | `Implement user authentication for our API` |
+| `assistant_response` | Prose plus a ` ```python ` block defining `class UserService` and `def authenticate(self, user)` |
+
+Minimal assistant payload (Markdown):
+
+````markdown
+Here's the implementation:
+
+```python
+class UserService:
+    def authenticate(self, user):
+        return True
+```
+````
+
+**What gets stored**
+
+- `ENTITY` nodes for `UserService` (`entity-type:class`) and `authenticate` (`entity-type:function`)
+- Tags include `code-entity`, `language:python`, and `speaker:assistant`
+- Neighbor linking connects code entities to other facts extracted from the same turn when labels appear in shared context
+
+**Querying later**
+
+```python
+query_graph(query="UserService authenticate")
+```
+
+Code symbols surface alongside conversation memory in retrieval results, so agents can reconnect implementation details from earlier sessions without re-pasting the full snippet.
+
 ## Admin commands
 
 ```bash

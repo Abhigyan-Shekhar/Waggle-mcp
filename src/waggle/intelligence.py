@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from difflib import SequenceMatcher
 
+from waggle.code_extraction import extract_code_entities
 from waggle.models import Node, NodeType, RelationType, utc_now
 
 # Hardcoded English stopword list (~150 words).
@@ -945,6 +946,23 @@ def extract_conversation_candidates(
                     node_type=NodeType.ENTITY,
                     tags=["observed", "code-path", f"speaker:{speaker}"],
                 )
+
+    for speaker, text in combined:
+        for entity in extract_code_entities(text):
+            _append_candidate(
+                candidates,
+                seen,
+                label=entity.name,
+                content=entity.snippet,
+                node_type=NodeType.ENTITY,
+                tags=[
+                    "observed",
+                    "code-entity",
+                    f"language:{entity.language}",
+                    f"entity-type:{entity.entity_type}",
+                    f"speaker:{speaker}",
+                ],
+            )
 
     return candidates
 
