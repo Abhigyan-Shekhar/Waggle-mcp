@@ -39,7 +39,7 @@ def _build_env(db_path: Path) -> dict[str, str]:
     return env
 
 
-async def _open_session(db_path: Path):
+def _open_session(db_path: Path):
     server_params = StdioServerParameters(
         command=sys.executable,
         args=["-m", "waggle.server"],
@@ -71,7 +71,7 @@ async def main() -> None:
         print(f"WAGGLE_MODEL={os.environ.get('WAGGLE_MODEL', 'deterministic')}")
 
         async with (
-            await _open_session(db_path) as (read_stream, write_stream),
+            _open_session(db_path) as (read_stream, write_stream),
             ClientSession(read_stream, write_stream) as session,
         ):
             await session.initialize()
@@ -92,7 +92,7 @@ async def main() -> None:
 
         # Session 2: simulate a new chat — same DB, new MCP process
         async with (
-            await _open_session(db_path) as (read_stream, write_stream),
+            _open_session(db_path) as (read_stream, write_stream),
             ClientSession(read_stream, write_stream) as session,
         ):
             await session.initialize()
