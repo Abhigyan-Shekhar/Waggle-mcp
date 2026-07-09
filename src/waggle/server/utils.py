@@ -212,8 +212,10 @@ def _scan_export_transcripts_for_secrets(
                 continue
 
             secret = match.group(0)
-            preview = text.replace(secret, "[REDACTED]")
 
+            preview = text
+            for _, redact_pattern in _EXPORT_SECRET_PATTERNS:
+              preview = redact_pattern.sub("[REDACTED]", preview)
             findings.append(
                 {
                     "pattern": label,
@@ -299,7 +301,7 @@ def _assert_export_safe(
         )
 
         raise ValidationFailure(
-            "Export refused because exported data appears to contain secrets. "
+            "Export refused because exported data appear to contain secrets. "
             f"Run again with --force only after redacting or confirming the export scope is safe. Findings: {summary}."
         )
 
