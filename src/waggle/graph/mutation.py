@@ -1321,7 +1321,12 @@ class MutationMixin(MemoryGraphBase):
         agent_id = str(scope.get("agent_id", "")).strip()
         session_id = str(scope.get("session_id", "")).strip()
 
-        _, current_model_id, current_dim = self._embed_with_metadata("test")
+        current_model_id = self._current_embedding_model_id()
+        if hasattr(self.embedding_model, "embedding_dim"):
+            current_dim = self.embedding_model.embedding_dim
+        else:
+            test_emb = self.embedding_model.embed("test")
+            current_dim = int(test_emb.shape[0]) if getattr(test_emb, "shape", None) else 0
         filters = ["tenant_id = ?", "embedding IS NOT NULL", "embedding_model_id = ?", "embedding_dim = ?"]
         params: list[Any] = [self.tenant_id, current_model_id, current_dim]
         if project:

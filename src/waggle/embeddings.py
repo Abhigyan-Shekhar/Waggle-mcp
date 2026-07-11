@@ -154,6 +154,18 @@ class EmbeddingModel:
         return f"{name}:{self.model_version}"
 
     @property
+    def embedding_dim(self) -> int:
+        if self.uses_deterministic_mode:
+            return 256
+        with self._lock:
+            model = self._model
+        if model is None and not self._warmup_started:
+            model = self._resolve_model(wait_timeout=60.0)
+        if model is not None and hasattr(model, "get_sentence_embedding_dimension"):
+            return int(model.get_sentence_embedding_dimension())
+        return 384
+
+    @property
     def model(self) -> Any:
         """Return the loaded model (or None if not yet ready / deterministic mode)."""
         if self.uses_deterministic_mode:

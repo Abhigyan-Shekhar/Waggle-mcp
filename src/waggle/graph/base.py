@@ -10,7 +10,7 @@ import struct
 import threading
 import time
 import zlib
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -498,8 +498,8 @@ class _NeutralTemporalHints:
     """Neutral temporal hints for operations without query-driven time intent."""
 
     recency_mode: str = "none"
-    time_window_start = None
-    time_window_end = None
+    time_window_start: datetime | None = None
+    time_window_end: datetime | None = None
 
 
 class _ReadWriteLock:
@@ -556,7 +556,7 @@ class _ReadWriteLock:
                 self._write_owner = None
                 self._cond.notify_all()
 
-    def read(self) -> contextmanager:
+    def read(self) -> AbstractContextManager[Any]:
         return self._read_context()
 
     @contextmanager

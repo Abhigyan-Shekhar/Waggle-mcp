@@ -1234,17 +1234,8 @@ class Neo4jMemoryGraph:
     ) -> dict[str, Any]:
         key = (self.tenant_id, project.strip(), agent_id.strip(), session_id.strip())
         with self._lock:
-            current = self.get_ui_state(project=project, agent_id=agent_id, session_id=session_id)
-            merged = {
-                "positions": positions if positions is not None else current["positions"],
-                "zoom": float(zoom if zoom is not None else current["zoom"]),
-                "viewport": viewport if viewport is not None else current["viewport"],
-                "groups": groups if groups is not None else current["groups"],
-                "collapsed_groups": collapsed_groups if collapsed_groups is not None else current["collapsed_groups"],
-                "selected_nodes": selected_nodes if selected_nodes is not None else current["selected_nodes"],
-            }
             with self._session() as session:
-                session.run(
+                record = session.run(
                     """
                     MERGE (ui:GraphUIState {
                         tenant_id: $tenant_id,
@@ -1252,28 +1243,48 @@ class Neo4jMemoryGraph:
                         agent_id: $agent_id,
                         session_id: $session_id
                     })
-                    SET ui.positions = $positions,
-                        ui.zoom = $zoom,
-                        ui.viewport = $viewport,
-                        ui.groups = $groups,
-                        ui.collapsed_groups = $collapsed_groups,
-                        ui.selected_nodes = $selected_nodes,
+                    SET ui.positions = CASE WHEN $positions IS NOT NULL THEN $positions ELSE coalesce(ui.positions, "{}") END,
+                        ui.zoom = CASE WHEN $zoom IS NOT NULL THEN toFloat($zoom) ELSE coalesce(ui.zoom, 1.0) END,
+                        ui.viewport = CASE WHEN $viewport IS NOT NULL THEN $viewport ELSE coalesce(ui.viewport, "{}") END,
+                        ui.groups = CASE WHEN $groups IS NOT NULL THEN $groups ELSE coalesce(ui.groups, "[]") END,
+                        ui.collapsed_groups = CASE WHEN $collapsed_groups IS NOT NULL THEN $collapsed_groups ELSE coalesce(ui.collapsed_groups, "[]") END,
+                        ui.selected_nodes = CASE WHEN $selected_nodes IS NOT NULL THEN $selected_nodes ELSE coalesce(ui.selected_nodes, "[]") END,
                         ui.updated_at = $updated_at
+                    RETURN ui.positions AS positions,
+                           ui.zoom AS zoom,
+                           ui.viewport AS viewport,
+                           ui.groups AS groups,
+                           ui.collapsed_groups AS collapsed_groups,
+                           ui.selected_nodes AS selected_nodes
                     """,
                     tenant_id=self.tenant_id,
                     project=project.strip(),
                     agent_id=agent_id.strip(),
                     session_id=session_id.strip(),
-                    positions=_encode_metadata(merged["positions"]),
-                    zoom=merged["zoom"],
-                    viewport=_encode_metadata(merged["viewport"]),
-                    groups=json.dumps(merged["groups"], sort_keys=True),
-                    collapsed_groups=json.dumps(merged["collapsed_groups"], sort_keys=True),
-                    selected_nodes=json.dumps(merged["selected_nodes"], sort_keys=True),
+                    positions=_encode_metadata(positions) if positions is not None else None,
+                    zoom=float(zoom) if zoom is not None else None,
+                    viewport=_encode_metadata(viewport) if viewport is not None else None,
+                    groups=json.dumps(groups, sort_keys=True) if groups is not None else None,
+                    collapsed_groups=json.dumps(collapsed_groups, sort_keys=True)
+                    if collapsed_groups is not None
+                    else None,
+                    selected_nodes=json.dumps(selected_nodes, sort_keys=True) if selected_nodes is not None else None,
                     updated_at=utc_now().isoformat(),
-                ).consume()
-            _UI_STATE_CACHE[key] = json.loads(json.dumps(merged))
-            return merged
+                ).single()
+
+            if record is None:
+                return json.loads(json.dumps(_UI_STATE_CACHE.get(key, _default_ui_state())))
+
+            value = {
+                "positions": _decode_metadata(record["positions"]),
+                "zoom": float(record["zoom"]) if record["zoom"] is not None else 1.0,
+                "viewport": _decode_metadata(record["viewport"]) or {"center_x": 0, "center_y": 0},
+                "groups": _decode_list(record["groups"]),
+                "collapsed_groups": _decode_string_list(record["collapsed_groups"]),
+                "selected_nodes": _decode_string_list(record["selected_nodes"]),
+            }
+            _UI_STATE_CACHE[key] = json.loads(json.dumps(value))
+            return json.loads(json.dumps(value))
 
     def ensure_repo(self, project: str = "") -> str:
         del project
@@ -1719,22 +1730,6 @@ class Neo4jMemoryGraph:
             metadata=_decode_metadata(props.get("metadata")),
         )
 
-    def _transcript_scope_matches(
-        self,
-        record: TranscriptRecord,
-        *,
-        agent_id: str = "",
-        project: str = "",
-        session_id: str = "",
-    ) -> bool:
-        if project.strip() and record.project != project.strip():
-            return False
-        if session_id.strip():
-            return record.session_id == session_id.strip()
-        if agent_id.strip():
-            return record.agent_id == agent_id.strip()
-        return True
-
     def _query_replay_hits(
         self,
         *,
@@ -1931,97 +1926,96 @@ class Neo4jMemoryGraph:
                 total_nodes_in_graph=len(nodes_by_id),
             )
 
+    def update_node(
+        self,
+        *,
+        node_id: str,
+        content: str | None = None,
+        label: str | None = None,
+        tags: list[str] | None = None,
+        agent_id: str | None = None,
+        project: str | None = None,
+        session_id: str | None = None,
+        valid_from: datetime | None = None,
+        valid_to: datetime | None = None,
+        evidence_records: list[EvidenceRecord] | None = None,
+    ) -> Node:
+        if (
+            content is None
+            and label is None
+            and tags is None
+            and agent_id is None
+            and project is None
+            and session_id is None
+            and valid_from is None
+            and valid_to is None
+            and evidence_records is None
+        ):
+            raise ValueError("At least one field must be provided for update.")
 
-def update_node(
-    self,
-    *,
-    node_id: str,
-    content: str | None = None,
-    label: str | None = None,
-    tags: list[str] | None = None,
-    agent_id: str | None = None,
-    project: str | None = None,
-    session_id: str | None = None,
-    valid_from: datetime | None = None,
-    valid_to: datetime | None = None,
-    evidence_records: list[EvidenceRecord] | None = None,
-) -> Node:
-    if (
-        content is None
-        and label is None
-        and tags is None
-        and agent_id is None
-        and project is None
-        and session_id is None
-        and valid_from is None
-        and valid_to is None
-        and evidence_records is None
-    ):
-        raise ValueError("At least one field must be provided for update.")
+        with self._lock, self._session() as session:
+            node = self._fetch_node(session, node_id)
 
-    with self._lock, self._session() as session:
-        node = self._fetch_node(session, node_id)
+            if node is None:
+                raise ValueError(f"Node not found: {node_id}")
 
-        if node is None:
-            raise ValueError(f"Node not found: {node_id}")
+            updated_node = Node(
+                id=node.id,
+                tenant_id=node.tenant_id,
+                agent_id=agent_id if agent_id is not None else node.agent_id,
+                project=project if project is not None else node.project,
+                session_id=session_id if session_id is not None else node.session_id,
+                label=label if label is not None else node.label,
+                content=content if content is not None else node.content,
+                node_type=node.node_type,
+                tags=tags if tags is not None else node.tags,
+                source_prompt=node.source_prompt,
+                evidence_records=evidence_records if evidence_records is not None else node.evidence_records,
+                valid_from=valid_from if valid_from is not None else node.valid_from,
+                valid_to=valid_to if valid_to is not None else node.valid_to,
+                created_at=node.created_at,
+                updated_at=utc_now(),
+                access_count=node.access_count,
+            )
 
-        updated_node = Node(
-            id=node.id,
-            tenant_id=node.tenant_id,
-            agent_id=agent_id if agent_id is not None else node.agent_id,
-            project=project if project is not None else node.project,
-            session_id=session_id if session_id is not None else node.session_id,
-            label=label if label is not None else node.label,
-            content=content if content is not None else node.content,
-            node_type=node.node_type,
-            tags=tags if tags is not None else node.tags,
-            source_prompt=node.source_prompt,
-            evidence_records=evidence_records if evidence_records is not None else node.evidence_records,
-            valid_from=valid_from if valid_from is not None else node.valid_from,
-            valid_to=valid_to if valid_to is not None else node.valid_to,
-            created_at=node.created_at,
-            updated_at=utc_now(),
-            access_count=node.access_count,
-        )
+            embedding = None
+            if content is not None:
+                embedding = self.embedding_model.embed(updated_node.content).astype(np.float32).tolist()
 
-        embedding = None
-        if content is not None:
-            embedding = self.embedding_model.embed(updated_node.content).astype(np.float32).tolist()
+            session.run(
+                """
+                MATCH (n:MemoryNode {tenant_id: $tenant_id, id: $id})
+                SET n.label = $label,
+                    n.content = $content,
+                    n.tags = $tags,
+                    n.agent_id = $agent_id,
+                    n.project = $project,
+                    n.session_id = $session_id,
+                    n.valid_from = $valid_from,
+                    n.valid_to = $valid_to,
+                    n.evidence_records = $evidence_records,
+                    n.updated_at = $updated_at,
+                    n.embedding = CASE
+                        WHEN $embedding IS NULL THEN n.embedding
+                        ELSE $embedding
+                    END
+                """,
+                id=updated_node.id,
+                tenant_id=self.tenant_id,
+                label=updated_node.label,
+                content=updated_node.content,
+                tags=updated_node.tags,
+                agent_id=updated_node.agent_id,
+                project=updated_node.project,
+                session_id=updated_node.session_id,
+                valid_from=updated_node.valid_from.isoformat() if updated_node.valid_from else None,
+                valid_to=updated_node.valid_to.isoformat() if updated_node.valid_to else None,
+                evidence_records=_encode_evidence_records(updated_node.evidence_records),
+                updated_at=updated_node.updated_at.isoformat(),
+                embedding=embedding,
+            ).consume()
 
-        session.run(
-            """
-            MATCH (n:MemoryNode {tenant_id: $tenant_id, id: $id})
-            SET n.label = $label,
-                n.content = $content,
-                n.tags = $tags,
-                n.agent_id = $agent_id,
-                n.project = $project,
-                n.session_id = $session_id,
-                n.valid_from = $valid_from,
-                n.valid_to = $valid_to,
-                n.evidence_records = $evidence_records,
-                n.updated_at = $updated_at,
-                n.embedding = CASE
-                    WHEN $embedding IS NULL THEN n.embedding
-                    ELSE $embedding
-                END
-            """,
-            id=updated_node.id,
-            tenant_id=self.tenant_id,
-            label=updated_node.label,
-            content=updated_node.content,
-            tags=updated_node.tags,
-            agent_id=updated_node.agent_id,
-            project=updated_node.project,
-            session_id=updated_node.session_id,
-            valid_from=updated_node.valid_from.isoformat() if updated_node.valid_from else None,
-            valid_to=updated_node.valid_to.isoformat() if updated_node.valid_to else None,
-            evidence_records=_encode_evidence_records(updated_node.evidence_records),
-            updated_at=updated_node.updated_at.isoformat(),
-            embedding=embedding,
-        ).consume()
-
-        return updated_node
+            return updated_node
 
     def update_edge(
         self,
@@ -3428,20 +3422,6 @@ def update_node(
             access_count=int(props.get("access_count") or 0),
         )
 
-    def _transcript_from_props(self, props: Any) -> TranscriptRecord:
-        return TranscriptRecord(
-            id=props["id"],
-            tenant_id=props.get("tenant_id") or self.tenant_id,
-            agent_id=props.get("agent_id") or "",
-            project=props.get("project") or "",
-            session_id=props.get("session_id") or "",
-            observed_at=_parse_datetime(props["observed_at"]),
-            turn_index=int(props.get("turn_index") or 0),
-            role=props.get("role") or "",
-            transcript_text=props["transcript_text"],
-            metadata=_decode_metadata(props.get("metadata")),
-        )
-
     def _transcript_scope_matches(
         self,
         record: TranscriptRecord,
@@ -3450,66 +3430,11 @@ def update_node(
         project: str = "",
         session_id: str = "",
     ) -> bool:
-        normalized_agent = agent_id.strip().lower()
-        normalized_project = project.strip().lower()
-        normalized_session = session_id.strip().lower()
-        if normalized_agent and record.agent_id.strip().lower() != normalized_agent:
+        if project.strip() and record.project != project.strip():
             return False
-        if normalized_project and record.project.strip().lower() != normalized_project:
+        if session_id.strip() and record.session_id != session_id.strip():
             return False
-        return not (normalized_session and record.session_id.strip().lower() != normalized_session)
-
-    def list_transcript_records(
-        self,
-        *,
-        agent_id: str = "",
-        project: str = "",
-        session_id: str = "",
-        limit: int = 200,
-    ) -> list[TranscriptRecord]:
-        filters = ["t.tenant_id = $tenant_id"]
-        params: dict[str, Any] = {"tenant_id": self.tenant_id, "limit": max(1, int(limit))}
-        if project.strip():
-            filters.append("t.project = $project")
-            params["project"] = project.strip()
-        if session_id.strip():
-            filters.append("t.session_id = $session_id")
-            params["session_id"] = session_id.strip()
-        elif agent_id.strip():
-            filters.append("t.agent_id = $agent_id")
-            params["agent_id"] = agent_id.strip()
-        with self._lock, self._session() as session:
-            records = session.run(
-                f"""
-                MATCH (t:MemoryTranscript)
-                WHERE {" AND ".join(filters)}
-                RETURN t
-                ORDER BY t.observed_at ASC, t.turn_index ASC
-                LIMIT $limit
-                """,
-                **params,
-            )
-            return [self._transcript_from_props(record["t"]) for record in records]
-
-    def search_transcript_records(
-        self,
-        *,
-        query: str,
-        agent_id: str = "",
-        project: str = "",
-        session_id: str = "",
-        limit: int = 25,
-    ) -> list[ReplayHit]:
-        query_text = query.strip()
-        if not query_text:
-            return []
-        return self._query_replay_hits(
-            query=self._expand_query_aliases(query_text),
-            max_hits=max(1, int(limit)),
-            agent_id=agent_id,
-            project=project,
-            session_id=session_id,
-        )
+        return not (agent_id.strip() and record.agent_id != agent_id.strip())
 
     def _next_transcript_turn_index(self, session: Any, *, session_id: str) -> int:
         record = session.run(
