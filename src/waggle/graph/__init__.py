@@ -537,6 +537,14 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         # Only the graph that created the pool closes it; for_tenant clones share
         # it (like they share the lock) and must not close it out from under us.
         self._owns_pool = True
+        self._lexical_cache = None
+
+    @property
+    def root_graph(self) -> MemoryGraph:
+        owner = getattr(self, "_pool_owner", None)
+        if owner is not None:
+            return owner.root_graph
+        return self
 
     def hybrid_retriever(self) -> HybridRetriever:
         return HybridRetriever(self, config=self.hybrid_retrieval_config)
