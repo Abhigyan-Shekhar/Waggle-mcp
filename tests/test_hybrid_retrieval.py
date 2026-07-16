@@ -523,3 +523,480 @@ def test_regression_graph_neighborhood_includes_connected_nodes(tmp_path: Path) 
     for entry in graph_expansion_layer:
         all_node_ids.update(entry.get("node_ids", []))
     assert node_b.id in all_node_ids, f"Expected node_b ({node_b.id}) to appear in graph expansion, got {all_node_ids}"
+
+
+def test_hybrid_retriever_caching_and_correctness(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+
+    # 1. Initially observe transcript
+    observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+    with graph._lock, graph._connect() as connection:
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-1",
+            observed_at=observed_at,
+            turn_index=0,
+            role="user",
+            transcript_text="first transcript content",
+            turn_pair_id="tp-1",
+        )
+
+    # Run a query to populate the cache
+    res1 = graph.query(
+        query="first",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-1",
+        retrieval_mode="hybrid",
+    )
+    assert res1.hybrid_hits
+    cache1 = graph.root_graph._lexical_cache
+    assert cache1 is not None
+    sig1, bm25_1, _ = cache1
+    assert sig1 is not None
+    assert bm25_1 is not None
+
+    # 2. Repeated query: verify cache hit (same signature and same bm25 object ID)
+    graph.query(
+        query="first",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-1",
+        retrieval_mode="hybrid",
+    )
+    cache2 = graph.root_graph._lexical_cache
+    assert cache2 is not None
+    assert cache2[0] == sig1
+    assert cache2[1] is bm25_1
+
+    # 3. Insert new transcript: verify cache invalidates
+    with graph._lock, graph._connect() as connection:
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-1",
+            observed_at=observed_at + timedelta(seconds=1),
+            turn_index=1,
+            role="user",
+            transcript_text="second transcript content",
+            turn_pair_id="tp-2",
+        )
+    graph.query(
+        query="second",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-1",
+        retrieval_mode="hybrid",
+    )
+    cache3 = graph.root_graph._lexical_cache
+    assert cache3 is not None
+    sig2 = cache3[0]
+    bm25_2 = cache3[1]
+    assert sig2 != sig1
+    assert bm25_2 is not bm25_1
+
+    # 4. Add node: verify cache invalidates
+    with graph._lock, graph._connect() as connection:
+        node_a = graph.add_node(
+            label="Node A",
+            content="Some node content",
+            node_type=NodeType.FACT,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-1",
+            connection=connection,
+        ).node
+    graph.query(
+        query="node",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-1",
+        retrieval_mode="hybrid",
+    )
+    cache4 = graph.root_graph._lexical_cache
+    assert cache4 is not None
+    sig3 = cache4[0]
+    bm25_3 = cache4[1]
+    assert sig3 != sig2
+    assert bm25_3 is not bm25_2
+
+    # 5. Update node: verify cache invalidates
+    graph.update_node(
+        node_id=node_a.id,
+        content="Updated node content",
+    )
+    graph.query(
+        query="updated",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-1",
+        retrieval_mode="hybrid",
+    )
+    cache5 = graph.root_graph._lexical_cache
+    assert cache5 is not None
+    sig4 = cache5[0]
+    bm25_4 = cache5[1]
+    assert sig4 != sig3
+    assert bm25_4 is not bm25_3
+
+    # 6. Delete node: verify cache invalidates
+    graph.delete_node(node_id=node_a.id)
+    graph.query(
+        query="deleted",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-1",
+        retrieval_mode="hybrid",
+    )
+    cache6 = graph.root_graph._lexical_cache
+    assert cache6 is not None
+    sig5 = cache6[0]
+    bm25_5 = cache6[1]
+    assert sig5 != sig4
+    assert bm25_5 is not bm25_4
+
+    # 7. Scope change: project change
+    graph.query(
+        query="deleted",
+        project="beta",
+        agent_id="codex",
+        session_id="sess-1",
+        retrieval_mode="hybrid",
+    )
+    cache7 = graph.root_graph._lexical_cache
+    assert cache7 is not None
+    sig6 = cache7[0]
+    bm25_6 = cache7[1]
+    assert sig6 != sig5
+    assert bm25_6 is not bm25_5
+
+    # 8. Scope change: agent change
+    graph.query(
+        query="deleted",
+        project="beta",
+        agent_id="other-agent",
+        session_id="",
+        retrieval_mode="hybrid",
+    )
+    cache8 = graph.root_graph._lexical_cache
+    assert cache8 is not None
+    sig7 = cache8[0]
+    bm25_7 = cache8[1]
+    assert sig7 != sig6
+    assert bm25_7 is not bm25_6
+
+    # 9. Tenant change
+    graph.tenant_id = "new-tenant"
+    graph.query(
+        query="deleted",
+        project="beta",
+        agent_id="other-agent",
+        session_id="",
+        retrieval_mode="hybrid",
+    )
+    cache9 = graph.root_graph._lexical_cache
+    assert cache9 is not None
+    sig8 = cache9[0]
+    assert sig8 != sig7
+    assert cache9[1] is not bm25_7
+
+
+def test_hybrid_retrieval_performance_caching(tmp_path: Path) -> None:
+    import time
+
+    graph = make_graph(tmp_path, rerank_enabled=False)
+
+    # Populate database with a moderate number of items
+    observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+    with graph._lock, graph._connect() as connection:
+        for i in range(100):
+            graph._store_transcript_record(
+                connection,
+                agent_id="codex",
+                project="alpha",
+                session_id="sess-perf",
+                observed_at=observed_at + timedelta(seconds=i),
+                turn_index=i,
+                role="user" if i % 2 == 0 else "assistant",
+                transcript_text=f"This is transcript record number {i} talking about topic and other random words.",
+                turn_pair_id=f"tp-{i}",
+            )
+        for i in range(50):
+            graph.add_node(
+                label=f"Fact Label {i}",
+                content=f"Fact content representing knowledge piece {i} about python programming.",
+                node_type=NodeType.FACT,
+                agent_id="codex",
+                project="alpha",
+                session_id="sess-perf",
+                connection=connection,
+            )
+
+    retriever = graph.hybrid_retriever()
+
+    # Measure uncached (first run)
+    start_uncached = time.perf_counter()
+    retriever.retrieve(
+        query="python topic programming",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-perf",
+        top_k=5,
+        mode="hybrid",
+    )
+    t_uncached = time.perf_counter() - start_uncached
+
+    # Measure cached (repeated runs)
+    runs = 10
+    start_cached = time.perf_counter()
+    for _ in range(runs):
+        retriever.retrieve(
+            query="python topic programming",
+            project="alpha",
+            agent_id="codex",
+            session_id="sess-perf",
+            top_k=5,
+            mode="hybrid",
+        )
+    t_cached_total = time.perf_counter() - start_cached
+    t_cached_avg = t_cached_total / runs
+
+    # Print caching performance metrics
+    speedup = t_uncached / t_cached_avg
+    print(f"\n[BENCHMARK] Uncached query time: {t_uncached * 1000:.3f} ms")
+    print(f"[BENCHMARK] Cached query time (avg of {runs} runs): {t_cached_avg * 1000:.3f} ms")
+    print(f"[BENCHMARK] Caching Speedup factor: {speedup:.2f}x")
+
+
+def test_lexical_cache_persists_across_multiple_retrievers(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+    with graph._lock, graph._connect() as connection:
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-cache-test",
+            observed_at=observed_at,
+            turn_index=0,
+            role="user",
+            transcript_text="The launch codeword is emerald-eagle.",
+            turn_pair_id="tp-emerald",
+        )
+
+    # First retriever query
+    retriever_1 = graph.hybrid_retriever()
+    res1 = retriever_1.retrieve(
+        query="what is the launch codeword",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-cache-test",
+        mode="hybrid",
+    )
+    assert any("emerald-eagle" in hit.content for hit in res1)
+
+    # Cache should be populated on root graph
+    cache_entry = graph.root_graph._lexical_cache
+    assert cache_entry is not None
+
+    # Second retriever query (new instance)
+    retriever_2 = graph.hybrid_retriever()
+    res2 = retriever_2.retrieve(
+        query="what is the launch codeword",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-cache-test",
+        mode="hybrid",
+    )
+    assert any("emerald-eagle" in hit.content for hit in res2)
+
+    # Make sure the cache entry was reused and not overwritten (id is the same)
+    assert graph.root_graph._lexical_cache is cache_entry
+
+
+def test_lexical_cache_invalidated_on_transcript_update(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+    with graph._lock, graph._connect() as connection:
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-update-test",
+            observed_at=observed_at,
+            turn_index=0,
+            role="user",
+            transcript_text="Original secret: ruby-rabbit.",
+            turn_pair_id="tp-secret",
+        )
+
+    res1 = graph.query(
+        query="what is the secret",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-update-test",
+        retrieval_mode="hybrid",
+    )
+    assert any("ruby-rabbit" in hit.content for hit in res1.hybrid_hits)
+
+    cache_entry_1 = graph.root_graph._lexical_cache
+    assert cache_entry_1 is not None
+
+    # Now update the transcript record in place: change text and content_hash but keep the same count/observed_at
+    from waggle.graph.base import _normalized_content_hash
+
+    new_text = "Original secret: sapphire-snake."
+    new_hash = _normalized_content_hash(new_text)
+
+    with graph._lock, graph._connect() as connection:
+        connection.execute(
+            """
+            UPDATE transcript_records
+            SET transcript_text = ?, content_hash = ?
+            WHERE session_id = ? AND turn_pair_id = ?
+            """,
+            (new_text, new_hash, "sess-update-test", "tp-secret"),
+        )
+
+    # Next query should trigger a cache invalidation and return new content
+    res2 = graph.query(
+        query="what is the secret",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-update-test",
+        retrieval_mode="hybrid",
+    )
+    assert any("sapphire-snake" in hit.content for hit in res2.hybrid_hits)
+    assert not any("ruby-rabbit" in hit.content for hit in res2.hybrid_hits)
+
+    cache_entry_2 = graph.root_graph._lexical_cache
+    assert cache_entry_2 is not None
+    # Signature must be different, hence cache entry must be different
+    assert cache_entry_1[0] != cache_entry_2[0]
+
+
+def test_lexical_cache_reuse_via_public_query_path(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+    with graph._lock, graph._connect() as connection:
+        graph._store_transcript_record(
+            connection,
+            agent_id="codex",
+            project="alpha",
+            session_id="sess-public-test",
+            observed_at=observed_at,
+            turn_index=0,
+            role="user",
+            transcript_text="Important retrieval data here.",
+            turn_pair_id="tp-public",
+        )
+
+    # First public query: should populate the cache
+    graph.query(
+        query="retrieval data",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-public-test",
+        retrieval_mode="hybrid",
+    )
+    cache_entry_1 = graph.root_graph._lexical_cache
+    assert cache_entry_1 is not None
+
+    # Second public query: should reuse the cache
+    graph.query(
+        query="retrieval data",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-public-test",
+        retrieval_mode="hybrid",
+    )
+    cache_entry_2 = graph.root_graph._lexical_cache
+    assert cache_entry_2 is cache_entry_1
+
+
+def test_session_scoped_query_normalizes_agent_id_signature(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    observed_at = datetime(2026, 1, 1, tzinfo=UTC)
+    with graph._lock, graph._connect() as connection:
+        graph._store_transcript_record(
+            connection,
+            agent_id="agent-1",
+            project="alpha",
+            session_id="sess-shared",
+            observed_at=observed_at,
+            turn_index=0,
+            role="user",
+            transcript_text="Shared session data.",
+            turn_pair_id="tp-shared",
+        )
+
+    # Query with agent-1
+    graph.query(
+        query="Shared session",
+        project="alpha",
+        agent_id="agent-1",
+        session_id="sess-shared",
+        retrieval_mode="hybrid",
+    )
+    cache_entry_1 = graph.root_graph._lexical_cache
+    assert cache_entry_1 is not None
+
+    # Query with agent-2 (session_id is same, so agent_id is ignored)
+    graph.query(
+        query="Shared session",
+        project="alpha",
+        agent_id="agent-2",
+        session_id="sess-shared",
+        retrieval_mode="hybrid",
+    )
+    cache_entry_2 = graph.root_graph._lexical_cache
+    # The cache entry should be the exact same one because the signature collapses agent_id when session_id is present
+    assert cache_entry_2 is cache_entry_1
+
+
+def test_lexical_cache_invalidated_on_node_content_update(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    # Store a node
+    node = graph.add_node(
+        label="TestNode",
+        content="Secret code: alpha-centauri",
+        node_type="note",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-node-test",
+    )
+
+    # Query to populate cache
+    res1 = graph.query(
+        query="Secret code",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-node-test",
+        retrieval_mode="hybrid",
+    )
+    assert any("alpha-centauri" in hit.content for hit in res1.hybrid_hits)
+    cache_entry_1 = graph.root_graph._lexical_cache
+    assert cache_entry_1 is not None
+
+    # Update node content directly in DB without changing updated_at to simulate a content-only change
+    with graph._lock, graph._connect() as connection:
+        connection.execute(
+            "UPDATE nodes SET content = ? WHERE id = ?",
+            ("Secret code: beta-centauri", node.node.id),
+        )
+
+    # Query again: cache should be invalidated because node content changed
+    res2 = graph.query(
+        query="Secret code",
+        project="alpha",
+        agent_id="codex",
+        session_id="sess-node-test",
+        retrieval_mode="hybrid",
+    )
+    assert any("beta-centauri" in hit.content for hit in res2.hybrid_hits)
+    assert not any("alpha-centauri" in hit.content for hit in res2.hybrid_hits)
+    cache_entry_2 = graph.root_graph._lexical_cache
+    assert cache_entry_2[0] != cache_entry_1[0]
