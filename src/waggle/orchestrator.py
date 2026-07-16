@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import collections
 import contextlib
 import hashlib
 import logging
@@ -161,6 +162,11 @@ class IngestTask:
     turn: ConversationTurn
 
 
+# Default cap for the dedup cache.  Each entry is a 64-char hex SHA-256
+# digest (~120 bytes with Python object overhead), so 50 000 entries ≈ 3.2 MB.
+DEFAULT_KNOWN_TURNS_MAXSIZE = 50_000
+
+
 class AsyncMemoryOrchestrator:
     """
     Event-driven memory orchestration for chat runtimes.
@@ -176,13 +182,21 @@ class AsyncMemoryOrchestrator:
         *,
         policy: MemoryPolicy | None = None,
         queue_maxsize: int = 256,
+        known_turns_maxsize: int = DEFAULT_KNOWN_TURNS_MAXSIZE,
     ) -> None:
+        if known_turns_maxsize < 1:
+            raise ValueError("known_turns_maxsize must be >= 1")
         self.graph = graph
         self.policy = policy or MemoryPolicy()
         self._queue: asyncio.Queue[IngestTask] = asyncio.Queue(maxsize=queue_maxsize)
         self._worker_task: asyncio.Task[None] | None = None
         self._closing = asyncio.Event()
-        self._known_turn_ids: set[str] = set()
+        self._known_turns_maxsize = known_turns_maxsize
+        # Bounded dedup cache: OrderedDict gives O(1) membership + LRU eviction.
+        # When the cache is full the oldest entry is evicted.  A very old turn
+        # re-appearing after eviction would be re-ingested, which is safe
+        # because observe_conversation is idempotent at the graph layer.
+        self._known_turn_ids: collections.OrderedDict[str, None] = collections.OrderedDict()
 
     async def start(self) -> None:
         if self._worker_task is not None:
@@ -208,11 +222,16 @@ class AsyncMemoryOrchestrator:
             return plan
         turn_key = self._turn_key(scope, turn)
         if turn_key in self._known_turn_ids:
+            # Move to end so recently-seen keys survive eviction longer.
+            self._known_turn_ids.move_to_end(turn_key)
             return IngestPlan(False, "duplicate turn")
         if self._queue.full():
             LOGGER.warning("memory ingest queue full; dropping turn for session '%s'", scope.session_id)
             return IngestPlan(False, "queue full")
-        self._known_turn_ids.add(turn_key)
+        self._known_turn_ids[turn_key] = None
+        # Evict oldest entries when the cache exceeds the configured cap.
+        while len(self._known_turn_ids) > self._known_turns_maxsize:
+            self._known_turn_ids.popitem(last=False)
         await self._queue.put(IngestTask(scope=scope, turn=turn))
         return plan
 
