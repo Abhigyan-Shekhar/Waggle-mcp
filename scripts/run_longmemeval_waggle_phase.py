@@ -941,6 +941,18 @@ def _context_from_waggle(
 
     if condition == "flat_vector":
         hits = graph.search_transcript_records(query=question, project=project, limit=max(1, effective_limit * 4))
+        if task == "temporal-reasoning":
+            session_ids = _unique_session_ids([hit.session_id for hit in hits if hit.session_id])[:effective_limit]
+            return (
+                _render_transcript_hits(
+                    case_graph,
+                    session_ids,
+                    max_sessions=effective_limit,
+                    max_record_chars=650,
+                ),
+                session_ids,
+                "source_session_only",
+            )
         session_ids: list[str] = []
         blocks: list[str] = []
         seen: set[str] = set()
