@@ -11,8 +11,10 @@ import pytest
 # Ensure src/ is on the path
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+resolved_src = str(SRC.resolve())
+
+if resolved_src not in map(str, map(Path, sys.path)):
+    sys.path.insert(0, resolved_src)
 
 import numpy as np
 
@@ -35,7 +37,9 @@ class FakeEmbeddingModel:
             index = sum(ord(c) for c in token) % len(vector)
             vector[index] += 1.0
         norm = np.linalg.norm(vector)
-        return vector / norm if norm > 0 else vector
+        if np.isclose(norm, 0.0):
+            return vector
+        return vector / norm
 
     def to_bytes(self, embedding: np.ndarray) -> bytes:
         return embedding.astype(np.float32).tobytes()
@@ -63,7 +67,8 @@ def test_demo_abhi_exists() -> None:
 
 def test_demo_abhi_imports_cleanly(tmp_path: Path) -> None:
     """demo.abhi must import into a fresh DB without errors."""
-    assert DEMO_ABHI.exists(), pytest.skip("demo.abhi not generated yet")
+    if not DEMO_ABHI.exists():
+        pytest.skip("demo.abhi not generated yet")
 
     db_path = tmp_path / "import-test.db"
     graph = MemoryGraph(str(db_path), FakeEmbeddingModel(), tenant_id="local-default", enable_dedup=False)
@@ -75,7 +80,8 @@ def test_demo_abhi_imports_cleanly(tmp_path: Path) -> None:
 
 def test_demo_abhi_has_expected_node_types(tmp_path: Path) -> None:
     """demo.abhi must contain decisions, preferences, facts, and notes."""
-    assert DEMO_ABHI.exists(), pytest.skip("demo.abhi not generated yet")
+    if not DEMO_ABHI.exists():
+        pytest.skip("demo.abhi not generated yet")
 
     db_path = tmp_path / "types-test.db"
     graph = MemoryGraph(str(db_path), FakeEmbeddingModel(), tenant_id="local-default", enable_dedup=False)
@@ -92,7 +98,8 @@ def test_demo_abhi_has_expected_node_types(tmp_path: Path) -> None:
 
 def test_demo_abhi_has_contradiction_edge(tmp_path: Path) -> None:
     """demo.abhi must contain at least one contradicts edge."""
-    assert DEMO_ABHI.exists(), pytest.skip("demo.abhi not generated yet")
+    if not DEMO_ABHI.exists():
+        pytest.skip("demo.abhi not generated yet")
 
     db_path = tmp_path / "contradiction-test.db"
     graph = MemoryGraph(str(db_path), FakeEmbeddingModel(), tenant_id="local-default", enable_dedup=False)
@@ -108,7 +115,8 @@ def test_demo_abhi_has_contradiction_edge(tmp_path: Path) -> None:
 
 def test_demo_command_exits_zero(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """waggle-mcp demo must exit with code 0."""
-    assert DEMO_ABHI.exists(), pytest.skip("demo.abhi not generated yet")
+    if not DEMO_ABHI.exists():
+        pytest.skip("demo.abhi not generated yet")
 
     # Patch tempfile.mkdtemp to use tmp_path so we control cleanup
     import tempfile as _tempfile
@@ -128,7 +136,8 @@ def test_demo_command_exits_zero(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 
 def test_demo_does_not_touch_home_waggle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """waggle-mcp demo must not write to ~/.waggle/."""
-    assert DEMO_ABHI.exists(), pytest.skip("demo.abhi not generated yet")
+    if not DEMO_ABHI.exists():
+        pytest.skip("demo.abhi not generated yet")
 
     home_waggle = Path.home() / ".waggle"
     mtime_before = home_waggle.stat().st_mtime if home_waggle.exists() else None
@@ -152,7 +161,8 @@ def test_demo_does_not_touch_home_waggle(tmp_path: Path, monkeypatch: pytest.Mon
 
 def test_demo_queries_return_nonempty(tmp_path: Path) -> None:
     """All 4 demo queries must return at least one node."""
-    assert DEMO_ABHI.exists(), pytest.skip("demo.abhi not generated yet")
+    if not DEMO_ABHI.exists():
+        pytest.skip("demo.abhi not generated yet")
 
     db_path = tmp_path / "query-test.db"
     graph = MemoryGraph(str(db_path), FakeEmbeddingModel(), tenant_id="local-default", enable_dedup=False)

@@ -136,13 +136,14 @@ For self-hosted production review and security posture:
 - [Hardening checklist](docs/security/hardening-checklist.md)
 - [Reference](docs/reference.md)
 
-## Contributing & Community
+## Repository Docs
+
+Use these docs to install, evaluate, and contribute to Waggle:
 
 - [Contributing guide](./CONTRIBUTING.md)
 - [Repository map](./docs/repository-map.md)
 - [Starter issues](./docs/good-first-issues.md)
 - [Label catalog](./.github/labels.yml)
-- Contact channel: open a GitHub issue for bugs, feature proposals, and contributor assignment requests. Use `SECURITY.md` for vulnerability reports.
 
 Contributor layout note:
 - The repo root is reserved for packaging, deployment entrypoints, and external registry manifests. Contributor-facing docs, examples, and utilities should live under `docs/`, `examples/`, `scripts/`, or `deploy/`.
@@ -841,4 +842,6 @@ Run `waggle-mcp doctor` first — it usually identifies the actual failure mode.
 
 ## Contributing
 
-This repository is maintained privately. Internal contributors can use the docs in this repo as the source of truth.
+If Waggle is useful, please star the repo to help more developers find it. Before opening an issue or pull request, install the latest package from [PyPI](https://pypi.org/project/waggle-mcp/) and confirm the behavior with the published build.
+
+To contribute, fork the repository and follow the setup, testing, style, and pull request guidelines in [CONTRIBUTING.md](./CONTRIBUTING.md).

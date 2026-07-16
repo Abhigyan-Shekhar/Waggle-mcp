@@ -622,34 +622,60 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         """
         # Wrap migration in cross-process lock to prevent concurrent schema modifications
         lock_path = str(self.db_path) + ".lock"
-        with ProcessLock(lock_path), self._lock, self._connect() as connection:
-            # Bootstrap WAL: if db file exists but is in rollback mode, migrate it
-            try:
-                journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
-                if journal_mode.upper() != "WAL":
-                    LOGGER.info(
-                        "Migrating database %s from %s to WAL mode",
-                        self.db_path,
-                        journal_mode,
-                    )
-                    connection.execute("PRAGMA journal_mode=WAL")
-            except Exception as e:
-                LOGGER.warning("Could not verify journal mode: %s", e)
+        with ProcessLock(lock_path), self._lock:
+            self._validate_existing_database_integrity()
 
-            # Initialize schema
-            connection.executescript(SCHEMA_SQL)
-            self._migrate_legacy_schema(connection)
-            connection.executescript(INDEX_SQL)
+            with self._connect() as connection:
+                # Bootstrap WAL: if db file exists but is in rollback mode, migrate it
+                try:
+                    journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
+                    if journal_mode.upper() != "WAL":
+                        LOGGER.info(
+                            "Migrating database %s from %s to WAL mode",
+                            self.db_path,
+                            journal_mode,
+                        )
+                        connection.execute("PRAGMA journal_mode=WAL")
+                except Exception as e:
+                    LOGGER.warning("Could not verify journal mode: %s", e)
 
-            # Ensure tenant record
-            created_at = utc_now().isoformat()
-            connection.execute(
-                """
-                    INSERT INTO tenants (tenant_id, name, status, created_at)
-                    VALUES (?, '', 'active', ?)
-                    ON CONFLICT(tenant_id) DO NOTHING
-                    """,
-                (self.tenant_id, created_at),
+                # Initialize schema
+                connection.executescript(SCHEMA_SQL)
+                self._migrate_legacy_schema(connection)
+                connection.executescript(INDEX_SQL)
+
+                # Ensure tenant record
+                created_at = utc_now().isoformat()
+                connection.execute(
+                    """
+                        INSERT INTO tenants (tenant_id, name, status, created_at)
+                        VALUES (?, '', 'active', ?)
+                        ON CONFLICT(tenant_id) DO NOTHING
+                        """,
+                    (self.tenant_id, created_at),
+                )
+
+    def _validate_existing_database_integrity(self) -> None:
+        """Fail before mutating an existing database that SQLite cannot recover."""
+        if not self.db_path.exists() or self.db_path.stat().st_size == 0:
+            return
+
+        db_uri = f"{self.db_path.resolve().as_uri()}?mode=ro"
+        try:
+            with contextlib.closing(sqlite3.connect(db_uri, uri=True)) as connection:
+                result = connection.execute("PRAGMA integrity_check").fetchone()
+        except sqlite3.DatabaseError as exc:
+            raise ValidationFailure(
+                "Waggle memory database failed SQLite integrity validation before startup. "
+                f"Refusing to mutate existing DB at {self.db_path}. Restore from backup or move the file aside."
+            ) from exc
+
+        if result is None or result[0] != "ok":
+            details = result[0] if result else "no integrity result"
+            raise ValidationFailure(
+                "Waggle memory database failed SQLite integrity validation before startup. "
+                f"Refusing to mutate existing DB at {self.db_path}: {details}. "
+                "Restore from backup or move the file aside."
             )
 
     def for_tenant(self, tenant_id: str) -> MemoryGraph:

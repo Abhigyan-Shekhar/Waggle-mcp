@@ -87,7 +87,8 @@ marketplace artifacts are published on the
 
 - `waggle-codex-marketplace-v0.1.17.zip`: a complete local marketplace root that
   can be added with `codex plugin marketplace add`
-- `waggle-codex-plugin-v0.1.17.zip`: the bare `plugins/waggle` plugin folder
+- `waggle-codex-plugin-<tag>.zip`: the bare `plugins/waggle` plugin folder
+- `waggle-codex-release-<tag>.json`: release metadata for audit and support
 
 > `v0.1.16` was a partial release and should not be used as a Codex
 > marketplace install source. Use `v0.1.17` instead.
@@ -102,6 +103,31 @@ codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.17
 
 After that, refresh the plugin directory in Codex and install `Waggle` from the
 added marketplace.
+
+The v1 marketplace bundle intentionally contains all supported platform
+runtimes. Do not choose a platform-specific bundle unless a future Codex
+marketplace schema explicitly supports platform-specific artifact resolution.
+
+To verify a downloaded release manually:
+
+```bash
+shasum -a 256 -c waggle-codex-marketplace-<tag>.zip.sha256
+gh attestation verify waggle-codex-marketplace-<tag>.zip \
+  --repo Abhigyan-Shekhar/Waggle-mcp
+```
+
+The repo-hosted v1 release may be unsigned. Manual release-validation workflow
+runs are unsigned by default unless `enable_signing` is set, and releases are
+also unsigned when Apple Developer ID and Windows Authenticode credentials are
+not configured in CI. In that case macOS Gatekeeper and Windows SmartScreen can
+show warnings. Verify the checksum and GitHub attestation before installing. If
+signing credentials are later enabled, Windows builds use OV Authenticode
+signing unless EV cloud signing is explicitly added.
+
+To upgrade, install the newer marketplace bundle from the GitHub release and
+refresh the plugin directory in Codex. Waggle memory is stored outside the
+plugin bundle at `WAGGLE_DB_PATH`, so supported upgrades must preserve local
+memory data.
 
 ## Manual config
 
