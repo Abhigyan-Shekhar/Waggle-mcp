@@ -31,6 +31,7 @@ EVIDENCE_FIRST_TASKS = {
     "single-session-preference",
     "knowledge-update",
     "multi-session",
+    "temporal-reasoning",
 }
 SSP_PERSONALIZATION_QUERY_SUFFIX = (
     " user's personal context stated preference prior detail owned item current setup plan constraint"
