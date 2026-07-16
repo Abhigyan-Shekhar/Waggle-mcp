@@ -53,11 +53,11 @@ The manifest must also record:
 - `answering_prompt_style=supermemory-longmembench-appendix-v1`
 - `judge_protocol=longmemeval-paper-question-specific-prompts`
 
-For retrieval conditions, `flat_vector` stays chunk-only except for the
-temporal-reasoning parity path, where it expands top vector hits to the same
-effective source-session budget used by `waggle_full`. It remains graph-free and
-memory-free. `waggle_full` and Waggle ablations use `memory_then_chunk`
-retrieval with `memory_plus_source_chunk` answer context.
+For retrieval conditions, `flat_vector` stays chunk-only except for
+multi-session and temporal-reasoning parity paths, where it expands top vector
+hits to the same source-session budget used by `waggle_full`. It remains
+graph-free and memory-free. `waggle_full` and Waggle ablations use
+`memory_then_chunk` retrieval with `memory_plus_source_chunk` answer context.
 
 ## Diagnostic provenance notes
 
@@ -70,6 +70,13 @@ TR runs use a larger effective context-session limit than the base
 while Waggle uses the same source-session budget plus its structured memory
 sections. Result rows must log both the requested `retrieval_limit` and the
 `effective_retrieval_limit`.
+
+Also record the multi-session context-packing correction separately. The spent
+MS failure `1192316e` showed that `waggle_full` listed both gold sessions as
+retrieved, but the final prompt rendered only the first three source sessions
+and omitted the "getting ready" evidence. MS now renders every selected source
+session within the requested budget, and `flat_vector` uses the same unique
+source-session packing while remaining vector-only.
 
 Report the current TR diagnostic honestly: increasing the effective TR context
 limit fixes two of three inspected shortfalls, but `4dfccbf8` still misses one
