@@ -33,6 +33,7 @@ EVIDENCE_FIRST_TASKS = {
     "multi-session",
     "temporal-reasoning",
 }
+TR_MIN_CONTEXT_SESSION_LIMIT = 10
 SSP_PERSONALIZATION_QUERY_SUFFIX = (
     " user's personal context stated preference prior detail owned item current setup plan constraint"
 )
@@ -99,6 +100,12 @@ def _gold_support_ids(case: dict[str, Any]) -> list[str]:
         if isinstance(value, str) and value.strip():
             return [value.strip()]
     return []
+
+
+def _effective_retrieval_limit(task: str, retrieval_limit: int) -> int:
+    if task == "temporal-reasoning":
+        return max(retrieval_limit, TR_MIN_CONTEXT_SESSION_LIMIT)
+    return retrieval_limit
 
 
 def _normalize_text(text: str) -> str:
@@ -923,6 +930,7 @@ def _context_from_waggle(
     project = case_graph["project"]
     question = _question(case)
     task = _task(case)
+    effective_limit = _effective_retrieval_limit(task, retrieval_limit)
 
     if condition == "full_context":
         blocks = [
@@ -932,7 +940,7 @@ def _context_from_waggle(
         return "\n\n".join(blocks), list(case_graph["all_session_ids"]), "full_history"
 
     if condition == "flat_vector":
-        hits = graph.search_transcript_records(query=question, project=project, limit=max(1, retrieval_limit * 4))
+        hits = graph.search_transcript_records(query=question, project=project, limit=max(1, effective_limit * 4))
         session_ids: list[str] = []
         blocks: list[str] = []
         seen: set[str] = set()
@@ -946,18 +954,18 @@ def _context_from_waggle(
                 lines.append(f"documentDate: {date}")
             lines.append(f"{hit.role}: {hit.transcript_text}")
             blocks.append("\n".join(lines))
-            if len(blocks) >= retrieval_limit:
+            if len(blocks) >= effective_limit:
                 break
-        direct_context, compact_direct_answer = _direct_answer_context(case, case_graph, session_ids[:retrieval_limit])
+        direct_context, compact_direct_answer = _direct_answer_context(case, case_graph, session_ids[:effective_limit])
         if compact_direct_answer:
-            return direct_context, session_ids[:retrieval_limit], "source_chunk_direct_evidence"
-        return "\n\n".join(blocks), session_ids[:retrieval_limit], "source_chunk_only"
+            return direct_context, session_ids[:effective_limit], "source_chunk_direct_evidence"
+        return "\n\n".join(blocks), session_ids[:effective_limit], "source_chunk_only"
 
     subgraph = graph.query(
         query=question,
         project=project,
         agent_id=case_graph["agent_id"],
-        max_nodes=max(1, retrieval_limit * 2),
+        max_nodes=max(1, effective_limit * 2),
         retrieval_mode="graph",
     )
     subgraph_nodes = list(subgraph.nodes)
@@ -972,22 +980,22 @@ def _context_from_waggle(
             subgraph_nodes = ranked_nodes
     session_ids = _memory_sessions_from_nodes(subgraph_nodes)
     if not session_ids:
-        fallback_hits = graph.search_transcript_records(query=question, project=project, limit=max(1, retrieval_limit))
+        fallback_hits = graph.search_transcript_records(query=question, project=project, limit=max(1, effective_limit))
         session_ids = [hit.session_id for hit in fallback_hits if hit.session_id]
     else:
         session_ids = _rank_session_ids_by_nodes(session_ids, subgraph_nodes)
     flat_hits: list[Any] = []
     if task in EVIDENCE_FIRST_TASKS:
         flat_hits = graph.search_transcript_records(
-            query=_ssp_expanded_query(question), project=project, limit=max(1, retrieval_limit * 4)
+            query=_ssp_expanded_query(question), project=project, limit=max(1, effective_limit * 4)
         ) if task == "single-session-preference" else graph.search_transcript_records(
-            query=question, project=project, limit=max(1, retrieval_limit * 4)
+            query=question, project=project, limit=max(1, effective_limit * 4)
         )
         flat_session_ids = _unique_session_ids([hit.session_id for hit in flat_hits if hit.session_id])
         if task == "single-session-preference":
-            context_session_ids = _unique_session_ids([*session_ids, *flat_session_ids])[:retrieval_limit]
+            context_session_ids = _unique_session_ids([*session_ids, *flat_session_ids])[:effective_limit]
         else:
-            context_session_ids = _unique_session_ids([*flat_session_ids, *session_ids])[:retrieval_limit]
+            context_session_ids = _unique_session_ids([*flat_session_ids, *session_ids])[:effective_limit]
     else:
         context_session_ids = session_ids
 
@@ -996,16 +1004,16 @@ def _context_from_waggle(
         case_graph=case_graph,
         session_ids=context_session_ids,
         seed_nodes=subgraph_nodes,
-        max_nodes=max(2, retrieval_limit),
+        max_nodes=max(2, effective_limit),
     )
-    retrieved_nodes = _dedupe_nodes([*supplemental_nodes, *subgraph_nodes[: max(1, retrieval_limit * 2)]])
+    retrieved_nodes = _dedupe_nodes([*supplemental_nodes, *subgraph_nodes[: max(1, effective_limit * 2)]])
     priority_types = {"preference", "decision", "note"}
     priority_nodes = [node for node in retrieved_nodes if _node_type_value(node) in priority_types]
     other_nodes = [node for node in retrieved_nodes if _node_type_value(node) not in priority_types]
 
     memory_lines: list[str] = []
     if task in EVIDENCE_FIRST_TASKS and flat_hits and task not in {"single-session-user", "single-session-assistant", "knowledge-update"}:
-        memory_lines.append(_render_search_hits(case_graph, flat_hits, max_hits=max(3, retrieval_limit)))
+        memory_lines.append(_render_search_hits(case_graph, flat_hits, max_hits=max(3, effective_limit)))
     if task == "multi-session":
         ms_focus = _ms_focus_lines(case, case_graph, context_session_ids)
         if ms_focus:
@@ -1026,19 +1034,27 @@ def _context_from_waggle(
     if priority_nodes and not compact_direct_answer:
         title = "Personalization Memory:" if task == "single-session-preference" else "Structured Memory:"
         memory_lines.append(title)
-        priority_limit = min(3, retrieval_limit) if task == "single-session-preference" else retrieval_limit
+        priority_limit = min(3, effective_limit) if task == "single-session-preference" else effective_limit
         memory_lines.extend(_node_line(node, case_graph) for node in priority_nodes[: max(1, priority_limit)])
     if other_nodes and not compact_direct_answer:
         memory_lines.append("Other Retrieved Memory:")
-        other_limit = min(3, retrieval_limit) if task == "single-session-preference" else retrieval_limit * 2
+        other_limit = min(3, effective_limit) if task == "single-session-preference" else effective_limit * 2
         memory_lines.extend(_node_line(node, case_graph) for node in other_nodes[: max(1, other_limit)])
 
     if compact_direct_answer:
         max_source_sessions = 0
         max_record_chars = 0
     else:
-        max_source_sessions = min(3, retrieval_limit) if task in EVIDENCE_FIRST_TASKS else retrieval_limit
-        max_record_chars = 900 if task in {"multi-session", "knowledge-update"} else 650 if task == "single-session-preference" else 1000
+        if task == "temporal-reasoning":
+            max_source_sessions = effective_limit
+        elif task in EVIDENCE_FIRST_TASKS:
+            max_source_sessions = min(3, effective_limit)
+        else:
+            max_source_sessions = effective_limit
+        max_record_chars = 900 if task in {"multi-session", "knowledge-update"} else 650 if task in {
+            "single-session-preference",
+            "temporal-reasoning",
+        } else 1000
     chunk_context = (
         ""
         if max_source_sessions <= 0
@@ -1053,7 +1069,7 @@ def _context_from_waggle(
     context_mode = "memory_plus_source_chunk"
     if task == "single-session-preference":
         context_mode = f"{context_mode}:{ssp_ranking_mode}"
-    return context, context_session_ids[:retrieval_limit], context_mode
+    return context, context_session_ids[:effective_limit], context_mode
 
 
 def _build_prompt(case: dict[str, Any], condition: str, context: str) -> str:
@@ -1291,6 +1307,7 @@ def run_waggle_phase(
                             "context_mode": context_mode,
                             "embedding_model": embedding_model_name,
                             "retrieval_limit": retrieval_limit,
+                            "effective_retrieval_limit": _effective_retrieval_limit(_task(case), retrieval_limit),
                         },
                         "latency_seconds": time.perf_counter() - started,
                         "cost_usd": cost,
