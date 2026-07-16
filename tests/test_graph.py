@@ -59,6 +59,16 @@ def make_graph(tmp_path: Path) -> MemoryGraph:
     return MemoryGraph(tmp_path / "memory.db", FakeEmbeddingModel())
 
 
+def test_memory_graph_refuses_corrupted_database_before_mutating(tmp_path: Path) -> None:
+    db_path = tmp_path / "memory.db"
+    db_path.write_bytes(b"not a sqlite database")
+
+    with pytest.raises(ValidationFailure, match="failed SQLite integrity validation"):
+        MemoryGraph(db_path, FakeEmbeddingModel())
+
+    assert db_path.read_bytes() == b"not a sqlite database"
+
+
 def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
