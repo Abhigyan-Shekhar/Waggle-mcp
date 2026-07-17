@@ -3174,6 +3174,8 @@ def update_node(
         if _candidate_texts:
             try:
                 _batch_embeddings = self.embedding_model.embed_batch(_candidate_texts)
+                if _batch_embeddings is not None and len(_batch_embeddings) != len(_candidate_texts):
+                    _batch_embeddings = None
             except Exception:
                 _batch_embeddings = None
 

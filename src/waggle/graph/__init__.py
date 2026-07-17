@@ -3750,6 +3750,8 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         if atomic_items:
             try:
                 _batch_embeddings = self.embedding_model.embed_batch(atomic_items)
+                if _batch_embeddings is not None and len(_batch_embeddings) != len(atomic_items):
+                    _batch_embeddings = None
             except Exception:
                 _batch_embeddings = None
 
