@@ -1,0 +1,113 @@
+{
+  "answering_prompt_style": "supermemory-longmembench-appendix-v1",
+  "conditions": [
+    "full_context",
+    "flat_vector",
+    "waggle_full",
+    "ablation_semantic_only",
+    "ablation_lexical_only",
+    "ablation_temporal_only",
+    "ablation_no_graph_expansion",
+    "ablation_no_conflict_update"
+  ],
+  "created_at": "2026-07-13T14:01:30.206279+00:00",
+  "dataset_path": "/Users/abhigyanshekhar/Desktop/MCP/benchmarks/longmemeval/longmemeval_s_cleaned.json",
+  "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+  "heldout_policy": "heldout rows are not inspected until final evaluation",
+  "ingestion_protocol": "session-by-session",
+  "judge_protocol": "longmemeval-paper-question-specific-prompts",
+  "max_total_paid_cost_usd": 180.0,
+  "models": {
+    "judge": "gpt-4o",
+    "mock_reader": "gemini-2.5-flash",
+    "open_reader_primary": "llama-3.3-70b",
+    "open_reader_secondary": "Qwen/Qwen3.7-Plus"
+  },
+  "projected_total_paid_cost_usd": 0.0,
+  "prompt_version": "longmemeval-systems-v1",
+  "result_jsonl": "/Users/abhigyanshekhar/Desktop/MCP/runs/longmemeval/waggle-stratified-24/results.jsonl",
+  "retrieval_config": {
+    "ablation_lexical_only": {
+      "answer_context_mode": "memory_plus_source_chunk",
+      "chunking_policy": "longmemeval-session-chunks-v1",
+      "embedding_model": "all-MiniLM-L6-v2",
+      "ingestion_granularity": "session",
+      "memory_generation": "contextual_atomic_facts",
+      "retrieval_unit": "memory_then_chunk",
+      "temporal_fields": [
+        "documentDate",
+        "eventDate"
+      ]
+    },
+    "ablation_no_conflict_update": {
+      "answer_context_mode": "memory_plus_source_chunk",
+      "chunking_policy": "longmemeval-session-chunks-v1",
+      "embedding_model": "all-MiniLM-L6-v2",
+      "ingestion_granularity": "session",
+      "memory_generation": "contextual_atomic_facts",
+      "retrieval_unit": "memory_then_chunk",
+      "temporal_fields": [
+        "documentDate",
+        "eventDate"
+      ]
+    },
+    "ablation_no_graph_expansion": {
+      "answer_context_mode": "memory_plus_source_chunk",
+      "chunking_policy": "longmemeval-session-chunks-v1",
+      "embedding_model": "all-MiniLM-L6-v2",
+      "ingestion_granularity": "session",
+      "memory_generation": "contextual_atomic_facts",
+      "retrieval_unit": "memory_then_chunk",
+      "temporal_fields": [
+        "documentDate",
+        "eventDate"
+      ]
+    },
+    "ablation_semantic_only": {
+      "answer_context_mode": "memory_plus_source_chunk",
+      "chunking_policy": "longmemeval-session-chunks-v1",
+      "embedding_model": "all-MiniLM-L6-v2",
+      "ingestion_granularity": "session",
+      "memory_generation": "contextual_atomic_facts",
+      "retrieval_unit": "memory_then_chunk",
+      "temporal_fields": [
+        "documentDate",
+        "eventDate"
+      ]
+    },
+    "ablation_temporal_only": {
+      "answer_context_mode": "memory_plus_source_chunk",
+      "chunking_policy": "longmemeval-session-chunks-v1",
+      "embedding_model": "all-MiniLM-L6-v2",
+      "ingestion_granularity": "session",
+      "memory_generation": "contextual_atomic_facts",
+      "retrieval_unit": "memory_then_chunk",
+      "temporal_fields": [
+        "documentDate",
+        "eventDate"
+      ]
+    },
+    "flat_vector": {
+      "answer_context_mode": "source_chunk_only",
+      "chunking_policy": "longmemeval-session-chunks-v1",
+      "embedding_model": "all-MiniLM-L6-v2",
+      "ingestion_granularity": "session",
+      "memory_generation": "none",
+      "retrieval_unit": "chunk_only",
+      "temporal_fields": []
+    },
+    "waggle_full": {
+      "answer_context_mode": "memory_plus_source_chunk",
+      "chunking_policy": "longmemeval-session-chunks-v1",
+      "embedding_model": "all-MiniLM-L6-v2",
+      "ingestion_granularity": "session",
+      "memory_generation": "contextual_atomic_facts",
+      "retrieval_unit": "memory_then_chunk",
+      "temporal_fields": [
+        "documentDate",
+        "eventDate"
+      ]
+    }
+  },
+  "run_id": "waggle-stratified-24"
+}

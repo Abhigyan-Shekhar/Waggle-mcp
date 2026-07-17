@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import threading
 from collections import OrderedDict
 from typing import Any
@@ -334,13 +335,18 @@ class EmbeddingModel:
     def _load_transformer_model(self) -> Any:
         from sentence_transformers import SentenceTransformer
 
+        device = os.getenv("WAGGLE_EMBED_DEVICE", "").strip().lower()
+        if not device:
+            device = "cpu"
+
         if self.embedding_backend == "onnx":
             return SentenceTransformer(
                 self.model_name,
                 backend="onnx",
+                device=device,
             )
         try:
-            return SentenceTransformer(self.model_name, local_files_only=True)
+            return SentenceTransformer(self.model_name, local_files_only=True, device=device)
         except Exception:
             # Model not cached locally - must download from HuggingFace.
             # This can take 30-120 s and requires a network connection.
@@ -358,7 +364,7 @@ class EmbeddingModel:
                     ),
                 },
             )
-            return SentenceTransformer(self.model_name)
+            return SentenceTransformer(self.model_name, device=device)
 
     def _embed_deterministically(self, text: str) -> np.ndarray:
         vector = np.zeros(256, dtype=np.float32)

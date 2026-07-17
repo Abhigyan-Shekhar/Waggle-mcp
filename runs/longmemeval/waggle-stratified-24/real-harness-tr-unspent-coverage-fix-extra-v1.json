@@ -1,0 +1,35 @@
+{
+  "dataset": "benchmarks/longmemeval/longmemeval_s_cleaned.json",
+  "embedding_model": "all-MiniLM-L6-v2",
+  "retrieval_limit": 5,
+  "cases": [
+    {
+      "case_id": "gpt4_fa19884d",
+      "category": "temporal-reasoning",
+      "question": "What is the artist that I started to listen to last Friday?",
+      "gold_support_ids": [
+        "answer_ff201787_1",
+        "answer_ff201787_2"
+      ],
+      "retrieved_support_ids": [
+        "5f9dd782",
+        "answer_ff201787_2",
+        "answer_ff201787_1",
+        "ccc87da9_1",
+        "sharegpt_A4GMAA9_0"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 2,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 5271,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [5f9dd782] documentDate=2023/03/18 (Sat) 15:06 user: [documentDate: 2023/03/18 (Sat) 15:06] I've been trying to find some new music to listen to while I study. Can you recommend some electronic artists similar to Jinsang?\n2. Chunk [answer_ff201787_2] documentDate=2023/03/31 (Fri) 14:13 assistant: Jazz is a wonderful genre! There's so much to explore, and I'd be happy to recommend some jazz musicians and albums to get you started. Here are a few: **Classic Jazz Legends:** 1. **Miles Davis**: A legendary trumpeter and bandleader, known for his cool, introspective style. Must-listen albums: \"Kind of Blue\" and \"Birth of the Cool\". 2. **John Coltrane**: A saxophonist and composer who revolutionized jazz with hi...\n3. Chunk [5f9dd782] documentDate=2023/03/18 (Sat) 15:06 user: I'm definitely excited to check out more of Jinsang's music. I'll start with \"In Flight\" and \"Soulection White Label\" to hear his earlier, more jazzy sound. Then, I'll explore his more experimental projects like \"Panacea\" and \"Inflight, Vol. 2\". And finally, I'll give \"Petal\" a listen to see how his sound has evolved over time. By the way, have you heard about the new Arctic Monkeys a"
+    }
+  ],
+  "summary": {
+    "cases": 1,
+    "gold_support_hits": 1,
+    "context_modes": {
+      "memory_plus_source_chunk": 1
+    }
+  }
+}

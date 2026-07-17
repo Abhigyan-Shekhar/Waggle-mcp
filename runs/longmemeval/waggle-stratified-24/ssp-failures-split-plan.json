@@ -1,0 +1,29 @@
+{
+  "case_count": 500,
+  "dataset_path": "/Users/abhigyanshekhar/Desktop/MCP/benchmarks/longmemeval/longmemeval_s_cleaned.json",
+  "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+  "notes": [
+    "Subset split for rerunning the four SSP failures from waggle_full_minilm_all24_merged.jsonl after SSP assembly changes."
+  ],
+  "seed": 13,
+  "splits": {
+    "mock": [
+      {
+        "case_id": "06f04340",
+        "category": "SSP"
+      },
+      {
+        "case_id": "09d032c9",
+        "category": "SSP"
+      },
+      {
+        "case_id": "0a34ad58",
+        "category": "SSP"
+      },
+      {
+        "case_id": "57f827a0",
+        "category": "SSP"
+      }
+    ]
+  }
+}

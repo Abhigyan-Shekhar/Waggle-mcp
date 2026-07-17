@@ -1,0 +1,962 @@
+{
+  "dataset": "benchmarks/longmemeval/longmemeval_s_cleaned.json",
+  "embedding_model": "all-MiniLM-L6-v2",
+  "top_k": 10,
+  "strategies": [
+    "graph_baseline",
+    "raw_similarity",
+    "oracle_type_prior",
+    "oracle_reformulated",
+    "oracle_reformulated_type_prior",
+    "classifier_reformulated_type_prior",
+    "classifier_fallback_reformulated_type_prior"
+  ],
+  "cases": [
+    {
+      "case_id": "d6233ab6",
+      "category": "single-session-preference",
+      "question": "I've been feeling nostalgic lately. Do you think it would be a good idea to attend my high school reunion?",
+      "gold_support_ids": [
+        "answer_b0fac439"
+      ],
+      "haystack_sessions": 44,
+      "node_count": 1748,
+      "oracle_personalization": true,
+      "classifier_personalization": true,
+      "gold_like_node_count": 28,
+      "gold_like_node_ids": [
+        "0164f712-1269-4abe-b735-dd86fadb7d19",
+        "16c629e6-62d0-4b87-a3ff-4ded4e4d0e2a",
+        "1918343c-a465-4cac-a81a-4504affab061",
+        "2bcef252-cdac-45c9-8b6e-37f2e5b7289c",
+        "2cb4080f-5836-4248-97fa-b2b9528af75d",
+        "38a0c503-b8d6-45dd-9bc8-ed2ea769c212",
+        "432a7a4b-8890-4e13-939f-adad34b325cc",
+        "443d074b-d202-40cb-9bad-3d3de6fc6c10",
+        "46bdea80-ecd7-4a80-b995-67f8aa024be1",
+        "566a417a-6b68-4aaa-bf84-be1d1177fb6e",
+        "66c7a139-5180-4ad4-8c73-f43ef9091f73",
+        "71c6ae8d-c66e-437a-88d9-eba099f63b90",
+        "748301dd-2255-47b0-b686-162ee06aebcd",
+        "748580ce-9f06-41f2-b6e1-5a4bad1b13ce",
+        "84d7cf5e-b43d-4a51-8456-a615a3a9f302",
+        "866ec3e8-ea78-4f80-aa3d-9c5ed1c6eb23",
+        "87281ac4-00c0-41cd-ac2b-726865865185",
+        "88aa72d8-5f65-4237-95e4-e6b1e29022e3",
+        "a11b8309-0d40-4d5e-9840-891732e6f1f7",
+        "a14d5ca1-21bf-4de7-98d4-2544cecf2129",
+        "b6f41daf-7029-4f5b-94a0-3ad882e1e724",
+        "c5d05177-8c28-41b3-a0cb-22687a3f3048",
+        "ca1c9e50-c2b9-4621-83ce-a05610135242",
+        "db415e22-2acf-4993-9f0a-71bd0df67383",
+        "dc49f69e-b4b2-4f2f-b354-6a495aa555f7",
+        "ddfbe8cb-6761-4f1f-9645-ae3259bd9eeb",
+        "dfcb25c1-5d04-43e1-bc83-5e911b1451b3",
+        "e29e968d-bbec-46bb-8994-1cd432efc35b"
+      ],
+      "gold_like_nodes": [
+        {
+          "id": "566a417a-6b68-4aaa-bf84-be1d1177fb6e",
+          "session_id": "answer_b0fac439",
+          "node_type": "question",
+          "label": "I'm considering majoring in Economics. Can you recommend some online resources or courses to help me prepare for the program?",
+          "content": "I'm considering majoring in Economics. Can you recommend some online resources or courses to help me prepare for the program?"
+        },
+        {
+          "id": "748580ce-9f06-41f2-b6e1-5a4bad1b13ce",
+          "session_id": "answer_b0fac439",
+          "node_type": "preference",
+          "label": "That sounds like an exciting path",
+          "content": "That sounds like an exciting path! Here are some online resources and courses to help you prepare for a major in Economics:."
+        },
+        {
+          "id": "84d7cf5e-b43d-4a51-8456-a615a3a9f302",
+          "session_id": "answer_b0fac439",
+          "node_type": "entity",
+          "label": "**Khan Academy** - Offers a comprehensive",
+          "content": "**Khan Academy** - Offers a comprehensive range of introductory economics courses, including microeconomics, macroeconomics, and more advanced topics."
+        },
+        {
+          "id": "ca1c9e50-c2b9-4621-83ce-a05610135242",
+          "session_id": "answer_b0fac439",
+          "node_type": "preference",
+          "label": "**edX** - Features courses like 'Introduction",
+          "content": "**edX** - Features courses like 'Introduction to Economics' from institutions like MIT and Harvard."
+        },
+        {
+          "id": "dfcb25c1-5d04-43e1-bc83-5e911b1451b3",
+          "session_id": "answer_b0fac439",
+          "node_type": "entity",
+          "label": "**MIT OpenCourseWare** - Free course materials",
+          "content": "**MIT OpenCourseWare** - Free course materials for a range of economics subjects, including introductory and advanced courses."
+        },
+        {
+          "id": "66c7a139-5180-4ad4-8c73-f43ef9091f73",
+          "session_id": "answer_b0fac439",
+          "node_type": "note",
+          "label": "I still remember the happy high",
+          "content": "I still remember the happy high school experiences such as being part of the debate team and taking advanced placement courses in economics."
+        },
+        {
+          "id": "db415e22-2acf-4993-9f0a-71bd0df67383",
+          "session_id": "answer_b0fac439",
+          "node_type": "note",
+          "label": "I am surprised that I will",
+          "content": "I am surprised that I will become a Economics major so soon."
+        },
+        {
+          "id": "dc49f69e-b4b2-4f2f-b354-6a495aa555f7",
+          "session_id": "answer_b0fac439",
+          "node_type": "question",
+          "label": "Speaking of future, what are the average salaries for data scientists in different industries, and are there any specific industries that are more in demand for",
+          "content": "Speaking of future, what are the average salaries for data scientists in different industries, and are there any specific industries that are more in demand for data scientists?"
+        },
+        {
+          "id": "0164f712-1269-4abe-b735-dd86fadb7d19",
+          "session_id": "answer_b0fac439",
+          "node_type": "preference",
+          "label": "As for demand, industries like technology,",
+          "content": "As for demand, industries like technology, finance, and healthcare are particularly strong in hiring data scientists due to their heavy reliance on data analysis for decision-making and innovation. The rapid growth of data-driven technologies also keeps these "
+        },
+        {
+          "id": "46bdea80-ecd7-4a80-b995-67f8aa024be1",
+          "session_id": "answer_b0fac439",
+          "node_type": "question",
+          "label": "How can I assess whether I have a strong enough foundation in math and statistics to succeed in a Data Science program?",
+          "content": "How can I assess whether I have a strong enough foundation in math and statistics to succeed in a Data Science program?"
+        },
+        {
+          "id": "2cb4080f-5836-4248-97fa-b2b9528af75d",
+          "session_id": "answer_b0fac439",
+          "node_type": "entity",
+          "label": "Assessing your foundation in math and",
+          "content": "Assessing your foundation in math and statistics is crucial for succeeding in a Data Science program. Here are some steps to evaluate whether you're well-prepared:."
+        },
+        {
+          "id": "a14d5ca1-21bf-4de7-98d4-2544cecf2129",
+          "session_id": "answer_b0fac439",
+          "node_type": "entity",
+          "label": "**Review Core Topics**",
+          "content": "**Review Core Topics**: Ensure you're comfortable with key areas such as linear algebra, calculus, probability, and statistical inference. Check if you can solve problems related to these topics."
+        },
+        {
+          "id": "1918343c-a465-4cac-a81a-4504affab061",
+          "session_id": "answer_b0fac439",
+          "node_type": "entity",
+          "label": "**Assess Coursework**",
+          "content": "**Assess Coursework**: Look at the prerequisites for data science programs and compare them with the math and statistics courses you've completed. Make sure you\u2019ve covered the necessary material."
+        },
+        {
+          "id": "88aa72d8-5f65-4237-95e4-e6b1e29022e3",
+          "session_id": "answer_b0fac439",
+          "node_type": "preference",
+          "label": "**Take Online Assessments**",
+          "content": "**Take Online Assessments**: Platforms like Khan Academy or Coursera offer practice problems and quizzes in math and statistics. Use these to gauge your understanding and identify areas for improvement."
+        },
+        {
+          "id": "ddfbe8cb-6761-4f1f-9645-ae3259bd9eeb",
+          "session_id": "answer_b0fac439",
+          "node_type": "entity",
+          "label": "**Review Program Requirements**",
+          "content": "**Review Program Requirements**: Check the specific math and statistics requirements of the Data Science programs you're interested in. Some programs might offer foundational courses or recommend preparatory work."
+        },
+        {
+          "id": "866ec3e8-ea78-4f80-aa3d-9c5ed1c6eb23",
+          "session_id": "answer_b0fac439",
+          "node_type": "entity",
+          "label": "**Seek Feedback**",
+          "content": "**Seek Feedback**: Consider discussing your preparedness with current students or professionals in the field. They can provide insight into the expectations and challenges of the program."
+        },
+        {
+          "id": "2bcef252-cdac-45c9-8b6e-37f2e5b7289c",
+          "session_id": "answer_b0fac439",
+          "node_type": "entity",
+          "label": "**Consider a Bridge Course**",
+          "content": "**Consider a Bridge Course**: If you find gaps in your knowledge, look into bridge courses or additional coursework to strengthen your skills before starting the program."
+        },
+        {
+          "id": "e29e968d-bbec-46bb-8994-1cd432efc35b",
+          "session_id": "answer_b0fac439",
+          "node_type": "note",
+          "label": "I am asking because a lot",
+          "content": "I am asking because a lot of old high school friends plan to work after the graduate from university."
+        },
+        {
+          "id": "87281ac4-00c0-41cd-ac2b-726865865185",
+          "session_id": "answer_b0fac439",
+          "node_type": "question",
+          "label": "Can you recommend some online courses or certifications that can help me build my skills in data science and get a feel for the field?",
+          "content": "Can you recommend some online courses or certifications that can help me build my skills in data science and get a feel for the field?"
+        },
+        {
+          "id": "443d074b-d202-40cb-9bad-3d3de6fc6c10",
+          "session_id": "answer_b0fac439",
+          "node_type": "entity",
+          "label": "**Coursera** - Offers specialized certificates such",
+          "content": "**Coursera** - Offers specialized certificates such as the 'IBM Data Science Professional Certificate' which includes hands-on projects and is a great way to start."
+        }
+      ],
+      "strategies": {
+        "graph_baseline": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "4754065e-fe19-4626-9167-3b1239933b53",
+              "session_id": "94bc18df_3",
+              "node_type": "entity",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "I'm still on a high from",
+              "content": "I'm still on a high from the Khalid concert at the Greek Theatre in Berkeley with my sister, Sophia - it was such an amazing experience!."
+            },
+            {
+              "id": "94e68d0f-b9a6-42f8-9ab2-866534cd9dd2",
+              "session_id": "ultrachat_125013",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "Do you think that's a good idea?",
+              "content": "Do you think that's a good idea?"
+            },
+            {
+              "id": "46f2ed7a-2e05-4a20-9fd0-ad11f5de7b90",
+              "session_id": "ultrachat_125013",
+              "node_type": "preference",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "That sounds like a great idea,",
+              "content": "That sounds like a great idea, as long as it's a reward that motivates and excites you personally!."
+            },
+            {
+              "id": "e29e968d-bbec-46bb-8994-1cd432efc35b",
+              "session_id": "answer_b0fac439",
+              "node_type": "note",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "I am asking because a lot",
+              "content": "I am asking because a lot of old high school friends plan to work after the graduate from university."
+            },
+            {
+              "id": "66c7a139-5180-4ad4-8c73-f43ef9091f73",
+              "session_id": "answer_b0fac439",
+              "node_type": "note",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "I still remember the happy high",
+              "content": "I still remember the happy high school experiences such as being part of the debate team and taking advanced placement courses in economics."
+            }
+          ]
+        },
+        "raw_similarity": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "94e68d0f-b9a6-42f8-9ab2-866534cd9dd2",
+              "session_id": "ultrachat_125013",
+              "node_type": "question",
+              "score": 0.462507,
+              "similarity": 0.317867,
+              "lexical": 0.8,
+              "type_prior": 0.0,
+              "label": "Do you think that's a good idea?",
+              "content": "Do you think that's a good idea?"
+            },
+            {
+              "id": "1f8d3550-8f92-4558-890a-a49fd61f962a",
+              "session_id": "ultrachat_459148",
+              "node_type": "question",
+              "score": 0.337322,
+              "similarity": 0.196175,
+              "lexical": 0.666667,
+              "type_prior": 0.0,
+              "label": "What do you think?",
+              "content": "What do you think?"
+            },
+            {
+              "id": "4754065e-fe19-4626-9167-3b1239933b53",
+              "session_id": "94bc18df_3",
+              "node_type": "entity",
+              "score": 0.306236,
+              "similarity": 0.404513,
+              "lexical": 0.076923,
+              "type_prior": 0.0,
+              "label": "I'm still on a high from",
+              "content": "I'm still on a high from the Khalid concert at the Greek Theatre in Berkeley with my sister, Sophia - it was such an amazing experience!."
+            },
+            {
+              "id": "9e26dfac-1cdf-4d3c-a629-859e58aa5f6f",
+              "session_id": "c927ffbb",
+              "node_type": "question",
+              "score": 0.305467,
+              "similarity": 0.264953,
+              "lexical": 0.4,
+              "type_prior": 0.0,
+              "label": "Do you think that's a reasonable price?",
+              "content": "Do you think that's a reasonable price?"
+            },
+            {
+              "id": "e29e968d-bbec-46bb-8994-1cd432efc35b",
+              "session_id": "answer_b0fac439",
+              "node_type": "note",
+              "score": 0.302943,
+              "similarity": 0.366842,
+              "lexical": 0.153846,
+              "type_prior": 0.0,
+              "label": "I am asking because a lot",
+              "content": "I am asking because a lot of old high school friends plan to work after the graduate from university."
+            },
+            {
+              "id": "66c7a139-5180-4ad4-8c73-f43ef9091f73",
+              "session_id": "answer_b0fac439",
+              "node_type": "note",
+              "score": 0.301342,
+              "similarity": 0.364555,
+              "lexical": 0.153846,
+              "type_prior": 0.0,
+              "label": "I still remember the happy high",
+              "content": "I still remember the happy high school experiences such as being part of the debate team and taking advanced placement courses in economics."
+            },
+            {
+              "id": "46f2ed7a-2e05-4a20-9fd0-ad11f5de7b90",
+              "session_id": "ultrachat_125013",
+              "node_type": "preference",
+              "score": 0.294542,
+              "similarity": 0.349346,
+              "lexical": 0.166667,
+              "type_prior": 0.0,
+              "label": "That sounds like a great idea,",
+              "content": "That sounds like a great idea, as long as it's a reward that motivates and excites you personally!."
+            },
+            {
+              "id": "a74843b2-cbb3-4dd6-a0e2-2c871e9a01a0",
+              "session_id": "cb05ed10",
+              "node_type": "note",
+              "score": 0.280232,
+              "similarity": 0.346759,
+              "lexical": 0.125,
+              "type_prior": 0.0,
+              "label": "I've been thinking about my family's",
+              "content": "I've been thinking about my family's history and cultural roots."
+            },
+            {
+              "id": "5df7dfce-37fd-44cf-8a5f-ec0df1494eff",
+              "session_id": "c927ffbb",
+              "node_type": "question",
+              "score": 0.275615,
+              "similarity": 0.210062,
+              "lexical": 0.428571,
+              "type_prior": 0.0,
+              "label": "Do you think I can get a good price for it?",
+              "content": "Do you think I can get a good price for it?"
+            },
+            {
+              "id": "4996bf11-e743-4144-998e-2bf47fb1f0a3",
+              "session_id": "f916c63a_2",
+              "node_type": "entity",
+              "score": 0.269885,
+              "similarity": 0.38555,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "Family Gatherings (holidays, reunions, etc",
+              "content": "Family Gatherings (holidays, reunions, etc.)."
+            }
+          ]
+        },
+        "oracle_type_prior": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "94e68d0f-b9a6-42f8-9ab2-866534cd9dd2",
+              "session_id": "ultrachat_125013",
+              "node_type": "question",
+              "score": 0.512507,
+              "similarity": 0.317867,
+              "lexical": 0.8,
+              "type_prior": 0.05,
+              "label": "Do you think that's a good idea?",
+              "content": "Do you think that's a good idea?"
+            },
+            {
+              "id": "1f8d3550-8f92-4558-890a-a49fd61f962a",
+              "session_id": "ultrachat_459148",
+              "node_type": "question",
+              "score": 0.387322,
+              "similarity": 0.196175,
+              "lexical": 0.666667,
+              "type_prior": 0.05,
+              "label": "What do you think?",
+              "content": "What do you think?"
+            },
+            {
+              "id": "46f2ed7a-2e05-4a20-9fd0-ad11f5de7b90",
+              "session_id": "ultrachat_125013",
+              "node_type": "preference",
+              "score": 0.374542,
+              "similarity": 0.349346,
+              "lexical": 0.166667,
+              "type_prior": 0.08,
+              "label": "That sounds like a great idea,",
+              "content": "That sounds like a great idea, as long as it's a reward that motivates and excites you personally!."
+            },
+            {
+              "id": "9e26dfac-1cdf-4d3c-a629-859e58aa5f6f",
+              "session_id": "c927ffbb",
+              "node_type": "question",
+              "score": 0.355467,
+              "similarity": 0.264953,
+              "lexical": 0.4,
+              "type_prior": 0.05,
+              "label": "Do you think that's a reasonable price?",
+              "content": "Do you think that's a reasonable price?"
+            },
+            {
+              "id": "e29e968d-bbec-46bb-8994-1cd432efc35b",
+              "session_id": "answer_b0fac439",
+              "node_type": "note",
+              "score": 0.332943,
+              "similarity": 0.366842,
+              "lexical": 0.153846,
+              "type_prior": 0.03,
+              "label": "I am asking because a lot",
+              "content": "I am asking because a lot of old high school friends plan to work after the graduate from university."
+            },
+            {
+              "id": "66c7a139-5180-4ad4-8c73-f43ef9091f73",
+              "session_id": "answer_b0fac439",
+              "node_type": "note",
+              "score": 0.331342,
+              "similarity": 0.364555,
+              "lexical": 0.153846,
+              "type_prior": 0.03,
+              "label": "I still remember the happy high",
+              "content": "I still remember the happy high school experiences such as being part of the debate team and taking advanced placement courses in economics."
+            },
+            {
+              "id": "5df7dfce-37fd-44cf-8a5f-ec0df1494eff",
+              "session_id": "c927ffbb",
+              "node_type": "question",
+              "score": 0.325615,
+              "similarity": 0.210062,
+              "lexical": 0.428571,
+              "type_prior": 0.05,
+              "label": "Do you think I can get a good price for it?",
+              "content": "Do you think I can get a good price for it?"
+            },
+            {
+              "id": "a74843b2-cbb3-4dd6-a0e2-2c871e9a01a0",
+              "session_id": "cb05ed10",
+              "node_type": "note",
+              "score": 0.310232,
+              "similarity": 0.346759,
+              "lexical": 0.125,
+              "type_prior": 0.03,
+              "label": "I've been thinking about my family's",
+              "content": "I've been thinking about my family's history and cultural roots."
+            },
+            {
+              "id": "4754065e-fe19-4626-9167-3b1239933b53",
+              "session_id": "94bc18df_3",
+              "node_type": "entity",
+              "score": 0.306236,
+              "similarity": 0.404513,
+              "lexical": 0.076923,
+              "type_prior": 0.0,
+              "label": "I'm still on a high from",
+              "content": "I'm still on a high from the Khalid concert at the Greek Theatre in Berkeley with my sister, Sophia - it was such an amazing experience!."
+            },
+            {
+              "id": "917afe47-6e68-4025-bb45-d70d8a4a27ca",
+              "session_id": "426e7403_2",
+              "node_type": "question",
+              "score": 0.287107,
+              "similarity": 0.305757,
+              "lexical": 0.076923,
+              "type_prior": 0.05,
+              "label": "What a great idea! Embroidery or other decorative elements can elevate your summer top and make it truly special.",
+              "content": "What a great idea! Embroidery or other decorative elements can elevate your summer top and make it truly special."
+            }
+          ]
+        },
+        "oracle_reformulated": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "94e68d0f-b9a6-42f8-9ab2-866534cd9dd2",
+              "session_id": "ultrachat_125013",
+              "node_type": "question",
+              "score": 0.422368,
+              "similarity": 0.260525,
+              "lexical": 0.8,
+              "type_prior": 0.0,
+              "label": "Do you think that's a good idea?",
+              "content": "Do you think that's a good idea?"
+            },
+            {
+              "id": "e29e968d-bbec-46bb-8994-1cd432efc35b",
+              "session_id": "answer_b0fac439",
+              "node_type": "note",
+              "score": 0.33945,
+              "similarity": 0.393093,
+              "lexical": 0.214286,
+              "type_prior": 0.0,
+              "label": "I am asking because a lot",
+              "content": "I am asking because a lot of old high school friends plan to work after the graduate from university."
+            },
+            {
+              "id": "9e26dfac-1cdf-4d3c-a629-859e58aa5f6f",
+              "session_id": "c927ffbb",
+              "node_type": "question",
+              "score": 0.339232,
+              "similarity": 0.313189,
+              "lexical": 0.4,
+              "type_prior": 0.0,
+              "label": "Do you think that's a reasonable price?",
+              "content": "Do you think that's a reasonable price?"
+            },
+            {
+              "id": "1f8d3550-8f92-4558-890a-a49fd61f962a",
+              "session_id": "ultrachat_459148",
+              "node_type": "question",
+              "score": 0.32692,
+              "similarity": 0.181315,
+              "lexical": 0.666667,
+              "type_prior": 0.0,
+              "label": "What do you think?",
+              "content": "What do you think?"
+            },
+            {
+              "id": "5df7dfce-37fd-44cf-8a5f-ec0df1494eff",
+              "session_id": "c927ffbb",
+              "node_type": "question",
+              "score": 0.317903,
+              "similarity": 0.270473,
+              "lexical": 0.428571,
+              "type_prior": 0.0,
+              "label": "Do you think I can get a good price for it?",
+              "content": "Do you think I can get a good price for it?"
+            },
+            {
+              "id": "66c7a139-5180-4ad4-8c73-f43ef9091f73",
+              "session_id": "answer_b0fac439",
+              "node_type": "note",
+              "score": 0.290003,
+              "similarity": 0.366671,
+              "lexical": 0.111111,
+              "type_prior": 0.0,
+              "label": "I still remember the happy high",
+              "content": "I still remember the happy high school experiences such as being part of the debate team and taking advanced placement courses in economics."
+            },
+            {
+              "id": "14cfd528-1781-4fae-bdce-971a206a530c",
+              "session_id": "f916c63a_2",
+              "node_type": "note",
+              "score": 0.281865,
+              "similarity": 0.280215,
+              "lexical": 0.285714,
+              "type_prior": 0.0,
+              "label": "I think I'll go with the",
+              "content": "I think I'll go with the Classic Elegance design idea."
+            },
+            {
+              "id": "4754065e-fe19-4626-9167-3b1239933b53",
+              "session_id": "94bc18df_3",
+              "node_type": "entity",
+              "score": 0.241437,
+              "similarity": 0.318124,
+              "lexical": 0.0625,
+              "type_prior": 0.0,
+              "label": "I'm still on a high from",
+              "content": "I'm still on a high from the Khalid concert at the Greek Theatre in Berkeley with my sister, Sophia - it was such an amazing experience!."
+            },
+            {
+              "id": "46f2ed7a-2e05-4a20-9fd0-ad11f5de7b90",
+              "session_id": "ultrachat_125013",
+              "node_type": "preference",
+              "score": 0.232544,
+              "similarity": 0.260778,
+              "lexical": 0.166667,
+              "type_prior": 0.0,
+              "label": "That sounds like a great idea,",
+              "content": "That sounds like a great idea, as long as it's a reward that motivates and excites you personally!."
+            },
+            {
+              "id": "a74843b2-cbb3-4dd6-a0e2-2c871e9a01a0",
+              "session_id": "cb05ed10",
+              "node_type": "note",
+              "score": 0.231947,
+              "similarity": 0.277782,
+              "lexical": 0.125,
+              "type_prior": 0.0,
+              "label": "I've been thinking about my family's",
+              "content": "I've been thinking about my family's history and cultural roots."
+            }
+          ]
+        },
+        "oracle_reformulated_type_prior": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "94e68d0f-b9a6-42f8-9ab2-866534cd9dd2",
+              "session_id": "ultrachat_125013",
+              "node_type": "question",
+              "score": 0.472368,
+              "similarity": 0.260525,
+              "lexical": 0.8,
+              "type_prior": 0.05,
+              "label": "Do you think that's a good idea?",
+              "content": "Do you think that's a good idea?"
+            },
+            {
+              "id": "9e26dfac-1cdf-4d3c-a629-859e58aa5f6f",
+              "session_id": "c927ffbb",
+              "node_type": "question",
+              "score": 0.389232,
+              "similarity": 0.313189,
+              "lexical": 0.4,
+              "type_prior": 0.05,
+              "label": "Do you think that's a reasonable price?",
+              "content": "Do you think that's a reasonable price?"
+            },
+            {
+              "id": "1f8d3550-8f92-4558-890a-a49fd61f962a",
+              "session_id": "ultrachat_459148",
+              "node_type": "question",
+              "score": 0.37692,
+              "similarity": 0.181315,
+              "lexical": 0.666667,
+              "type_prior": 0.05,
+              "label": "What do you think?",
+              "content": "What do you think?"
+            },
+            {
+              "id": "e29e968d-bbec-46bb-8994-1cd432efc35b",
+              "session_id": "answer_b0fac439",
+              "node_type": "note",
+              "score": 0.36945,
+              "similarity": 0.393093,
+              "lexical": 0.214286,
+              "type_prior": 0.03,
+              "label": "I am asking because a lot",
+              "content": "I am asking because a lot of old high school friends plan to work after the graduate from university."
+            },
+            {
+              "id": "5df7dfce-37fd-44cf-8a5f-ec0df1494eff",
+              "session_id": "c927ffbb",
+              "node_type": "question",
+              "score": 0.367903,
+              "similarity": 0.270473,
+              "lexical": 0.428571,
+              "type_prior": 0.05,
+              "label": "Do you think I can get a good price for it?",
+              "content": "Do you think I can get a good price for it?"
+            },
+            {
+              "id": "66c7a139-5180-4ad4-8c73-f43ef9091f73",
+              "session_id": "answer_b0fac439",
+              "node_type": "note",
+              "score": 0.320003,
+              "similarity": 0.366671,
+              "lexical": 0.111111,
+              "type_prior": 0.03,
+              "label": "I still remember the happy high",
+              "content": "I still remember the happy high school experiences such as being part of the debate team and taking advanced placement courses in economics."
+            },
+            {
+              "id": "46f2ed7a-2e05-4a20-9fd0-ad11f5de7b90",
+              "session_id": "ultrachat_125013",
+              "node_type": "preference",
+              "score": 0.312544,
+              "similarity": 0.260778,
+              "lexical": 0.166667,
+              "type_prior": 0.08,
+              "label": "That sounds like a great idea,",
+              "content": "That sounds like a great idea, as long as it's a reward that motivates and excites you personally!."
+            },
+            {
+              "id": "14cfd528-1781-4fae-bdce-971a206a530c",
+              "session_id": "f916c63a_2",
+              "node_type": "note",
+              "score": 0.311865,
+              "similarity": 0.280215,
+              "lexical": 0.285714,
+              "type_prior": 0.03,
+              "label": "I think I'll go with the",
+              "content": "I think I'll go with the Classic Elegance design idea."
+            },
+            {
+              "id": "272fb6e8-e063-4661-863a-3fa3bd04c556",
+              "session_id": "94bc18df_3",
+              "node_type": "preference",
+              "score": 0.292362,
+              "similarity": 0.303374,
+              "lexical": 0.0,
+              "type_prior": 0.08,
+              "label": "**Bring essentials**",
+              "content": "**Bring essentials**: Pack a small bag with essentials like your phone charger, earplugs, snacks, and a refillable water bottle. Don't forget to bring your tickets, ID, and credit cards."
+            },
+            {
+              "id": "3b6f221c-2c65-4c88-bb62-2129a8d2a2ab",
+              "session_id": "ecfd2047_1",
+              "node_type": "preference",
+              "score": 0.288781,
+              "similarity": 0.247838,
+              "lexical": 0.117647,
+              "type_prior": 0.08,
+              "label": "It sounds like you have a",
+              "content": "It sounds like you have a solid plan in place to get started with tracking your spending and staying on top of your budget."
+            }
+          ]
+        },
+        "classifier_reformulated_type_prior": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "94e68d0f-b9a6-42f8-9ab2-866534cd9dd2",
+              "session_id": "ultrachat_125013",
+              "node_type": "question",
+              "score": 0.472368,
+              "similarity": 0.260525,
+              "lexical": 0.8,
+              "type_prior": 0.05,
+              "label": "Do you think that's a good idea?",
+              "content": "Do you think that's a good idea?"
+            },
+            {
+              "id": "9e26dfac-1cdf-4d3c-a629-859e58aa5f6f",
+              "session_id": "c927ffbb",
+              "node_type": "question",
+              "score": 0.389232,
+              "similarity": 0.313189,
+              "lexical": 0.4,
+              "type_prior": 0.05,
+              "label": "Do you think that's a reasonable price?",
+              "content": "Do you think that's a reasonable price?"
+            },
+            {
+              "id": "1f8d3550-8f92-4558-890a-a49fd61f962a",
+              "session_id": "ultrachat_459148",
+              "node_type": "question",
+              "score": 0.37692,
+              "similarity": 0.181315,
+              "lexical": 0.666667,
+              "type_prior": 0.05,
+              "label": "What do you think?",
+              "content": "What do you think?"
+            },
+            {
+              "id": "e29e968d-bbec-46bb-8994-1cd432efc35b",
+              "session_id": "answer_b0fac439",
+              "node_type": "note",
+              "score": 0.36945,
+              "similarity": 0.393093,
+              "lexical": 0.214286,
+              "type_prior": 0.03,
+              "label": "I am asking because a lot",
+              "content": "I am asking because a lot of old high school friends plan to work after the graduate from university."
+            },
+            {
+              "id": "5df7dfce-37fd-44cf-8a5f-ec0df1494eff",
+              "session_id": "c927ffbb",
+              "node_type": "question",
+              "score": 0.367903,
+              "similarity": 0.270473,
+              "lexical": 0.428571,
+              "type_prior": 0.05,
+              "label": "Do you think I can get a good price for it?",
+              "content": "Do you think I can get a good price for it?"
+            },
+            {
+              "id": "66c7a139-5180-4ad4-8c73-f43ef9091f73",
+              "session_id": "answer_b0fac439",
+              "node_type": "note",
+              "score": 0.320003,
+              "similarity": 0.366671,
+              "lexical": 0.111111,
+              "type_prior": 0.03,
+              "label": "I still remember the happy high",
+              "content": "I still remember the happy high school experiences such as being part of the debate team and taking advanced placement courses in economics."
+            },
+            {
+              "id": "46f2ed7a-2e05-4a20-9fd0-ad11f5de7b90",
+              "session_id": "ultrachat_125013",
+              "node_type": "preference",
+              "score": 0.312544,
+              "similarity": 0.260778,
+              "lexical": 0.166667,
+              "type_prior": 0.08,
+              "label": "That sounds like a great idea,",
+              "content": "That sounds like a great idea, as long as it's a reward that motivates and excites you personally!."
+            },
+            {
+              "id": "14cfd528-1781-4fae-bdce-971a206a530c",
+              "session_id": "f916c63a_2",
+              "node_type": "note",
+              "score": 0.311865,
+              "similarity": 0.280215,
+              "lexical": 0.285714,
+              "type_prior": 0.03,
+              "label": "I think I'll go with the",
+              "content": "I think I'll go with the Classic Elegance design idea."
+            },
+            {
+              "id": "272fb6e8-e063-4661-863a-3fa3bd04c556",
+              "session_id": "94bc18df_3",
+              "node_type": "preference",
+              "score": 0.292362,
+              "similarity": 0.303374,
+              "lexical": 0.0,
+              "type_prior": 0.08,
+              "label": "**Bring essentials**",
+              "content": "**Bring essentials**: Pack a small bag with essentials like your phone charger, earplugs, snacks, and a refillable water bottle. Don't forget to bring your tickets, ID, and credit cards."
+            },
+            {
+              "id": "3b6f221c-2c65-4c88-bb62-2129a8d2a2ab",
+              "session_id": "ecfd2047_1",
+              "node_type": "preference",
+              "score": 0.288781,
+              "similarity": 0.247838,
+              "lexical": 0.117647,
+              "type_prior": 0.08,
+              "label": "It sounds like you have a",
+              "content": "It sounds like you have a solid plan in place to get started with tracking your spending and staying on top of your budget."
+            }
+          ]
+        },
+        "classifier_fallback_reformulated_type_prior": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "94e68d0f-b9a6-42f8-9ab2-866534cd9dd2",
+              "session_id": "ultrachat_125013",
+              "node_type": "question",
+              "score": 0.462507,
+              "similarity": 0.317867,
+              "lexical": 0.8,
+              "type_prior": 0.0,
+              "label": "Do you think that's a good idea?",
+              "content": "Do you think that's a good idea?"
+            },
+            {
+              "id": "1f8d3550-8f92-4558-890a-a49fd61f962a",
+              "session_id": "ultrachat_459148",
+              "node_type": "question",
+              "score": 0.337322,
+              "similarity": 0.196175,
+              "lexical": 0.666667,
+              "type_prior": 0.0,
+              "label": "What do you think?",
+              "content": "What do you think?"
+            },
+            {
+              "id": "4754065e-fe19-4626-9167-3b1239933b53",
+              "session_id": "94bc18df_3",
+              "node_type": "entity",
+              "score": 0.306236,
+              "similarity": 0.404513,
+              "lexical": 0.076923,
+              "type_prior": 0.0,
+              "label": "I'm still on a high from",
+              "content": "I'm still on a high from the Khalid concert at the Greek Theatre in Berkeley with my sister, Sophia - it was such an amazing experience!."
+            },
+            {
+              "id": "9e26dfac-1cdf-4d3c-a629-859e58aa5f6f",
+              "session_id": "c927ffbb",
+              "node_type": "question",
+              "score": 0.305467,
+              "similarity": 0.264953,
+              "lexical": 0.4,
+              "type_prior": 0.0,
+              "label": "Do you think that's a reasonable price?",
+              "content": "Do you think that's a reasonable price?"
+            },
+            {
+              "id": "e29e968d-bbec-46bb-8994-1cd432efc35b",
+              "session_id": "answer_b0fac439",
+              "node_type": "note",
+              "score": 0.302943,
+              "similarity": 0.366842,
+              "lexical": 0.153846,
+              "type_prior": 0.0,
+              "label": "I am asking because a lot",
+              "content": "I am asking because a lot of old high school friends plan to work after the graduate from university."
+            },
+            {
+              "id": "66c7a139-5180-4ad4-8c73-f43ef9091f73",
+              "session_id": "answer_b0fac439",
+              "node_type": "note",
+              "score": 0.301342,
+              "similarity": 0.364555,
+              "lexical": 0.153846,
+              "type_prior": 0.0,
+              "label": "I still remember the happy high",
+              "content": "I still remember the happy high school experiences such as being part of the debate team and taking advanced placement courses in economics."
+            },
+            {
+              "id": "46f2ed7a-2e05-4a20-9fd0-ad11f5de7b90",
+              "session_id": "ultrachat_125013",
+              "node_type": "preference",
+              "score": 0.294542,
+              "similarity": 0.349346,
+              "lexical": 0.166667,
+              "type_prior": 0.0,
+              "label": "That sounds like a great idea,",
+              "content": "That sounds like a great idea, as long as it's a reward that motivates and excites you personally!."
+            },
+            {
+              "id": "a74843b2-cbb3-4dd6-a0e2-2c871e9a01a0",
+              "session_id": "cb05ed10",
+              "node_type": "note",
+              "score": 0.280232,
+              "similarity": 0.346759,
+              "lexical": 0.125,
+              "type_prior": 0.0,
+              "label": "I've been thinking about my family's",
+              "content": "I've been thinking about my family's history and cultural roots."
+            },
+            {
+              "id": "5df7dfce-37fd-44cf-8a5f-ec0df1494eff",
+              "session_id": "c927ffbb",
+              "node_type": "question",
+              "score": 0.275615,
+              "similarity": 0.210062,
+              "lexical": 0.428571,
+              "type_prior": 0.0,
+              "label": "Do you think I can get a good price for it?",
+              "content": "Do you think I can get a good price for it?"
+            },
+            {
+              "id": "4996bf11-e743-4144-998e-2bf47fb1f0a3",
+              "session_id": "f916c63a_2",
+              "node_type": "entity",
+              "score": 0.269885,
+              "similarity": 0.38555,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "Family Gatherings (holidays, reunions, etc",
+              "content": "Family Gatherings (holidays, reunions, etc.)."
+            }
+          ],
+          "fallback_used": false,
+          "fallback_reason": null
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,287 @@
+{
+  "dataset": "benchmarks/longmemeval/longmemeval_s_cleaned.json",
+  "embedding_model": "all-MiniLM-L6-v2",
+  "retrieval_limit": 5,
+  "cases": [
+    {
+      "case_id": "4dfccbf8",
+      "category": "temporal-reasoning",
+      "question": "What did I do with Rachel on the Wednesday two months ago?",
+      "gold_support_ids": [
+        "answer_4bebc783_1",
+        "answer_4bebc783_2"
+      ],
+      "retrieved_support_ids": [
+        "edd89480_1",
+        "a63ad8e3_3",
+        "answer_4bebc783_1",
+        "sharegpt_oXgiN7q_131",
+        "87317e05_1"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 3,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 5791,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [edd89480_1] documentDate=2023/01/02 (Mon) 03:36 user: We actually had a lot of discussions and debates during the marathon, especially after each movie. It was great to see how everyone's opinions and reactions differed, and we had some really interesting conversations about the characters and their motivations. We didn't take many breaks, though - we were all too invested in the story to stop!\n2. Chunk [a63ad8e3_3] documentDate=2023/01/04 (Wed) 01:21 user: That's really helpful, thanks for the references! Speaking of which, our last meeting was on March 1st, and I remember getting some great suggestions from my group member, Rachel, on how to improve my data analysis section. Do you think I should consider using a mixed-methods approach, combining survey data with social network analysis, like the study by Burke et al. (2010)?\n3. Chunk [answer_4bebc783_1] documentDate=2023/02/01 (Wed) 14:38 user: I've been really enjoying the lessons, and I feel like I'm making good progress. One thing I've been struggling with is fingerpicking - my fingers get all tangled up and it's hard for me to get a smooth sound. Rachel's been giving me some exercises to prac"
+    },
+    {
+      "case_id": "71017276",
+      "category": "temporal-reasoning",
+      "question": "How many weeks ago did I meet up with my aunt and receive the crystal chandelier?",
+      "gold_support_ids": [
+        "answer_0b4a8adc_1"
+      ],
+      "retrieved_support_ids": [
+        "answer_0b4a8adc_1",
+        "398f23e7",
+        "683c8358_1",
+        "sharegpt_tCLMKZY_0",
+        "44e4ae7e"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 1,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 5255,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [answer_0b4a8adc_1] documentDate=2023/03/04 (Sat) 22:43 assistant: What a great idea! Researching the history of your great-grandmother's crystal chandelier can be a fascinating and rewarding experience. There are several online resources and databases that can help you uncover more about your chandelier's origins and maker. Here are a few to get you started: 1. **Online Auction Houses:** * Christie's: Christie's has an extensive archive of past auction results, which can help yo...\n2. Chunk [answer_0b4a8adc_1] documentDate=2023/03/04 (Sat) 22:43 user: I'm also thinking of doing some research on the history of my great-grandmother's crystal chandelier. Do you know of any online resources or databases where I can find information about antique crystal chandeliers and their makers?\n3. Chunk [answer_0b4a8adc_1] documentDate=2023/03/04 (Sat) 22:43 user: [documentDate: 2023/03/04 (Sat) 22:43] I'm looking for some advice on cleaning and maintaining my antique furniture. I recently acquired a beautiful vintage armchair from the 1950s and I want to make sure I'm taking good care of it. By the way, I also got a stunning crystal chandelier from my aunt today, "
+    },
+    {
+      "case_id": "9a707b82",
+      "category": "temporal-reasoning",
+      "question": "I mentioned cooking something for my friend a couple of days ago. What was it?",
+      "gold_support_ids": [
+        "answer_dba89488_2",
+        "answer_dba89488_1"
+      ],
+      "retrieved_support_ids": [
+        "68d35085_1",
+        "7a4d00b3_2",
+        "answer_dba89488_1",
+        "answer_dba89488_2",
+        "e72739cd_1"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 3,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 4960,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [68d35085_1] documentDate=2022/04/10 (Sun) 11:49 user: I was thinking of making something with leftover beef and pasta. Do you have any recipe ideas for that?\n2. Chunk [7a4d00b3_2] documentDate=2022/03/13 (Sun) 16:18 user: [documentDate: 2022/03/13 (Sun) 16:18] I'm looking for some new vegetarian recipes to try out. I've been getting into cooking lately, actually just started taking a weekly cooking class at a local culinary school that focuses on vegetarian cuisine about a month ago, and I'm loving it!\n3. Chunk [7a4d00b3_2] documentDate=2022/03/13 (Sun) 16:18 user: I'm really interested in exploring Indian-inspired dishes, we actually made an Indian-inspired feast in my cooking class last week and it was amazing!\n4. Chunk [answer_dba89488_1] documentDate=2022/04/10 (Sun) 23:24 user: [documentDate: 2022/04/10 (Sun) 23:24] I'm looking for some new recipe ideas for a dinner party I'm hosting next weekend. I've been really into baking lately. Do you have any suggestions for a unique dessert I could make for my dinner party?\n5. Chunk [68d35085_1] documentDate=2022/04/10 (Sun) 11:49 user: I'm actually looking for some recipe ideas that use up leftover bee"
+    },
+    {
+      "case_id": "a3045048",
+      "category": "temporal-reasoning",
+      "question": "How many days before my best friend's birthday party did I order her gift?",
+      "gold_support_ids": [
+        "answer_016f6bd4_2",
+        "answer_016f6bd4_1"
+      ],
+      "retrieved_support_ids": [
+        "answer_016f6bd4_2",
+        "answer_016f6bd4_1",
+        "sharegpt_asoSnhq_0",
+        "2def525b_1",
+        "5cb58cc6"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 1,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 5381,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [answer_016f6bd4_2] documentDate=2022/05/15 (Sun) 14:45 user: I'm particularly interested in the Fossil Grant Chronograph Watch, can you tell me more about it? Also, I had a great time celebrating my best friend's 30th birthday party recently, it was on the 22nd of April, she loved the personalized photo album I got her.\n2. Chunk [answer_016f6bd4_1] documentDate=2022/05/15 (Sun) 04:32 user: That's really helpful, thanks! I think I'll go ahead with the Skagen Ancher. I'm sure my brother will love it. By the way, speaking of personalized gifts, I recently ordered a customized photo album from Shutterfly for my best friend's birthday, and it turned out amazing. I ordered it on the 15th of April and it arrived on the 20th, just in time for her party. Do you think I could get a similar service for watches...\n3. Chunk [answer_016f6bd4_1] documentDate=2022/05/15 (Sun) 04:32 user: [documentDate: 2022/05/15 (Sun) 04:32] I'm looking for some ideas for gifts for my brother's birthday in June. I've been thinking of getting him a new watch, but I'm not sure what brand or style to go for. Can you give me some suggestions? By the way, I just got a great deal on a p"
+    },
+    {
+      "case_id": "gpt4_1d80365e",
+      "category": "temporal-reasoning",
+      "question": "How many days did I spend on my solo camping trip to Yosemite National Park?",
+      "gold_support_ids": [
+        "answer_661b711f_1",
+        "answer_661b711f_2"
+      ],
+      "retrieved_support_ids": [
+        "answer_661b711f_2",
+        "answer_661b711f_1"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 1,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 4537,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [answer_661b711f_2] documentDate=2023/05/17 (Wed) 19:56 user: [documentDate: 2023/05/17 (Wed) 19:56] I'm thinking of planning a trip to the Eastern Sierra in July or August and I was wondering if you could recommend some good camping spots and hiking trails in the area. By the way, I just got back from an amazing solo camping trip to Yosemite National Park today, and I'm already itching to get back out into the mountains.\n2. Chunk [answer_661b711f_1] documentDate=2023/05/15 (Mon) 04:28 user: [documentDate: 2023/05/15 (Mon) 04:28] I'm planning a trip to the Eastern Sierra in July or August and was wondering if you could recommend some scenic hiking trails in the area. By the way, I just started my solo camping trip to Yosemite National Park today and I'm really excited to explore the park.\n3. Chunk [answer_661b711f_1] documentDate=2023/05/15 (Mon) 04:28 assistant: I'm glad you're excited about your hike! Acclimatization is a great topic, and I'm happy to help you understand how your recent camping experience at Yosemite might affect your acclimatization for Mount Whitney. **Acclimatization from Yosemite:** Spending a few days at Yosemite National Park"
+    },
+    {
+      "case_id": "gpt4_21adecb5",
+      "category": "temporal-reasoning",
+      "question": "How many months passed between the completion of my undergraduate degree and the submission of my master's thesis?",
+      "gold_support_ids": [
+        "answer_1e2369c9_1",
+        "answer_1e2369c9_2"
+      ],
+      "retrieved_support_ids": [
+        "sharegpt_ipLglky_42",
+        "e1f37e24",
+        "answer_1e2369c9_2",
+        "sharegpt_cUXo8S0_0",
+        "928890e4_1"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 3,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 4882,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [sharegpt_ipLglky_42] documentDate=2022/10/31 (Mon) 14:49 user: Part 30 not relied upon this basis because the terms of cl 17 of the original contract for variations were not precisely followed or, arguably, apposite in some aspects. If I am wrong on my preference for the owners' argument on practical completion date - because, for instance, it is accepted that the ordinary meaning of building works within the contract definition and within the definition of \"practical complet...\n2. Chunk [e1f37e24] documentDate=2023/03/30 (Thu) 07:47 user: By the way, I've been meaning to ask you, who is your thesis advisor? I'm just curious because I've been trying to get a sense of your research context.\n3. Chunk [sharegpt_ipLglky_42] documentDate=2022/10/31 (Mon) 14:49 user: [documentDate: 2022/10/31 (Mon) 14:49] Part 29 those issues it considered to be material. The Tribunal dealt with the 19 July 2017 letter as one part of a course of conduct (which included the builder\u2019s correspondence) that led the Tribunal to conclude that there was an agreement between the parties. Furthermore, we note that in its post-hearing submissions the builder did not specifically ci"
+    },
+    {
+      "case_id": "gpt4_2655b836",
+      "category": "temporal-reasoning",
+      "question": "What was the first issue I had with my new car after its first service?",
+      "gold_support_ids": [
+        "answer_4be1b6b4_1",
+        "answer_4be1b6b4_2",
+        "answer_4be1b6b4_3"
+      ],
+      "retrieved_support_ids": [
+        "answer_4be1b6b4_3",
+        "answer_4be1b6b4_2",
+        "answer_4be1b6b4_1",
+        "d8a1af6b_4"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 1,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 5443,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [answer_4be1b6b4_3] documentDate=2023/04/10 (Mon) 10:12 user: I've been doing some research and found a local detailer with great reviews. I was thinking of taking my car there, but I'm also considering other options. By the way, I recently had an issue with my car's GPS system on 3/22, and I had to take it back to the dealership to get it fixed. They replaced the entire system, and now it's working flawlessly. Have you heard of any common issues with GPS systems in newer cars?\n2. Chunk [answer_4be1b6b4_2] documentDate=2023/04/10 (Mon) 20:30 user: [documentDate: 2023/04/10 (Mon) 20:30] I'm thinking of getting my car detailed soon. Do you know any good detailers in the area or have any recommendations? By the way, I just got my car serviced for the first time on March 15th, and it was a great experience.\n3. Chunk [answer_4be1b6b4_2] documentDate=2023/04/10 (Mon) 20:30 assistant: I'm happy to help you with your question! However, I'm a large language model, I don't have personal experiences or knowledge of specific locations or businesses. I can provide some general advice and suggestions on how to find a good detailer in your area. To find a reputable"
+    },
+    {
+      "case_id": "gpt4_93159ced_abs",
+      "category": "temporal-reasoning",
+      "question": "How long have I been working before I started my current job at Google?",
+      "gold_support_ids": [
+        "answer_e5131a1b_abs_1",
+        "answer_e5131a1b_abs_2"
+      ],
+      "retrieved_support_ids": [
+        "answer_e5131a1b_abs_2",
+        "2f097fba_1",
+        "ultrachat_105960",
+        "answer_e5131a1b_abs_1",
+        "f5eb52d6"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 1,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 5521,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [answer_e5131a1b_abs_2] documentDate=2023/05/30 (Tue) 16:35 user: I'll start by saying that I'm a software engineer, specifically a backend developer, and I've been in this field since I graduated with a degree in Computer Science from the University of California, Berkeley. I've been working at NovaTech for about 4 years and 3 months now.\n2. Chunk [2f097fba_1] documentDate=2023/05/30 (Tue) 19:59 user: I'm considering using Google Drive since I already use Google Photos and it integrates well with it. But I'm not sure if I should upgrade to 100GB or 200GB. Do you think 100GB would be enough for my needs, or should I splurge on the 200GB plan?\n3. Chunk [ultrachat_105960] documentDate=2023/05/30 (Tue) 04:05 user: I'm curious, how long does it usually take for these strategies to take effect? Should I expect to see improvements right away or will it take some time?\n4. Chunk [answer_e5131a1b_abs_1] documentDate=2023/05/30 (Tue) 03:53 user: [documentDate: 2023/05/30 (Tue) 03:53] I'm looking to get some advice on managing my time more efficiently. Lately, I've been working long hours on a high-priority project and my commute has increased, leaving me with "
+    },
+    {
+      "case_id": "gpt4_c27434e8",
+      "category": "temporal-reasoning",
+      "question": "Which project did I start first, the Ferrari model or the Japanese Zero fighter plane model?",
+      "gold_support_ids": [
+        "answer_d8e33f5c_1",
+        "answer_d8e33f5c_2"
+      ],
+      "retrieved_support_ids": [
+        "answer_d8e33f5c_2",
+        "answer_d8e33f5c_1",
+        "4d578deb"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 1,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 5871,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [answer_d8e33f5c_2] documentDate=2023/05/29 (Mon) 09:33 user: I'm excited to explore the idea of adding more details to my models. For my Japanese Zero fighter plane, I think I'll start by adding a pilot figure and maybe some ground equipment like fuel drums or ammo crates. I'll also consider adding some texture and weathering effects to the airfield diorama to give it a more realistic, battle-worn look. For my Ferrari 288 GTO model, I like the idea of adding a figure of a r...\n2. Chunk [answer_d8e33f5c_2] documentDate=2023/05/29 (Mon) 09:33 user: I'm glad you found the weathering tips helpful. I'm curious, have you thought about adding some additional details to your Japanese Zero fighter plane, such as pilot figures or ground equipment, to create a more immersive diorama? I've been thinking of adding some similar details to my Ferrari 288 GTO model, like a miniature toolbox or a figure of a racing mechanic, to give it more context and storytelling.\n3. Chunk [answer_d8e33f5c_2] documentDate=2023/05/29 (Mon) 09:33 assistant: Weathering and aging effects can really bring a model to life! I'd be happy to share some tips and resources to help you achiev"
+    },
+    {
+      "case_id": "gpt4_c27434e8_abs",
+      "category": "temporal-reasoning",
+      "question": "Which project did I start first, the Ferrari model or the Porsche 991 Turbo S model?",
+      "gold_support_ids": [
+        "answer_d8e33f5c_abs_1",
+        "answer_d8e33f5c_abs_2"
+      ],
+      "retrieved_support_ids": [
+        "answer_d8e33f5c_abs_1",
+        "answer_d8e33f5c_abs_2",
+        "5c184f9f_5",
+        "sharegpt_cSq2zIR_0"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 1,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 6246,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [answer_d8e33f5c_abs_1] documentDate=2023/05/23 (Tue) 20:21 assistant: That's great to hear! It's always exciting to try out new tools and techniques, and it sounds like your airbrush compressor is going to make a big difference in your work. Applying decals can be a bit nerve-wracking, but it sounds like you did a great job on the engine compartment and body. Decals can really add a lot of detail and realism to a model, and it's great that you're happy with how they turned out. What...\n2. Chunk [answer_d8e33f5c_abs_1] documentDate=2023/05/23 (Tue) 20:21 assistant: What a great project! The Ferrari 288 GTO is an iconic supercar of the 80s, and achieving a realistic paint finish will make your model truly stand out. Here are some tips to help you achieve a stunning paint job: 1. **Research, research, research**: Study reference images of the real Ferrari 288 GTO to understand the color, finish, and subtle nuances of the paint job. Look for high-quality photos, both online and...\n3. Chunk [answer_d8e33f5c_abs_1] documentDate=2023/05/23 (Tue) 20:21 assistant: That's a great approach to weathering and aging! Using a combination of washes and drybrushing "
+    },
+    {
+      "case_id": "gpt4_d6585ce8",
+      "category": "temporal-reasoning",
+      "question": "What is the order of the concerts and musical events I attended in the past two months, starting from the earliest?",
+      "gold_support_ids": [
+        "answer_f999b05b_1",
+        "answer_f999b05b_4",
+        "answer_f999b05b_2",
+        "answer_f999b05b_5",
+        "answer_f999b05b_3"
+      ],
+      "retrieved_support_ids": [
+        "answer_f999b05b_3",
+        "answer_f999b05b_2",
+        "answer_f999b05b_4",
+        "answer_f999b05b_5",
+        "answer_f999b05b_1"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 1,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 5781,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [answer_f999b05b_3] documentDate=2023/04/15 (Sat) 02:29 user: I'd like to know more about the current indie rock scene. Are there any popular indie rock festivals or concerts happening in the coming months that I should check out?\n2. Chunk [answer_f999b05b_2] documentDate=2023/04/01 (Sat) 09:07 user: I'm thinking of checking out some local music events, maybe a free outdoor concert series in the park or a jazz night at a local bar. Since I've been to a music festival in Brooklyn with a group of friends, featuring a lineup of my favorite indie bands, I'm looking forward to discovering new artists and enjoying live music in a more low-key setting. Can you give me some general tips on how to make the most of thes...\n3. Chunk [answer_f999b05b_3] documentDate=2023/04/15 (Sat) 02:29 assistant: The current indie rock scene is thriving, with a wide range of festivals and concerts happening throughout the year. Here are some popular indie rock festivals and concerts you might want to check out in the coming months: **Festivals:** 1. **Coachella Valley Music and Arts Festival** (Indio, CA, April 10-12 & 17-19): While not exclusively an indie rock festival, Coa"
+    },
+    {
+      "case_id": "gpt4_d6585ce9",
+      "category": "temporal-reasoning",
+      "question": "Who did I go with to the music event last Saturday?",
+      "gold_support_ids": [
+        "answer_f999b05c_1",
+        "answer_f999b05c_4",
+        "answer_f999b05c_2",
+        "answer_f999b05c_5",
+        "answer_f999b05c_3"
+      ],
+      "retrieved_support_ids": [
+        "answer_f999b05c_2",
+        "answer_f999b05c_4",
+        "58dd3f35",
+        "answer_f999b05c_5",
+        "answer_f999b05c_3"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 1,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 5737,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [answer_f999b05c_2] documentDate=2023/04/01 (Sat) 15:57 assistant: Here are some general tips to help you make the most of local music events: **Before the Event** 1. **Check the details**: Verify the event details, including the date, time, location, and lineup, to ensure you're prepared and know what to expect. 2. **Plan ahead**: Arrive early to grab a good spot, especially if it's a popular event. 3. **Dress appropriately**: Check the weather forecast and dress accordingly. If...\n2. Chunk [answer_f999b05c_2] documentDate=2023/04/01 (Sat) 15:57 assistant: I'm glad you're excited to explore local music events in your area! Unfortunately, I'm a large language model, I don't have access to your location or personal preferences, so I can't provide specific recommendations for local music events or venues in your area. However, I can suggest some ways for you to find local music events and venues that might interest you: 1. **Online Event Calendars**: Check online event...\n3. Chunk [answer_f999b05c_4] documentDate=2023/03/25 (Sat) 16:21 user: I've been thinking about attending a music festival in the future, do you know any good ones that I should look "
+    },
+    {
+      "case_id": "gpt4_f49edff3",
+      "category": "temporal-reasoning",
+      "question": "Which three events happened in the order from first to last: the day I helped my friend prepare the nursery, the day I helped my cousin pick out stuff for her baby shower, and the day I ordered a customized phone case for my friend's birthday?",
+      "gold_support_ids": [
+        "answer_3e9fce53_1",
+        "answer_3e9fce53_2",
+        "answer_3e9fce53_3"
+      ],
+      "retrieved_support_ids": [
+        "answer_3e9fce53_3",
+        "answer_3e9fce53_2",
+        "answer_3e9fce53_1",
+        "0f6a2099_1",
+        "8e226a86"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 1,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 5935,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [answer_3e9fce53_3] documentDate=2023/02/20 (Mon) 13:12 user: [documentDate: 2023/02/20 (Mon) 13:12] I'm looking for some gift ideas for my siblings. Do you have any suggestions? By the way, I just ordered a customized phone case for my friend's birthday today, which she really loves.\n2. Chunk [answer_3e9fce53_2] documentDate=2023/02/10 (Fri) 21:05 user: [documentDate: 2023/02/10 (Fri) 21:05] I'm thinking of getting a baby gift for a coworker's new baby, and I was wondering if you could give me some recommendations for essential items that new parents usually need. By the way, I just helped my cousin pick out some stuff for her baby shower, and we ended up getting diapers, wipes, and a baby monitor at Target.\n3. Chunk [answer_3e9fce53_1] documentDate=2023/02/05 (Sun) 18:29 user: [documentDate: 2023/02/05 (Sun) 18:29] I'm expecting a new baby in my social circle soon and I'm thinking of getting a gift. Can you recommend some popular baby stores or online marketplaces where I can find a wide range of baby supplies and decorations? By the way, I just helped my friend prepare a nursery today, and we spent an entire Sunday afternoon shopping for baby supp"
+    }
+  ],
+  "summary": {
+    "cases": 13,
+    "gold_support_hits": 13,
+    "context_modes": {
+      "memory_plus_source_chunk": 13
+    }
+  }
+}

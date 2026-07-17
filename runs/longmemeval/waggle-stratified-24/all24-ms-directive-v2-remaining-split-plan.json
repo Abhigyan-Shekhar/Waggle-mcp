@@ -1,0 +1,33 @@
+{
+  "case_count": 500,
+  "dataset_path": "/Users/abhigyanshekhar/Desktop/MCP/benchmarks/longmemeval/longmemeval_s_cleaned.json",
+  "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+  "notes": [
+    "Continuation split for unfinished all24_ms_directive_llama70b_v2 run after Groq TPD cap."
+  ],
+  "seed": 13,
+  "splits": {
+    "mock": [
+      {
+        "case_id": "e8a79c70",
+        "category": "SSA"
+      },
+      {
+        "case_id": "f4f1d8a4_abs",
+        "category": "SSU"
+      },
+      {
+        "case_id": "fea54f57",
+        "category": "SSA"
+      },
+      {
+        "case_id": "gpt4_1d4ab0c9",
+        "category": "TR"
+      },
+      {
+        "case_id": "gpt4_4edbafa2",
+        "category": "TR"
+      }
+    ]
+  }
+}

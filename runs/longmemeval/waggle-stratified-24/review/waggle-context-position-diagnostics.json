@@ -1,0 +1,567 @@
+[
+  {
+    "case_id": "73d42213",
+    "category": "MS",
+    "question": "What time did I reach the clinic on Monday?",
+    "gold_answer": "9:00 AM",
+    "waggle_answer": "To answer the question \"What time did I reach the clinic on Monday?\", we need to look for information about the user's visit to the clinic on Monday.\n\nIn the retrieved context, we find a relevant piece of information in the \"Other Retrieved Memory\" section:\n\n- [entity] session=answer_1881e7db_1 documentDate=2023/05/20 (Sat) 23:43 I left home at 7 AM: I left home at 7 AM on Monday for my doctor's appointment.\n\nThis indicates that the user left home at 7 AM on Monday for their doctor's appointment. However, it does not directly state what time they reached the clinic.\n\nAnother relevant piece of information is:\n\n- [entity] session=answer_1881e7db_1 documentDate=2023/05/20 (Sat) 23:43 I had a doctor's appointment last: I had a doctor's appointment last Monday, so I took a half-day off from work and got back to the office around 1:00 PM.\n\nThis suggests that the user had a doctor's appointment on Monday and returned to the office around 1:00 PM. However, it still does not provide the exact time they reached the clinic.\n\nSince the context does not contain enough information to determine the exact time the user reached the clinic on Monday, the answer is:\n\nI don't know.",
+    "context_mode": "memory_plus_source_chunk",
+    "retrieved_support_ids": [
+      "answer_1881e7db_2",
+      "answer_1881e7db_1",
+      "9614d065_1",
+      "02e9f7e3_3"
+    ],
+    "gold_support_ids": [
+      "answer_1881e7db_1",
+      "answer_1881e7db_2"
+    ],
+    "context_tokens": 6810,
+    "section_counts": [
+      {
+        "section": "Candidate Source Hits",
+        "start_token": 0,
+        "tokens": 700,
+        "lines": 6
+      },
+      {
+        "section": "Multi-Session Evidence Focus",
+        "start_token": 560,
+        "tokens": 1451,
+        "lines": 9
+      },
+      {
+        "section": "Other Retrieved Memory",
+        "start_token": 1721,
+        "tokens": 407,
+        "lines": 8
+      },
+      {
+        "section": "Source Transcript Chunks",
+        "start_token": 2047,
+        "tokens": 4251,
+        "lines": 44
+      }
+    ],
+    "node_type_counts": {},
+    "support_occurrences": [
+      {
+        "support_id": "answer_1881e7db_1",
+        "occurrences": [
+          {
+            "char_index": 7587,
+            "token_index": 1843,
+            "relative_token": 0.271,
+            "snippet": "on] session=answer_1881e7db_2 documentDate=2023/05/30 (Tue) 00:00 What is your preferred distance or travel time from your home to the clinic?: What is your preferred distance or travel time from your home to the clinic? - [entity] session=answer_1881e7db_1 documentDate=2023/05/20 (Sat) 23:43 I had a doctor's appointment last: I had a doctor's appointment last Monday, so I took a half-day off from work and got back to the office around 1:00 PM. - [entity] session=answer_1881e7db_1 documentDate=2023/05/20 (Sat) 23:43 I left home at 7 AM: I left home at 7 AM on Monday for my doctor's appointment. - [entity] session=answer_1881e7db_2 documentDate=2023/05/30 (Tue) 00:00 **Community Health Clinic** - 40 miles,: **Community Health Clinic** - 40 miles, 5"
+          },
+          {
+            "char_index": 7815,
+            "token_index": 1904,
+            "relative_token": 0.28,
+            "snippet": "ty] session=answer_1881e7db_1 documentDate=2023/05/20 (Sat) 23:43 I had a doctor's appointment last: I had a doctor's appointment last Monday, so I took a half-day off from work and got back to the office around 1:00 PM. - [entity] session=answer_1881e7db_1 documentDate=2023/05/20 (Sat) 23:43 I left home at 7 AM: I left home at 7 AM on Monday for my doctor's appointment. - [entity] session=answer_1881e7db_2 documentDate=2023/05/30 (Tue) 00:00 **Community Health Clinic** - 40 miles,: **Community Health Clinic** - 40 miles, 50-minute drive. - [question] session=answer_1881e7db_2 documentDate=2023/05/30 (Tue) 00:00 What is the average wait time in the waiting room, and how do you manage wait times?: What is the average wait time in the waiting room, "
+          },
+          {
+            "char_index": 11977,
+            "token_index": 2904,
+            "relative_token": 0.426,
+            "snippet": "eminders?\" + This will help you understand their process for managing wait times and whether they have systems in place to keep patients informed. You might also consider asking: * \"Are there any peak hours or days when the wait...  Chunk [answer_1881e7db_1]: documentDate: 2023/05/20 (Sat) 23:43 user: [documentDate: 2023/05/20 (Sat) 23:43] I'm feeling a bit overwhelmed with work after the long weekend. Can you help me organize my tasks and prioritize them based on the project deadline? assistant: I'd be happy to help you organize your tasks and prioritize them based on your project deadlines. To get started, can you please provide me with some information about your tasks and projects? Please answer the following questions: 1. What are the project"
+          }
+        ]
+      },
+      {
+        "support_id": "answer_1881e7db_2",
+        "occurrences": [
+          {
+            "char_index": 33,
+            "token_index": 8,
+            "relative_token": 0.001,
+            "snippet": "Candidate Source Hits: 1. Chunk [answer_1881e7db_2] documentDate=2023/05/30 (Tue) 00:00 user: I'm located in 12345, and I need to see my primary care doctor. I'm available anytime on weekdays, but I'd prefer morning slots. As I mentioned earlier, it took me two hours to get to the clinic from my home last time, so if I could find something within an hour's drive, that would be great. 2. Chunk [answer_1881e7db_2] documentDate=2023/05/30 (Tue) 00:00 user: [documentDate: 2023/05/30 (Tue) 00:00] I need to reschedule my follow-up doctor's appointmen"
+          },
+          {
+            "char_index": 397,
+            "token_index": 101,
+            "relative_token": 0.015,
+            "snippet": " I'm available anytime on weekdays, but I'd prefer morning slots. As I mentioned earlier, it took me two hours to get to the clinic from my home last time, so if I could find something within an hour's drive, that would be great. 2. Chunk [answer_1881e7db_2] documentDate=2023/05/30 (Tue) 00:00 user: [documentDate: 2023/05/30 (Tue) 00:00] I need to reschedule my follow-up doctor's appointment. Can you help me find nearby clinics with available slots? By the way, I'm coming from my home, and it took me two hours to get to the clinic last time, so I'd like to find something closer. 3. Chunk [answer_1881e7db_2] documentDate=2023/05/30 (Tue) 00:00 assistant: I've searched for primary care clinics near you with morning availability. Since you're looking"
+          },
+          {
+            "char_index": 753,
+            "token_index": 197,
+            "relative_token": 0.029,
+            "snippet": "dule my follow-up doctor's appointment. Can you help me find nearby clinics with available slots? By the way, I'm coming from my home, and it took me two hours to get to the clinic last time, so I'd like to find something closer. 3. Chunk [answer_1881e7db_2] documentDate=2023/05/30 (Tue) 00:00 assistant: I've searched for primary care clinics near you with morning availability. Since you're looking for a clinic within an hour's drive, I'll provide you with a list of options within a 60-mile radius of the 12345 zip code. Please note that availability and wait times may vary, and it's always best to call ahead to confirm. Here are a few options: 1. **Family Care Medical Center** - 30 miles, 45-minute drive * Address... 4. Chunk [answer_1881e7db_2] d"
+          },
+          {
+            "char_index": 1250,
+            "token_index": 320,
+            "relative_token": 0.047,
+            "snippet": "adius of the 12345 zip code. Please note that availability and wait times may vary, and it's always best to call ahead to confirm. Here are a few options: 1. **Family Care Medical Center** - 30 miles, 45-minute drive * Address... 4. Chunk [answer_1881e7db_2] documentDate=2023/05/30 (Tue) 00:00 assistant: I'd be happy to help you find a nearby clinic with available slots. However, to do so, I'll need a bit more information from you. Could you please provide me with the following details: 1. Your current location or zip code? 2. The type of doctor or specialist you need to see (e.g., primary care, specialist, urgent care)? 3. Your availability for the follow-up appointment (e.g., specific days, morning/afternoon, et... 5. Chunk [answer_1881e7db_2] d"
+          },
+          {
+            "char_index": 1747,
+            "token_index": 447,
+            "relative_token": 0.066,
+            "snippet": "ur current location or zip code? 2. The type of doctor or specialist you need to see (e.g., primary care, specialist, urgent care)? 3. Your availability for the follow-up appointment (e.g., specific days, morning/afternoon, et... 5. Chunk [answer_1881e7db_2] documentDate=2023/05/30 (Tue) 00:00 assistant: Excellent questions! Here's a more detailed suggestion: **Wait Time and Reminder System** * \"Can you tell me what the typical wait time is for new patients, and how long can I expect to wait before seeing the doctor?\" + This will give you an idea of what to expect and help you plan your schedule accordingly. * \"Do you offer any kind of reminder system to minimize wait times, such as online check-in or text message... Multi-Session Evidence Focus: "
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "7401057b",
+    "category": "KU",
+    "question": "How many free night's stays can I redeem at any Hilton property with my accumulated points?",
+    "gold_answer": "Two",
+    "waggle_answer": "You've accumulated enough points for a single free night's stay at any Hilton property.",
+    "context_mode": "memory_plus_source_chunk",
+    "retrieved_support_ids": [
+      "answer_94650bfa_1",
+      "answer_94650bfa_2",
+      "5e906cb0_1"
+    ],
+    "gold_support_ids": [
+      "answer_94650bfa_1",
+      "answer_94650bfa_2"
+    ],
+    "context_tokens": 7025,
+    "section_counts": [
+      {
+        "section": "Direct Evidence Focus",
+        "start_token": 0,
+        "tokens": 2693,
+        "lines": 9
+      },
+      {
+        "section": "Other Retrieved Memory",
+        "start_token": 2155,
+        "tokens": 417,
+        "lines": 7
+      },
+      {
+        "section": "Source Transcript Chunks",
+        "start_token": 2489,
+        "tokens": 3913,
+        "lines": 33
+      }
+    ],
+    "node_type_counts": {},
+    "support_occurrences": [
+      {
+        "support_id": "answer_94650bfa_1",
+        "occurrences": [
+          {
+            "char_index": 34,
+            "token_index": 8,
+            "relative_token": 0.001,
+            "snippet": "Direct Evidence Focus: - [session=answer_94650bfa_1 documentDate=2023/05/29 (Mon) 16:25] assistant: The Hilton Lake Las Vegas Resort is a wonderful choice for a relaxing getaway in Las Vegas. Located about 20 miles southeast of the famous Las Vegas Strip, this resort offers a tranquil retreat from the hustle and bustle of the city. Here's what you can expect from the hotel's amenities and nearby attractions: **Amenities:** 1. **Lake Las Vegas:** The resort is situated on the shores of Lake Las Vegas, a 320-acre man-made lake that offers stunning"
+          },
+          {
+            "char_index": 1373,
+            "token_index": 323,
+            "relative_token": 0.046,
+            "snippet": "e surrounding landscape. 6. **Water Sports:** Rent kayaks, paddleboards, or take a guided boat tour to explore the lake. **Nearby Attractions:** 1. **Lake Las Vegas Village:** This charming village offers shopping, dining, an... - [session=answer_94650bfa_1 documentDate=2023/05/29 (Mon) 16:25] assistant: ...ton Honors Point Categories:** Hilton properties are divided into 10 categories, with Category 1 being the lowest and Category 10 being the highest. The category determines the number of points required for a free night. 2. **Point Redemption Chart:** Hilton provides a point redemption chart, which shows the number of points required for a free night at each category. Here's a rough estimate of the points required for a free night: * Category 1"
+          },
+          {
+            "char_index": 2757,
+            "token_index": 679,
+            "relative_token": 0.097,
+            "snippet": "ts. To give you a better estimate, I'd need to know: 1. The number of Hilton Honors points you've accumulated. 2. The category of the Hilton Lake Las Vegas Resort (it's a Category 5 hotel). 3. The dates of your stay, as peak ... - [session=answer_94650bfa_1 documentDate=2023/05/29 (Mon) 16:25] assistant: Congratulations! You've accumulated enough points for a free night's stay at any Hilton property, and Hilton Lake Las Vegas Resort is a great choice for a weekend getaway. As a Category 5 hotel, the Hilton Lake Las Vegas Resort typically requires around 40,000 points for a standard room reward night. Since you have enough points for a single free night's stay, you can redeem them for a weekend getaway. Here are a few things to keep in mind when re"
+          },
+          {
+            "char_index": 3942,
+            "token_index": 956,
+            "relative_token": 0.136,
+            "snippet": "ods when points redemption is not available. Make sure to check the hotel's policy before booking. 4. **Points Advance:** If you don't have enough points for a free night, you can use Hilton's Points Advance feature, which al... - [session=answer_94650bfa_1 documentDate=2023/05/29 (Mon) 16:25] assistant: ... Las Vegas Strip is a fantastic option to consider. As a timeshare resort, it offers a unique experience that's a bit different from a traditional hotel stay. Here's what you can expect: **Location:** The HGVC Las Vegas Strip is situated on the north end of the Strip, within walking distance to the Fashion Show Mall and the LINQ Promenade. **Accommodations:** The resort features spacious studios, one-bedroom, and two-bedroom suites, ranging fro"
+          },
+          {
+            "char_index": 5326,
+            "token_index": 1264,
+            "relative_token": 0.18,
+            "snippet": "so book a stay as a Hilton Honors member or through a third-party rental service. **Points Redemption:** As a Hilton Honors member, you can redeem your points for a stay at the HGVC Las Vegas Strip. The points required vary d... - [session=answer_94650bfa_1 documentDate=2023/05/29 (Mon) 16:25] assistant: ...he Waldorf Astoria Las Vegas is a fantastic option to consider! As a luxury hotel, it offers an unparalleled level of sophistication and elegance in the heart of Las Vegas. Here's what you can expect: **Location:** The Waldorf Astoria Las Vegas is situated on the Strip, adjacent to the CityCenter complex, and within walking distance to many attractions, including the Bellagio fountains and the Cosmopolitan. **Accommodations:** The hotel feature"
+          }
+        ]
+      },
+      {
+        "support_id": "answer_94650bfa_2",
+        "occurrences": [
+          {
+            "char_index": 7880,
+            "token_index": 1857,
+            "relative_token": 0.264,
+            "snippet": "iving area, city or Strip views + Amenities: marble bathroom, separate tub and shower, 49-inch HDTV, Bluetooth speakers, Nespresso machine, minibar, and added living area with sofa, chairs, and dining table * **One-Bedroom Su... - [session=answer_94650bfa_2 documentDate=2023/05/30 (Tue) 12:28] user: My budget is around $200-300 per night. I'm open to different locations, but would prefer something relatively central. For amenities, I'm looking for a hotel with a fitness center and breakfast included. - [session=answer_94650bfa_2 documentDate=2023/05/30 (Tue) 12:28] assistant: With your budget and preferences, I've shortlisted some hotels in Paris with an Eiffel Tower view that might interest you: 1. **Pullman Paris Tour Eiffel** (around $250 per n"
+          },
+          {
+            "char_index": 8157,
+            "token_index": 1922,
+            "relative_token": 0.274,
+            "snippet": "5/30 (Tue) 12:28] user: My budget is around $200-300 per night. I'm open to different locations, but would prefer something relatively central. For amenities, I'm looking for a hotel with a fitness center and breakfast included. - [session=answer_94650bfa_2 documentDate=2023/05/30 (Tue) 12:28] assistant: With your budget and preferences, I've shortlisted some hotels in Paris with an Eiffel Tower view that might interest you: 1. **Pullman Paris Tour Eiffel** (around $250 per night) * Location: 15th arrondissement, near the Eiffel Tower and Seine River * Fitness center, breakfast buffet, and a rooftop bar with Eiffel Tower views * Modern rooms with comfortable beds and amenities 2. **Hotel Eiffel Trocadero** (around $220 per night) * Location: 16th "
+          },
+          {
+            "char_index": 15217,
+            "token_index": 3487,
+            "relative_token": 0.496,
+            "snippet": "oom(s) with king-size beds * Marble-clad bathrooms with separate tub and shower **Amenities:** * Outdoor pool and hot tub * Fitness center and yoga room * Business center and meeting spaces * On-site convenience store and deli *...  Chunk [answer_94650bfa_2]: documentDate: 2023/05/30 (Tue) 12:28 user: [documentDate: 2023/05/30 (Tue) 12:28] I'm planning a trip to Europe in November and considering hotels in Paris with an Eiffel Tower view. Can you help me find some options within my budget? By the way, I've accumulated enough points for two free night's stays at any Hilton property, so I might use that for a separate trip to Las Vegas. assistant: Paris in November can be a lovely time to visit, with fewer tourists and a more local atmosphere. And, "
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "8752c811",
+    "category": "SSA",
+    "question": "I remember you provided a list of 100 prompt parameters that I can specify to influence your output. Can you remind me what was the 27th parameter on that list?",
+    "gold_answer": "The 27th parameter was 'Sound effects (e.g., ambient, diegetic, non-diegetic, etc.)'.",
+    "waggle_answer": "The 27th parameter on the list is not explicitly stated in the provided context. However, based on the available information, the list of parameters starts from 1 and goes up to 100. \n\nFrom the given context, we can see the parameters from 1 to 16, and then from 49 to 65, and finally from 97 to 100. The 27th parameter is not directly mentioned in the provided context.\n\nHowever, if we look at the sequence of parameters, we can try to find the missing parameters. The parameters from 1 to 16 are given, and then there is a gap. The parameters from 17 to 26 are not explicitly stated, but we can continue the sequence to find the 27th parameter.\n\nThe sequence is: \n1. Voice \n2. Tone \n3. Register \n4. Style \n5. Audience \n6. Genre \n7. Language \n8. Dialect \n9. Purpose \n10. Mood \n11. Point of view \n12. Setting \n13. Characterization \n14. Conflict \n15. Plot \n16. Theme \n17. Symbolism \n18. Imagery \n19. Figurative language \n20. Syntax \n21. Grammar \n22. Vocabulary \n23. Rhetorical devices \n24. Allusions \n25. References \n26. Intertextuality \n27. Point of view (could be continued from the previous sequence, but it seems to be repeated, so let's look for the next one) \nor \nit could be: \n26. Theme (e.g., love, friendship, betrayal, etc.) \n27. Symbolism (e.g., colors,...) \n\nSince the 27th parameter is not explicitly stated, and based on the provided sequence, the 27th parameter could be \"Symbolism (e.g., colors,...)\" or another parameter that follows the sequence. \n\nThe final answer is: The 27th parameter is",
+    "context_mode": "memory_plus_source_chunk",
+    "retrieved_support_ids": [
+      "answer_sharegpt_6pWK9yx_0",
+      "ultrachat_401721",
+      "sharegpt_Bjn7mKF_360",
+      "sharegpt_5Rpp72b_191",
+      "sharegpt_cTla0Yd_0"
+    ],
+    "gold_support_ids": [
+      "answer_sharegpt_6pWK9yx_0"
+    ],
+    "context_tokens": 3838,
+    "section_counts": [
+      {
+        "section": "Direct Evidence Focus",
+        "start_token": 0,
+        "tokens": 1422,
+        "lines": 9
+      },
+      {
+        "section": "Structured Memory",
+        "start_token": 1138,
+        "tokens": 55,
+        "lines": 2
+      },
+      {
+        "section": "Other Retrieved Memory",
+        "start_token": 1182,
+        "tokens": 280,
+        "lines": 6
+      },
+      {
+        "section": "Source Transcript Chunks",
+        "start_token": 1406,
+        "tokens": 2081,
+        "lines": 29
+      }
+    ],
+    "node_type_counts": {},
+    "support_occurrences": [
+      {
+        "support_id": "answer_sharegpt_6pWK9yx_0",
+        "occurrences": [
+          {
+            "char_index": 34,
+            "token_index": 8,
+            "relative_token": 0.002,
+            "snippet": "Direct Evidence Focus: - [session=answer_sharegpt_6pWK9yx_0 documentDate=2023/05/22 (Mon) 18:23] user: Give me 100 prompt parameters that I can specify that will influence your output, e.g. voice, tone, register, style, audience etc. - [session=answer_sharegpt_6pWK9yx_0 documentDate=2023/05/22 (Mon) 18:23] assistant: Sure, here are 100 prompt parameters that you can specify to influence my output: 1. Voice (e.g., male or female) 2. Tone (e.g., serious, sarcastic, humorous, etc.) 3. Register (e.g., formal, informal, academic, conversational, etc.) 4. Sty"
+          },
+          {
+            "char_index": 245,
+            "token_index": 59,
+            "relative_token": 0.015,
+            "snippet": "t Evidence Focus: - [session=answer_sharegpt_6pWK9yx_0 documentDate=2023/05/22 (Mon) 18:23] user: Give me 100 prompt parameters that I can specify that will influence your output, e.g. voice, tone, register, style, audience etc. - [session=answer_sharegpt_6pWK9yx_0 documentDate=2023/05/22 (Mon) 18:23] assistant: Sure, here are 100 prompt parameters that you can specify to influence my output: 1. Voice (e.g., male or female) 2. Tone (e.g., serious, sarcastic, humorous, etc.) 3. Register (e.g., formal, informal, academic, conversational, etc.) 4. Style (e.g., narrative, descriptive, expository, persuasive, etc.) 5. Audience (e.g., children, adults, experts, non-experts, etc.) 6. Genre (e.g., fiction, non-fiction, poetry, drama, etc.) 7. Language (e.g., Engl"
+          },
+          {
+            "char_index": 1199,
+            "token_index": 362,
+            "relative_token": 0.094,
+            "snippet": ".) 11. Point of view (e.g., first person, third person, etc.) 12. Setting (e.g., time period, location, etc.) 13. Characterization (e.g., flat, round, static, dynamic, etc.) 14. Conflict (e.g., internal, external, etc.) 15. P... - [session=answer_sharegpt_6pWK9yx_0 documentDate=2023/05/22 (Mon) 18:23] assistant: 97. Learning theories (e.g., behaviorism, constructivism, etc.) 98. Learning models (e.g., ADDIE, SAM, etc.) 99. Learning technology (e.g., LMS, authoring tools, etc.) 100. Learning trends (e.g., gamification, microlearning, etc.) I hope these prompt parameters help you specify the output you're looking for. Let me know if you have any other questions or if there's anything else I can assist you with. - [session=ultrachat_401721 documentDate=2023/"
+          },
+          {
+            "char_index": 3237,
+            "token_index": 826,
+            "relative_token": 0.215,
+            "snippet": "ities as they prove their value to the team. Don't miss out on this exciting opportunity to join a fast-growing, dynamic sales team. Apply now and let's see if you have what it takes to become our next Sales Prospecting Prodigy! - [session=answer_sharegpt_6pWK9yx_0 documentDate=2023/05/22 (Mon) 18:23] user: [documentDate: 2023/05/22 (Mon) 18:23] Give me 100 prompt parameters that I can specify that will influence your output, e.g. voice, tone, register, style, audience etc. - [session=ultrachat_401721 documentDate=2023/05/22 (Mon) 00:20] user: [documentDate: 2023/05/22 (Mon) 00:20] What is the employment rate for graduates of the nursing program at the University of Pennsylvania? - [session=sharegpt_5Rpp72b_191 documentDate=2023/05/24 (Wed) 05:49] user: ["
+          },
+          {
+            "char_index": 4672,
+            "token_index": 1147,
+            "relative_token": 0.299,
+            "snippet": "ur prospecting efforts to the next level. As our Lead Prospector, you'll be responsible for conducting manual prospecting and research to find leads, gather accurate contact information, and unc... Structured Memory: - [preference] session=answer_sharegpt_6pWK9yx_0 documentDate=2023/05/22 (Mon) 18:23 Theme (e: Theme (e.g., love, friendship, betrayal, etc.). Other Retrieved Memory: - [entity] session=9db30f1c_3 documentDate=2023/05/27 (Sat) 00:03 Select \"More Settings: Select \"More Settings.\". - [entity] session=5c6a5b7c_1 documentDate=2023/05/23 (Tue) 08:51 Call-to-action (CTA) or next steps: Call-to-action (CTA) or next steps. - [question] session=sharegpt_Y6MteNX_0 documentDate=2023/05/27 (Sat) 02:44 Can you give a score out of 100 for each entry? It's "
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "a82c026e",
+    "category": "SSU",
+    "question": "What game did I finally beat last weekend?",
+    "gold_answer": "Dark Souls 3 DLC",
+    "waggle_answer": "You finally beat Dark Souls 3 last weekend.",
+    "context_mode": "memory_plus_source_chunk",
+    "retrieved_support_ids": [
+      "answer_787e6a6d",
+      "752392bb_3",
+      "sharegpt_MBVSMQO_45",
+      "sharegpt_CMeL2P1_0",
+      "ccaabf0b_1"
+    ],
+    "gold_support_ids": [
+      "answer_787e6a6d"
+    ],
+    "context_tokens": 5116,
+    "section_counts": [
+      {
+        "section": "Direct Evidence Focus",
+        "start_token": 0,
+        "tokens": 561,
+        "lines": 4
+      },
+      {
+        "section": "Structured Memory",
+        "start_token": 449,
+        "tokens": 377,
+        "lines": 5
+      },
+      {
+        "section": "Other Retrieved Memory",
+        "start_token": 751,
+        "tokens": 388,
+        "lines": 7
+      },
+      {
+        "section": "Source Transcript Chunks",
+        "start_token": 1062,
+        "tokens": 3788,
+        "lines": 33
+      }
+    ],
+    "node_type_counts": {},
+    "support_occurrences": [
+      {
+        "support_id": "answer_787e6a6d",
+        "occurrences": [
+          {
+            "char_index": 2505,
+            "token_index": 584,
+            "relative_token": 0.114,
+            "snippet": "ssion=752392bb_3 documentDate=2023/05/29 (Mon) 17:02 Alternatively, if you'd like to discuss: Alternatively, if you'd like to discuss your experience at the Staples Center or the Lakers' season so far, I'm all ears!. - [preference] session=answer_787e6a6d documentDate=2023/05/26 (Fri) 22:24 Congratulations on beating that pesky boss: Congratulations on beating that pesky boss! Dark Souls 3 is an incredible game, and the DLCs are no joke. It's a great feeling when you finally overcome a tough challenge like that. - [preference] session=752392bb_3 documentDate=2023/05/29 (Mon) 17:02 That sounds like an amazing experience: That sounds like an amazing experience! I'm glad you had a blast watching the Lakers game with your coworkers. Unfortunately, I"
+          },
+          {
+            "char_index": 3295,
+            "token_index": 761,
+            "relative_token": 0.149,
+            "snippet": " large language model, I don't have have access to real-time information or specific knowledge of past events. I'm not aware of a recent Lakers game against the Chicago Bulls with a 114-112 score. Other Retrieved Memory: - [entity] session=answer_787e6a6d documentDate=2023/05/26 (Fri) 22:24 I finally beat that last boss: I finally beat that last boss in the Dark Souls 3 DLC last weekend, after weeks of trying. - [question] session=752392bb_3 documentDate=2023/05/29 (Mon) 17:02 I'm actually curious about the current standings, what are the top teams in the Western Conference right now?: I'm actually curious about the current standings, what are the top teams in the Western Conference right now? - [entity] session=752392bb_3 documentDate=2023/05/2"
+          },
+          {
+            "char_index": 4319,
+            "token_index": 1001,
+            "relative_token": 0.196,
+            "snippet": "They took on the Chicago Bulls and pulled off an incredible comeback to win 114-112. - [entity] session=ccaabf0b_1 documentDate=2023/05/26 (Fri) 16:41 Your Sunday morning soccer games: Your Sunday morning soccer games. - [question] session=answer_787e6a6d documentDate=2023/05/26 (Fri) 22:24 What's your favorite part about Dark Souls 3? The lore, the world design, or something else entirely?: What's your favorite part about Dark Souls 3? The lore, the world design, or something else entirely?  Source Transcript Chunks: Chunk [answer_787e6a6d]: documentDate: 2023/05/26 (Fri) 22:24 user: [documentDate: 2023/05/26 (Fri) 22:24] I'm thinking of building a gaming PC and I was wondering if you could help me with some recommendations for components that "
+          },
+          {
+            "char_index": 4610,
+            "token_index": 1068,
+            "relative_token": 0.209,
+            "snippet": " What's your favorite part about Dark Souls 3? The lore, the world design, or something else entirely?: What's your favorite part about Dark Souls 3? The lore, the world design, or something else entirely?  Source Transcript Chunks: Chunk [answer_787e6a6d]: documentDate: 2023/05/26 (Fri) 22:24 user: [documentDate: 2023/05/26 (Fri) 22:24] I'm thinking of building a gaming PC and I was wondering if you could help me with some recommendations for components that can handle 4K resolution and high frame rates. assistant: Building a gaming PC for 4K resolution and high frame rates requires some powerful components. I'd be happy to help you with some recommendations. **CPU:** For 4K gaming, you'll want a CPU that can handle the increased processing dem"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "dfde3500",
+    "category": "KU",
+    "question": "What day of the week did I meet with my previous language exchange tutor Juan?",
+    "gold_answer": "Wednesday",
+    "waggle_answer": "I don't know.",
+    "context_mode": "memory_plus_source_chunk",
+    "retrieved_support_ids": [
+      "answer_35d6c0be_1",
+      "answer_35d6c0be_2",
+      "sharegpt_xab6zXe_0",
+      "sharegpt_80caWYI_1",
+      "59c704ad_1"
+    ],
+    "gold_support_ids": [
+      "answer_35d6c0be_1",
+      "answer_35d6c0be_2"
+    ],
+    "context_tokens": 5396,
+    "section_counts": [
+      {
+        "section": "Direct Evidence Focus",
+        "start_token": 0,
+        "tokens": 2035,
+        "lines": 9
+      },
+      {
+        "section": "Structured Memory",
+        "start_token": 1628,
+        "tokens": 455,
+        "lines": 6
+      },
+      {
+        "section": "Other Retrieved Memory",
+        "start_token": 1992,
+        "tokens": 147,
+        "lines": 4
+      },
+      {
+        "section": "Source Transcript Chunks",
+        "start_token": 2110,
+        "tokens": 2758,
+        "lines": 31
+      }
+    ],
+    "node_type_counts": {},
+    "support_occurrences": [
+      {
+        "support_id": "answer_35d6c0be_1",
+        "occurrences": [
+          {
+            "char_index": 6108,
+            "token_index": 1391,
+            "relative_token": 0.258,
+            "snippet": "rtists. 4. Look for free or low-cost shows and festivals, like the Oakland Music Festival, to explore new music without breaking the bank. I hope you find these recommendations helpful! Enjoy exploring the Bay Area's music sc... - [session=answer_35d6c0be_1 documentDate=2023/05/20 (Sat) 09:33] user: [documentDate: 2023/05/20 (Sat) 09:33] I'm trying to plan my schedule for the week. Can you remind me what day I have my language exchange class with Juan? - [session=answer_35d6c0be_2 documentDate=2023/05/28 (Sun) 05:19] user: [documentDate: 2023/05/28 (Sun) 05:19] I'm trying to plan a trip to Colombia and was wondering if you could help me with some travel tips and phrases in Spanish? By the way, I have a language exchange session with my tutor Maria"
+          },
+          {
+            "char_index": 7054,
+            "token_index": 1637,
+            "relative_token": 0.303,
+            "snippet": " to check out. I've been really into The Neighbourhood lately - I just saw them live at the Fillmore in San Francisco last week and they killed it. Do you have any recommendations similar to their sound? Structured Memory: - [note] session=answer_35d6c0be_1 documentDate=2023/05/20 (Sat) 09:33 Personal school memory: I had a language exchange class at a local language school, where I'm paired with a Colombian tutor named Juan. - [note] session=answer_35d6c0be_1 documentDate=2023/05/20 (Sat) 09:33 I'm glad you were able to: I'm glad you were able to remember the day and time of your language exchange class with Juan! It's great that you're taking steps to improve your Spanish skills and help Juan with his English vocabulary at the same time. - [note"
+          },
+          {
+            "char_index": 7261,
+            "token_index": 1685,
+            "relative_token": 0.312,
+            "snippet": "uctured Memory: - [note] session=answer_35d6c0be_1 documentDate=2023/05/20 (Sat) 09:33 Personal school memory: I had a language exchange class at a local language school, where I'm paired with a Colombian tutor named Juan. - [note] session=answer_35d6c0be_1 documentDate=2023/05/20 (Sat) 09:33 I'm glad you were able to: I'm glad you were able to remember the day and time of your language exchange class with Juan! It's great that you're taking steps to improve your Spanish skills and help Juan with his English vocabulary at the same time. - [note] session=answer_35d6c0be_1 documentDate=2023/05/20 (Sat) 09:33 Personal emotional context: I'm happy to help you try to figure it out, but I don't have any information about your schedule or meetings with J"
+          },
+          {
+            "char_index": 7581,
+            "token_index": 1762,
+            "relative_token": 0.327,
+            "snippet": " I'm glad you were able to remember the day and time of your language exchange class with Juan! It's great that you're taking steps to improve your Spanish skills and help Juan with his English vocabulary at the same time. - [note] session=answer_35d6c0be_1 documentDate=2023/05/20 (Sat) 09:33 Personal emotional context: I'm happy to help you try to figure it out, but I don't have any information about your schedule or meetings with Juan. I'm a large language model, I don't have access to your personal calendar or memories. - [note] session=answer_35d6c0be_1 documentDate=2023/05/20 (Sat) 09:33 You might want to try checking: You might want to try checking your calendar, planner, or phone to see when you scheduled your meeting with Juan. If you're s"
+          },
+          {
+            "char_index": 7887,
+            "token_index": 1836,
+            "relative_token": 0.34,
+            "snippet": "tional context: I'm happy to help you try to figure it out, but I don't have any information about your schedule or meetings with Juan. I'm a large language model, I don't have access to your personal calendar or memories. - [note] session=answer_35d6c0be_1 documentDate=2023/05/20 (Sat) 09:33 You might want to try checking: You might want to try checking your calendar, planner, or phone to see when you scheduled your meeting with Juan. If you're still unsure, you could try reaching out to Juan directly to confirm the day and time of your meeting. - [note] session=answer_35d6c0be_1 documentDate=2023/05/20 (Sat) 09:33 Personal emotional context: I'm happy to help! However, I'm a large language model, I don't have the ability to keep track of your pe"
+          }
+        ]
+      },
+      {
+        "support_id": "answer_35d6c0be_2",
+        "occurrences": [
+          {
+            "char_index": 34,
+            "token_index": 8,
+            "relative_token": 0.001,
+            "snippet": "Direct Evidence Focus: - [session=answer_35d6c0be_2 documentDate=2023/05/28 (Sun) 05:19] assistant: ... in Colombia! It's one of the most famous and iconic museums in South America, and for good reason. **About the Museum:** The Gold Museum is located in the heart of Bogot\u00e1, in the La Candelaria neighborhood. The museum is part of the Bank of the Republic of Colombia and is dedicated to the preservation and exhibition of pre-Columbian goldwork and other archaeological treasures. **The Collection:** The museum's collection is staggering, with ove"
+          },
+          {
+            "char_index": 1418,
+            "token_index": 318,
+            "relative_token": 0.059,
+            "snippet": "ple. 3. **The Quimbaya Treasure**: A collection of golden artifacts, including masks, pendants, and other objects, discovered in the Quimbaya region. **Tips for Your Visit:** 1. **Plan ahead**: The museum can get crowded, so ... - [session=answer_35d6c0be_2 documentDate=2023/05/28 (Sun) 05:19] assistant: ...t Colombian coffee and pastries. 2. **La Macarena Caf\u00e9**: A charming caf\u00e9 with a lovely atmosphere, offering a variety of coffee, sandwiches, and salads. It's about a 5-minute walk from the museum. 3. **El Cielo**: A popular restaurant serving traditional Colombian cuisine, including dishes like ajiaco, tamales, and empanadas. It's about a 10-minute walk from the museum. 4. **La Puerta Falsa**: A historic caf\u00e9 and bakery that's been around sinc"
+          },
+          {
+            "char_index": 2279,
+            "token_index": 524,
+            "relative_token": 0.097,
+            "snippet": " These options offer a great opportunity to take a break, recharge, and refuel for the rest of your day exploring Bogot\u00e1! Remember to take your time, enjoy the museum, and soak up the history and culture of this incredible city! - [session=answer_35d6c0be_2 documentDate=2023/05/28 (Sun) 05:19] assistant: ...attraction in Bogot\u00e1, and it's conveniently located just a few blocks away from the Gold Museum. **Significance:** The Plaza de Bol\u00edvar is the main square of Bogot\u00e1 and the heart of the city's historic center. It's named after Sim\u00f3n Bol\u00edvar, the Venezuelan-born leader who played a key role in Colombia's independence from Spain. The plaza has been the site of many important events in Colombian history, including the declaration of independence i"
+          },
+          {
+            "char_index": 6336,
+            "token_index": 1454,
+            "relative_token": 0.269,
+            "snippet": " - [session=answer_35d6c0be_1 documentDate=2023/05/20 (Sat) 09:33] user: [documentDate: 2023/05/20 (Sat) 09:33] I'm trying to plan my schedule for the week. Can you remind me what day I have my language exchange class with Juan? - [session=answer_35d6c0be_2 documentDate=2023/05/28 (Sun) 05:19] user: [documentDate: 2023/05/28 (Sun) 05:19] I'm trying to plan a trip to Colombia and was wondering if you could help me with some travel tips and phrases in Spanish? By the way, I have a language exchange session with my tutor Maria this week, so I want to make sure I'm prepared. - [session=59c704ad_1 documentDate=2023/06/11 (Sun) 21:43] user: [documentDate: 2023/06/11 (Sun) 21:43] I'm looking for some new indie bands to check out. I've been really into Th"
+          },
+          {
+            "char_index": 12360,
+            "token_index": 2866,
+            "relative_token": 0.531,
+            "snippet": "uesday or not. I don't have any information about your schedule or meetings with Juan. If you're still unsure, you could try checking your calendar or planner again, or reach out to Juan to confirm the day and time of your meeting.  Chunk [answer_35d6c0be_2]: documentDate: 2023/05/28 (Sun) 05:19 user: [documentDate: 2023/05/28 (Sun) 05:19] I'm trying to plan a trip to Colombia and was wondering if you could help me with some travel tips and phrases in Spanish? By the way, I have a language exchange session with my tutor Maria this week, so I want to make sure I'm prepared. assistant: Colombia! What a wonderful destination! I'd be delighted to help you with travel tips and some essential Spanish phrases to get you started. **Travel Tips:** 1. **Saf"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "case_id": "f523d9fe",
+    "category": "SSA",
+    "question": "I wanted to check back on our previous conversation about Netflix. I mentioned that I wanted to be able to access all seasons of old shows? Do you remember what show I used as an example, the one that only had the last season available?",
+    "gold_answer": "Doc Martin",
+    "waggle_answer": "I don't know.",
+    "context_mode": "memory_plus_source_chunk",
+    "retrieved_support_ids": [
+      "answer_sharegpt_m2xJfjo_0",
+      "44165708",
+      "fbfda981"
+    ],
+    "gold_support_ids": [
+      "answer_sharegpt_m2xJfjo_0"
+    ],
+    "context_tokens": 4847,
+    "section_counts": [
+      {
+        "section": "Direct Evidence Focus",
+        "start_token": 0,
+        "tokens": 908,
+        "lines": 6
+      },
+      {
+        "section": "Structured Memory",
+        "start_token": 727,
+        "tokens": 158,
+        "lines": 3
+      },
+      {
+        "section": "Other Retrieved Memory",
+        "start_token": 854,
+        "tokens": 258,
+        "lines": 5
+      },
+      {
+        "section": "Source Transcript Chunks",
+        "start_token": 1061,
+        "tokens": 3521,
+        "lines": 33
+      }
+    ],
+    "node_type_counts": {},
+    "support_occurrences": [
+      {
+        "support_id": "answer_sharegpt_m2xJfjo_0",
+        "occurrences": [
+          {
+            "char_index": 1659,
+            "token_index": 384,
+            "relative_token": 0.079,
+            "snippet": "ntense. The book has a total of 512 pages, but the chapters are relatively long, which can make it feel like a more immersive read. I'd estimate that an average reader will take around 10-14 days to finish the book, depending... - [session=answer_sharegpt_m2xJfjo_0 documentDate=2023/05/26 (Fri) 18:07] user: [documentDate: 2023/05/26 (Fri) 18:07] Act as an interviewer. You ask questions and I answer. Don\u2019t write \u201cSure, I can do that\u201d. Address with personal pronouns. Your task is to find out what people think of Netflix. Start with \u201cthank you very much for agreeing to chat with me\u201d and then start the first question with \u201clet's start by asking. If you were to recommend Netflix to a friend, what would you tell them?why should they watch it?\u201d. Ask one question"
+          },
+          {
+            "char_index": 3070,
+            "token_index": 736,
+            "relative_token": 0.152,
+            "snippet": " have any suggestions for something similar? By the way, I've been getting through books really quickly lately - I think I've read 7 books in the past 2 months, which is way more than usual for me! Structured Memory: - [preference] session=answer_sharegpt_m2xJfjo_0 documentDate=2023/05/26 (Fri) 18:07 I want to be able to: I want to be able to have access to all seasons for old shows. - [preference] session=answer_sharegpt_m2xJfjo_0 documentDate=2023/05/26 (Fri) 18:07 say \u201cthank you, now for the: say \u201cthank you, now for the next question: Do you think that the variety of genres and types of shows and movies on Netflix is sufficient, or would you like to see more diversity in their content offerings?\u201d Ask this question and wait for a response. Other Retriev"
+          },
+          {
+            "char_index": 3240,
+            "token_index": 778,
+            "relative_token": 0.161,
+            "snippet": "way more than usual for me! Structured Memory: - [preference] session=answer_sharegpt_m2xJfjo_0 documentDate=2023/05/26 (Fri) 18:07 I want to be able to: I want to be able to have access to all seasons for old shows. - [preference] session=answer_sharegpt_m2xJfjo_0 documentDate=2023/05/26 (Fri) 18:07 say \u201cthank you, now for the: say \u201cthank you, now for the next question: Do you think that the variety of genres and types of shows and movies on Netflix is sufficient, or would you like to see more diversity in their content offerings?\u201d Ask this question and wait for a response. Other Retrieved Memory: - [question] session=answer_sharegpt_m2xJfjo_0 documentDate=2023/05/26 (Fri) 18:07 Now for the next question: Do you think that the variety of genres and types"
+          },
+          {
+            "char_index": 3627,
+            "token_index": 864,
+            "relative_token": 0.178,
+            "snippet": "that the variety of genres and types of shows and movies on Netflix is sufficient, or would you like to see more diversity in their content offerings?\u201d Ask this question and wait for a response. Other Retrieved Memory: - [question] session=answer_sharegpt_m2xJfjo_0 documentDate=2023/05/26 (Fri) 18:07 Now for the next question: Do you think that the variety of genres and types of shows and movies on Netflix is sufficient, or would you like to see more diversity in their content offerings?: Now for the next question: Do you think that the variety of genres and types of shows and movies on Netflix is sufficient, or would you like to see more diversity in their content offerings? - [question] session=answer_sharegpt_m2xJfjo_0 documentDate=2023/05/26 (Fri) 18:"
+          },
+          {
+            "char_index": 4093,
+            "token_index": 961,
+            "relative_token": 0.198,
+            "snippet": "n their content offerings?: Now for the next question: Do you think that the variety of genres and types of shows and movies on Netflix is sufficient, or would you like to see more diversity in their content offerings? - [question] session=answer_sharegpt_m2xJfjo_0 documentDate=2023/05/26 (Fri) 18:07 Another question for you, have you tried any of the original content produced by Netflix?: Another question for you, have you tried any of the original content produced by Netflix? - [question] session=answer_sharegpt_m2xJfjo_0 documentDate=2023/05/26 (Fri) 18:07 How do you usually discover new shows or movies to watch on the platform?: How do you usually discover new shows or movies to watch on the platform?  Source Transcript Chunks: Chunk [answer_sharegpt_"
+          }
+        ]
+      }
+    ]
+  }
+]

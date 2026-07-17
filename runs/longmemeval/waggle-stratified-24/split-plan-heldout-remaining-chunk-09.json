@@ -1,0 +1,31 @@
+{
+  "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+  "source_split_plan": "runs/longmemeval/waggle-stratified-24/split-plan.json",
+  "resume_after": "runs/longmemeval/waggle-stratified-24/heldout-e2e-freeze-e2e75864.jsonl",
+  "chunk_index": 9,
+  "chunk_size": 5,
+  "splits": {
+    "heldout": [
+      {
+        "case_id": "95228167",
+        "category": "SSP"
+      },
+      {
+        "case_id": "9a707b82",
+        "category": "TR"
+      },
+      {
+        "case_id": "9d25d4e0",
+        "category": "MS"
+      },
+      {
+        "case_id": "9ea5eabc",
+        "category": "KU"
+      },
+      {
+        "case_id": "a06e4cfe",
+        "category": "SSU"
+      }
+    ]
+  }
+}

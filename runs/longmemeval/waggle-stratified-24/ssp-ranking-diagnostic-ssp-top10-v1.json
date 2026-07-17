@@ -1,0 +1,3358 @@
+{
+  "dataset": "benchmarks/longmemeval/longmemeval_s_cleaned.json",
+  "embedding_model": "all-MiniLM-L6-v2",
+  "top_k": 10,
+  "strategies": [
+    "graph_baseline",
+    "raw_similarity",
+    "oracle_type_prior",
+    "oracle_reformulated",
+    "oracle_reformulated_type_prior",
+    "classifier_reformulated_type_prior"
+  ],
+  "cases": [
+    {
+      "case_id": "06f04340",
+      "category": "single-session-preference",
+      "question": "What should I serve for dinner this weekend with my homegrown ingredients?",
+      "gold_support_ids": [
+        "answer_92d5f7cd"
+      ],
+      "haystack_sessions": 55,
+      "node_count": 1716,
+      "oracle_personalization": true,
+      "classifier_personalization": true,
+      "gold_like_node_count": 18,
+      "gold_like_nodes": [
+        {
+          "id": "b2d3a6cf-c997-495f-89de-a15a9acb821a",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "question",
+          "label": "I'm trying to find some new recipe ideas that use fresh basil and mint. Can you suggest any?",
+          "content": "I'm trying to find some new recipe ideas that use fresh basil and mint. Can you suggest any?"
+        },
+        {
+          "id": "d5fab1de-0a32-4cc3-b860-5c673a09cecd",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "question",
+          "label": "What a refreshing combination! Fresh basil and mint can add a bright, herbaceous flavor to many dishes. Here are some recipe ideas that feature these two herbs ",
+          "content": "What a refreshing combination! Fresh basil and mint can add a bright, herbaceous flavor to many dishes. Here are some recipe ideas that feature these two herbs as main attractions:"
+        },
+        {
+          "id": "6a4d7e5a-6ee7-49da-aa0f-f65a4a05dc03",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "entity",
+          "label": "**Pesto Pasta**",
+          "content": "**Pesto Pasta**: Blend basil with garlic, pine nuts, Parmesan, and olive oil to create a vibrant pesto sauce. Toss with linguine, cherry tomatoes, and grilled chicken."
+        },
+        {
+          "id": "5098361e-8f43-4cb7-aa42-e9ec2998b07b",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "entity",
+          "label": "**Minty Fresh Salad**",
+          "content": "**Minty Fresh Salad**: Combine mint leaves with feta cheese, cucumbers, cherry tomatoes, and a drizzle of lemon juice and olive oil."
+        },
+        {
+          "id": "ec56ffad-0429-40ca-ae30-c7d4a86bb246",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "entity",
+          "label": "*Recipes that Combine Basil and Mint**",
+          "content": "*Recipes that Combine Basil and Mint**."
+        },
+        {
+          "id": "c82fba7c-725b-4a1a-93a7-6ce72037b0b4",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "entity",
+          "label": "**Herby Lemonade**",
+          "content": "**Herby Lemonade**: Infuse lemonade with fresh basil and mint leaves for a refreshing summer drink."
+        },
+        {
+          "id": "30511d8f-74a1-4305-be51-e8f660b55aff",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "entity",
+          "label": "**Middle Eastern-Style Salad**",
+          "content": "**Middle Eastern-Style Salad**: Combine chopped basil and mint with bulgur, cherry tomatoes, cucumbers, feta cheese, and a lemon-tahini dressing."
+        },
+        {
+          "id": "cc78213b-cf05-498c-b1e6-3f96a83eded9",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "entity",
+          "label": "**Basil and Mint Infused Water**",
+          "content": "**Basil and Mint Infused Water**: Add fresh basil and mint leaves to a pitcher of water for a refreshing and healthy infused drink."
+        },
+        {
+          "id": "f3cca3e0-a7b2-46d4-9d7d-1954aea3fd02",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "question",
+          "label": "What are some good companion plants for tomatoes?",
+          "content": "What are some good companion plants for tomatoes?"
+        },
+        {
+          "id": "970a2f9c-62b0-4043-9353-6889731f6223",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "preference",
+          "label": "Some plants to avoid planting near",
+          "content": "Some plants to avoid planting near tomatoes include:."
+        },
+        {
+          "id": "96029d92-e33c-480b-8d82-4f22659fbc22",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "question",
+          "label": "Do you have any suggestions for companion plants that could help my cherry tomatoes grow better?",
+          "content": "Do you have any suggestions for companion plants that could help my cherry tomatoes grow better?"
+        },
+        {
+          "id": "23dc9d05-5f17-40c5-9017-9bc3459dab21",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "question",
+          "label": "What a great combination! Basil, mint, and cherry tomatoes are a match made in heaven! Now, let's talk about companion plants that can help your cherry tomatoes",
+          "content": "What a great combination! Basil, mint, and cherry tomatoes are a match made in heaven! Now, let's talk about companion plants that can help your cherry tomatoes thrive. Here are some suggestions:"
+        },
+        {
+          "id": "ed5cdf47-9280-4918-886b-affd957ba200",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "question",
+          "label": "When planting companion plants with cherry tomatoes, keep the following tips in mind:",
+          "content": "When planting companion plants with cherry tomatoes, keep the following tips in mind:"
+        },
+        {
+          "id": "2fa42461-4f87-450e-a9eb-3e929af695e6",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "question",
+          "label": "What are some tips for using neem oil to get rid of aphids?",
+          "content": "What are some tips for using neem oil to get rid of aphids?"
+        },
+        {
+          "id": "9814401a-ef9e-4741-911e-1b214d6523fa",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "preference",
+          "label": "**Oregano**",
+          "content": "**Oregano**: Oregano is a natural fungicide that can help prevent diseases like early blight and septoria leaf spot in tomatoes."
+        },
+        {
+          "id": "faaf5906-adc3-4ee7-a3f9-5ad77461a06f",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "question",
+          "label": "Do you have any other suggestions for getting rid of aphids?",
+          "content": "Do you have any other suggestions for getting rid of aphids?"
+        },
+        {
+          "id": "6caa82b3-b82c-4f4d-b4bc-40666b741e2d",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "preference",
+          "label": "I've been thinking about introducing some",
+          "content": "I've been thinking about introducing some beneficial insects to my garden, like ladybugs or lacewings, to help control the aphid population."
+        },
+        {
+          "id": "1204c640-a9a1-4c58-a056-45feb25ddbb7",
+          "session_id": "answer_92d5f7cd",
+          "node_type": "decision",
+          "label": "**Choose the right species**",
+          "content": "**Choose the right species**: Select ladybug or lacewing species that are specific to your region and the type of pest you're trying to control."
+        }
+      ],
+      "strategies": {
+        "graph_baseline": {
+          "gold_like_hit_at_k": false,
+          "gold_session_hit_at_k": false,
+          "top": [
+            {
+              "id": "f8b54fd4-6586-4b9e-8b3b-4d9cb1da9d4e",
+              "session_id": "91223fd5_1",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "I'm trying to plan a family dinner for my mom's 60th birthday, which is coming up soon. Can you suggest some healthy meal ideas that would be suitable for a big",
+              "content": "I'm trying to plan a family dinner for my mom's 60th birthday, which is coming up soon. Can you suggest some healthy meal ideas that would be suitable for a big family gathering?"
+            },
+            {
+              "id": "3462c52c-88d1-49a3-9f1f-17b5b019dd6f",
+              "session_id": "6e6fbb6b",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "Can you recommend any specific recipes or ingredients that would complement these flavors?",
+              "content": "Can you recommend any specific recipes or ingredients that would complement these flavors?"
+            },
+            {
+              "id": "b32f73b7-e46c-4464-9ed2-33555a088d93",
+              "session_id": "6e6fbb6b",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "Do you have any recommendations for ingredients or flavor combinations that might work well in an Old Fashioned?",
+              "content": "Do you have any recommendations for ingredients or flavor combinations that might work well in an Old Fashioned?"
+            },
+            {
+              "id": "43833b4b-b324-4836-84b7-bc993a1ec76d",
+              "session_id": "6e6fbb6b",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "What an intriguing idea! Middle Eastern and Indian flavors can add a fascinating twist to the classic Old Fashioned. Here are some ingredients and flavor combin",
+              "content": "What an intriguing idea! Middle Eastern and Indian flavors can add a fascinating twist to the classic Old Fashioned. Here are some ingredients and flavor combinations that might work well:"
+            },
+            {
+              "id": "ce13d991-dc2d-4f53-ad6a-ef6a6dac9d52",
+              "session_id": "6e6fbb6b",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "Can you suggest some recipes or ingredients that would help me achieve a smoky flavor in my Old Fashioned?",
+              "content": "Can you suggest some recipes or ingredients that would help me achieve a smoky flavor in my Old Fashioned?"
+            },
+            {
+              "id": "76629499-aae0-429f-8a95-58798eaa81d9",
+              "session_id": "91223fd5_1",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "What a wonderful occasion! Planning a healthy and delicious meal for your mom's 60th birthday celebration is a great way to make the event even more special. He",
+              "content": "What a wonderful occasion! Planning a healthy and delicious meal for your mom's 60th birthday celebration is a great way to make the event even more special. Here are some healthy meal ideas that are perfect for a big family gathering:"
+            },
+            {
+              "id": "c8583566-f1d0-4d4c-8d4b-fe6489561f45",
+              "session_id": "8b156015_2",
+              "node_type": "entity",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "**Grilled Chicken and Berry Salad**",
+              "content": "**Grilled Chicken and Berry Salad**: Top mixed greens with sliced grilled chicken, fresh berries (strawberries, blueberries, or raspberries), crumbled feta cheese, and a balsamic vinaigrette dressing."
+            },
+            {
+              "id": "f0ebde4a-24d2-426b-a28e-f4033356a4e1",
+              "session_id": "6e6fbb6b",
+              "node_type": "entity",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "I'm thinking of experimenting with some",
+              "content": "I'm thinking of experimenting with some new ingredients and flavor combinations in my next Old Fashioned."
+            },
+            {
+              "id": "4e91510f-ee62-4d5c-bb57-4f7f43046d57",
+              "session_id": "6e6fbb6b",
+              "node_type": "preference",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "**Tropical and Exotic Flavors**",
+              "content": "**Tropical and Exotic Flavors**: With the rise of global travel and cultural exchange, tropical and exotic flavors are becoming increasingly popular. Experiment with ingredients like yuzu, passionfruit, and guanabana to create unique and refreshing cocktails."
+            },
+            {
+              "id": "6646c8e1-8836-40ae-9df5-3f9b96455703",
+              "session_id": "6e6fbb6b",
+              "node_type": "preference",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "**Fermented Ingredients**",
+              "content": "**Fermented Ingredients**: Fermentation is a hot trend in mixology, with ingredients like kombucha, kefir, and shrubs being used to add depth and complexity to drinks. Try incorporating fermented ingredients into your cocktails for a unique twist."
+            }
+          ]
+        },
+        "raw_similarity": {
+          "gold_like_hit_at_k": false,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "f8b54fd4-6586-4b9e-8b3b-4d9cb1da9d4e",
+              "session_id": "91223fd5_1",
+              "node_type": "question",
+              "score": 0.533933,
+              "similarity": 0.677047,
+              "lexical": 0.2,
+              "type_prior": 0.0,
+              "label": "I'm trying to plan a family dinner for my mom's 60th birthday, which is coming up soon. Can you suggest some healthy meal ideas that would be suitable for a big",
+              "content": "I'm trying to plan a family dinner for my mom's 60th birthday, which is coming up soon. Can you suggest some healthy meal ideas that would be suitable for a big family gathering?"
+            },
+            {
+              "id": "b32f73b7-e46c-4464-9ed2-33555a088d93",
+              "session_id": "6e6fbb6b",
+              "node_type": "question",
+              "score": 0.449325,
+              "similarity": 0.556179,
+              "lexical": 0.2,
+              "type_prior": 0.0,
+              "label": "Do you have any recommendations for ingredients or flavor combinations that might work well in an Old Fashioned?",
+              "content": "Do you have any recommendations for ingredients or flavor combinations that might work well in an Old Fashioned?"
+            },
+            {
+              "id": "c8583566-f1d0-4d4c-8d4b-fe6489561f45",
+              "session_id": "8b156015_2",
+              "node_type": "entity",
+              "score": 0.444722,
+              "similarity": 0.59246,
+              "lexical": 0.1,
+              "type_prior": 0.0,
+              "label": "**Grilled Chicken and Berry Salad**",
+              "content": "**Grilled Chicken and Berry Salad**: Top mixed greens with sliced grilled chicken, fresh berries (strawberries, blueberries, or raspberries), crumbled feta cheese, and a balsamic vinaigrette dressing."
+            },
+            {
+              "id": "f0ebde4a-24d2-426b-a28e-f4033356a4e1",
+              "session_id": "6e6fbb6b",
+              "node_type": "entity",
+              "score": 0.426683,
+              "similarity": 0.523833,
+              "lexical": 0.2,
+              "type_prior": 0.0,
+              "label": "I'm thinking of experimenting with some",
+              "content": "I'm thinking of experimenting with some new ingredients and flavor combinations in my next Old Fashioned."
+            },
+            {
+              "id": "3462c52c-88d1-49a3-9f1f-17b5b019dd6f",
+              "session_id": "6e6fbb6b",
+              "node_type": "question",
+              "score": 0.42273,
+              "similarity": 0.561043,
+              "lexical": 0.1,
+              "type_prior": 0.0,
+              "label": "Can you recommend any specific recipes or ingredients that would complement these flavors?",
+              "content": "Can you recommend any specific recipes or ingredients that would complement these flavors?"
+            },
+            {
+              "id": "c8372211-61ff-4d51-9171-aee15c81c651",
+              "session_id": "answer_92d5f7cd",
+              "node_type": "entity",
+              "score": 0.417329,
+              "similarity": 0.467613,
+              "lexical": 0.3,
+              "type_prior": 0.0,
+              "label": "**Minty Yogurt Sauce**",
+              "content": "**Minty Yogurt Sauce**: Mix mint leaves with yogurt, cucumber, garlic, and dill for a refreshing sauce to serve with grilled meats or as a dip."
+            },
+            {
+              "id": "4326f4a9-c474-4bd3-a196-e649b4aeb83a",
+              "session_id": "728deb4d_4",
+              "node_type": "question",
+              "score": 0.413796,
+              "similarity": 0.529913,
+              "lexical": 0.142857,
+              "type_prior": 0.0,
+              "label": "Do you have any recipes or tips for those?",
+              "content": "Do you have any recipes or tips for those?"
+            },
+            {
+              "id": "1de3c958-91d9-40bb-a24f-8572356a748b",
+              "session_id": "91223fd5_1",
+              "node_type": "preference",
+              "score": 0.410251,
+              "similarity": 0.500358,
+              "lexical": 0.2,
+              "type_prior": 0.0,
+              "label": "**Veggie-Packed Pasta Primavera**",
+              "content": "**Veggie-Packed Pasta Primavera**: Cook whole-grain pasta and toss it with saut\u00e9ed vegetables like cherry tomatoes, bell peppers, onions, and mushrooms. Add some lean protein like grilled chicken or turkey sausage for added flavor."
+            },
+            {
+              "id": "10c9ab58-6085-45d0-945f-1907e410c615",
+              "session_id": "ultrachat_484359",
+              "node_type": "preference",
+              "score": 0.409903,
+              "similarity": 0.585576,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "Roast garlic and onions and top",
+              "content": "Roast garlic and onions and top them on a sandwich or in your favorite pasta sauce."
+            },
+            {
+              "id": "58e746ae-39a7-4043-a38d-652ffa9c4790",
+              "session_id": "6e6fbb6b",
+              "node_type": "entity",
+              "score": 0.405398,
+              "similarity": 0.493426,
+              "lexical": 0.2,
+              "type_prior": 0.0,
+              "label": "I've been playing around with different",
+              "content": "I've been playing around with different flavor profiles and ingredients in my Old Fashioned."
+            }
+          ]
+        },
+        "oracle_type_prior": {
+          "gold_like_hit_at_k": false,
+          "gold_session_hit_at_k": false,
+          "top": [
+            {
+              "id": "f8b54fd4-6586-4b9e-8b3b-4d9cb1da9d4e",
+              "session_id": "91223fd5_1",
+              "node_type": "question",
+              "score": 0.583933,
+              "similarity": 0.677047,
+              "lexical": 0.2,
+              "type_prior": 0.05,
+              "label": "I'm trying to plan a family dinner for my mom's 60th birthday, which is coming up soon. Can you suggest some healthy meal ideas that would be suitable for a big",
+              "content": "I'm trying to plan a family dinner for my mom's 60th birthday, which is coming up soon. Can you suggest some healthy meal ideas that would be suitable for a big family gathering?"
+            },
+            {
+              "id": "b32f73b7-e46c-4464-9ed2-33555a088d93",
+              "session_id": "6e6fbb6b",
+              "node_type": "question",
+              "score": 0.499325,
+              "similarity": 0.556179,
+              "lexical": 0.2,
+              "type_prior": 0.05,
+              "label": "Do you have any recommendations for ingredients or flavor combinations that might work well in an Old Fashioned?",
+              "content": "Do you have any recommendations for ingredients or flavor combinations that might work well in an Old Fashioned?"
+            },
+            {
+              "id": "1de3c958-91d9-40bb-a24f-8572356a748b",
+              "session_id": "91223fd5_1",
+              "node_type": "preference",
+              "score": 0.490251,
+              "similarity": 0.500358,
+              "lexical": 0.2,
+              "type_prior": 0.08,
+              "label": "**Veggie-Packed Pasta Primavera**",
+              "content": "**Veggie-Packed Pasta Primavera**: Cook whole-grain pasta and toss it with saut\u00e9ed vegetables like cherry tomatoes, bell peppers, onions, and mushrooms. Add some lean protein like grilled chicken or turkey sausage for added flavor."
+            },
+            {
+              "id": "10c9ab58-6085-45d0-945f-1907e410c615",
+              "session_id": "ultrachat_484359",
+              "node_type": "preference",
+              "score": 0.489903,
+              "similarity": 0.585576,
+              "lexical": 0.0,
+              "type_prior": 0.08,
+              "label": "Roast garlic and onions and top",
+              "content": "Roast garlic and onions and top them on a sandwich or in your favorite pasta sauce."
+            },
+            {
+              "id": "81ea9d09-bf4b-413c-a054-c0679d791382",
+              "session_id": "91223fd5_1",
+              "node_type": "preference",
+              "score": 0.478902,
+              "similarity": 0.527003,
+              "lexical": 0.1,
+              "type_prior": 0.08,
+              "label": "**Quinoa or Brown Rice Bowl Bar**",
+              "content": "**Quinoa or Brown Rice Bowl Bar**: Set up a bowl bar with quinoa or brown rice as the base, and offer a variety of toppings like grilled chicken, roasted vegetables, black beans, diced tomatoes, avocado, and a drizzle of a homemade vinaigrette."
+            },
+            {
+              "id": "3462c52c-88d1-49a3-9f1f-17b5b019dd6f",
+              "session_id": "6e6fbb6b",
+              "node_type": "question",
+              "score": 0.47273,
+              "similarity": 0.561043,
+              "lexical": 0.1,
+              "type_prior": 0.05,
+              "label": "Can you recommend any specific recipes or ingredients that would complement these flavors?",
+              "content": "Can you recommend any specific recipes or ingredients that would complement these flavors?"
+            },
+            {
+              "id": "4326f4a9-c474-4bd3-a196-e649b4aeb83a",
+              "session_id": "728deb4d_4",
+              "node_type": "question",
+              "score": 0.463796,
+              "similarity": 0.529913,
+              "lexical": 0.142857,
+              "type_prior": 0.05,
+              "label": "Do you have any recipes or tips for those?",
+              "content": "Do you have any recipes or tips for those?"
+            },
+            {
+              "id": "2b452485-e5e4-497a-bb9c-12495d48b9cd",
+              "session_id": "91223fd5_1",
+              "node_type": "preference",
+              "score": 0.458397,
+              "similarity": 0.454852,
+              "lexical": 0.2,
+              "type_prior": 0.08,
+              "label": "**Grilled Chicken or Fish with Roasted",
+              "content": "**Grilled Chicken or Fish with Roasted Vegetables**: Marinate chicken breasts or fish fillets in a mixture of olive oil, lemon juice, and herbs, and grill them to perfection. Serve with a variety of roasted vegetables like asparagus, Brussels sprouts, bell pep"
+            },
+            {
+              "id": "861f0c53-3f5f-4313-8eb2-dea8c62f2eb1",
+              "session_id": "6e6fbb6b",
+              "node_type": "preference",
+              "score": 0.447311,
+              "similarity": 0.439016,
+              "lexical": 0.2,
+              "type_prior": 0.08,
+              "label": "**Balance sweet and savory**",
+              "content": "**Balance sweet and savory**: Balance sweet ingredients like pomegranate or rosewater with savory ingredients like sumac or garam masala."
+            },
+            {
+              "id": "c8583566-f1d0-4d4c-8d4b-fe6489561f45",
+              "session_id": "8b156015_2",
+              "node_type": "entity",
+              "score": 0.444722,
+              "similarity": 0.59246,
+              "lexical": 0.1,
+              "type_prior": 0.0,
+              "label": "**Grilled Chicken and Berry Salad**",
+              "content": "**Grilled Chicken and Berry Salad**: Top mixed greens with sliced grilled chicken, fresh berries (strawberries, blueberries, or raspberries), crumbled feta cheese, and a balsamic vinaigrette dressing."
+            }
+          ]
+        },
+        "oracle_reformulated": {
+          "gold_like_hit_at_k": false,
+          "gold_session_hit_at_k": false,
+          "top": [
+            {
+              "id": "f8b54fd4-6586-4b9e-8b3b-4d9cb1da9d4e",
+              "session_id": "91223fd5_1",
+              "node_type": "question",
+              "score": 0.4377,
+              "similarity": 0.569385,
+              "lexical": 0.130435,
+              "type_prior": 0.0,
+              "label": "I'm trying to plan a family dinner for my mom's 60th birthday, which is coming up soon. Can you suggest some healthy meal ideas that would be suitable for a big",
+              "content": "I'm trying to plan a family dinner for my mom's 60th birthday, which is coming up soon. Can you suggest some healthy meal ideas that would be suitable for a big family gathering?"
+            },
+            {
+              "id": "58e746ae-39a7-4043-a38d-652ffa9c4790",
+              "session_id": "6e6fbb6b",
+              "node_type": "entity",
+              "score": 0.387367,
+              "similarity": 0.475459,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "I've been playing around with different",
+              "content": "I've been playing around with different flavor profiles and ingredients in my Old Fashioned."
+            },
+            {
+              "id": "5f2307c6-103e-4254-8a1d-647bb9f293dd",
+              "session_id": "ultrachat_484359",
+              "node_type": "question",
+              "score": 0.366566,
+              "similarity": 0.484705,
+              "lexical": 0.090909,
+              "type_prior": 0.0,
+              "label": "Do you have any recommendations for incorporating prebiotic-rich foods into my meals?",
+              "content": "Do you have any recommendations for incorporating prebiotic-rich foods into my meals?"
+            },
+            {
+              "id": "f0ebde4a-24d2-426b-a28e-f4033356a4e1",
+              "session_id": "6e6fbb6b",
+              "node_type": "entity",
+              "score": 0.355498,
+              "similarity": 0.436426,
+              "lexical": 0.166667,
+              "type_prior": 0.0,
+              "label": "I'm thinking of experimenting with some",
+              "content": "I'm thinking of experimenting with some new ingredients and flavor combinations in my next Old Fashioned."
+            },
+            {
+              "id": "02169502-fed4-4d12-8381-413e781f67ad",
+              "session_id": "6e6fbb6b",
+              "node_type": "entity",
+              "score": 0.343628,
+              "similarity": 0.276612,
+              "lexical": 0.5,
+              "type_prior": 0.0,
+              "label": "*Other Ingredients to Experiment With",
+              "content": "*Other Ingredients to Experiment With:**."
+            },
+            {
+              "id": "65d2a1a5-b913-4e35-96e1-7b4f3e7a8fe3",
+              "session_id": "fea299b4",
+              "node_type": "question",
+              "score": 0.34346,
+              "similarity": 0.490658,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "Do you offer nutritional guidance or meal planning support?",
+              "content": "Do you offer nutritional guidance or meal planning support?"
+            },
+            {
+              "id": "c8583566-f1d0-4d4c-8d4b-fe6489561f45",
+              "session_id": "8b156015_2",
+              "node_type": "entity",
+              "score": 0.336699,
+              "similarity": 0.46059,
+              "lexical": 0.047619,
+              "type_prior": 0.0,
+              "label": "**Grilled Chicken and Berry Salad**",
+              "content": "**Grilled Chicken and Berry Salad**: Top mixed greens with sliced grilled chicken, fresh berries (strawberries, blueberries, or raspberries), crumbled feta cheese, and a balsamic vinaigrette dressing."
+            },
+            {
+              "id": "a9480427-061d-4c2c-bf7d-95d512f9f883",
+              "session_id": "6e6fbb6b",
+              "node_type": "entity",
+              "score": 0.331431,
+              "similarity": 0.259187,
+              "lexical": 0.5,
+              "type_prior": 0.0,
+              "label": "*Smoky Ingredients",
+              "content": "*Smoky Ingredients:**."
+            },
+            {
+              "id": "b32f73b7-e46c-4464-9ed2-33555a088d93",
+              "session_id": "6e6fbb6b",
+              "node_type": "question",
+              "score": 0.330161,
+              "similarity": 0.410434,
+              "lexical": 0.142857,
+              "type_prior": 0.0,
+              "label": "Do you have any recommendations for ingredients or flavor combinations that might work well in an Old Fashioned?",
+              "content": "Do you have any recommendations for ingredients or flavor combinations that might work well in an Old Fashioned?"
+            },
+            {
+              "id": "f90699f8-1c6d-4eca-8d61-b24721d29e91",
+              "session_id": "6e6fbb6b",
+              "node_type": "preference",
+              "score": 0.321701,
+              "similarity": 0.411954,
+              "lexical": 0.111111,
+              "type_prior": 0.0,
+              "label": "I've been experimenting with some unique",
+              "content": "I've been experimenting with some unique flavor profiles lately, like the Spicy Mango Margarita I served at a BBQ party last weekend."
+            }
+          ]
+        },
+        "oracle_reformulated_type_prior": {
+          "gold_like_hit_at_k": false,
+          "gold_session_hit_at_k": false,
+          "top": [
+            {
+              "id": "f8b54fd4-6586-4b9e-8b3b-4d9cb1da9d4e",
+              "session_id": "91223fd5_1",
+              "node_type": "question",
+              "score": 0.4877,
+              "similarity": 0.569385,
+              "lexical": 0.130435,
+              "type_prior": 0.05,
+              "label": "I'm trying to plan a family dinner for my mom's 60th birthday, which is coming up soon. Can you suggest some healthy meal ideas that would be suitable for a big",
+              "content": "I'm trying to plan a family dinner for my mom's 60th birthday, which is coming up soon. Can you suggest some healthy meal ideas that would be suitable for a big family gathering?"
+            },
+            {
+              "id": "5f2307c6-103e-4254-8a1d-647bb9f293dd",
+              "session_id": "ultrachat_484359",
+              "node_type": "question",
+              "score": 0.416566,
+              "similarity": 0.484705,
+              "lexical": 0.090909,
+              "type_prior": 0.05,
+              "label": "Do you have any recommendations for incorporating prebiotic-rich foods into my meals?",
+              "content": "Do you have any recommendations for incorporating prebiotic-rich foods into my meals?"
+            },
+            {
+              "id": "f90699f8-1c6d-4eca-8d61-b24721d29e91",
+              "session_id": "6e6fbb6b",
+              "node_type": "preference",
+              "score": 0.401701,
+              "similarity": 0.411954,
+              "lexical": 0.111111,
+              "type_prior": 0.08,
+              "label": "I've been experimenting with some unique",
+              "content": "I've been experimenting with some unique flavor profiles lately, like the Spicy Mango Margarita I served at a BBQ party last weekend."
+            },
+            {
+              "id": "1de3c958-91d9-40bb-a24f-8572356a748b",
+              "session_id": "91223fd5_1",
+              "node_type": "preference",
+              "score": 0.398051,
+              "similarity": 0.417092,
+              "lexical": 0.086957,
+              "type_prior": 0.08,
+              "label": "**Veggie-Packed Pasta Primavera**",
+              "content": "**Veggie-Packed Pasta Primavera**: Cook whole-grain pasta and toss it with saut\u00e9ed vegetables like cherry tomatoes, bell peppers, onions, and mushrooms. Add some lean protein like grilled chicken or turkey sausage for added flavor."
+            },
+            {
+              "id": "81ea9d09-bf4b-413c-a054-c0679d791382",
+              "session_id": "91223fd5_1",
+              "node_type": "preference",
+              "score": 0.397401,
+              "similarity": 0.434796,
+              "lexical": 0.043478,
+              "type_prior": 0.08,
+              "label": "**Quinoa or Brown Rice Bowl Bar**",
+              "content": "**Quinoa or Brown Rice Bowl Bar**: Set up a bowl bar with quinoa or brown rice as the base, and offer a variety of toppings like grilled chicken, roasted vegetables, black beans, diced tomatoes, avocado, and a drizzle of a homemade vinaigrette."
+            },
+            {
+              "id": "861f0c53-3f5f-4313-8eb2-dea8c62f2eb1",
+              "session_id": "6e6fbb6b",
+              "node_type": "preference",
+              "score": 0.396866,
+              "similarity": 0.381237,
+              "lexical": 0.166667,
+              "type_prior": 0.08,
+              "label": "**Balance sweet and savory**",
+              "content": "**Balance sweet and savory**: Balance sweet ingredients like pomegranate or rosewater with savory ingredients like sumac or garam masala."
+            },
+            {
+              "id": "65d2a1a5-b913-4e35-96e1-7b4f3e7a8fe3",
+              "session_id": "fea299b4",
+              "node_type": "question",
+              "score": 0.39346,
+              "similarity": 0.490658,
+              "lexical": 0.0,
+              "type_prior": 0.05,
+              "label": "Do you offer nutritional guidance or meal planning support?",
+              "content": "Do you offer nutritional guidance or meal planning support?"
+            },
+            {
+              "id": "10c9ab58-6085-45d0-945f-1907e410c615",
+              "session_id": "ultrachat_484359",
+              "node_type": "preference",
+              "score": 0.387832,
+              "similarity": 0.43976,
+              "lexical": 0.0,
+              "type_prior": 0.08,
+              "label": "Roast garlic and onions and top",
+              "content": "Roast garlic and onions and top them on a sandwich or in your favorite pasta sauce."
+            },
+            {
+              "id": "58e746ae-39a7-4043-a38d-652ffa9c4790",
+              "session_id": "6e6fbb6b",
+              "node_type": "entity",
+              "score": 0.387367,
+              "similarity": 0.475459,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "I've been playing around with different",
+              "content": "I've been playing around with different flavor profiles and ingredients in my Old Fashioned."
+            },
+            {
+              "id": "b32f73b7-e46c-4464-9ed2-33555a088d93",
+              "session_id": "6e6fbb6b",
+              "node_type": "question",
+              "score": 0.380161,
+              "similarity": 0.410434,
+              "lexical": 0.142857,
+              "type_prior": 0.05,
+              "label": "Do you have any recommendations for ingredients or flavor combinations that might work well in an Old Fashioned?",
+              "content": "Do you have any recommendations for ingredients or flavor combinations that might work well in an Old Fashioned?"
+            }
+          ]
+        },
+        "classifier_reformulated_type_prior": {
+          "gold_like_hit_at_k": false,
+          "gold_session_hit_at_k": false,
+          "top": [
+            {
+              "id": "f8b54fd4-6586-4b9e-8b3b-4d9cb1da9d4e",
+              "session_id": "91223fd5_1",
+              "node_type": "question",
+              "score": 0.4877,
+              "similarity": 0.569385,
+              "lexical": 0.130435,
+              "type_prior": 0.05,
+              "label": "I'm trying to plan a family dinner for my mom's 60th birthday, which is coming up soon. Can you suggest some healthy meal ideas that would be suitable for a big",
+              "content": "I'm trying to plan a family dinner for my mom's 60th birthday, which is coming up soon. Can you suggest some healthy meal ideas that would be suitable for a big family gathering?"
+            },
+            {
+              "id": "5f2307c6-103e-4254-8a1d-647bb9f293dd",
+              "session_id": "ultrachat_484359",
+              "node_type": "question",
+              "score": 0.416566,
+              "similarity": 0.484705,
+              "lexical": 0.090909,
+              "type_prior": 0.05,
+              "label": "Do you have any recommendations for incorporating prebiotic-rich foods into my meals?",
+              "content": "Do you have any recommendations for incorporating prebiotic-rich foods into my meals?"
+            },
+            {
+              "id": "f90699f8-1c6d-4eca-8d61-b24721d29e91",
+              "session_id": "6e6fbb6b",
+              "node_type": "preference",
+              "score": 0.401701,
+              "similarity": 0.411954,
+              "lexical": 0.111111,
+              "type_prior": 0.08,
+              "label": "I've been experimenting with some unique",
+              "content": "I've been experimenting with some unique flavor profiles lately, like the Spicy Mango Margarita I served at a BBQ party last weekend."
+            },
+            {
+              "id": "1de3c958-91d9-40bb-a24f-8572356a748b",
+              "session_id": "91223fd5_1",
+              "node_type": "preference",
+              "score": 0.398051,
+              "similarity": 0.417092,
+              "lexical": 0.086957,
+              "type_prior": 0.08,
+              "label": "**Veggie-Packed Pasta Primavera**",
+              "content": "**Veggie-Packed Pasta Primavera**: Cook whole-grain pasta and toss it with saut\u00e9ed vegetables like cherry tomatoes, bell peppers, onions, and mushrooms. Add some lean protein like grilled chicken or turkey sausage for added flavor."
+            },
+            {
+              "id": "81ea9d09-bf4b-413c-a054-c0679d791382",
+              "session_id": "91223fd5_1",
+              "node_type": "preference",
+              "score": 0.397401,
+              "similarity": 0.434796,
+              "lexical": 0.043478,
+              "type_prior": 0.08,
+              "label": "**Quinoa or Brown Rice Bowl Bar**",
+              "content": "**Quinoa or Brown Rice Bowl Bar**: Set up a bowl bar with quinoa or brown rice as the base, and offer a variety of toppings like grilled chicken, roasted vegetables, black beans, diced tomatoes, avocado, and a drizzle of a homemade vinaigrette."
+            },
+            {
+              "id": "861f0c53-3f5f-4313-8eb2-dea8c62f2eb1",
+              "session_id": "6e6fbb6b",
+              "node_type": "preference",
+              "score": 0.396866,
+              "similarity": 0.381237,
+              "lexical": 0.166667,
+              "type_prior": 0.08,
+              "label": "**Balance sweet and savory**",
+              "content": "**Balance sweet and savory**: Balance sweet ingredients like pomegranate or rosewater with savory ingredients like sumac or garam masala."
+            },
+            {
+              "id": "65d2a1a5-b913-4e35-96e1-7b4f3e7a8fe3",
+              "session_id": "fea299b4",
+              "node_type": "question",
+              "score": 0.39346,
+              "similarity": 0.490658,
+              "lexical": 0.0,
+              "type_prior": 0.05,
+              "label": "Do you offer nutritional guidance or meal planning support?",
+              "content": "Do you offer nutritional guidance or meal planning support?"
+            },
+            {
+              "id": "10c9ab58-6085-45d0-945f-1907e410c615",
+              "session_id": "ultrachat_484359",
+              "node_type": "preference",
+              "score": 0.387832,
+              "similarity": 0.43976,
+              "lexical": 0.0,
+              "type_prior": 0.08,
+              "label": "Roast garlic and onions and top",
+              "content": "Roast garlic and onions and top them on a sandwich or in your favorite pasta sauce."
+            },
+            {
+              "id": "58e746ae-39a7-4043-a38d-652ffa9c4790",
+              "session_id": "6e6fbb6b",
+              "node_type": "entity",
+              "score": 0.387367,
+              "similarity": 0.475459,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "I've been playing around with different",
+              "content": "I've been playing around with different flavor profiles and ingredients in my Old Fashioned."
+            },
+            {
+              "id": "b32f73b7-e46c-4464-9ed2-33555a088d93",
+              "session_id": "6e6fbb6b",
+              "node_type": "question",
+              "score": 0.380161,
+              "similarity": 0.410434,
+              "lexical": 0.142857,
+              "type_prior": 0.05,
+              "label": "Do you have any recommendations for ingredients or flavor combinations that might work well in an Old Fashioned?",
+              "content": "Do you have any recommendations for ingredients or flavor combinations that might work well in an Old Fashioned?"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "09d032c9",
+      "category": "single-session-preference",
+      "question": "I've been having trouble with the battery life on my phone lately. Any tips?",
+      "gold_support_ids": [
+        "answer_b10dce5e"
+      ],
+      "haystack_sessions": 43,
+      "node_count": 1755,
+      "oracle_personalization": true,
+      "classifier_personalization": true,
+      "gold_like_node_count": 35,
+      "gold_like_nodes": [
+        {
+          "id": "b0f0719e-2fcd-4af7-a39a-d0e472dde430",
+          "session_id": "answer_b10dce5e",
+          "node_type": "preference",
+          "label": "I'm looking for some advice on",
+          "content": "I'm looking for some advice on the best way to organize my tech accessories, like my new portable power bank and wireless charging pad, when I'm traveling."
+        },
+        {
+          "id": "30c56b5a-f1f6-4edf-b265-50f718e7ad9e",
+          "session_id": "answer_b10dce5e",
+          "node_type": "preference",
+          "label": "**Keep frequently used items accessible**",
+          "content": "**Keep frequently used items accessible**: Store your most frequently used items, like your phone and portable power bank, in easy-to-reach pockets or compartments."
+        },
+        {
+          "id": "e89077c3-620f-4c0b-994a-e5beadfa35bc",
+          "session_id": "answer_b10dce5e",
+          "node_type": "preference",
+          "label": "Travel cases like the Bellroy Tech",
+          "content": "Travel cases like the Bellroy Tech Kit or the Peak Design Tech Pouch."
+        },
+        {
+          "id": "f9647dc1-581c-4cb4-ae21-e6659c1f220f",
+          "session_id": "answer_b10dce5e",
+          "node_type": "preference",
+          "label": "Power bank pouches like the Mophie",
+          "content": "Power bank pouches like the Mophie Powerstation Pouch or the Anker PowerCore Pouch."
+        },
+        {
+          "id": "9e84d9c4-651b-4f36-9980-70b5f06ca8f3",
+          "session_id": "answer_b10dce5e",
+          "node_type": "preference",
+          "label": "Wireless charging pad cases like the",
+          "content": "Wireless charging pad cases like the Belkin Boost Up Wireless Charging Pad Case."
+        },
+        {
+          "id": "3d61eaf9-a628-4dda-9036-974b67dd2146",
+          "session_id": "answer_b10dce5e",
+          "node_type": "question",
+          "label": "What are some good options for travel cases or pouches that can fit my Apple Watch, portable power bank, and wireless charging pad all together?",
+          "content": "What are some good options for travel cases or pouches that can fit my Apple Watch, portable power bank, and wireless charging pad all together?"
+        },
+        {
+          "id": "e32c73bf-3d03-4af1-8059-d4d76b156eb7",
+          "session_id": "answer_b10dce5e",
+          "node_type": "entity",
+          "label": "Here are some excellent options for",
+          "content": "Here are some excellent options for travel cases or pouches that can fit your Apple Watch, portable power bank, and wireless charging pad all together:."
+        },
+        {
+          "id": "ce3de3eb-fd74-4943-bbe7-b92b4b67213d",
+          "session_id": "answer_b10dce5e",
+          "node_type": "entity",
+          "label": "**Bellroy Tech Kit**",
+          "content": "**Bellroy Tech Kit**: A premium travel case that can fit an Apple Watch, a portable power bank (up to 10,000mAh), and a wireless charging pad. It has multiple compartments, a cable organizer, and a soft-touch interior. ($99)."
+        },
+        {
+          "id": "9cceaea9-fbc2-4e45-9bef-f10ddfc3bd17",
+          "session_id": "answer_b10dce5e",
+          "node_type": "entity",
+          "label": "**Waterfield Designs Tech Travel Case**",
+          "content": "**Waterfield Designs Tech Travel Case**: A high-quality travel case that can fit an Apple Watch, a portable power bank (up to 10,000mAh), and a wireless charging pad. It has multiple compartments, a cable organizer, and a rugged design. ($79)."
+        },
+        {
+          "id": "5c8b5223-0d19-4793-b2f1-7da543fa3a43",
+          "session_id": "answer_b10dce5e",
+          "node_type": "entity",
+          "label": "**Nomadic Tech Case**",
+          "content": "**Nomadic Tech Case**: A compact travel case that can fit an Apple Watch, a portable power bank (up to 10,000mAh), and a wireless charging pad. It has multiple pockets, a cable organizer, and a water-resistant design. ($59)."
+        },
+        {
+          "id": "2e5cf41d-e59b-48dc-a61e-c6737cc078d7",
+          "session_id": "answer_b10dce5e",
+          "node_type": "entity",
+          "label": "**Tom Bihn Travel Tech Case**",
+          "content": "**Tom Bihn Travel Tech Case**: A well-organized travel case that can fit an Apple Watch, a portable power bank (up to 10,000mAh), and a wireless charging pad. It has multiple compartments, a cable organizer, and a durable design. ($60)."
+        },
+        {
+          "id": "0639bdbd-1816-4feb-a3be-18395b2fe53d",
+          "session_id": "answer_b10dce5e",
+          "node_type": "entity",
+          "label": "**Fjallraven Tech Travel Case**",
+          "content": "**Fjallraven Tech Travel Case**: A functional and stylish travel case that can fit an Apple Watch, a portable power bank (up to 10,000mAh), and a wireless charging pad. It has multiple pockets, a cable organizer, and a water-resistant design. ($55)."
+        },
+        {
+          "id": "0c1db143-8687-49c9-b4ba-da03b7c5a797",
+          "session_id": "answer_b10dce5e",
+          "node_type": "entity",
+          "label": "**Incase Icon Tech Travel Case**",
+          "content": "**Incase Icon Tech Travel Case**: A sleek and organized travel case that can fit an Apple Watch, a portable power bank (up to 10,000mAh), and a wireless charging pad. It has multiple compartments, a cable organizer, and a durable design. ($49)."
+        },
+        {
+          "id": "09bd3efc-fc22-44bc-9579-18249277ad70",
+          "session_id": "answer_b10dce5e",
+          "node_type": "entity",
+          "label": "**Mophie Tech Travel Case**",
+          "content": "**Mophie Tech Travel Case**: A compact travel case that can fit an Apple Watch, a portable power bank (up to 10,000mAh), and a wireless charging pad. It has multiple pockets, a cable organizer, and a premium design. ($49)."
+        },
+        {
+          "id": "da7ec840-e18b-459a-bee4-8f8221184bbc",
+          "session_id": "answer_b10dce5e",
+          "node_type": "question",
+          "label": "What are the pros and cons of the Bellroy Tech Kit vs the Peak Design Tech Pouch?",
+          "content": "What are the pros and cons of the Bellroy Tech Kit vs the Peak Design Tech Pouch?"
+        },
+        {
+          "id": "86a391b4-886f-4d06-9437-0a46685b5c38",
+          "session_id": "answer_b10dce5e",
+          "node_type": "entity",
+          "label": "The Bellroy Tech Kit and the",
+          "content": "The Bellroy Tech Kit and the Peak Design Tech Pouch are both high-quality travel cases designed to organize and protect your tech essentials. Here's a detailed comparison of their pros and cons to help you decide which one is best for you:."
+        },
+        {
+          "id": "251b82ab-f429-4e7d-8261-445c231aca5a",
+          "session_id": "answer_b10dce5e",
+          "node_type": "entity",
+          "label": "**Higher price point**",
+          "content": "**Higher price point**: The Bellroy Tech Kit is a premium product with a higher price tag, which may be a barrier for some users."
+        },
+        {
+          "id": "4969474e-48ef-49ad-9238-0bdbbfc0e18d",
+          "session_id": "answer_b10dce5e",
+          "node_type": "entity",
+          "label": "**Peak Design Tech Pouch**",
+          "content": "**Peak Design Tech Pouch**: A stylish and functional pouch that can fit an Apple Watch, a portable power bank (up to 10,000mAh), and a wireless charging pad. It has multiple pockets, a cable organizer, and a weather-resistant design. ($69)."
+        },
+        {
+          "id": "a6b9c6f4-c3c3-404c-9b38-3f7881f9fe20",
+          "session_id": "answer_b10dce5e",
+          "node_type": "entity",
+          "label": "**Smaller power bank storage**",
+          "content": "**Smaller power bank storage**: The Tech Pouch can fit smaller power banks (up to 5,000mAh), which may not be suitable for larger power banks."
+        },
+        {
+          "id": "94130583-613c-4ad5-97fd-4186cfbd3fff",
+          "session_id": "answer_b10dce5e",
+          "node_type": "note",
+          "label": "Ultimately, the decision between the Bellroy",
+          "content": "Ultimately, the decision between the Bellroy Tech Kit and the Peak Design Tech Pouch comes down to your personal preferences and needs. If you prioritize premium materials, a dedicated Apple Watch compartment, and a more organized design, the Bellroy Tech Kit "
+        }
+      ],
+      "strategies": {
+        "graph_baseline": {
+          "gold_like_hit_at_k": false,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "167fceed-4f8f-42d5-b757-47dccdfc6a64",
+              "session_id": "612e23f1",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "Do you have any tips on how to manage my time more efficiently?",
+              "content": "Do you have any tips on how to manage my time more efficiently?"
+            },
+            {
+              "id": "b1701a68-9a55-4d7f-ab4b-efe826373b2b",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "**Anker PowerCore 5000**",
+              "content": "**Anker PowerCore 5000**: A compact and affordable power bank that can charge your phone up to 1.5 times. It's small enough to fit in most travel cases and has a capacity of 5000mAh. ($15)."
+            },
+            {
+              "id": "3f6316d7-156a-44c8-98b5-643b159505c7",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "**Jackery Titan S**",
+              "content": "**Jackery Titan S**: A compact and powerful power bank that can charge your phone up to 3 times. It has a capacity of 10000mAh and features multiple USB ports. ($25)."
+            },
+            {
+              "id": "87c19c13-51ef-452d-bf4c-242cb33ca396",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "**Eggtronic Power Bank 10000mAh**",
+              "content": "**Eggtronic Power Bank 10000mAh**: A compact and powerful power bank that can charge your phone up to 3 times. It has a capacity of 10000mAh and features multiple USB ports, including a USB-C port. ($30)."
+            },
+            {
+              "id": "9f5cb114-9ee1-43fb-bc2d-dbcfcd1f0756",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "**Aukey Power Bank 10000mAh**",
+              "content": "**Aukey Power Bank 10000mAh**: A compact and affordable power bank that can charge your phone up to 3 times. It has a capacity of 10000mAh and features multiple USB ports. ($20)."
+            }
+          ]
+        },
+        "raw_similarity": {
+          "gold_like_hit_at_k": false,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "167fceed-4f8f-42d5-b757-47dccdfc6a64",
+              "session_id": "612e23f1",
+              "node_type": "question",
+              "score": 0.345544,
+              "similarity": 0.398395,
+              "lexical": 0.222222,
+              "type_prior": 0.0,
+              "label": "Do you have any tips on how to manage my time more efficiently?",
+              "content": "Do you have any tips on how to manage my time more efficiently?"
+            },
+            {
+              "id": "abce0486-f545-4f47-9600-b72d732d898d",
+              "session_id": "d3971322_1",
+              "node_type": "entity",
+              "score": 0.317206,
+              "similarity": 0.238866,
+              "lexical": 0.5,
+              "type_prior": 0.0,
+              "label": "*Troubleshooting Tips",
+              "content": "*Troubleshooting Tips:**."
+            },
+            {
+              "id": "b1701a68-9a55-4d7f-ab4b-efe826373b2b",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.281569,
+              "similarity": 0.36328,
+              "lexical": 0.090909,
+              "type_prior": 0.0,
+              "label": "**Anker PowerCore 5000**",
+              "content": "**Anker PowerCore 5000**: A compact and affordable power bank that can charge your phone up to 1.5 times. It's small enough to fit in most travel cases and has a capacity of 5000mAh. ($15)."
+            },
+            {
+              "id": "3f6316d7-156a-44c8-98b5-643b159505c7",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.279273,
+              "similarity": 0.360001,
+              "lexical": 0.090909,
+              "type_prior": 0.0,
+              "label": "**Jackery Titan S**",
+              "content": "**Jackery Titan S**: A compact and powerful power bank that can charge your phone up to 3 times. It has a capacity of 10000mAh and features multiple USB ports. ($25)."
+            },
+            {
+              "id": "87c19c13-51ef-452d-bf4c-242cb33ca396",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.272039,
+              "similarity": 0.349666,
+              "lexical": 0.090909,
+              "type_prior": 0.0,
+              "label": "**Eggtronic Power Bank 10000mAh**",
+              "content": "**Eggtronic Power Bank 10000mAh**: A compact and powerful power bank that can charge your phone up to 3 times. It has a capacity of 10000mAh and features multiple USB ports, including a USB-C port. ($30)."
+            },
+            {
+              "id": "9f5cb114-9ee1-43fb-bc2d-dbcfcd1f0756",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.271424,
+              "similarity": 0.348788,
+              "lexical": 0.090909,
+              "type_prior": 0.0,
+              "label": "**Aukey Power Bank 10000mAh**",
+              "content": "**Aukey Power Bank 10000mAh**: A compact and affordable power bank that can charge your phone up to 3 times. It has a capacity of 10000mAh and features multiple USB ports. ($20)."
+            },
+            {
+              "id": "79f1ab92-98e5-4050-b320-7a3029c86786",
+              "session_id": "f27e27f9_2",
+              "node_type": "entity",
+              "score": 0.264945,
+              "similarity": 0.164208,
+              "lexical": 0.5,
+              "type_prior": 0.0,
+              "label": "*General Tips",
+              "content": "*General Tips:**."
+            },
+            {
+              "id": "a6c14a13-f303-4346-870c-2169afe4e5d0",
+              "session_id": "3fc2244f",
+              "node_type": "entity",
+              "score": 0.264165,
+              "similarity": 0.234522,
+              "lexical": 0.333333,
+              "type_prior": 0.0,
+              "label": "*Time-Saving Tips",
+              "content": "*Time-Saving Tips:**."
+            },
+            {
+              "id": "b0140962-2457-4c8d-a0a2-8dc872b977f3",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.261838,
+              "similarity": 0.335093,
+              "lexical": 0.090909,
+              "type_prior": 0.0,
+              "label": "**Mophie Powerstation Mini**",
+              "content": "**Mophie Powerstation Mini**: A sleek and compact power bank that can charge your phone up to 2 times. It has a capacity of 5000mAh and features a premium design. ($30)."
+            },
+            {
+              "id": "6c116e90-09f4-426c-9fea-981e674a021f",
+              "session_id": "d3971322_1",
+              "node_type": "entity",
+              "score": 0.261578,
+              "similarity": 0.159398,
+              "lexical": 0.5,
+              "type_prior": 0.0,
+              "label": "*Additional Tips",
+              "content": "*Additional Tips:**."
+            }
+          ]
+        },
+        "oracle_type_prior": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "167fceed-4f8f-42d5-b757-47dccdfc6a64",
+              "session_id": "612e23f1",
+              "node_type": "question",
+              "score": 0.395544,
+              "similarity": 0.398395,
+              "lexical": 0.222222,
+              "type_prior": 0.05,
+              "label": "Do you have any tips on how to manage my time more efficiently?",
+              "content": "Do you have any tips on how to manage my time more efficiently?"
+            },
+            {
+              "id": "abce0486-f545-4f47-9600-b72d732d898d",
+              "session_id": "d3971322_1",
+              "node_type": "entity",
+              "score": 0.317206,
+              "similarity": 0.238866,
+              "lexical": 0.5,
+              "type_prior": 0.0,
+              "label": "*Troubleshooting Tips",
+              "content": "*Troubleshooting Tips:**."
+            },
+            {
+              "id": "7d79aa85-760d-461b-a691-f5db84996174",
+              "session_id": "ultrachat_510971",
+              "node_type": "question",
+              "score": 0.310106,
+              "similarity": 0.264438,
+              "lexical": 0.25,
+              "type_prior": 0.05,
+              "label": "Any tips on how I can remind myself to drink more?",
+              "content": "Any tips on how I can remind myself to drink more?"
+            },
+            {
+              "id": "cb434ae4-637f-41b3-ac35-a61c93eebd35",
+              "session_id": "d9f5a9d4",
+              "node_type": "question",
+              "score": 0.285926,
+              "similarity": 0.229894,
+              "lexical": 0.25,
+              "type_prior": 0.05,
+              "label": "Do you have any recommendations?",
+              "content": "Do you have any recommendations?"
+            },
+            {
+              "id": "b1701a68-9a55-4d7f-ab4b-efe826373b2b",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.281569,
+              "similarity": 0.36328,
+              "lexical": 0.090909,
+              "type_prior": 0.0,
+              "label": "**Anker PowerCore 5000**",
+              "content": "**Anker PowerCore 5000**: A compact and affordable power bank that can charge your phone up to 1.5 times. It's small enough to fit in most travel cases and has a capacity of 5000mAh. ($15)."
+            },
+            {
+              "id": "3f6316d7-156a-44c8-98b5-643b159505c7",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.279273,
+              "similarity": 0.360001,
+              "lexical": 0.090909,
+              "type_prior": 0.0,
+              "label": "**Jackery Titan S**",
+              "content": "**Jackery Titan S**: A compact and powerful power bank that can charge your phone up to 3 times. It has a capacity of 10000mAh and features multiple USB ports. ($25)."
+            },
+            {
+              "id": "30c56b5a-f1f6-4edf-b265-50f718e7ad9e",
+              "session_id": "answer_b10dce5e",
+              "node_type": "preference",
+              "score": 0.274637,
+              "similarity": 0.239092,
+              "lexical": 0.090909,
+              "type_prior": 0.08,
+              "label": "**Keep frequently used items accessible**",
+              "content": "**Keep frequently used items accessible**: Store your most frequently used items, like your phone and portable power bank, in easy-to-reach pockets or compartments."
+            },
+            {
+              "id": "87c19c13-51ef-452d-bf4c-242cb33ca396",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.272039,
+              "similarity": 0.349666,
+              "lexical": 0.090909,
+              "type_prior": 0.0,
+              "label": "**Eggtronic Power Bank 10000mAh**",
+              "content": "**Eggtronic Power Bank 10000mAh**: A compact and powerful power bank that can charge your phone up to 3 times. It has a capacity of 10000mAh and features multiple USB ports, including a USB-C port. ($30)."
+            },
+            {
+              "id": "9f5cb114-9ee1-43fb-bc2d-dbcfcd1f0756",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.271424,
+              "similarity": 0.348788,
+              "lexical": 0.090909,
+              "type_prior": 0.0,
+              "label": "**Aukey Power Bank 10000mAh**",
+              "content": "**Aukey Power Bank 10000mAh**: A compact and affordable power bank that can charge your phone up to 3 times. It has a capacity of 10000mAh and features multiple USB ports. ($20)."
+            },
+            {
+              "id": "b0f0719e-2fcd-4af7-a39a-d0e472dde430",
+              "session_id": "answer_b10dce5e",
+              "node_type": "preference",
+              "score": 0.270937,
+              "similarity": 0.233806,
+              "lexical": 0.090909,
+              "type_prior": 0.08,
+              "label": "I'm looking for some advice on",
+              "content": "I'm looking for some advice on the best way to organize my tech accessories, like my new portable power bank and wireless charging pad, when I'm traveling."
+            }
+          ]
+        },
+        "oracle_reformulated": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "167fceed-4f8f-42d5-b757-47dccdfc6a64",
+              "session_id": "612e23f1",
+              "node_type": "question",
+              "score": 0.288611,
+              "similarity": 0.317063,
+              "lexical": 0.222222,
+              "type_prior": 0.0,
+              "label": "Do you have any tips on how to manage my time more efficiently?",
+              "content": "Do you have any tips on how to manage my time more efficiently?"
+            },
+            {
+              "id": "abce0486-f545-4f47-9600-b72d732d898d",
+              "session_id": "d3971322_1",
+              "node_type": "entity",
+              "score": 0.284675,
+              "similarity": 0.192392,
+              "lexical": 0.5,
+              "type_prior": 0.0,
+              "label": "*Troubleshooting Tips",
+              "content": "*Troubleshooting Tips:**."
+            },
+            {
+              "id": "b1701a68-9a55-4d7f-ab4b-efe826373b2b",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.283045,
+              "similarity": 0.385717,
+              "lexical": 0.043478,
+              "type_prior": 0.0,
+              "label": "**Anker PowerCore 5000**",
+              "content": "**Anker PowerCore 5000**: A compact and affordable power bank that can charge your phone up to 1.5 times. It's small enough to fit in most travel cases and has a capacity of 5000mAh. ($15)."
+            },
+            {
+              "id": "9b91c4d4-8fa1-42b8-a8b7-ed7270d4aa87",
+              "session_id": "sharegpt_2pwdGxJ_1",
+              "node_type": "question",
+              "score": 0.282283,
+              "similarity": 0.296118,
+              "lexical": 0.25,
+              "type_prior": 0.0,
+              "label": "what were the key problems that the customer stated?",
+              "content": "what were the key problems that the customer stated?"
+            },
+            {
+              "id": "9f5cb114-9ee1-43fb-bc2d-dbcfcd1f0756",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.255671,
+              "similarity": 0.342688,
+              "lexical": 0.052632,
+              "type_prior": 0.0,
+              "label": "**Aukey Power Bank 10000mAh**",
+              "content": "**Aukey Power Bank 10000mAh**: A compact and affordable power bank that can charge your phone up to 3 times. It has a capacity of 10000mAh and features multiple USB ports. ($20)."
+            },
+            {
+              "id": "b0140962-2457-4c8d-a0a2-8dc872b977f3",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.255573,
+              "similarity": 0.343675,
+              "lexical": 0.05,
+              "type_prior": 0.0,
+              "label": "**Mophie Powerstation Mini**",
+              "content": "**Mophie Powerstation Mini**: A sleek and compact power bank that can charge your phone up to 2 times. It has a capacity of 5000mAh and features a premium design. ($30)."
+            },
+            {
+              "id": "e2cdd240-e16c-48a0-9a0f-5ea4375864e9",
+              "session_id": "3fc2244f",
+              "node_type": "entity",
+              "score": 0.25241,
+              "similarity": 0.146301,
+              "lexical": 0.5,
+              "type_prior": 0.0,
+              "label": "*1",
+              "content": "*1. Plan Ahead:**."
+            },
+            {
+              "id": "a6c14a13-f303-4346-870c-2169afe4e5d0",
+              "session_id": "3fc2244f",
+              "node_type": "entity",
+              "score": 0.250218,
+              "similarity": 0.214597,
+              "lexical": 0.333333,
+              "type_prior": 0.0,
+              "label": "*Time-Saving Tips",
+              "content": "*Time-Saving Tips:**."
+            },
+            {
+              "id": "cf5d927b-7a38-49ac-8ec1-a35eb5f6d470",
+              "session_id": "answer_b10dce5e",
+              "node_type": "question",
+              "score": 0.243032,
+              "similarity": 0.299569,
+              "lexical": 0.111111,
+              "type_prior": 0.0,
+              "label": "When choosing a portable power bank, consider the following factors:",
+              "content": "When choosing a portable power bank, consider the following factors:"
+            },
+            {
+              "id": "2231e5e3-ff89-4be4-a7c7-278e42e6f12c",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.241186,
+              "similarity": 0.130266,
+              "lexical": 0.5,
+              "type_prior": 0.0,
+              "label": "*User Experience",
+              "content": "*User Experience:**."
+            }
+          ]
+        },
+        "oracle_reformulated_type_prior": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "167fceed-4f8f-42d5-b757-47dccdfc6a64",
+              "session_id": "612e23f1",
+              "node_type": "question",
+              "score": 0.338611,
+              "similarity": 0.317063,
+              "lexical": 0.222222,
+              "type_prior": 0.05,
+              "label": "Do you have any tips on how to manage my time more efficiently?",
+              "content": "Do you have any tips on how to manage my time more efficiently?"
+            },
+            {
+              "id": "9b91c4d4-8fa1-42b8-a8b7-ed7270d4aa87",
+              "session_id": "sharegpt_2pwdGxJ_1",
+              "node_type": "question",
+              "score": 0.332283,
+              "similarity": 0.296118,
+              "lexical": 0.25,
+              "type_prior": 0.05,
+              "label": "what were the key problems that the customer stated?",
+              "content": "what were the key problems that the customer stated?"
+            },
+            {
+              "id": "30c56b5a-f1f6-4edf-b265-50f718e7ad9e",
+              "session_id": "answer_b10dce5e",
+              "node_type": "preference",
+              "score": 0.320946,
+              "similarity": 0.3204,
+              "lexical": 0.055556,
+              "type_prior": 0.08,
+              "label": "**Keep frequently used items accessible**",
+              "content": "**Keep frequently used items accessible**: Store your most frequently used items, like your phone and portable power bank, in easy-to-reach pockets or compartments."
+            },
+            {
+              "id": "b0f0719e-2fcd-4af7-a39a-d0e472dde430",
+              "session_id": "answer_b10dce5e",
+              "node_type": "preference",
+              "score": 0.314008,
+              "similarity": 0.31389,
+              "lexical": 0.047619,
+              "type_prior": 0.08,
+              "label": "I'm looking for some advice on",
+              "content": "I'm looking for some advice on the best way to organize my tech accessories, like my new portable power bank and wireless charging pad, when I'm traveling."
+            },
+            {
+              "id": "a4256600-58f9-4786-ac38-b8200c69bdf2",
+              "session_id": "46bab85b",
+              "node_type": "preference",
+              "score": 0.310925,
+              "similarity": 0.294178,
+              "lexical": 0.083333,
+              "type_prior": 0.08,
+              "label": "Remember, the key to staying within",
+              "content": "Remember, the key to staying within your budget is to plan your meals, make a grocery list, and stick to it. Avoid impulse buys, and try to use up ingredients you already have at home. Happy meal planning and budgeting!."
+            },
+            {
+              "id": "cf5d927b-7a38-49ac-8ec1-a35eb5f6d470",
+              "session_id": "answer_b10dce5e",
+              "node_type": "question",
+              "score": 0.293032,
+              "similarity": 0.299569,
+              "lexical": 0.111111,
+              "type_prior": 0.05,
+              "label": "When choosing a portable power bank, consider the following factors:",
+              "content": "When choosing a portable power bank, consider the following factors:"
+            },
+            {
+              "id": "385db31d-a481-434d-8e58-ee5d5e95082a",
+              "session_id": "46bab85b",
+              "node_type": "question",
+              "score": 0.28689,
+              "similarity": 0.318007,
+              "lexical": 0.047619,
+              "type_prior": 0.05,
+              "label": "Do you have any suggestions for meal planning apps or budgeting apps that can help me track my grocery expenses and stay within my budget of $80 per week?",
+              "content": "Do you have any suggestions for meal planning apps or budgeting apps that can help me track my grocery expenses and stay within my budget of $80 per week?"
+            },
+            {
+              "id": "abce0486-f545-4f47-9600-b72d732d898d",
+              "session_id": "d3971322_1",
+              "node_type": "entity",
+              "score": 0.284675,
+              "similarity": 0.192392,
+              "lexical": 0.5,
+              "type_prior": 0.0,
+              "label": "*Troubleshooting Tips",
+              "content": "*Troubleshooting Tips:**."
+            },
+            {
+              "id": "b1701a68-9a55-4d7f-ab4b-efe826373b2b",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.283045,
+              "similarity": 0.385717,
+              "lexical": 0.043478,
+              "type_prior": 0.0,
+              "label": "**Anker PowerCore 5000**",
+              "content": "**Anker PowerCore 5000**: A compact and affordable power bank that can charge your phone up to 1.5 times. It's small enough to fit in most travel cases and has a capacity of 5000mAh. ($15)."
+            },
+            {
+              "id": "6e2bab18-4b46-4863-82a8-e0a01e7e4892",
+              "session_id": "46bab85b",
+              "node_type": "preference",
+              "score": 0.270668,
+              "similarity": 0.236668,
+              "lexical": 0.083333,
+              "type_prior": 0.08,
+              "label": "**Plan your meals**",
+              "content": "**Plan your meals**: Take some time to plan your meals for the week. This will help you avoid buying unnecessary items and reduce food waste. You can use a meal planning app or a physical planner to plan your meals."
+            }
+          ]
+        },
+        "classifier_reformulated_type_prior": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "167fceed-4f8f-42d5-b757-47dccdfc6a64",
+              "session_id": "612e23f1",
+              "node_type": "question",
+              "score": 0.338611,
+              "similarity": 0.317063,
+              "lexical": 0.222222,
+              "type_prior": 0.05,
+              "label": "Do you have any tips on how to manage my time more efficiently?",
+              "content": "Do you have any tips on how to manage my time more efficiently?"
+            },
+            {
+              "id": "9b91c4d4-8fa1-42b8-a8b7-ed7270d4aa87",
+              "session_id": "sharegpt_2pwdGxJ_1",
+              "node_type": "question",
+              "score": 0.332283,
+              "similarity": 0.296118,
+              "lexical": 0.25,
+              "type_prior": 0.05,
+              "label": "what were the key problems that the customer stated?",
+              "content": "what were the key problems that the customer stated?"
+            },
+            {
+              "id": "30c56b5a-f1f6-4edf-b265-50f718e7ad9e",
+              "session_id": "answer_b10dce5e",
+              "node_type": "preference",
+              "score": 0.320946,
+              "similarity": 0.3204,
+              "lexical": 0.055556,
+              "type_prior": 0.08,
+              "label": "**Keep frequently used items accessible**",
+              "content": "**Keep frequently used items accessible**: Store your most frequently used items, like your phone and portable power bank, in easy-to-reach pockets or compartments."
+            },
+            {
+              "id": "b0f0719e-2fcd-4af7-a39a-d0e472dde430",
+              "session_id": "answer_b10dce5e",
+              "node_type": "preference",
+              "score": 0.314008,
+              "similarity": 0.31389,
+              "lexical": 0.047619,
+              "type_prior": 0.08,
+              "label": "I'm looking for some advice on",
+              "content": "I'm looking for some advice on the best way to organize my tech accessories, like my new portable power bank and wireless charging pad, when I'm traveling."
+            },
+            {
+              "id": "a4256600-58f9-4786-ac38-b8200c69bdf2",
+              "session_id": "46bab85b",
+              "node_type": "preference",
+              "score": 0.310925,
+              "similarity": 0.294178,
+              "lexical": 0.083333,
+              "type_prior": 0.08,
+              "label": "Remember, the key to staying within",
+              "content": "Remember, the key to staying within your budget is to plan your meals, make a grocery list, and stick to it. Avoid impulse buys, and try to use up ingredients you already have at home. Happy meal planning and budgeting!."
+            },
+            {
+              "id": "cf5d927b-7a38-49ac-8ec1-a35eb5f6d470",
+              "session_id": "answer_b10dce5e",
+              "node_type": "question",
+              "score": 0.293032,
+              "similarity": 0.299569,
+              "lexical": 0.111111,
+              "type_prior": 0.05,
+              "label": "When choosing a portable power bank, consider the following factors:",
+              "content": "When choosing a portable power bank, consider the following factors:"
+            },
+            {
+              "id": "385db31d-a481-434d-8e58-ee5d5e95082a",
+              "session_id": "46bab85b",
+              "node_type": "question",
+              "score": 0.28689,
+              "similarity": 0.318007,
+              "lexical": 0.047619,
+              "type_prior": 0.05,
+              "label": "Do you have any suggestions for meal planning apps or budgeting apps that can help me track my grocery expenses and stay within my budget of $80 per week?",
+              "content": "Do you have any suggestions for meal planning apps or budgeting apps that can help me track my grocery expenses and stay within my budget of $80 per week?"
+            },
+            {
+              "id": "abce0486-f545-4f47-9600-b72d732d898d",
+              "session_id": "d3971322_1",
+              "node_type": "entity",
+              "score": 0.284675,
+              "similarity": 0.192392,
+              "lexical": 0.5,
+              "type_prior": 0.0,
+              "label": "*Troubleshooting Tips",
+              "content": "*Troubleshooting Tips:**."
+            },
+            {
+              "id": "b1701a68-9a55-4d7f-ab4b-efe826373b2b",
+              "session_id": "answer_b10dce5e",
+              "node_type": "entity",
+              "score": 0.283045,
+              "similarity": 0.385717,
+              "lexical": 0.043478,
+              "type_prior": 0.0,
+              "label": "**Anker PowerCore 5000**",
+              "content": "**Anker PowerCore 5000**: A compact and affordable power bank that can charge your phone up to 1.5 times. It's small enough to fit in most travel cases and has a capacity of 5000mAh. ($15)."
+            },
+            {
+              "id": "6e2bab18-4b46-4863-82a8-e0a01e7e4892",
+              "session_id": "46bab85b",
+              "node_type": "preference",
+              "score": 0.270668,
+              "similarity": 0.236668,
+              "lexical": 0.083333,
+              "type_prior": 0.08,
+              "label": "**Plan your meals**",
+              "content": "**Plan your meals**: Take some time to plan your meals for the week. This will help you avoid buying unnecessary items and reduce food waste. You can use a meal planning app or a physical planner to plan your meals."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "0a34ad58",
+      "category": "single-session-preference",
+      "question": "I\u2019m a bit anxious about getting around Tokyo. Do you have any helpful tips?",
+      "gold_support_ids": [
+        "answer_cebb7159"
+      ],
+      "haystack_sessions": 42,
+      "node_count": 1733,
+      "oracle_personalization": true,
+      "classifier_personalization": false,
+      "gold_like_node_count": 78,
+      "gold_like_nodes": [
+        {
+          "id": "fe325b7f-9f2f-42c0-b930-eb5362c3b799",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "I'm heading to Tokyo soon and",
+          "content": "I'm heading to Tokyo soon and was wondering if you could recommend some good restaurants near the Park Hyatt Tokyo."
+        },
+        {
+          "id": "c5a65256-70d1-4636-96c9-60a0f932001e",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "The Park Hyatt Tokyo is located",
+          "content": "The Park Hyatt Tokyo is located in the heart of Shinjuku, one of Tokyo's most vibrant and exciting neighborhoods. You'll find plenty of amazing dining options within walking distance or a short taxi ride from the hotel. Here are some top recommendations:."
+        },
+        {
+          "id": "63d51651-ca5f-45fb-a31d-dc9a6ac7320a",
+          "session_id": "answer_cebb7159",
+          "node_type": "preference",
+          "label": "Reservations are highly recommended for these",
+          "content": "Reservations are highly recommended for these popular restaurants, especially if you're planning to visit during peak travel seasons. You can use online reservation platforms like Chope or TableCheck, or ask the Park Hyatt Tokyo's concierge team for assistance"
+        },
+        {
+          "id": "0113d984-d132-47f2-a3cf-67ba30d28480",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "I'm also planning to visit the",
+          "content": "I'm also planning to visit the Tsukiji Fish Market."
+        },
+        {
+          "id": "f359737a-a7c0-4e06-aecf-d829c3a28f71",
+          "session_id": "answer_cebb7159",
+          "node_type": "question",
+          "label": "Can you tell me the best way to get there from Shinjuku using my Suica card I just got?",
+          "content": "Can you tell me the best way to get there from Shinjuku using my Suica card I just got?"
+        },
+        {
+          "id": "7ad868a9-0f3f-4873-b1ce-f6a8b05952d9",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "Visiting the Tsukiji Fish Market is",
+          "content": "Visiting the Tsukiji Fish Market is a must-do experience in Tokyo. Getting there from Shinjuku using your Suica card is relatively easy. Here's a step-by-step guide to help you navigate:."
+        },
+        {
+          "id": "0663b6a8-9a25-49af-8900-b6d8d477fc28",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "From Shinjuku Station, take the JR",
+          "content": "From Shinjuku Station, take the JR Yamanote Line () towards Tokyo Station."
+        },
+        {
+          "id": "0ad6da00-12df-488b-9d38-9833ebe7ee0d",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "Ride the train for 10 stops",
+          "content": "Ride the train for 10 stops and get off at **Shimbashi Station** ()."
+        },
+        {
+          "id": "5084b12e-696f-4a60-a074-31d8a53df58d",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "Take the Ginza Line towards Asakusa",
+          "content": "Take the Ginza Line towards Asakusa and ride for 2 stops to **Tsukijishijo Station** ()."
+        },
+        {
+          "id": "12d5db6a-bb7f-44b1-b60c-12c79722d16a",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "Exit the station and follow the",
+          "content": "Exit the station and follow the signs to the Tsukiji Fish Market ()."
+        },
+        {
+          "id": "f453a696-eccc-4653-bb96-b011025e697a",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "The total travel time from Shinjuku",
+          "content": "The total travel time from Shinjuku to Tsukiji Fish Market is around 30-40 minutes."
+        },
+        {
+          "id": "6ab08dc8-3f2d-4aaf-bd73-f790b4ca3279",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "Make sure to check the Tsukiji",
+          "content": "Make sure to check the Tsukiji Fish Market's website for the latest information on operating hours, as they may change."
+        },
+        {
+          "id": "9260873a-cb5e-4616-a7e5-06cf39d9802d",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "The fish market is busiest in",
+          "content": "The fish market is busiest in the early morning, so consider visiting between 5:00 AM and 7:00 AM for the best experience."
+        },
+        {
+          "id": "040b6171-7286-4e98-aa12-4806127dbda7",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "Another option is to take a",
+          "content": "Another option is to take a bus tour that includes transportation from Shinjuku to Tsukiji Fish Market. These tours often include guided visits to the market and other nearby attractions."
+        },
+        {
+          "id": "4fcc6ae1-b2f0-4eae-a5bf-5253efb234f8",
+          "session_id": "answer_cebb7159",
+          "node_type": "preference",
+          "label": "Consider purchasing a prepaid IC card",
+          "content": "Consider purchasing a prepaid IC card like Suica or Pasmo, which can make traveling around Tokyo more convenient and cost-effective."
+        },
+        {
+          "id": "eeef61dd-0902-4956-b443-5f954addb653",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "Enjoy your visit to the Tsukiji",
+          "content": "Enjoy your visit to the Tsukiji Fish Market!."
+        },
+        {
+          "id": "26fda477-2373-4e99-8a05-09f43f64e2b3",
+          "session_id": "answer_cebb7159",
+          "node_type": "question",
+          "label": "Can you recommend any good places to exchange my money for yen near the Park Hyatt Tokyo?",
+          "content": "Can you recommend any good places to exchange my money for yen near the Park Hyatt Tokyo?"
+        },
+        {
+          "id": "91eba8ac-870b-4218-8868-d801cba78059",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "Exchanging your money for yen is",
+          "content": "Exchanging your money for yen is a crucial step before exploring Tokyo. You'll find several options near the Park Hyatt Tokyo in Shinjuku. Here are a few recommendations:."
+        },
+        {
+          "id": "a4216762-3a4c-4cbe-97d6-b319cc10182a",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "**Travelex** (inside Shinjuku Station, 5-minute walk",
+          "content": "**Travelex** (inside Shinjuku Station, 5-minute walk from Park Hyatt Tokyo): Travelex is a well-known currency exchange service with competitive rates. You can find them on the B1 floor of Shinjuku Station, near the Odakyu Shinjuku Line gates."
+        },
+        {
+          "id": "6b613774-70af-4814-a13b-5c73c01088a2",
+          "session_id": "answer_cebb7159",
+          "node_type": "entity",
+          "label": "**Seven Bank** (inside Shinjuku Station, 5-minute",
+          "content": "**Seven Bank** (inside Shinjuku Station, 5-minute walk from Park Hyatt Tokyo): Seven Bank offers currency exchange services at their Shinjuku Station branch. You can find them on the B1 floor, near the JR East gates."
+        }
+      ],
+      "strategies": {
+        "graph_baseline": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "4fcc6ae1-b2f0-4eae-a5bf-5253efb234f8",
+              "session_id": "answer_cebb7159",
+              "node_type": "preference",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "Consider purchasing a prepaid IC card",
+              "content": "Consider purchasing a prepaid IC card like Suica or Pasmo, which can make traveling around Tokyo more convenient and cost-effective."
+            },
+            {
+              "id": "f23a5f75-cf91-4daa-8892-e280a2f32626",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "The Tokyo Tower is an unforgettable",
+              "content": "The Tokyo Tower is an unforgettable experience that offers something for everyone. Enjoy your visit!."
+            },
+            {
+              "id": "0c3dd211-3daf-4cdb-9b49-3d5310722560",
+              "session_id": "answer_cebb7159",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "Can you tell me more about the Park Hyatt Tokyo, where I'll be staying?",
+              "content": "Can you tell me more about the Park Hyatt Tokyo, where I'll be staying?"
+            },
+            {
+              "id": "1e809d4f-afc5-434f-993f-e44dc0062735",
+              "session_id": "answer_cebb7159",
+              "node_type": "preference",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "**Respect the market",
+              "content": "**Respect the market:** Remember to respect the market's rules and traditions, and avoid taking photos or touching the fish and seafood on display."
+            },
+            {
+              "id": "1db43b24-d44d-4d8d-a791-b9c5a4bd41af",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "I'm planning to visit the Tokyo",
+              "content": "I'm planning to visit the Tokyo Tower and was wondering if you could tell me more about it."
+            },
+            {
+              "id": "e1d2c5aa-afed-4831-90e7-819be747cfb0",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "The Park Hyatt Tokyo",
+              "content": "The Park Hyatt Tokyo! You're in for a treat. This 5-star hotel is a luxurious oasis in the heart of Tokyo, offering unparalleled comfort, style, and service. Here's what you can expect:."
+            },
+            {
+              "id": "a7f544bd-6ba1-4391-9e7e-be7c400ab235",
+              "session_id": "answer_cebb7159",
+              "node_type": "preference",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "**Panoramic Views",
+              "content": "**Panoramic Views:** The Tokyo Tower offers breathtaking views of the city from its observation decks. You can see Tokyo's skyline, including famous landmarks like the Imperial Palace and the Meiji Shrine."
+            },
+            {
+              "id": "d742cb16-61e9-4b5e-9ea5-109ecca982ce",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "The Park Hyatt Tokyo is a",
+              "content": "The Park Hyatt Tokyo is a luxurious retreat that will make your stay in Tokyo truly unforgettable. Enjoy your time at this incredible hotel!."
+            },
+            {
+              "id": "d2583991-b322-4def-ad0c-9a8d58fd4801",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "The Tokyo Tower",
+              "content": "The Tokyo Tower! It's an iconic landmark and a must-visit attraction in Tokyo! Here's what you can expect:."
+            },
+            {
+              "id": "0291009b-7b1a-4843-a0a9-78fdd72534d1",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "By following these tips and being",
+              "content": "By following these tips and being prepared for an early morning adventure, you'll be able to experience the best of Tsukiji Fish Market and enjoy some of the freshest sushi in Tokyo!."
+            }
+          ]
+        },
+        "raw_similarity": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "0c3dd211-3daf-4cdb-9b49-3d5310722560",
+              "session_id": "answer_cebb7159",
+              "node_type": "question",
+              "score": 0.510299,
+              "similarity": 0.612116,
+              "lexical": 0.272727,
+              "type_prior": 0.0,
+              "label": "Can you tell me more about the Park Hyatt Tokyo, where I'll be staying?",
+              "content": "Can you tell me more about the Park Hyatt Tokyo, where I'll be staying?"
+            },
+            {
+              "id": "1db43b24-d44d-4d8d-a791-b9c5a4bd41af",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.487479,
+              "similarity": 0.579516,
+              "lexical": 0.272727,
+              "type_prior": 0.0,
+              "label": "I'm planning to visit the Tokyo",
+              "content": "I'm planning to visit the Tokyo Tower and was wondering if you could tell me more about it."
+            },
+            {
+              "id": "4fcc6ae1-b2f0-4eae-a5bf-5253efb234f8",
+              "session_id": "answer_cebb7159",
+              "node_type": "preference",
+              "score": 0.485588,
+              "similarity": 0.615775,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "Consider purchasing a prepaid IC card",
+              "content": "Consider purchasing a prepaid IC card like Suica or Pasmo, which can make traveling around Tokyo more convenient and cost-effective."
+            },
+            {
+              "id": "f23a5f75-cf91-4daa-8892-e280a2f32626",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.471334,
+              "similarity": 0.634373,
+              "lexical": 0.090909,
+              "type_prior": 0.0,
+              "label": "The Tokyo Tower is an unforgettable",
+              "content": "The Tokyo Tower is an unforgettable experience that offers something for everyone. Enjoy your visit!."
+            },
+            {
+              "id": "3acbd69d-4b3b-4d90-846c-663807b9c502",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.462949,
+              "similarity": 0.544473,
+              "lexical": 0.272727,
+              "type_prior": 0.0,
+              "label": "**Luggage Storage",
+              "content": "**Luggage Storage:** The hotel can store your luggage before check-in or after check-out, so you can explore Tokyo without worrying about your bags."
+            },
+            {
+              "id": "91eba8ac-870b-4218-8868-d801cba78059",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.461547,
+              "similarity": 0.581431,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "Exchanging your money for yen is",
+              "content": "Exchanging your money for yen is a crucial step before exploring Tokyo. You'll find several options near the Park Hyatt Tokyo in Shinjuku. Here are a few recommendations:."
+            },
+            {
+              "id": "36750205-cb4e-4f70-90a9-e51e470d2513",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.459311,
+              "similarity": 0.578236,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "These are just a few of",
+              "content": "These are just a few of the many shopping options near the Park Hyatt Tokyo. You can easily explore these areas on foot or by taking a short taxi ride. Happy shopping!."
+            },
+            {
+              "id": "26fda477-2373-4e99-8a05-09f43f64e2b3",
+              "session_id": "answer_cebb7159",
+              "node_type": "question",
+              "score": 0.451459,
+              "similarity": 0.528058,
+              "lexical": 0.272727,
+              "type_prior": 0.0,
+              "label": "Can you recommend any good places to exchange my money for yen near the Park Hyatt Tokyo?",
+              "content": "Can you recommend any good places to exchange my money for yen near the Park Hyatt Tokyo?"
+            },
+            {
+              "id": "e465ddda-a242-4fe6-a763-4086d183ff50",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.448433,
+              "similarity": 0.562697,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "Tsukiji Fish Market is a must-visit",
+              "content": "Tsukiji Fish Market is a must-visit destination in Tokyo, especially if you're a sushi lover! Here's what you can expect:."
+            },
+            {
+              "id": "058f9333-acd4-4a51-afe2-808d8c4ba3a8",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.448237,
+              "similarity": 0.562416,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "**Tour and Activity Desk",
+              "content": "**Tour and Activity Desk:** The hotel's tour desk can help you plan and book activities, tours, and excursions in Tokyo."
+            }
+          ]
+        },
+        "oracle_type_prior": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "4fcc6ae1-b2f0-4eae-a5bf-5253efb234f8",
+              "session_id": "answer_cebb7159",
+              "node_type": "preference",
+              "score": 0.565588,
+              "similarity": 0.615775,
+              "lexical": 0.181818,
+              "type_prior": 0.08,
+              "label": "Consider purchasing a prepaid IC card",
+              "content": "Consider purchasing a prepaid IC card like Suica or Pasmo, which can make traveling around Tokyo more convenient and cost-effective."
+            },
+            {
+              "id": "0c3dd211-3daf-4cdb-9b49-3d5310722560",
+              "session_id": "answer_cebb7159",
+              "node_type": "question",
+              "score": 0.560299,
+              "similarity": 0.612116,
+              "lexical": 0.272727,
+              "type_prior": 0.05,
+              "label": "Can you tell me more about the Park Hyatt Tokyo, where I'll be staying?",
+              "content": "Can you tell me more about the Park Hyatt Tokyo, where I'll be staying?"
+            },
+            {
+              "id": "63d51651-ca5f-45fb-a31d-dc9a6ac7320a",
+              "session_id": "answer_cebb7159",
+              "node_type": "preference",
+              "score": 0.523036,
+              "similarity": 0.554986,
+              "lexical": 0.181818,
+              "type_prior": 0.08,
+              "label": "Reservations are highly recommended for these",
+              "content": "Reservations are highly recommended for these popular restaurants, especially if you're planning to visit during peak travel seasons. You can use online reservation platforms like Chope or TableCheck, or ask the Park Hyatt Tokyo's concierge team for assistance"
+            },
+            {
+              "id": "26fda477-2373-4e99-8a05-09f43f64e2b3",
+              "session_id": "answer_cebb7159",
+              "node_type": "question",
+              "score": 0.501459,
+              "similarity": 0.528058,
+              "lexical": 0.272727,
+              "type_prior": 0.05,
+              "label": "Can you recommend any good places to exchange my money for yen near the Park Hyatt Tokyo?",
+              "content": "Can you recommend any good places to exchange my money for yen near the Park Hyatt Tokyo?"
+            },
+            {
+              "id": "08d7eefb-6629-460b-b74b-44ace3a9f85d",
+              "session_id": "answer_cebb7159",
+              "node_type": "question",
+              "score": 0.489312,
+              "similarity": 0.549666,
+              "lexical": 0.181818,
+              "type_prior": 0.05,
+              "label": "Can you recommend some popular shopping districts or malls near the Park Hyatt Tokyo?",
+              "content": "Can you recommend some popular shopping districts or malls near the Park Hyatt Tokyo?"
+            },
+            {
+              "id": "1db43b24-d44d-4d8d-a791-b9c5a4bd41af",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.487479,
+              "similarity": 0.579516,
+              "lexical": 0.272727,
+              "type_prior": 0.0,
+              "label": "I'm planning to visit the Tokyo",
+              "content": "I'm planning to visit the Tokyo Tower and was wondering if you could tell me more about it."
+            },
+            {
+              "id": "a7f544bd-6ba1-4391-9e7e-be7c400ab235",
+              "session_id": "answer_cebb7159",
+              "node_type": "preference",
+              "score": 0.480374,
+              "similarity": 0.494041,
+              "lexical": 0.181818,
+              "type_prior": 0.08,
+              "label": "**Panoramic Views",
+              "content": "**Panoramic Views:** The Tokyo Tower offers breathtaking views of the city from its observation decks. You can see Tokyo's skyline, including famous landmarks like the Imperial Palace and the Meiji Shrine."
+            },
+            {
+              "id": "f23a5f75-cf91-4daa-8892-e280a2f32626",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.471334,
+              "similarity": 0.634373,
+              "lexical": 0.090909,
+              "type_prior": 0.0,
+              "label": "The Tokyo Tower is an unforgettable",
+              "content": "The Tokyo Tower is an unforgettable experience that offers something for everyone. Enjoy your visit!."
+            },
+            {
+              "id": "3acbd69d-4b3b-4d90-846c-663807b9c502",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.462949,
+              "similarity": 0.544473,
+              "lexical": 0.272727,
+              "type_prior": 0.0,
+              "label": "**Luggage Storage",
+              "content": "**Luggage Storage:** The hotel can store your luggage before check-in or after check-out, so you can explore Tokyo without worrying about your bags."
+            },
+            {
+              "id": "91eba8ac-870b-4218-8868-d801cba78059",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.461547,
+              "similarity": 0.581431,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "Exchanging your money for yen is",
+              "content": "Exchanging your money for yen is a crucial step before exploring Tokyo. You'll find several options near the Park Hyatt Tokyo in Shinjuku. Here are a few recommendations:."
+            }
+          ]
+        },
+        "oracle_reformulated": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "4fcc6ae1-b2f0-4eae-a5bf-5253efb234f8",
+              "session_id": "answer_cebb7159",
+              "node_type": "preference",
+              "score": 0.445768,
+              "similarity": 0.589192,
+              "lexical": 0.111111,
+              "type_prior": 0.0,
+              "label": "Consider purchasing a prepaid IC card",
+              "content": "Consider purchasing a prepaid IC card like Suica or Pasmo, which can make traveling around Tokyo more convenient and cost-effective."
+            },
+            {
+              "id": "0c3dd211-3daf-4cdb-9b49-3d5310722560",
+              "session_id": "answer_cebb7159",
+              "node_type": "question",
+              "score": 0.434442,
+              "similarity": 0.503748,
+              "lexical": 0.272727,
+              "type_prior": 0.0,
+              "label": "Can you tell me more about the Park Hyatt Tokyo, where I'll be staying?",
+              "content": "Can you tell me more about the Park Hyatt Tokyo, where I'll be staying?"
+            },
+            {
+              "id": "058f9333-acd4-4a51-afe2-808d8c4ba3a8",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.424261,
+              "similarity": 0.520373,
+              "lexical": 0.2,
+              "type_prior": 0.0,
+              "label": "**Tour and Activity Desk",
+              "content": "**Tour and Activity Desk:** The hotel's tour desk can help you plan and book activities, tours, and excursions in Tokyo."
+            },
+            {
+              "id": "f23a5f75-cf91-4daa-8892-e280a2f32626",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.408481,
+              "similarity": 0.550577,
+              "lexical": 0.076923,
+              "type_prior": 0.0,
+              "label": "The Tokyo Tower is an unforgettable",
+              "content": "The Tokyo Tower is an unforgettable experience that offers something for everyone. Enjoy your visit!."
+            },
+            {
+              "id": "26fda477-2373-4e99-8a05-09f43f64e2b3",
+              "session_id": "answer_cebb7159",
+              "node_type": "question",
+              "score": 0.407189,
+              "similarity": 0.495985,
+              "lexical": 0.2,
+              "type_prior": 0.0,
+              "label": "Can you recommend any good places to exchange my money for yen near the Park Hyatt Tokyo?",
+              "content": "Can you recommend any good places to exchange my money for yen near the Park Hyatt Tokyo?"
+            },
+            {
+              "id": "3acbd69d-4b3b-4d90-846c-663807b9c502",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.402725,
+              "similarity": 0.503892,
+              "lexical": 0.166667,
+              "type_prior": 0.0,
+              "label": "**Luggage Storage",
+              "content": "**Luggage Storage:** The hotel can store your luggage before check-in or after check-out, so you can explore Tokyo without worrying about your bags."
+            },
+            {
+              "id": "08d7eefb-6629-460b-b74b-44ace3a9f85d",
+              "session_id": "answer_cebb7159",
+              "node_type": "question",
+              "score": 0.402567,
+              "similarity": 0.509161,
+              "lexical": 0.153846,
+              "type_prior": 0.0,
+              "label": "Can you recommend some popular shopping districts or malls near the Park Hyatt Tokyo?",
+              "content": "Can you recommend some popular shopping districts or malls near the Park Hyatt Tokyo?"
+            },
+            {
+              "id": "1db43b24-d44d-4d8d-a791-b9c5a4bd41af",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.39918,
+              "similarity": 0.471356,
+              "lexical": 0.230769,
+              "type_prior": 0.0,
+              "label": "I'm planning to visit the Tokyo",
+              "content": "I'm planning to visit the Tokyo Tower and was wondering if you could tell me more about it."
+            },
+            {
+              "id": "36750205-cb4e-4f70-90a9-e51e470d2513",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.398425,
+              "similarity": 0.531911,
+              "lexical": 0.086957,
+              "type_prior": 0.0,
+              "label": "These are just a few of",
+              "content": "These are just a few of the many shopping options near the Park Hyatt Tokyo. You can easily explore these areas on foot or by taking a short taxi ride. Happy shopping!."
+            },
+            {
+              "id": "91eba8ac-870b-4218-8868-d801cba78059",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.394334,
+              "similarity": 0.526067,
+              "lexical": 0.086957,
+              "type_prior": 0.0,
+              "label": "Exchanging your money for yen is",
+              "content": "Exchanging your money for yen is a crucial step before exploring Tokyo. You'll find several options near the Park Hyatt Tokyo in Shinjuku. Here are a few recommendations:."
+            }
+          ]
+        },
+        "oracle_reformulated_type_prior": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "4fcc6ae1-b2f0-4eae-a5bf-5253efb234f8",
+              "session_id": "answer_cebb7159",
+              "node_type": "preference",
+              "score": 0.525768,
+              "similarity": 0.589192,
+              "lexical": 0.111111,
+              "type_prior": 0.08,
+              "label": "Consider purchasing a prepaid IC card",
+              "content": "Consider purchasing a prepaid IC card like Suica or Pasmo, which can make traveling around Tokyo more convenient and cost-effective."
+            },
+            {
+              "id": "0c3dd211-3daf-4cdb-9b49-3d5310722560",
+              "session_id": "answer_cebb7159",
+              "node_type": "question",
+              "score": 0.484442,
+              "similarity": 0.503748,
+              "lexical": 0.272727,
+              "type_prior": 0.05,
+              "label": "Can you tell me more about the Park Hyatt Tokyo, where I'll be staying?",
+              "content": "Can you tell me more about the Park Hyatt Tokyo, where I'll be staying?"
+            },
+            {
+              "id": "63d51651-ca5f-45fb-a31d-dc9a6ac7320a",
+              "session_id": "answer_cebb7159",
+              "node_type": "preference",
+              "score": 0.473465,
+              "similarity": 0.526379,
+              "lexical": 0.083333,
+              "type_prior": 0.08,
+              "label": "Reservations are highly recommended for these",
+              "content": "Reservations are highly recommended for these popular restaurants, especially if you're planning to visit during peak travel seasons. You can use online reservation platforms like Chope or TableCheck, or ask the Park Hyatt Tokyo's concierge team for assistance"
+            },
+            {
+              "id": "26fda477-2373-4e99-8a05-09f43f64e2b3",
+              "session_id": "answer_cebb7159",
+              "node_type": "question",
+              "score": 0.457189,
+              "similarity": 0.495985,
+              "lexical": 0.2,
+              "type_prior": 0.05,
+              "label": "Can you recommend any good places to exchange my money for yen near the Park Hyatt Tokyo?",
+              "content": "Can you recommend any good places to exchange my money for yen near the Park Hyatt Tokyo?"
+            },
+            {
+              "id": "08d7eefb-6629-460b-b74b-44ace3a9f85d",
+              "session_id": "answer_cebb7159",
+              "node_type": "question",
+              "score": 0.452567,
+              "similarity": 0.509161,
+              "lexical": 0.153846,
+              "type_prior": 0.05,
+              "label": "Can you recommend some popular shopping districts or malls near the Park Hyatt Tokyo?",
+              "content": "Can you recommend some popular shopping districts or malls near the Park Hyatt Tokyo?"
+            },
+            {
+              "id": "25accf06-4c65-4c16-b0fd-99a6bc12e29f",
+              "session_id": "38e81260_1",
+              "node_type": "question",
+              "score": 0.442838,
+              "similarity": 0.239768,
+              "lexical": 0.75,
+              "type_prior": 0.05,
+              "label": "Do you have any recommendations?",
+              "content": "Do you have any recommendations?"
+            },
+            {
+              "id": "3fe63edf-b2b4-42b0-bdd7-b916d057a442",
+              "session_id": "answer_cebb7159",
+              "node_type": "preference",
+              "score": 0.434485,
+              "similarity": 0.48855,
+              "lexical": 0.041667,
+              "type_prior": 0.08,
+              "label": "**Rooms",
+              "content": "**Rooms:** Spacious and stylishly designed, with floor-to-ceiling windows offering breathtaking views of Tokyo. Room categories range from Deluxe Rooms to Suites, each equipped with modern amenities like flat-screen TVs, minibars, and luxurious bathrooms."
+            },
+            {
+              "id": "058f9333-acd4-4a51-afe2-808d8c4ba3a8",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.424261,
+              "similarity": 0.520373,
+              "lexical": 0.2,
+              "type_prior": 0.0,
+              "label": "**Tour and Activity Desk",
+              "content": "**Tour and Activity Desk:** The hotel's tour desk can help you plan and book activities, tours, and excursions in Tokyo."
+            },
+            {
+              "id": "0c5fe595-e997-4d19-8f95-4ba0271c5035",
+              "session_id": "5c0574b1",
+              "node_type": "question",
+              "score": 0.410316,
+              "similarity": 0.343309,
+              "lexical": 0.4,
+              "type_prior": 0.05,
+              "label": "do you have any tips on accommodation options, especially for solo travelers?",
+              "content": "do you have any tips on accommodation options, especially for solo travelers?"
+            },
+            {
+              "id": "f23a5f75-cf91-4daa-8892-e280a2f32626",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.408481,
+              "similarity": 0.550577,
+              "lexical": 0.076923,
+              "type_prior": 0.0,
+              "label": "The Tokyo Tower is an unforgettable",
+              "content": "The Tokyo Tower is an unforgettable experience that offers something for everyone. Enjoy your visit!."
+            }
+          ]
+        },
+        "classifier_reformulated_type_prior": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "0c3dd211-3daf-4cdb-9b49-3d5310722560",
+              "session_id": "answer_cebb7159",
+              "node_type": "question",
+              "score": 0.510299,
+              "similarity": 0.612116,
+              "lexical": 0.272727,
+              "type_prior": 0.0,
+              "label": "Can you tell me more about the Park Hyatt Tokyo, where I'll be staying?",
+              "content": "Can you tell me more about the Park Hyatt Tokyo, where I'll be staying?"
+            },
+            {
+              "id": "1db43b24-d44d-4d8d-a791-b9c5a4bd41af",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.487479,
+              "similarity": 0.579516,
+              "lexical": 0.272727,
+              "type_prior": 0.0,
+              "label": "I'm planning to visit the Tokyo",
+              "content": "I'm planning to visit the Tokyo Tower and was wondering if you could tell me more about it."
+            },
+            {
+              "id": "4fcc6ae1-b2f0-4eae-a5bf-5253efb234f8",
+              "session_id": "answer_cebb7159",
+              "node_type": "preference",
+              "score": 0.485588,
+              "similarity": 0.615775,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "Consider purchasing a prepaid IC card",
+              "content": "Consider purchasing a prepaid IC card like Suica or Pasmo, which can make traveling around Tokyo more convenient and cost-effective."
+            },
+            {
+              "id": "f23a5f75-cf91-4daa-8892-e280a2f32626",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.471334,
+              "similarity": 0.634373,
+              "lexical": 0.090909,
+              "type_prior": 0.0,
+              "label": "The Tokyo Tower is an unforgettable",
+              "content": "The Tokyo Tower is an unforgettable experience that offers something for everyone. Enjoy your visit!."
+            },
+            {
+              "id": "3acbd69d-4b3b-4d90-846c-663807b9c502",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.462949,
+              "similarity": 0.544473,
+              "lexical": 0.272727,
+              "type_prior": 0.0,
+              "label": "**Luggage Storage",
+              "content": "**Luggage Storage:** The hotel can store your luggage before check-in or after check-out, so you can explore Tokyo without worrying about your bags."
+            },
+            {
+              "id": "91eba8ac-870b-4218-8868-d801cba78059",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.461547,
+              "similarity": 0.581431,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "Exchanging your money for yen is",
+              "content": "Exchanging your money for yen is a crucial step before exploring Tokyo. You'll find several options near the Park Hyatt Tokyo in Shinjuku. Here are a few recommendations:."
+            },
+            {
+              "id": "36750205-cb4e-4f70-90a9-e51e470d2513",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.459311,
+              "similarity": 0.578236,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "These are just a few of",
+              "content": "These are just a few of the many shopping options near the Park Hyatt Tokyo. You can easily explore these areas on foot or by taking a short taxi ride. Happy shopping!."
+            },
+            {
+              "id": "26fda477-2373-4e99-8a05-09f43f64e2b3",
+              "session_id": "answer_cebb7159",
+              "node_type": "question",
+              "score": 0.451459,
+              "similarity": 0.528058,
+              "lexical": 0.272727,
+              "type_prior": 0.0,
+              "label": "Can you recommend any good places to exchange my money for yen near the Park Hyatt Tokyo?",
+              "content": "Can you recommend any good places to exchange my money for yen near the Park Hyatt Tokyo?"
+            },
+            {
+              "id": "e465ddda-a242-4fe6-a763-4086d183ff50",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.448433,
+              "similarity": 0.562697,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "Tsukiji Fish Market is a must-visit",
+              "content": "Tsukiji Fish Market is a must-visit destination in Tokyo, especially if you're a sushi lover! Here's what you can expect:."
+            },
+            {
+              "id": "058f9333-acd4-4a51-afe2-808d8c4ba3a8",
+              "session_id": "answer_cebb7159",
+              "node_type": "entity",
+              "score": 0.448237,
+              "similarity": 0.562416,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "**Tour and Activity Desk",
+              "content": "**Tour and Activity Desk:** The hotel's tour desk can help you plan and book activities, tours, and excursions in Tokyo."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "case_id": "57f827a0",
+      "category": "single-session-preference",
+      "question": "I was thinking about rearranging the furniture in my bedroom this weekend. Any tips?",
+      "gold_support_ids": [
+        "answer_1bde8d3b"
+      ],
+      "haystack_sessions": 51,
+      "node_count": 1723,
+      "oracle_personalization": true,
+      "classifier_personalization": true,
+      "gold_like_node_count": 30,
+      "gold_like_nodes": [
+        {
+          "id": "e049512c-547c-4bc2-b03d-ed3c24ed978e",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "question",
+          "label": "I'm looking for some mid-century modern design inspiration for a new bedroom dresser to replace my new one, do you have any recommendations for websites or desi",
+          "content": "I'm looking for some mid-century modern design inspiration for a new bedroom dresser to replace my new one, do you have any recommendations for websites or designers I should check out?"
+        },
+        {
+          "id": "3e8ee42a-a267-457b-b6de-ae0e0c848876",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "entity",
+          "label": "**Design Within Reach** (dwr",
+          "content": "**Design Within Reach** (dwr.com): A go-to online retailer for mid-century modern furniture, including dressers."
+        },
+        {
+          "id": "590ebc8a-79e3-4f96-a33a-ce68e56f1395",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "entity",
+          "label": "**AllModern** (allmodern",
+          "content": "**AllModern** (allmodern.com): A great resource for affordable, modern dressers with a mid-century flair."
+        },
+        {
+          "id": "ed91a992-7d34-4c2a-9f5c-92b562d8cb23",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "entity",
+          "label": "**Charles and Ray Eames**",
+          "content": "**Charles and Ray Eames**: Legendary designers known for their contributions to mid-century modern style."
+        },
+        {
+          "id": "36da6ca7-c6c3-41a4-8a84-f7def7ed78bd",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "entity",
+          "label": "**Eero Saarinen**",
+          "content": "**Eero Saarinen**: Famous for his futuristic, organic designs that influenced mid-century modern furniture."
+        },
+        {
+          "id": "178046ef-5ac3-4f42-86ca-e96f4cd5b001",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "entity",
+          "label": "**Milo Baughman**",
+          "content": "**Milo Baughman**: A pioneer of mid-century modern design, known for his sleek, low-profile furniture."
+        },
+        {
+          "id": "bcf651c6-5835-4425-b9e0-1aa6df46db1c",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "question",
+          "label": "What are some key elements that define a mid-century modern dresser?",
+          "content": "What are some key elements that define a mid-century modern dresser?"
+        },
+        {
+          "id": "86736b4d-c75f-4dbd-bd35-9005a7d6f7dd",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "entity",
+          "label": "**Clean Lines and Minimal Ornamentation**",
+          "content": "**Clean Lines and Minimal Ornamentation**: Mid-century modern design is known for its simplicity and lack of clutter. Opt for clean, straight lines, and minimal ornamentation, such as subtle metal hardware or small wooden accents."
+        },
+        {
+          "id": "d1ba7d75-ee97-4863-be5a-e7dc04334cc2",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "entity",
+          "label": "**Low Profile**",
+          "content": "**Low Profile**: Mid-century modern dressers typically have a lower profile than traditional dressers. This creates a sense of calm and makes the room feel more spacious."
+        },
+        {
+          "id": "63a6258c-8eb7-431d-8448-158006b702e3",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "entity",
+          "label": "**Simple Drawer Pulls**",
+          "content": "**Simple Drawer Pulls**: Mid-century modern drawer pulls are often simple, minimalist, and functional. Look for pulls with a clean, geometric design, such as rectangular or circular shapes."
+        },
+        {
+          "id": "0e7d84fa-ae7b-496b-9327-60c66236ad81",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "preference",
+          "label": "**Modular Design**",
+          "content": "**Modular Design**: Mid-century modern design often features modular components, like separate drawers or compartments. This creates a sense of flexibility and functionality."
+        },
+        {
+          "id": "3e4740f2-7f62-411b-b9e6-5402cb3f7c30",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "entity",
+          "label": "**Bold Color Accents**",
+          "content": "**Bold Color Accents**: Mid-century modern design often incorporates bold, vibrant colors as accents. Consider adding a pop of color with hardware, drawer pulls, or a decorative trim."
+        },
+        {
+          "id": "59be3f49-8f5d-47d3-b654-c5b58915bfa8",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "preference",
+          "label": "**Furniture design books**",
+          "content": "**Furniture design books**: Check out books like \"Mid-Century Modern: Furniture of the 1950s\" by Cara Greenberg or \"Eames Design: The Work of Charles and Ray Eames\" by John Neuhart."
+        },
+        {
+          "id": "43a31743-fdcc-4c5a-9a72-95fb8e2cb482",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "preference",
+          "label": "**Organic Shapes**",
+          "content": "**Organic Shapes**: Mid-century modern design often incorporates organic shapes, like rounded edges, curved lines, and asymmetrical forms. This creates a sense of fluidity and visual interest."
+        },
+        {
+          "id": "16f37e0f-0acf-48ca-90d2-e907d99cc087",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "preference",
+          "label": "**Wood Accents**",
+          "content": "**Wood Accents**: Wood was a popular material during the mid-century modern era. Consider using woods like walnut, oak, or teak for the dresser's frame, drawers, or accents."
+        },
+        {
+          "id": "6a2266df-3505-4abc-9d0d-d1ccf6a5bd02",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "preference",
+          "label": "**Pinterest** (pinterest",
+          "content": "**Pinterest** (pinterest.com): Create a board and start pinning your favorite mid-century modern dresser designs."
+        },
+        {
+          "id": "9d1d45f9-2f23-4fde-b436-9658721c5d91",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "question",
+          "label": "Can you recommend some popular wood types for a mid-century modern dresser, and what kind of finish would work well with them?",
+          "content": "Can you recommend some popular wood types for a mid-century modern dresser, and what kind of finish would work well with them?"
+        },
+        {
+          "id": "85db7c23-4e8f-4658-95ff-56601ca1f43f",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "preference",
+          "label": "**Maple**",
+          "content": "**Maple**: A lighter-colored wood, maple is often used to create a sense of brightness and airiness in mid-century modern designs. It's also a great choice for those who prefer a more subtle wood grain pattern."
+        },
+        {
+          "id": "4f9441d3-3beb-44be-a161-1c88d0498dff",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "question",
+          "label": "What are some popular hardware options that would complement the mid-century modern style?",
+          "content": "What are some popular hardware options that would complement the mid-century modern style?"
+        },
+        {
+          "id": "92568811-6920-4ed5-bf74-1b075857300a",
+          "session_id": "answer_1bde8d3b",
+          "node_type": "preference",
+          "label": "For a mid-century modern walnut dresser,",
+          "content": "For a mid-century modern walnut dresser, you'll want hardware that's sleek, stylish, and functional. Here are some popular hardware options that would complement the style:."
+        }
+      ],
+      "strategies": {
+        "graph_baseline": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "1d334e34-d365-4ea0-91ed-c1bf66fd43a9",
+              "session_id": "e85e0eaf_1",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "What's the layout of your bedroom? Are there any walls, furniture, or other obstacles between your router and your devices?",
+              "content": "What's the layout of your bedroom? Are there any walls, furniture, or other obstacles between your router and your devices?"
+            },
+            {
+              "id": "f8d47b9a-5bc1-4356-98fd-0aa4f9155bf7",
+              "session_id": "e85e0eaf_1",
+              "node_type": "decision",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "**Physical Obstacles**",
+              "content": "**Physical Obstacles**: While you mentioned there are a couple of walls between the router and bedroom, it's worth checking if there are any other physical obstacles that might be blocking the signal. Move any large furniture or appliances away from the path b"
+            },
+            {
+              "id": "e049512c-547c-4bc2-b03d-ed3c24ed978e",
+              "session_id": "answer_1bde8d3b",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "I'm looking for some mid-century modern design inspiration for a new bedroom dresser to replace my new one, do you have any recommendations for websites or desi",
+              "content": "I'm looking for some mid-century modern design inspiration for a new bedroom dresser to replace my new one, do you have any recommendations for websites or designers I should check out?"
+            },
+            {
+              "id": "37984660-b4cc-4618-acb8-28f0fc692191",
+              "session_id": "e85e0eaf_1",
+              "node_type": "preference",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "**Router Placement**",
+              "content": "**Router Placement**: Even though the router is in a central spot, it's worth trying to optimize its placement. Try moving it to a higher location, like a shelf or a table, to improve the signal broadcast. Avoid placing it on the floor or behind furniture, as "
+            },
+            {
+              "id": "d3d22c8e-ee27-42f7-b2d2-78f934c9b1ea",
+              "session_id": "e85e0eaf_1",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "Where is your router located in your home, and how far is it from your bedroom?",
+              "content": "Where is your router located in your home, and how far is it from your bedroom?"
+            },
+            {
+              "id": "ff4df860-3744-4446-a6f1-8277b4c1a6fc",
+              "session_id": "e85e0eaf_1",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "Are you using a Wi-Fi extender or access point in your bedroom, or relying solely on your router's signal?",
+              "content": "Are you using a Wi-Fi extender or access point in your bedroom, or relying solely on your router's signal?"
+            },
+            {
+              "id": "9cfbefb5-f0ec-4a8d-8c52-1959f06c52a2",
+              "session_id": "1bff1675",
+              "node_type": "concept",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "to reorganize my cabinet again to",
+              "content": "We need to reorganize my cabinet again to make it more efficient."
+            },
+            {
+              "id": "12c6b0a5-5ac5-42e9-9d26-2a93bd72329b",
+              "session_id": "1bff1675",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "Anyway, what's the best way to organize bathroom cabinets?",
+              "content": "Anyway, what's the best way to organize bathroom cabinets?"
+            },
+            {
+              "id": "425a8390-0865-4188-9954-0be620240d35",
+              "session_id": "e85e0eaf_1",
+              "node_type": "question",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "What devices do you have connected to your Wi-Fi network in your bedroom, and which ones are experiencing connectivity issues?",
+              "content": "What devices do you have connected to your Wi-Fi network in your bedroom, and which ones are experiencing connectivity issues?"
+            },
+            {
+              "id": "e4261a4f-108f-4024-8fdc-06e83bb87fea",
+              "session_id": "e85e0eaf_1",
+              "node_type": "preference",
+              "score": 0.0,
+              "similarity": 0.0,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "**Channel Interference**",
+              "content": "**Channel Interference**: Interference from neighboring networks or devices can cause signal issues. You can use tools like Wi-Fi Analyzer (for Android or iOS) to scan for nearby networks and identify the least crowded channel. Then, log in to your router's se"
+            }
+          ]
+        },
+        "raw_similarity": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "1d334e34-d365-4ea0-91ed-c1bf66fd43a9",
+              "session_id": "e85e0eaf_1",
+              "node_type": "question",
+              "score": 0.410704,
+              "similarity": 0.430876,
+              "lexical": 0.363636,
+              "type_prior": 0.0,
+              "label": "What's the layout of your bedroom? Are there any walls, furniture, or other obstacles between your router and your devices?",
+              "content": "What's the layout of your bedroom? Are there any walls, furniture, or other obstacles between your router and your devices?"
+            },
+            {
+              "id": "12c6b0a5-5ac5-42e9-9d26-2a93bd72329b",
+              "session_id": "1bff1675",
+              "node_type": "question",
+              "score": 0.346579,
+              "similarity": 0.441542,
+              "lexical": 0.125,
+              "type_prior": 0.0,
+              "label": "Anyway, what's the best way to organize bathroom cabinets?",
+              "content": "Anyway, what's the best way to organize bathroom cabinets?"
+            },
+            {
+              "id": "f8d47b9a-5bc1-4356-98fd-0aa4f9155bf7",
+              "session_id": "e85e0eaf_1",
+              "node_type": "decision",
+              "score": 0.320584,
+              "similarity": 0.302132,
+              "lexical": 0.363636,
+              "type_prior": 0.0,
+              "label": "**Physical Obstacles**",
+              "content": "**Physical Obstacles**: While you mentioned there are a couple of walls between the router and bedroom, it's worth checking if there are any other physical obstacles that might be blocking the signal. Move any large furniture or appliances away from the path b"
+            },
+            {
+              "id": "afb28b2a-2dc2-4131-8d66-83cff8b621f0",
+              "session_id": "e85e0eaf_1",
+              "node_type": "question",
+              "score": 0.319609,
+              "similarity": 0.378662,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "By the way, do you know if there are any good ways to organize and manage all the cables and wires behind my TV and computer?",
+              "content": "By the way, do you know if there are any good ways to organize and manage all the cables and wires behind my TV and computer?"
+            },
+            {
+              "id": "9cfbefb5-f0ec-4a8d-8c52-1959f06c52a2",
+              "session_id": "1bff1675",
+              "node_type": "concept",
+              "score": 0.30926,
+              "similarity": 0.4418,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "to reorganize my cabinet again to",
+              "content": "We need to reorganize my cabinet again to make it more efficient."
+            },
+            {
+              "id": "37984660-b4cc-4618-acb8-28f0fc692191",
+              "session_id": "e85e0eaf_1",
+              "node_type": "preference",
+              "score": 0.300421,
+              "similarity": 0.312289,
+              "lexical": 0.272727,
+              "type_prior": 0.0,
+              "label": "**Router Placement**",
+              "content": "**Router Placement**: Even though the router is in a central spot, it's worth trying to optimize its placement. Try moving it to a higher location, like a shelf or a table, to improve the signal broadcast. Avoid placing it on the floor or behind furniture, as "
+            },
+            {
+              "id": "e049512c-547c-4bc2-b03d-ed3c24ed978e",
+              "session_id": "answer_1bde8d3b",
+              "node_type": "question",
+              "score": 0.294098,
+              "similarity": 0.342218,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "I'm looking for some mid-century modern design inspiration for a new bedroom dresser to replace my new one, do you have any recommendations for websites or desi",
+              "content": "I'm looking for some mid-century modern design inspiration for a new bedroom dresser to replace my new one, do you have any recommendations for websites or designers I should check out?"
+            },
+            {
+              "id": "59be3f49-8f5d-47d3-b654-c5b58915bfa8",
+              "session_id": "answer_1bde8d3b",
+              "node_type": "preference",
+              "score": 0.284483,
+              "similarity": 0.328482,
+              "lexical": 0.181818,
+              "type_prior": 0.0,
+              "label": "**Furniture design books**",
+              "content": "**Furniture design books**: Check out books like \"Mid-Century Modern: Furniture of the 1950s\" by Cara Greenberg or \"Eames Design: The Work of Charles and Ray Eames\" by John Neuhart."
+            },
+            {
+              "id": "402ca973-5dc2-43b0-bc0f-aff333c0e928",
+              "session_id": "1bff1675",
+              "node_type": "preference",
+              "score": 0.284252,
+              "similarity": 0.367114,
+              "lexical": 0.090909,
+              "type_prior": 0.0,
+              "label": "Functionality",
+              "content": "Functionality: Consider features like adjustable dividers, lids, or handles to make the most of your storage space."
+            },
+            {
+              "id": "798fb017-fd09-40cf-b3ac-d0740d5829e2",
+              "session_id": "ultrachat_2904",
+              "node_type": "question",
+              "score": 0.281405,
+              "similarity": 0.316293,
+              "lexical": 0.2,
+              "type_prior": 0.0,
+              "label": "Do you have any tips for incorporating them into a busy schedule?",
+              "content": "Do you have any tips for incorporating them into a busy schedule?"
+            }
+          ]
+        },
+        "oracle_type_prior": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "1d334e34-d365-4ea0-91ed-c1bf66fd43a9",
+              "session_id": "e85e0eaf_1",
+              "node_type": "question",
+              "score": 0.460704,
+              "similarity": 0.430876,
+              "lexical": 0.363636,
+              "type_prior": 0.05,
+              "label": "What's the layout of your bedroom? Are there any walls, furniture, or other obstacles between your router and your devices?",
+              "content": "What's the layout of your bedroom? Are there any walls, furniture, or other obstacles between your router and your devices?"
+            },
+            {
+              "id": "12c6b0a5-5ac5-42e9-9d26-2a93bd72329b",
+              "session_id": "1bff1675",
+              "node_type": "question",
+              "score": 0.396579,
+              "similarity": 0.441542,
+              "lexical": 0.125,
+              "type_prior": 0.05,
+              "label": "Anyway, what's the best way to organize bathroom cabinets?",
+              "content": "Anyway, what's the best way to organize bathroom cabinets?"
+            },
+            {
+              "id": "37984660-b4cc-4618-acb8-28f0fc692191",
+              "session_id": "e85e0eaf_1",
+              "node_type": "preference",
+              "score": 0.380421,
+              "similarity": 0.312289,
+              "lexical": 0.272727,
+              "type_prior": 0.08,
+              "label": "**Router Placement**",
+              "content": "**Router Placement**: Even though the router is in a central spot, it's worth trying to optimize its placement. Try moving it to a higher location, like a shelf or a table, to improve the signal broadcast. Avoid placing it on the floor or behind furniture, as "
+            },
+            {
+              "id": "afb28b2a-2dc2-4131-8d66-83cff8b621f0",
+              "session_id": "e85e0eaf_1",
+              "node_type": "question",
+              "score": 0.369609,
+              "similarity": 0.378662,
+              "lexical": 0.181818,
+              "type_prior": 0.05,
+              "label": "By the way, do you know if there are any good ways to organize and manage all the cables and wires behind my TV and computer?",
+              "content": "By the way, do you know if there are any good ways to organize and manage all the cables and wires behind my TV and computer?"
+            },
+            {
+              "id": "59be3f49-8f5d-47d3-b654-c5b58915bfa8",
+              "session_id": "answer_1bde8d3b",
+              "node_type": "preference",
+              "score": 0.364483,
+              "similarity": 0.328482,
+              "lexical": 0.181818,
+              "type_prior": 0.08,
+              "label": "**Furniture design books**",
+              "content": "**Furniture design books**: Check out books like \"Mid-Century Modern: Furniture of the 1950s\" by Cara Greenberg or \"Eames Design: The Work of Charles and Ray Eames\" by John Neuhart."
+            },
+            {
+              "id": "402ca973-5dc2-43b0-bc0f-aff333c0e928",
+              "session_id": "1bff1675",
+              "node_type": "preference",
+              "score": 0.364252,
+              "similarity": 0.367114,
+              "lexical": 0.090909,
+              "type_prior": 0.08,
+              "label": "Functionality",
+              "content": "Functionality: Consider features like adjustable dividers, lids, or handles to make the most of your storage space."
+            },
+            {
+              "id": "16f37e0f-0acf-48ca-90d2-e907d99cc087",
+              "session_id": "answer_1bde8d3b",
+              "node_type": "preference",
+              "score": 0.356748,
+              "similarity": 0.317432,
+              "lexical": 0.181818,
+              "type_prior": 0.08,
+              "label": "**Wood Accents**",
+              "content": "**Wood Accents**: Wood was a popular material during the mid-century modern era. Consider using woods like walnut, oak, or teak for the dresser's frame, drawers, or accents."
+            },
+            {
+              "id": "f8d47b9a-5bc1-4356-98fd-0aa4f9155bf7",
+              "session_id": "e85e0eaf_1",
+              "node_type": "decision",
+              "score": 0.350584,
+              "similarity": 0.302132,
+              "lexical": 0.363636,
+              "type_prior": 0.03,
+              "label": "**Physical Obstacles**",
+              "content": "**Physical Obstacles**: While you mentioned there are a couple of walls between the router and bedroom, it's worth checking if there are any other physical obstacles that might be blocking the signal. Move any large furniture or appliances away from the path b"
+            },
+            {
+              "id": "e049512c-547c-4bc2-b03d-ed3c24ed978e",
+              "session_id": "answer_1bde8d3b",
+              "node_type": "question",
+              "score": 0.344098,
+              "similarity": 0.342218,
+              "lexical": 0.181818,
+              "type_prior": 0.05,
+              "label": "I'm looking for some mid-century modern design inspiration for a new bedroom dresser to replace my new one, do you have any recommendations for websites or desi",
+              "content": "I'm looking for some mid-century modern design inspiration for a new bedroom dresser to replace my new one, do you have any recommendations for websites or designers I should check out?"
+            },
+            {
+              "id": "e6c50e51-8352-402d-b16e-f6421ec78d44",
+              "session_id": "1bff1675",
+              "node_type": "preference",
+              "score": 0.340218,
+              "similarity": 0.228883,
+              "lexical": 0.333333,
+              "type_prior": 0.08,
+              "label": "I like those tips, especially the",
+              "content": "I like those tips, especially the one about assigning zones."
+            }
+          ]
+        },
+        "oracle_reformulated": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "1d334e34-d365-4ea0-91ed-c1bf66fd43a9",
+              "session_id": "e85e0eaf_1",
+              "node_type": "question",
+              "score": 0.383249,
+              "similarity": 0.440355,
+              "lexical": 0.25,
+              "type_prior": 0.0,
+              "label": "What's the layout of your bedroom? Are there any walls, furniture, or other obstacles between your router and your devices?",
+              "content": "What's the layout of your bedroom? Are there any walls, furniture, or other obstacles between your router and your devices?"
+            },
+            {
+              "id": "12c6b0a5-5ac5-42e9-9d26-2a93bd72329b",
+              "session_id": "1bff1675",
+              "node_type": "question",
+              "score": 0.317429,
+              "similarity": 0.399899,
+              "lexical": 0.125,
+              "type_prior": 0.0,
+              "label": "Anyway, what's the best way to organize bathroom cabinets?",
+              "content": "Anyway, what's the best way to organize bathroom cabinets?"
+            },
+            {
+              "id": "9cfbefb5-f0ec-4a8d-8c52-1959f06c52a2",
+              "session_id": "1bff1675",
+              "node_type": "concept",
+              "score": 0.287544,
+              "similarity": 0.410777,
+              "lexical": 0.0,
+              "type_prior": 0.0,
+              "label": "to reorganize my cabinet again to",
+              "content": "We need to reorganize my cabinet again to make it more efficient."
+            },
+            {
+              "id": "afb28b2a-2dc2-4131-8d66-83cff8b621f0",
+              "session_id": "e85e0eaf_1",
+              "node_type": "question",
+              "score": 0.281659,
+              "similarity": 0.35195,
+              "lexical": 0.117647,
+              "type_prior": 0.0,
+              "label": "By the way, do you know if there are any good ways to organize and manage all the cables and wires behind my TV and computer?",
+              "content": "By the way, do you know if there are any good ways to organize and manage all the cables and wires behind my TV and computer?"
+            },
+            {
+              "id": "3e8ee42a-a267-457b-b6de-ae0e0c848876",
+              "session_id": "answer_1bde8d3b",
+              "node_type": "entity",
+              "score": 0.277035,
+              "similarity": 0.365152,
+              "lexical": 0.071429,
+              "type_prior": 0.0,
+              "label": "**Design Within Reach** (dwr",
+              "content": "**Design Within Reach** (dwr.com): A go-to online retailer for mid-century modern furniture, including dressers."
+            },
+            {
+              "id": "402ca973-5dc2-43b0-bc0f-aff333c0e928",
+              "session_id": "1bff1675",
+              "node_type": "preference",
+              "score": 0.275743,
+              "similarity": 0.363307,
+              "lexical": 0.071429,
+              "type_prior": 0.0,
+              "label": "Functionality",
+              "content": "Functionality: Consider features like adjustable dividers, lids, or handles to make the most of your storage space."
+            },
+            {
+              "id": "e6c50e51-8352-402d-b16e-f6421ec78d44",
+              "session_id": "1bff1675",
+              "node_type": "preference",
+              "score": 0.26728,
+              "similarity": 0.238972,
+              "lexical": 0.333333,
+              "type_prior": 0.0,
+              "label": "I like those tips, especially the",
+              "content": "I like those tips, especially the one about assigning zones."
+            },
+            {
+              "id": "0b15a18e-0b5c-46b9-aac3-4828f933288c",
+              "session_id": "031061e6_3",
+              "node_type": "entity",
+              "score": 0.257044,
+              "similarity": 0.152919,
+              "lexical": 0.5,
+              "type_prior": 0.0,
+              "label": "*Additional Tips**",
+              "content": "*Additional Tips**."
+            },
+            {
+              "id": "798fb017-fd09-40cf-b3ac-d0740d5829e2",
+              "session_id": "ultrachat_2904",
+              "node_type": "question",
+              "score": 0.255503,
+              "similarity": 0.279291,
+              "lexical": 0.2,
+              "type_prior": 0.0,
+              "label": "Do you have any tips for incorporating them into a busy schedule?",
+              "content": "Do you have any tips for incorporating them into a busy schedule?"
+            },
+            {
+              "id": "59be3f49-8f5d-47d3-b654-c5b58915bfa8",
+              "session_id": "answer_1bde8d3b",
+              "node_type": "preference",
+              "score": 0.253222,
+              "similarity": 0.318888,
+              "lexical": 0.1,
+              "type_prior": 0.0,
+              "label": "**Furniture design books**",
+              "content": "**Furniture design books**: Check out books like \"Mid-Century Modern: Furniture of the 1950s\" by Cara Greenberg or \"Eames Design: The Work of Charles and Ray Eames\" by John Neuhart."
+            }
+          ]
+        },
+        "oracle_reformulated_type_prior": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "1d334e34-d365-4ea0-91ed-c1bf66fd43a9",
+              "session_id": "e85e0eaf_1",
+              "node_type": "question",
+              "score": 0.433249,
+              "similarity": 0.440355,
+              "lexical": 0.25,
+              "type_prior": 0.05,
+              "label": "What's the layout of your bedroom? Are there any walls, furniture, or other obstacles between your router and your devices?",
+              "content": "What's the layout of your bedroom? Are there any walls, furniture, or other obstacles between your router and your devices?"
+            },
+            {
+              "id": "12c6b0a5-5ac5-42e9-9d26-2a93bd72329b",
+              "session_id": "1bff1675",
+              "node_type": "question",
+              "score": 0.367429,
+              "similarity": 0.399899,
+              "lexical": 0.125,
+              "type_prior": 0.05,
+              "label": "Anyway, what's the best way to organize bathroom cabinets?",
+              "content": "Anyway, what's the best way to organize bathroom cabinets?"
+            },
+            {
+              "id": "402ca973-5dc2-43b0-bc0f-aff333c0e928",
+              "session_id": "1bff1675",
+              "node_type": "preference",
+              "score": 0.355743,
+              "similarity": 0.363307,
+              "lexical": 0.071429,
+              "type_prior": 0.08,
+              "label": "Functionality",
+              "content": "Functionality: Consider features like adjustable dividers, lids, or handles to make the most of your storage space."
+            },
+            {
+              "id": "e6c50e51-8352-402d-b16e-f6421ec78d44",
+              "session_id": "1bff1675",
+              "node_type": "preference",
+              "score": 0.34728,
+              "similarity": 0.238972,
+              "lexical": 0.333333,
+              "type_prior": 0.08,
+              "label": "I like those tips, especially the",
+              "content": "I like those tips, especially the one about assigning zones."
+            },
+            {
+              "id": "59be3f49-8f5d-47d3-b654-c5b58915bfa8",
+              "session_id": "answer_1bde8d3b",
+              "node_type": "preference",
+              "score": 0.333222,
+              "similarity": 0.318888,
+              "lexical": 0.1,
+              "type_prior": 0.08,
+              "label": "**Furniture design books**",
+              "content": "**Furniture design books**: Check out books like \"Mid-Century Modern: Furniture of the 1950s\" by Cara Greenberg or \"Eames Design: The Work of Charles and Ray Eames\" by John Neuhart."
+            },
+            {
+              "id": "afb28b2a-2dc2-4131-8d66-83cff8b621f0",
+              "session_id": "e85e0eaf_1",
+              "node_type": "question",
+              "score": 0.331659,
+              "similarity": 0.35195,
+              "lexical": 0.117647,
+              "type_prior": 0.05,
+              "label": "By the way, do you know if there are any good ways to organize and manage all the cables and wires behind my TV and computer?",
+              "content": "By the way, do you know if there are any good ways to organize and manage all the cables and wires behind my TV and computer?"
+            },
+            {
+              "id": "1226d44f-856f-41cf-b9f3-9c557c80ddad",
+              "session_id": "answer_1bde8d3b",
+              "node_type": "preference",
+              "score": 0.328067,
+              "similarity": 0.330573,
+              "lexical": 0.055556,
+              "type_prior": 0.08,
+              "label": "**George Nelson**",
+              "content": "**George Nelson**: Designed iconic pieces like the Ball Clock and Marshmallow Sofa, which can inspire your dresser design."
+            },
+            {
+              "id": "37984660-b4cc-4618-acb8-28f0fc692191",
+              "session_id": "e85e0eaf_1",
+              "node_type": "preference",
+              "score": 0.323308,
+              "similarity": 0.294012,
+              "lexical": 0.125,
+              "type_prior": 0.08,
+              "label": "**Router Placement**",
+              "content": "**Router Placement**: Even though the router is in a central spot, it's worth trying to optimize its placement. Try moving it to a higher location, like a shelf or a table, to improve the signal broadcast. Avoid placing it on the floor or behind furniture, as "
+            },
+            {
+              "id": "92568811-6920-4ed5-bf74-1b075857300a",
+              "session_id": "answer_1bde8d3b",
+              "node_type": "preference",
+              "score": 0.322443,
+              "similarity": 0.327714,
+              "lexical": 0.043478,
+              "type_prior": 0.08,
+              "label": "For a mid-century modern walnut dresser,",
+              "content": "For a mid-century modern walnut dresser, you'll want hardware that's sleek, stylish, and functional. Here are some popular hardware options that would complement the style:."
+            },
+            {
+              "id": "798fb017-fd09-40cf-b3ac-d0740d5829e2",
+              "session_id": "ultrachat_2904",
+              "node_type": "question",
+              "score": 0.305503,
+              "similarity": 0.279291,
+              "lexical": 0.2,
+              "type_prior": 0.05,
+              "label": "Do you have any tips for incorporating them into a busy schedule?",
+              "content": "Do you have any tips for incorporating them into a busy schedule?"
+            }
+          ]
+        },
+        "classifier_reformulated_type_prior": {
+          "gold_like_hit_at_k": true,
+          "gold_session_hit_at_k": true,
+          "top": [
+            {
+              "id": "1d334e34-d365-4ea0-91ed-c1bf66fd43a9",
+              "session_id": "e85e0eaf_1",
+              "node_type": "question",
+              "score": 0.433249,
+              "similarity": 0.440355,
+              "lexical": 0.25,
+              "type_prior": 0.05,
+              "label": "What's the layout of your bedroom? Are there any walls, furniture, or other obstacles between your router and your devices?",
+              "content": "What's the layout of your bedroom? Are there any walls, furniture, or other obstacles between your router and your devices?"
+            },
+            {
+              "id": "12c6b0a5-5ac5-42e9-9d26-2a93bd72329b",
+              "session_id": "1bff1675",
+              "node_type": "question",
+              "score": 0.367429,
+              "similarity": 0.399899,
+              "lexical": 0.125,
+              "type_prior": 0.05,
+              "label": "Anyway, what's the best way to organize bathroom cabinets?",
+              "content": "Anyway, what's the best way to organize bathroom cabinets?"
+            },
+            {
+              "id": "402ca973-5dc2-43b0-bc0f-aff333c0e928",
+              "session_id": "1bff1675",
+              "node_type": "preference",
+              "score": 0.355743,
+              "similarity": 0.363307,
+              "lexical": 0.071429,
+              "type_prior": 0.08,
+              "label": "Functionality",
+              "content": "Functionality: Consider features like adjustable dividers, lids, or handles to make the most of your storage space."
+            },
+            {
+              "id": "e6c50e51-8352-402d-b16e-f6421ec78d44",
+              "session_id": "1bff1675",
+              "node_type": "preference",
+              "score": 0.34728,
+              "similarity": 0.238972,
+              "lexical": 0.333333,
+              "type_prior": 0.08,
+              "label": "I like those tips, especially the",
+              "content": "I like those tips, especially the one about assigning zones."
+            },
+            {
+              "id": "59be3f49-8f5d-47d3-b654-c5b58915bfa8",
+              "session_id": "answer_1bde8d3b",
+              "node_type": "preference",
+              "score": 0.333222,
+              "similarity": 0.318888,
+              "lexical": 0.1,
+              "type_prior": 0.08,
+              "label": "**Furniture design books**",
+              "content": "**Furniture design books**: Check out books like \"Mid-Century Modern: Furniture of the 1950s\" by Cara Greenberg or \"Eames Design: The Work of Charles and Ray Eames\" by John Neuhart."
+            },
+            {
+              "id": "afb28b2a-2dc2-4131-8d66-83cff8b621f0",
+              "session_id": "e85e0eaf_1",
+              "node_type": "question",
+              "score": 0.331659,
+              "similarity": 0.35195,
+              "lexical": 0.117647,
+              "type_prior": 0.05,
+              "label": "By the way, do you know if there are any good ways to organize and manage all the cables and wires behind my TV and computer?",
+              "content": "By the way, do you know if there are any good ways to organize and manage all the cables and wires behind my TV and computer?"
+            },
+            {
+              "id": "1226d44f-856f-41cf-b9f3-9c557c80ddad",
+              "session_id": "answer_1bde8d3b",
+              "node_type": "preference",
+              "score": 0.328067,
+              "similarity": 0.330573,
+              "lexical": 0.055556,
+              "type_prior": 0.08,
+              "label": "**George Nelson**",
+              "content": "**George Nelson**: Designed iconic pieces like the Ball Clock and Marshmallow Sofa, which can inspire your dresser design."
+            },
+            {
+              "id": "37984660-b4cc-4618-acb8-28f0fc692191",
+              "session_id": "e85e0eaf_1",
+              "node_type": "preference",
+              "score": 0.323308,
+              "similarity": 0.294012,
+              "lexical": 0.125,
+              "type_prior": 0.08,
+              "label": "**Router Placement**",
+              "content": "**Router Placement**: Even though the router is in a central spot, it's worth trying to optimize its placement. Try moving it to a higher location, like a shelf or a table, to improve the signal broadcast. Avoid placing it on the floor or behind furniture, as "
+            },
+            {
+              "id": "92568811-6920-4ed5-bf74-1b075857300a",
+              "session_id": "answer_1bde8d3b",
+              "node_type": "preference",
+              "score": 0.322443,
+              "similarity": 0.327714,
+              "lexical": 0.043478,
+              "type_prior": 0.08,
+              "label": "For a mid-century modern walnut dresser,",
+              "content": "For a mid-century modern walnut dresser, you'll want hardware that's sleek, stylish, and functional. Here are some popular hardware options that would complement the style:."
+            },
+            {
+              "id": "798fb017-fd09-40cf-b3ac-d0740d5829e2",
+              "session_id": "ultrachat_2904",
+              "node_type": "question",
+              "score": 0.305503,
+              "similarity": 0.279291,
+              "lexical": 0.2,
+              "type_prior": 0.05,
+              "label": "Do you have any tips for incorporating them into a busy schedule?",
+              "content": "Do you have any tips for incorporating them into a busy schedule?"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,1786 @@
+{
+  "dataset": "benchmarks/longmemeval/longmemeval_s_cleaned.json",
+  "scope": "all LongMemEval-S single-session-preference has_answer turns",
+  "summary": {
+    "ssp_has_answer_turns": 44,
+    "narrative_like_turns": 5,
+    "weak_narrative_preservation_turns": 3,
+    "narrative_preservation_rate": 0.4
+  },
+  "weak_narrative_preservation": [
+    {
+      "case_id": "54026fce",
+      "category": "single-session-preference",
+      "question": "I've been thinking about ways to stay connected with my colleagues. Any suggestions?",
+      "session_id": "answer_f7b22c66",
+      "role": "user",
+      "narrative_like": true,
+      "markers": [
+        "emotion_sad"
+      ],
+      "preserved_markers": [],
+      "missing_markers": [
+        "emotion_sad"
+      ],
+      "source_token_count": 12,
+      "candidate_token_count": 4,
+      "overlap_count": 1,
+      "overlap_rate": 0.0833,
+      "missing_distinctive_tokens": [
+        "colleagues",
+        "conversations",
+        "enjoy",
+        "flexibility",
+        "interactions",
+        "looking",
+        "social",
+        "socialize",
+        "suggestions",
+        "watercooler",
+        "working"
+      ],
+      "source_text": "I'm looking for some suggestions on how to socialize with my colleagues. I enjoy the flexibility of working from home but miss social interactions and watercooler conversations with colleagues. Do you have any ideas?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Do you have any ideas?",
+          "content": "Do you have any ideas?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "d6233ab6",
+      "category": "single-session-preference",
+      "question": "I've been feeling nostalgic lately. Do you think it would be a good idea to attend my high school reunion?",
+      "session_id": "answer_b0fac439",
+      "role": "user",
+      "narrative_like": true,
+      "markers": [
+        "remember",
+        "high_school",
+        "school",
+        "debate_team",
+        "advanced_placement",
+        "emotion_happy",
+        "emotion_surprised"
+      ],
+      "preserved_markers": [],
+      "missing_markers": [
+        "advanced_placement",
+        "debate_team",
+        "emotion_happy",
+        "emotion_surprised",
+        "high_school",
+        "remember",
+        "school"
+      ],
+      "source_token_count": 24,
+      "candidate_token_count": 12,
+      "overlap_count": 9,
+      "overlap_rate": 0.375,
+      "missing_distinctive_tokens": [
+        "advanced",
+        "become",
+        "being",
+        "courses",
+        "debate",
+        "economics",
+        "experiences",
+        "happy",
+        "major",
+        "placement",
+        "remember",
+        "school",
+        "still",
+        "surprised",
+        "taking"
+      ],
+      "source_text": "I still remember the happy high school experiences such as being part of the debate team and taking advanced placement courses in economics. Now, I am surprised that I will become a Economics major so soon. Speaking of future, what are the average salaries for data scientists in different industries, and are there any specific industries that are more in demand for data scientists?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Speaking of future, what are the average salaries for data scientists in different industries, and are there any specific industries that are more in demand for data scientists?",
+          "content": "Speaking of future, what are the average salaries for data scientists in different industries, and are there any specific industries that are more in demand for data scientists?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "d6233ab6",
+      "category": "single-session-preference",
+      "question": "I've been feeling nostalgic lately. Do you think it would be a good idea to attend my high school reunion?",
+      "session_id": "answer_b0fac439",
+      "role": "user",
+      "narrative_like": true,
+      "markers": [
+        "high_school",
+        "university",
+        "school"
+      ],
+      "preserved_markers": [],
+      "missing_markers": [
+        "high_school",
+        "school",
+        "university"
+      ],
+      "source_token_count": 17,
+      "candidate_token_count": 11,
+      "overlap_count": 8,
+      "overlap_rate": 0.4706,
+      "missing_distinctive_tokens": [
+        "asking",
+        "commit",
+        "friends",
+        "graduate",
+        "master",
+        "program",
+        "ready",
+        "school",
+        "university"
+      ],
+      "source_text": "I'm not sure if I'm ready to commit to a full Master's program yet. I am asking because a lot of old high school friends plan to work after the graduate from university. Can you recommend some online courses or certifications that can help me build my skills in data science and get a feel for the field?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Can you recommend some online courses or certifications that can help me build my skills in data science and get a feel for the field?",
+          "content": "Can you recommend some online courses or certifications that can help me build my skills in data science and get a feel for the field?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "case_id": "8a2466db",
+      "category": "single-session-preference",
+      "question": "Can you recommend some resources where I can learn more about video editing?",
+      "session_id": "answer_edb03329",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 10,
+      "candidate_token_count": 14,
+      "overlap_count": 10,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "I'm trying to learn more about some advanced settings for video editing with Adobe Premiere Pro, which I enjoy to use. Can you give me some tips on where to start?",
+      "candidates": [
+        {
+          "node_type": "entity",
+          "label": "I'm trying to learn more about",
+          "content": "I'm trying to learn more about some advanced settings for video editing with Adobe Premiere Pro, which I enjoy to use.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "question",
+          "label": "Can you give me some tips on where to start?",
+          "content": "Can you give me some tips on where to start?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "06878be2",
+      "category": "single-session-preference",
+      "question": "Can you suggest some accessories that would complement my current photography setup?",
+      "session_id": "answer_555dfb94",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 7,
+      "candidate_token_count": 6,
+      "overlap_count": 3,
+      "overlap_rate": 0.4286,
+      "missing_distinctive_tokens": [
+        "camera",
+        "flash",
+        "looking",
+        "upgrade"
+      ],
+      "source_text": "I'm looking to upgrade my camera flash. Can you recommend some good options that are compatible with my Sony A7R IV?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Can you recommend some good options that are compatible with my Sony A7R IV?",
+          "content": "Can you recommend some good options that are compatible with my Sony A7R IV?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "06878be2",
+      "category": "single-session-preference",
+      "question": "Can you suggest some accessories that would complement my current photography setup?",
+      "session_id": "answer_555dfb94",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 9,
+      "candidate_token_count": 7,
+      "overlap_count": 1,
+      "overlap_rate": 0.1111,
+      "missing_distinctive_tokens": [
+        "cleaning",
+        "cloth",
+        "heard",
+        "leave",
+        "scratches",
+        "solution",
+        "streaks",
+        "using"
+      ],
+      "source_text": "What's the best way to clean my Sony 24-70mm f/2.8 lens? I've heard that using a soft cloth and some cleaning solution can leave streaks or scratches on the lens.",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "What's the best way to clean my Sony 24-70mm f/2.8 lens?",
+          "content": "What's the best way to clean my Sony 24-70mm f/2.8 lens?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "entity",
+          "label": "f/2.8",
+          "content": "Code path mentioned in conversation: f/2.8",
+          "tags": [
+            "observed",
+            "code-path",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "06878be2",
+      "category": "single-session-preference",
+      "question": "Can you suggest some accessories that would complement my current photography setup?",
+      "session_id": "answer_555dfb94",
+      "role": "user",
+      "narrative_like": true,
+      "markers": [
+        "past_experience"
+      ],
+      "preserved_markers": [
+        "past_experience"
+      ],
+      "missing_markers": [],
+      "source_token_count": 16,
+      "candidate_token_count": 20,
+      "overlap_count": 16,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "As a Sony camera user, I've been thinking about upgrading my camera bag to something more comfortable and durable. Do you have any recommendations for camera bags that are specifically designed for Sony cameras? I've been looking at a few options online, but I'd love to hear your thoughts and get some recommendations from someone with more experience.",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "As a Sony camera user, I've been thinking about upgrading my camera bag to something more comfortable and durable. Do you have any recommendations for camera bags that are specifically designed for Sony cameras?",
+          "content": "As a Sony camera user, I've been thinking about upgrading my camera bag to something more comfortable and durable. Do you have any recommendations for camera bags that are specifically designed for Sony cameras?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "preference",
+          "label": "I've been looking at a few",
+          "content": "I've been looking at a few options online, but I'd love to hear your thoughts and get some recommendations from someone with more experience.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "75832dbd",
+      "category": "single-session-preference",
+      "question": "Can you recommend some recent publications or conferences that I might find interesting?",
+      "session_id": "answer_d87a6ef8",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 10,
+      "candidate_token_count": 11,
+      "overlap_count": 8,
+      "overlap_rate": 0.8,
+      "missing_distinctive_tokens": [
+        "basics",
+        "working"
+      ],
+      "source_text": "Can you give me an overview of the recent advancements in this field of deep learning for medical image analysis? Skip the basics as I am working in the field.",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Can you give me an overview of the recent advancements in this field of deep learning for medical image analysis?",
+          "content": "Can you give me an overview of the recent advancements in this field of deep learning for medical image analysis?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "0edc2aef",
+      "category": "single-session-preference",
+      "question": "Can you suggest a hotel for my upcoming trip to Miami?",
+      "session_id": "answer_d586e9cd",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 8,
+      "candidate_token_count": 9,
+      "overlap_count": 5,
+      "overlap_rate": 0.625,
+      "missing_distinctive_tokens": [
+        "besides",
+        "great",
+        "views"
+      ],
+      "source_text": "Besides great views, I also like hotels with unique features, such as a rooftop pool or a hot tub on the balcony. Do you know if any of these hotels have those features?",
+      "candidates": [
+        {
+          "node_type": "preference",
+          "label": "I also like hotels with unique",
+          "content": "I also like hotels with unique features, such as a rooftop pool or a hot tub on the balcony.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "question",
+          "label": "Do you know if any of these hotels have those features?",
+          "content": "Do you know if any of these hotels have those features?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "35a27287",
+      "category": "single-session-preference",
+      "question": "Can you recommend some interesting cultural events happening around me this weekend?",
+      "session_id": "answer_9b182436",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 12,
+      "candidate_token_count": 16,
+      "overlap_count": 12,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "What are some cultural events or festivals in my area that celebrate language diversity and cultural exchange? I'd love to attend something like the cultural festival I volunteered at last month.",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "What are some cultural events or festivals in my area that celebrate language diversity and cultural exchange?",
+          "content": "What are some cultural events or festivals in my area that celebrate language diversity and cultural exchange?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "preference",
+          "label": "I'd love to attend something like",
+          "content": "I'd love to attend something like the cultural festival I volunteered at last month.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "35a27287",
+      "category": "single-session-preference",
+      "question": "Can you recommend some interesting cultural events happening around me this weekend?",
+      "session_id": "answer_9b182436",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 16,
+      "candidate_token_count": 20,
+      "overlap_count": 16,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "Can you recommend any language learning apps or websites that focus on idiomatic expressions and colloquialisms in French and Spanish? I've been trying to improve my conversational skills and want to learn more informal language.",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Can you recommend any language learning apps or websites that focus on idiomatic expressions and colloquialisms in French and Spanish?",
+          "content": "Can you recommend any language learning apps or websites that focus on idiomatic expressions and colloquialisms in French and Spanish?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "preference",
+          "label": "I've been trying to improve my",
+          "content": "I've been trying to improve my conversational skills and want to learn more informal language.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "35a27287",
+      "category": "single-session-preference",
+      "question": "Can you recommend some interesting cultural events happening around me this weekend?",
+      "session_id": "answer_9b182436",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 12,
+      "candidate_token_count": 16,
+      "overlap_count": 12,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "I'd like to explore more language exchange opportunities and cultural events in my area. Can you suggest some ways to find language exchange partners or events that focus on French and Spanish languages?",
+      "candidates": [
+        {
+          "node_type": "preference",
+          "label": "I'd like to explore more language",
+          "content": "I'd like to explore more language exchange opportunities and cultural events in my area.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "question",
+          "label": "Can you suggest some ways to find language exchange partners or events that focus on French and Spanish languages?",
+          "content": "Can you suggest some ways to find language exchange partners or events that focus on French and Spanish languages?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "32260d93",
+      "category": "single-session-preference",
+      "question": "Can you recommend a show or movie for me to watch tonight?",
+      "session_id": "answer_0250ae1c",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 16,
+      "candidate_token_count": 13,
+      "overlap_count": 10,
+      "overlap_rate": 0.625,
+      "missing_distinctive_tokens": [
+        "advice",
+        "aspiring",
+        "comedian",
+        "craft",
+        "improve",
+        "looking"
+      ],
+      "source_text": "As an aspiring stand-up comedian, I'm looking for some advice on how to improve my craft. Can you recommend some stand-up comedy specials on Netflix with strong storytelling abilities like John Mulaney's 'Kid Gorgeous'?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Can you recommend some stand-up comedy specials on Netflix with strong storytelling abilities like John Mulaney's 'Kid Gorgeous'?",
+          "content": "Can you recommend some stand-up comedy specials on Netflix with strong storytelling abilities like John Mulaney's 'Kid Gorgeous'?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "195a1a1b",
+      "category": "single-session-preference",
+      "question": "Can you suggest some activities that I can do in the evening?",
+      "session_id": "answer_6dc4305e",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 6,
+      "candidate_token_count": 10,
+      "overlap_count": 6,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "What else can I do for the later part of the day? I prefer winding down by 9:30 pm to prepare for a good night's sleep.",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "What else can I do for the later part of the day?",
+          "content": "What else can I do for the later part of the day?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "preference",
+          "label": "I prefer winding down by 9",
+          "content": "I prefer winding down by 9:30 pm to prepare for a good night's sleep.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "afdc33df",
+      "category": "single-session-preference",
+      "question": "My kitchen's becoming a bit of a mess again. Any tips for keeping it clean?",
+      "session_id": "answer_8549e5e0",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 11,
+      "candidate_token_count": 10,
+      "overlap_count": 7,
+      "overlap_rate": 0.6364,
+      "missing_distinctive_tokens": [
+        "bought",
+        "clutter",
+        "countertops",
+        "recently"
+      ],
+      "source_text": "I also need some help with organizing my kitchen utensils, can you give me some tips on how to maximize the space in my utensil holder? I recently bought a new utensil holder to keep countertops clutter-free.",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "I also need some help with organizing my kitchen utensils, can you give me some tips on how to maximize the space in my utensil holder?",
+          "content": "I also need some help with organizing my kitchen utensils, can you give me some tips on how to maximize the space in my utensil holder?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "afdc33df",
+      "category": "single-session-preference",
+      "question": "My kitchen's becoming a bit of a mess again. Any tips for keeping it clean?",
+      "session_id": "answer_8549e5e0",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 6,
+      "candidate_token_count": 6,
+      "overlap_count": 3,
+      "overlap_rate": 0.5,
+      "missing_distinctive_tokens": [
+        "countertop",
+        "granite",
+        "noticed"
+      ],
+      "source_text": "I noticed some scratches on my granite countertop near the sink. Do you have any tips on how to repair or remove those scratches?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Do you have any tips on how to repair or remove those scratches?",
+          "content": "Do you have any tips on how to repair or remove those scratches?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "afdc33df",
+      "category": "single-session-preference",
+      "question": "My kitchen's becoming a bit of a mess again. Any tips for keeping it clean?",
+      "session_id": "answer_8549e5e0",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 7,
+      "candidate_token_count": 4,
+      "overlap_count": 1,
+      "overlap_rate": 0.1429,
+      "missing_distinctive_tokens": [
+        "faucet",
+        "having",
+        "issues",
+        "kitchen",
+        "leaking",
+        "slightly"
+      ],
+      "source_text": "I'm also having some issues with my kitchen faucet, it's been leaking slightly. Can you give me some tips on how to fix it or know when it's time to replace it?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Can you give me some tips on how to fix it or know when it's time to replace it?",
+          "content": "Can you give me some tips on how to fix it or know when it's time to replace it?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "caf03d32",
+      "category": "single-session-preference",
+      "question": "I've been struggling with my slow cooker recipes. Any advice on getting better results?",
+      "session_id": "answer_2fc6aabb",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 7,
+      "candidate_token_count": 4,
+      "overlap_count": 1,
+      "overlap_rate": 0.1429,
+      "missing_distinctive_tokens": [
+        "cooker",
+        "delicious",
+        "figured",
+        "recently",
+        "recipes",
+        "wanting"
+      ],
+      "source_text": "I recently figured out how to use the slow cooker and made a delicious beef stew. I've been wanting to try more recipes with it. Do you have any recommendations?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Do you have any recommendations?",
+          "content": "Do you have any recommendations?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "caf03d32",
+      "category": "single-session-preference",
+      "question": "I've been struggling with my slow cooker recipes. Any advice on getting better results?",
+      "session_id": "answer_2fc6aabb",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 4,
+      "candidate_token_count": 7,
+      "overlap_count": 4,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "Do you have any recipes for making yogurt in a slow cooker?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Do you have any recipes for making yogurt in a slow cooker?",
+          "content": "Do you have any recipes for making yogurt in a slow cooker?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "54026fce",
+      "category": "single-session-preference",
+      "question": "I've been thinking about ways to stay connected with my colleagues. Any suggestions?",
+      "session_id": "answer_f7b22c66",
+      "role": "user",
+      "narrative_like": true,
+      "markers": [
+        "emotion_sad"
+      ],
+      "preserved_markers": [],
+      "missing_markers": [
+        "emotion_sad"
+      ],
+      "source_token_count": 12,
+      "candidate_token_count": 4,
+      "overlap_count": 1,
+      "overlap_rate": 0.0833,
+      "missing_distinctive_tokens": [
+        "colleagues",
+        "conversations",
+        "enjoy",
+        "flexibility",
+        "interactions",
+        "looking",
+        "social",
+        "socialize",
+        "suggestions",
+        "watercooler",
+        "working"
+      ],
+      "source_text": "I'm looking for some suggestions on how to socialize with my colleagues. I enjoy the flexibility of working from home but miss social interactions and watercooler conversations with colleagues. Do you have any ideas?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Do you have any ideas?",
+          "content": "Do you have any ideas?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "06f04340",
+      "category": "single-session-preference",
+      "question": "What should I serve for dinner this weekend with my homegrown ingredients?",
+      "session_id": "answer_92d5f7cd",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 12,
+      "candidate_token_count": 9,
+      "overlap_count": 6,
+      "overlap_rate": 0.5,
+      "missing_distinctive_tokens": [
+        "basil",
+        "cooking",
+        "garden",
+        "harvested",
+        "lately",
+        "using"
+      ],
+      "source_text": "I've been using basil and mint in my cooking lately. I've even harvested some cherry tomatoes from my garden. Do you have any suggestions for companion plants that could help my cherry tomatoes grow better?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Do you have any suggestions for companion plants that could help my cherry tomatoes grow better?",
+          "content": "Do you have any suggestions for companion plants that could help my cherry tomatoes grow better?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "6b7dfb22",
+      "category": "single-session-preference",
+      "question": "I've been feeling a bit stuck with my paintings lately. Do you have any ideas on how I can find new inspiration?",
+      "session_id": "answer_f6502d0f",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 20,
+      "candidate_token_count": 8,
+      "overlap_count": 5,
+      "overlap_rate": 0.25,
+      "missing_distinctive_tokens": [
+        "challenge",
+        "distracted",
+        "getting",
+        "inspiration",
+        "losing",
+        "media",
+        "midway",
+        "myself",
+        "painting",
+        "recently",
+        "social",
+        "sometimes",
+        "started",
+        "steam",
+        "through"
+      ],
+      "source_text": "Do you have any suggestions for how to stay motivated and focused while working on a project? I sometimes find myself getting distracted or losing steam midway through a project. I have been getting inspiration from social media and recently started a 30-day painting challenge.",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Do you have any suggestions for how to stay motivated and focused while working on a project?",
+          "content": "Do you have any suggestions for how to stay motivated and focused while working on a project?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "1a1907b4",
+      "category": "single-session-preference",
+      "question": "I've been thinking about making a cocktail for an upcoming get-together, but I'm not sure which one to choose. Any suggestions?",
+      "session_id": "answer_719502eb",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 15,
+      "candidate_token_count": 19,
+      "overlap_count": 15,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "I like the idea of the Pimm's Cup with a Twist, but I've already made a classic Pimm's Cup and classic cocktails recently from a mixology class that I attended. By the way, what's the difference between cucumber juice and muddling cucumber slices in a drink?",
+      "candidates": [
+        {
+          "node_type": "preference",
+          "label": "I like the idea of the",
+          "content": "I like the idea of the Pimm's Cup with a Twist, but I've already made a classic Pimm's Cup and classic cocktails recently from a mixology class that I attended.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "question",
+          "label": "By the way, what's the difference between cucumber juice and muddling cucumber slices in a drink?",
+          "content": "By the way, what's the difference between cucumber juice and muddling cucumber slices in a drink?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "09d032c9",
+      "category": "single-session-preference",
+      "question": "I've been having trouble with the battery life on my phone lately. Any tips?",
+      "session_id": "answer_b10dce5e",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 9,
+      "candidate_token_count": 12,
+      "overlap_count": 9,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "I'm looking for some advice on the best way to organize my tech accessories, like my new portable power bank and wireless charging pad, when I'm traveling.",
+      "candidates": [
+        {
+          "node_type": "preference",
+          "label": "I'm looking for some advice on",
+          "content": "I'm looking for some advice on the best way to organize my tech accessories, like my new portable power bank and wireless charging pad, when I'm traveling.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "38146c39",
+      "category": "single-session-preference",
+      "question": "I've been feeling like my chocolate chip cookies need something extra. Any advice?",
+      "session_id": "answer_772472c8",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 12,
+      "candidate_token_count": 8,
+      "overlap_count": 5,
+      "overlap_rate": 0.4167,
+      "missing_distinctive_tokens": [
+        "different",
+        "experimenting",
+        "found",
+        "richer",
+        "sugar",
+        "turbinado",
+        "types"
+      ],
+      "source_text": "I've been experimenting with different types of sugar and found that turbinado sugar adds a richer flavor. Do you have any suggestions on what other ingredients I could pair with it to enhance the flavor even more?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Do you have any suggestions on what other ingredients I could pair with it to enhance the flavor even more?",
+          "content": "Do you have any suggestions on what other ingredients I could pair with it to enhance the flavor even more?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "d24813b1",
+      "category": "single-session-preference",
+      "question": "I'm thinking of inviting my colleagues over for a small gathering. Any tips on what to bake?",
+      "session_id": "answer_7c0ade93",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 11,
+      "candidate_token_count": 10,
+      "overlap_count": 7,
+      "overlap_rate": 0.6364,
+      "missing_distinctive_tokens": [
+        "birthday",
+        "friend",
+        "making",
+        "thinking"
+      ],
+      "source_text": "I'm thinking of making a cake for my friend's birthday. Do you have any suggestions for a lemon flavored cake, like my lemon poppyseed cake that I made for a colleague's going-away party?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Do you have any suggestions for a lemon flavored cake, like my lemon poppyseed cake that I made for a colleague's going-away party?",
+          "content": "Do you have any suggestions for a lemon flavored cake, like my lemon poppyseed cake that I made for a colleague's going-away party?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "57f827a0",
+      "category": "single-session-preference",
+      "question": "I was thinking about rearranging the furniture in my bedroom this weekend. Any tips?",
+      "session_id": "answer_1bde8d3b",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 12,
+      "candidate_token_count": 15,
+      "overlap_count": 12,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "I'm looking for some mid-century modern design inspiration for a new bedroom dresser to replace my new one, do you have any recommendations for websites or designers I should check out?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "I'm looking for some mid-century modern design inspiration for a new bedroom dresser to replace my new one, do you have any recommendations for websites or designers I should check out?",
+          "content": "I'm looking for some mid-century modern design inspiration for a new bedroom dresser to replace my new one, do you have any recommendations for websites or designers I should check out?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "95228167",
+      "category": "single-session-preference",
+      "question": "I'm getting excited about my visit to the music store this weekend. Any tips on what to look for in a new guitar?",
+      "session_id": "answer_5e613445",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 8,
+      "candidate_token_count": 12,
+      "overlap_count": 8,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "I'm considering upgrading from a Fender Stratocaster to a Gibson Les Paul. Can you tell me the main differences between these two guitars?",
+      "candidates": [
+        {
+          "node_type": "entity",
+          "label": "I'm considering upgrading from a Fender",
+          "content": "I'm considering upgrading from a Fender Stratocaster to a Gibson Les Paul.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "question",
+          "label": "Can you tell me the main differences between these two guitars?",
+          "content": "Can you tell me the main differences between these two guitars?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "505af2f5",
+      "category": "single-session-preference",
+      "question": "I was thinking of trying a new coffee creamer recipe. Any recommendations?",
+      "session_id": "answer_f3164f2c",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 14,
+      "candidate_token_count": 4,
+      "overlap_count": 1,
+      "overlap_rate": 0.0714,
+      "missing_distinctive_tokens": [
+        "almond",
+        "creamer",
+        "extract",
+        "flavored",
+        "honey",
+        "intake",
+        "making",
+        "money",
+        "reduce",
+        "started",
+        "sugar",
+        "trying",
+        "vanilla"
+      ],
+      "source_text": "I'm trying to reduce my sugar intake and save money, so I've started making my own flavored creamer with almond milk, vanilla extract, and honey. Can you give me some tips on how to make it even healthier?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Can you give me some tips on how to make it even healthier?",
+          "content": "Can you give me some tips on how to make it even healthier?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "75f70248",
+      "category": "single-session-preference",
+      "question": "I've been sneezing quite a bit lately. Do you think it might be my living room?",
+      "session_id": "answer_8ee04a2e",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 4,
+      "candidate_token_count": 7,
+      "overlap_count": 4,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "What are some simple ways to keep my living room dust-free, especially with a cat that sheds a lot?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "What are some simple ways to keep my living room dust-free, especially with a cat that sheds a lot?",
+          "content": "What are some simple ways to keep my living room dust-free, especially with a cat that sheds a lot?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "d6233ab6",
+      "category": "single-session-preference",
+      "question": "I've been feeling nostalgic lately. Do you think it would be a good idea to attend my high school reunion?",
+      "session_id": "answer_b0fac439",
+      "role": "user",
+      "narrative_like": true,
+      "markers": [
+        "remember",
+        "high_school",
+        "school",
+        "debate_team",
+        "advanced_placement",
+        "emotion_happy",
+        "emotion_surprised"
+      ],
+      "preserved_markers": [],
+      "missing_markers": [
+        "advanced_placement",
+        "debate_team",
+        "emotion_happy",
+        "emotion_surprised",
+        "high_school",
+        "remember",
+        "school"
+      ],
+      "source_token_count": 24,
+      "candidate_token_count": 12,
+      "overlap_count": 9,
+      "overlap_rate": 0.375,
+      "missing_distinctive_tokens": [
+        "advanced",
+        "become",
+        "being",
+        "courses",
+        "debate",
+        "economics",
+        "experiences",
+        "happy",
+        "major",
+        "placement",
+        "remember",
+        "school",
+        "still",
+        "surprised",
+        "taking"
+      ],
+      "source_text": "I still remember the happy high school experiences such as being part of the debate team and taking advanced placement courses in economics. Now, I am surprised that I will become a Economics major so soon. Speaking of future, what are the average salaries for data scientists in different industries, and are there any specific industries that are more in demand for data scientists?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Speaking of future, what are the average salaries for data scientists in different industries, and are there any specific industries that are more in demand for data scientists?",
+          "content": "Speaking of future, what are the average salaries for data scientists in different industries, and are there any specific industries that are more in demand for data scientists?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "d6233ab6",
+      "category": "single-session-preference",
+      "question": "I've been feeling nostalgic lately. Do you think it would be a good idea to attend my high school reunion?",
+      "session_id": "answer_b0fac439",
+      "role": "user",
+      "narrative_like": true,
+      "markers": [
+        "high_school",
+        "university",
+        "school"
+      ],
+      "preserved_markers": [],
+      "missing_markers": [
+        "high_school",
+        "school",
+        "university"
+      ],
+      "source_token_count": 17,
+      "candidate_token_count": 11,
+      "overlap_count": 8,
+      "overlap_rate": 0.4706,
+      "missing_distinctive_tokens": [
+        "asking",
+        "commit",
+        "friends",
+        "graduate",
+        "master",
+        "program",
+        "ready",
+        "school",
+        "university"
+      ],
+      "source_text": "I'm not sure if I'm ready to commit to a full Master's program yet. I am asking because a lot of old high school friends plan to work after the graduate from university. Can you recommend some online courses or certifications that can help me build my skills in data science and get a feel for the field?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Can you recommend some online courses or certifications that can help me build my skills in data science and get a feel for the field?",
+          "content": "Can you recommend some online courses or certifications that can help me build my skills in data science and get a feel for the field?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "1da05512",
+      "category": "single-session-preference",
+      "question": "I'm trying to decide whether to buy a NAS device now or wait. What do you think?",
+      "session_id": "answer_4d3be2ab",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 11,
+      "candidate_token_count": 15,
+      "overlap_count": 11,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "I'm having some issues with my home network's storage capacity and was thinking of getting a NAS device. Can you recommend some good options for a beginner like me?",
+      "candidates": [
+        {
+          "node_type": "entity",
+          "label": "I'm having some issues with my",
+          "content": "I'm having some issues with my home network's storage capacity and was thinking of getting a NAS device.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "question",
+          "label": "Can you recommend some good options for a beginner like me?",
+          "content": "Can you recommend some good options for a beginner like me?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "1da05512",
+      "category": "single-session-preference",
+      "question": "I'm trying to decide whether to buy a NAS device now or wait. What do you think?",
+      "session_id": "answer_4d3be2ab",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 16,
+      "candidate_token_count": 20,
+      "overlap_count": 16,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "I'm already backing up my files to an external hard drive, but I think a NAS would be more convenient and provide more storage. Would it be possible to use the NAS as a central backup location for all my devices, including my laptop and phone?",
+      "candidates": [
+        {
+          "node_type": "entity",
+          "label": "I'm already backing up my files",
+          "content": "I'm already backing up my files to an external hard drive, but I think a NAS would be more convenient and provide more storage.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "question",
+          "label": "Would it be possible to use the NAS as a central backup location for all my devices, including my laptop and phone?",
+          "content": "Would it be possible to use the NAS as a central backup location for all my devices, including my laptop and phone?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "fca70973",
+      "category": "single-session-preference",
+      "question": "I am planning another theme park weekend; do you have any suggestions?",
+      "session_id": "answer_a1e169b1",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 28,
+      "candidate_token_count": 28,
+      "overlap_count": 24,
+      "overlap_rate": 0.8571,
+      "missing_distinctive_tokens": [
+        "events",
+        "looking",
+        "recommendations",
+        "upcoming"
+      ],
+      "source_text": "I'm looking for some recommendations on upcoming theme park events. I recently visited multiple theme parks including Disneyland, Knott's Berry Farm, Six Flags Magic Mountain, and Universal Studios Hollywood. Anything exciting happening soon, like thrill rides, unique food experiences, or nighttime shows?",
+      "candidates": [
+        {
+          "node_type": "entity",
+          "label": "I recently visited multiple theme parks",
+          "content": "I recently visited multiple theme parks including Disneyland, Knott's Berry Farm, Six Flags Magic Mountain, and Universal Studios Hollywood.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "question",
+          "label": "Anything exciting happening soon, like thrill rides, unique food experiences, or nighttime shows?",
+          "content": "Anything exciting happening soon, like thrill rides, unique food experiences, or nighttime shows?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "b6025781",
+      "category": "single-session-preference",
+      "question": "I'm planning my meal prep next week, any suggestions for new recipes?",
+      "session_id": "answer_8414cc57",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 7,
+      "candidate_token_count": 10,
+      "overlap_count": 7,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "I need some new ideas for my meal prep, can you suggest some protein sources that go well with quinoa and roasted vegetables?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "I need some new ideas for my meal prep, can you suggest some protein sources that go well with quinoa and roasted vegetables?",
+          "content": "I need some new ideas for my meal prep, can you suggest some protein sources that go well with quinoa and roasted vegetables?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "a89d7624",
+      "category": "single-session-preference",
+      "question": "I'm planning a trip to Denver soon. Any suggestions on what to do there?",
+      "session_id": "answer_8f15ac24",
+      "role": "user",
+      "narrative_like": true,
+      "markers": [
+        "emotion_sad"
+      ],
+      "preserved_markers": [
+        "emotion_sad"
+      ],
+      "missing_markers": [],
+      "source_token_count": 16,
+      "candidate_token_count": 21,
+      "overlap_count": 16,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "During my previous visit to Denver, where I had a great time meeting Brandon Flowers after The Killers' concert, I realized how much I love the city's music scene. Are there any good music venues or festivals in Denver that I shouldn't miss?",
+      "candidates": [
+        {
+          "node_type": "entity",
+          "label": "During my previous visit to Denver,",
+          "content": "During my previous visit to Denver, where I had a great time meeting Brandon Flowers after The Killers' concert.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "preference",
+          "label": "I realized how much I love",
+          "content": "I realized how much I love the city's music scene.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "question",
+          "label": "Are there any good music venues or festivals in Denver that I shouldn't miss?",
+          "content": "Are there any good music venues or festivals in Denver that I shouldn't miss?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "a89d7624",
+      "category": "single-session-preference",
+      "question": "I'm planning a trip to Denver soon. Any suggestions on what to do there?",
+      "session_id": "answer_8f15ac24",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 8,
+      "candidate_token_count": 6,
+      "overlap_count": 3,
+      "overlap_rate": 0.375,
+      "missing_distinctive_tokens": [
+        "another",
+        "concert",
+        "denver",
+        "going",
+        "thinking"
+      ],
+      "source_text": "I'm thinking of going back to Denver for another concert. Do you know if there are any good BBQ places near the Red Rocks Amphitheater?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Do you know if there are any good BBQ places near the Red Rocks Amphitheater?",
+          "content": "Do you know if there are any good BBQ places near the Red Rocks Amphitheater?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "b0479f84",
+      "category": "single-session-preference",
+      "question": "I've got some free time tonight, any documentary recommendations?",
+      "session_id": "answer_30f63ddb",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 12,
+      "candidate_token_count": 10,
+      "overlap_count": 7,
+      "overlap_rate": 0.5833,
+      "missing_distinctive_tokens": [
+        "documentaries",
+        "especially",
+        "lately",
+        "netflix",
+        "watching"
+      ],
+      "source_text": "I've been watching a lot of documentaries lately, especially on Netflix. Can you recommend some more documentary series similar to \"Our Planet\", \"Free Solo\", and \"Tiger King\", which I just finished?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Can you recommend some more documentary series similar to \"Our Planet\", \"Free Solo\", and \"Tiger King\", which I just finished?",
+          "content": "Can you recommend some more documentary series similar to \"Our Planet\", \"Free Solo\", and \"Tiger King\", which I just finished?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "1d4e3b97",
+      "category": "single-session-preference",
+      "question": "I noticed my bike seems to be performing even better during my Sunday group rides. Could there be a reason for this?",
+      "session_id": "answer_e6b6353d",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 8,
+      "candidate_token_count": 7,
+      "overlap_count": 4,
+      "overlap_rate": 0.5,
+      "missing_distinctive_tokens": [
+        "computer",
+        "garmin",
+        "planning",
+        "track"
+      ],
+      "source_text": "I'm also planning to track my ride with my new Garmin bike computer. Can you tell me how to set it up to get the most accurate distance and speed readings?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Can you tell me how to set it up to get the most accurate distance and speed readings?",
+          "content": "Can you tell me how to set it up to get the most accurate distance and speed readings?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "1d4e3b97",
+      "category": "single-session-preference",
+      "question": "I noticed my bike seems to be performing even better during my Sunday group rides. Could there be a reason for this?",
+      "session_id": "answer_e6b6353d",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 11,
+      "candidate_token_count": 7,
+      "overlap_count": 4,
+      "overlap_rate": 0.3636,
+      "missing_distinctive_tokens": [
+        "cassette",
+        "chain",
+        "contributed",
+        "february",
+        "improvement",
+        "performance",
+        "replaced"
+      ],
+      "source_text": "I replaced the old bike's chain and cassette on February 1st, which has contributed to an improvement in the bike's performance. Can you recommend some routes or apps to help me find the most bike-friendly roads for my 20-mile ride?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Can you recommend some routes or apps to help me find the most bike-friendly roads for my 20-mile ride?",
+          "content": "Can you recommend some routes or apps to help me find the most bike-friendly roads for my 20-mile ride?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "07b6f563",
+      "category": "single-session-preference",
+      "question": "Can you suggest some useful accessories for my phone?",
+      "session_id": "answer_d03098f9",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 11,
+      "candidate_token_count": 8,
+      "overlap_count": 5,
+      "overlap_rate": 0.4545,
+      "missing_distinctive_tokens": [
+        "cracked",
+        "iphone",
+        "looking",
+        "protector",
+        "replace",
+        "screen"
+      ],
+      "source_text": "I'm looking for a new screen protector to replace the cracked one on my iPhone 13 Pro. Can you recommend some good brands that offer high-quality protectors?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Can you recommend some good brands that offer high-quality protectors?",
+          "content": "Can you recommend some good brands that offer high-quality protectors?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "07b6f563",
+      "category": "single-session-preference",
+      "question": "Can you suggest some useful accessories for my phone?",
+      "session_id": "answer_d03098f9",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 9,
+      "candidate_token_count": 10,
+      "overlap_count": 7,
+      "overlap_rate": 0.7778,
+      "missing_distinctive_tokens": [
+        "looking",
+        "phone"
+      ],
+      "source_text": "I'm also looking for a phone wallet case. Can you recommend some good brands that offer high-quality wallet cases for my iPhone 13 Pro?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Can you recommend some good brands that offer high-quality wallet cases for my iPhone 13 Pro?",
+          "content": "Can you recommend some good brands that offer high-quality wallet cases for my iPhone 13 Pro?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "1c0ddc50",
+      "category": "single-session-preference",
+      "question": "Can you suggest some activities I can do during my commute to work?",
+      "session_id": "answer_8da8c7e0",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 13,
+      "candidate_token_count": 10,
+      "overlap_count": 7,
+      "overlap_rate": 0.5385,
+      "missing_distinctive_tokens": [
+        "crime",
+        "improvement",
+        "looking",
+        "podcast",
+        "recommendations",
+        "stuff"
+      ],
+      "source_text": "I'm looking for some new podcast recommendations. I've been listening to a lot of true crime and self-improvement stuff. I enjoy listening to then during my commute, but I want to branch out into other genres.",
+      "candidates": [
+        {
+          "node_type": "preference",
+          "label": "I enjoy listening to then during",
+          "content": "I enjoy listening to then during my commute, but I want to branch out into other genres.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "1c0ddc50",
+      "category": "single-session-preference",
+      "question": "Can you suggest some activities I can do during my commute to work?",
+      "session_id": "answer_8da8c7e0",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 11,
+      "candidate_token_count": 10,
+      "overlap_count": 7,
+      "overlap_rate": 0.6364,
+      "missing_distinctive_tokens": [
+        "history",
+        "interested",
+        "particularly",
+        "podcasts"
+      ],
+      "source_text": "I'm particularly interested in the history podcasts. Can you give me some recommendations on how to organize my listening schedule, considering my commute is about 40 minutes each way?",
+      "candidates": [
+        {
+          "node_type": "question",
+          "label": "Can you give me some recommendations on how to organize my listening schedule, considering my commute is about 40 minutes each way?",
+          "content": "Can you give me some recommendations on how to organize my listening schedule, considering my commute is about 40 minutes each way?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "0a34ad58",
+      "category": "single-session-preference",
+      "question": "I\u2019m a bit anxious about getting around Tokyo. Do you have any helpful tips?",
+      "session_id": "answer_cebb7159",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 7,
+      "candidate_token_count": 11,
+      "overlap_count": 7,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "I'm also planning to visit the Tsukiji Fish Market. Can you tell me the best way to get there from Shinjuku using my Suica card I just got?",
+      "candidates": [
+        {
+          "node_type": "entity",
+          "label": "I'm also planning to visit the",
+          "content": "I'm also planning to visit the Tsukiji Fish Market.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "question",
+          "label": "Can you tell me the best way to get there from Shinjuku using my Suica card I just got?",
+          "content": "Can you tell me the best way to get there from Shinjuku using my Suica card I just got?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "0a34ad58",
+      "category": "single-session-preference",
+      "question": "I\u2019m a bit anxious about getting around Tokyo. Do you have any helpful tips?",
+      "session_id": "answer_cebb7159",
+      "role": "user",
+      "narrative_like": false,
+      "markers": [],
+      "preserved_markers": [],
+      "missing_markers": [],
+      "source_token_count": 14,
+      "candidate_token_count": 18,
+      "overlap_count": 14,
+      "overlap_rate": 1.0,
+      "missing_distinctive_tokens": [],
+      "source_text": "I'm also planning to take a guided tour to Nikko National Park. Can you tell me what I need to prepare for the tour, and how I can get to the meeting point using my Suica card? I have downloaded the TripIt app to stay organized, but I'm still nervous about the trip.",
+      "candidates": [
+        {
+          "node_type": "entity",
+          "label": "I'm also planning to take a",
+          "content": "I'm also planning to take a guided tour to Nikko National Park.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "question",
+          "label": "Can you tell me what I need to prepare for the tour, and how I can get to the meeting point using my Suica card?",
+          "content": "Can you tell me what I need to prepare for the tour, and how I can get to the meeting point using my Suica card?",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        },
+        {
+          "node_type": "entity",
+          "label": "I have downloaded the TripIt app",
+          "content": "I have downloaded the TripIt app to stay organized, but I'm still nervous about the trip.",
+          "tags": [
+            "observed",
+            "speaker:user"
+          ]
+        }
+      ]
+    }
+  ]
+}

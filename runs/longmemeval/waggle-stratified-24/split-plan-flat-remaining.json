@@ -1,0 +1,87 @@
+{
+  "case_count": 24,
+  "dataset_path": "/Users/abhigyanshekhar/Desktop/MCP/benchmarks/longmemeval/longmemeval_s_cleaned.json",
+  "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+  "notes": [
+    "Remaining cases for flat_vector resume."
+  ],
+  "seed": null,
+  "splits": {
+    "mock": [
+      {
+        "case_id": "1e043500",
+        "category": "SSU"
+      },
+      {
+        "case_id": "352ab8bd",
+        "category": "SSA"
+      },
+      {
+        "case_id": "4100d0a0",
+        "category": "SSU"
+      },
+      {
+        "case_id": "51c32626",
+        "category": "MS"
+      },
+      {
+        "case_id": "57f827a0",
+        "category": "SSP"
+      },
+      {
+        "case_id": "5d3d2817",
+        "category": "SSU"
+      },
+      {
+        "case_id": "720133ac",
+        "category": "MS"
+      },
+      {
+        "case_id": "89941a93",
+        "category": "KU"
+      },
+      {
+        "case_id": "8cf4d046",
+        "category": "MS"
+      },
+      {
+        "case_id": "9bbe84a2",
+        "category": "KU"
+      },
+      {
+        "case_id": "a2f3aa27",
+        "category": "KU"
+      },
+      {
+        "case_id": "ac031881",
+        "category": "SSA"
+      },
+      {
+        "case_id": "c8090214_abs",
+        "category": "TR"
+      },
+      {
+        "case_id": "e8a79c70",
+        "category": "SSA"
+      },
+      {
+        "case_id": "f4f1d8a4_abs",
+        "category": "SSU"
+      },
+      {
+        "case_id": "fea54f57",
+        "category": "SSA"
+      },
+      {
+        "case_id": "gpt4_1d4ab0c9",
+        "category": "TR"
+      },
+      {
+        "case_id": "gpt4_4edbafa2",
+        "category": "TR"
+      }
+    ],
+    "heldout": [],
+    "tune": []
+  }
+}

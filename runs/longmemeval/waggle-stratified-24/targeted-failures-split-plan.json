@@ -1,0 +1,25 @@
+{
+  "case_count": 500,
+  "dataset_path": "/Users/abhigyanshekhar/Desktop/MCP/benchmarks/longmemeval/longmemeval_s_cleaned.json",
+  "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+  "notes": [
+    "Targeted rerun for post-patch inspection: one SSP judge inconsistency and two MS synthesis failures."
+  ],
+  "seed": 13,
+  "splits": {
+    "mock": [
+      {
+        "case_id": "09d032c9",
+        "category": "SSP"
+      },
+      {
+        "case_id": "00ca467f",
+        "category": "MS"
+      },
+      {
+        "case_id": "51c32626",
+        "category": "MS"
+      }
+    ]
+  }
+}

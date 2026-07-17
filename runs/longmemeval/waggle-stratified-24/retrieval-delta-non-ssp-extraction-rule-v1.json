@@ -1,0 +1,3869 @@
+{
+  "dataset": "benchmarks/longmemeval/longmemeval_s_cleaned.json",
+  "embedding_model": "all-MiniLM-L6-v2",
+  "retrieval_limit": 5,
+  "scope": "non-SSP cases whose has_answer extraction changed when personal narrative preservation is enabled",
+  "summary": {
+    "cases": 77,
+    "retrieved_support_ids_changed": 2,
+    "gold_hit_changed": 0,
+    "regressed_to_miss": 0,
+    "improved_from_miss": 0,
+    "by_category": {
+      "knowledge-update": {
+        "cases": 12,
+        "before_hit_True": 12,
+        "after_hit_True": 12,
+        "unchanged_rank": 12
+      },
+      "multi-session": {
+        "cases": 24,
+        "before_hit_True": 24,
+        "after_hit_True": 24,
+        "unchanged_rank": 24
+      },
+      "single-session-assistant": {
+        "cases": 1,
+        "before_hit_True": 1,
+        "after_hit_True": 1,
+        "unchanged_rank": 1
+      },
+      "single-session-user": {
+        "cases": 15,
+        "before_hit_True": 15,
+        "after_hit_True": 15,
+        "unchanged_rank": 15
+      },
+      "temporal-reasoning": {
+        "cases": 25,
+        "before_hit_True": 25,
+        "after_hit_True": 25,
+        "unchanged_rank": 23,
+        "retrieved_support_ids_changed": 2,
+        "regressed_rank": 1,
+        "improved_rank": 1
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "0862e8bf",
+      "category": "single-session-user",
+      "question": "What is the name of my cat?",
+      "gold_support_ids": [
+        "answer_c6fd8ebd"
+      ],
+      "before": {
+        "case_id": "0862e8bf",
+        "category": "single-session-user",
+        "question": "What is the name of my cat?",
+        "gold_support_ids": [
+          "answer_c6fd8ebd"
+        ],
+        "retrieved_support_ids": [
+          "answer_c6fd8ebd",
+          "sharegpt_A7KJApk_21",
+          "sharegpt_G8j6c8J_23",
+          "sharegpt_3BkB8g5_0",
+          "sharegpt_2I1TxKW_0"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4663
+      },
+      "after": {
+        "case_id": "0862e8bf",
+        "category": "single-session-user",
+        "question": "What is the name of my cat?",
+        "gold_support_ids": [
+          "answer_c6fd8ebd"
+        ],
+        "retrieved_support_ids": [
+          "answer_c6fd8ebd",
+          "sharegpt_A7KJApk_21",
+          "sharegpt_G8j6c8J_23",
+          "sharegpt_3BkB8g5_0",
+          "sharegpt_2I1TxKW_0"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4663
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "0bb5a684",
+      "category": "temporal-reasoning",
+      "question": "How many days before the team meeting I was preparing for did I attend the workshop on 'Effective Communication in the Workplace'?",
+      "gold_support_ids": [
+        "answer_e936197f_1",
+        "answer_e936197f_2"
+      ],
+      "before": {
+        "case_id": "0bb5a684",
+        "category": "temporal-reasoning",
+        "question": "How many days before the team meeting I was preparing for did I attend the workshop on 'Effective Communication in the Workplace'?",
+        "gold_support_ids": [
+          "answer_e936197f_1",
+          "answer_e936197f_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_e936197f_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 2468
+      },
+      "after": {
+        "case_id": "0bb5a684",
+        "category": "temporal-reasoning",
+        "question": "How many days before the team meeting I was preparing for did I attend the workshop on 'Effective Communication in the Workplace'?",
+        "gold_support_ids": [
+          "answer_e936197f_1",
+          "answer_e936197f_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_e936197f_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 2468
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "0bc8ad92",
+      "category": "temporal-reasoning",
+      "question": "How many months have passed since I last visited a museum with a friend?",
+      "gold_support_ids": [
+        "answer_f4ea84fb_3",
+        "answer_f4ea84fb_2",
+        "answer_f4ea84fb_1"
+      ],
+      "before": {
+        "case_id": "0bc8ad92",
+        "category": "temporal-reasoning",
+        "question": "How many months have passed since I last visited a museum with a friend?",
+        "gold_support_ids": [
+          "answer_f4ea84fb_3",
+          "answer_f4ea84fb_2",
+          "answer_f4ea84fb_1"
+        ],
+        "retrieved_support_ids": [
+          "ultrachat_349938",
+          "answer_f4ea84fb_1",
+          "answer_f4ea84fb_3"
+        ],
+        "first_gold_rank": 2,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4476
+      },
+      "after": {
+        "case_id": "0bc8ad92",
+        "category": "temporal-reasoning",
+        "question": "How many months have passed since I last visited a museum with a friend?",
+        "gold_support_ids": [
+          "answer_f4ea84fb_3",
+          "answer_f4ea84fb_2",
+          "answer_f4ea84fb_1"
+        ],
+        "retrieved_support_ids": [
+          "ultrachat_349938",
+          "answer_f4ea84fb_1",
+          "answer_f4ea84fb_3"
+        ],
+        "first_gold_rank": 2,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4521
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "10e09553",
+      "category": "knowledge-update",
+      "question": "How many largemouth bass did I catch with Alex on the earlier fishing trip to Lake Michigan before the 7/22 trip?",
+      "gold_support_ids": [
+        "answer_67be2c38_1",
+        "answer_67be2c38_2"
+      ],
+      "before": {
+        "case_id": "10e09553",
+        "category": "knowledge-update",
+        "question": "How many largemouth bass did I catch with Alex on the earlier fishing trip to Lake Michigan before the 7/22 trip?",
+        "gold_support_ids": [
+          "answer_67be2c38_1",
+          "answer_67be2c38_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_67be2c38_2",
+          "answer_67be2c38_1",
+          "sharegpt_PAveUvy_0",
+          "ultrachat_313128",
+          "3021992b_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5178
+      },
+      "after": {
+        "case_id": "10e09553",
+        "category": "knowledge-update",
+        "question": "How many largemouth bass did I catch with Alex on the earlier fishing trip to Lake Michigan before the 7/22 trip?",
+        "gold_support_ids": [
+          "answer_67be2c38_1",
+          "answer_67be2c38_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_67be2c38_2",
+          "answer_67be2c38_1",
+          "sharegpt_PAveUvy_0",
+          "ultrachat_313128",
+          "3021992b_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5246
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "157a136e",
+      "category": "multi-session",
+      "question": "How many years older is my grandma than me?",
+      "gold_support_ids": [
+        "answer_8de18468_2",
+        "answer_8de18468_1"
+      ],
+      "before": {
+        "case_id": "157a136e",
+        "category": "multi-session",
+        "question": "How many years older is my grandma than me?",
+        "gold_support_ids": [
+          "answer_8de18468_2",
+          "answer_8de18468_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_8de18468_2",
+          "7746ba1b_1",
+          "7614c21f_2",
+          "answer_8de18468_1",
+          "ultrachat_255132"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5500
+      },
+      "after": {
+        "case_id": "157a136e",
+        "category": "multi-session",
+        "question": "How many years older is my grandma than me?",
+        "gold_support_ids": [
+          "answer_8de18468_2",
+          "answer_8de18468_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_8de18468_2",
+          "7746ba1b_1",
+          "7614c21f_2",
+          "answer_8de18468_1",
+          "ultrachat_255132"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5956
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "19b5f2b3",
+      "category": "single-session-user",
+      "question": "How long was I in Japan for?",
+      "gold_support_ids": [
+        "answer_5ff494b9"
+      ],
+      "before": {
+        "case_id": "19b5f2b3",
+        "category": "single-session-user",
+        "question": "How long was I in Japan for?",
+        "gold_support_ids": [
+          "answer_5ff494b9"
+        ],
+        "retrieved_support_ids": [
+          "answer_5ff494b9",
+          "ultrachat_8325",
+          "ultrachat_463145",
+          "ultrachat_268389",
+          "ultrachat_138083"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4676
+      },
+      "after": {
+        "case_id": "19b5f2b3",
+        "category": "single-session-user",
+        "question": "How long was I in Japan for?",
+        "gold_support_ids": [
+          "answer_5ff494b9"
+        ],
+        "retrieved_support_ids": [
+          "answer_5ff494b9",
+          "ultrachat_8325",
+          "ultrachat_463145",
+          "ultrachat_268389",
+          "ultrachat_138083"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4680
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "1c549ce4",
+      "category": "multi-session",
+      "question": "What is the total cost of the car cover and detailing spray I purchased?",
+      "gold_support_ids": [
+        "answer_4cb841a8_1",
+        "answer_4cb841a8_2"
+      ],
+      "before": {
+        "case_id": "1c549ce4",
+        "category": "multi-session",
+        "question": "What is the total cost of the car cover and detailing spray I purchased?",
+        "gold_support_ids": [
+          "answer_4cb841a8_1",
+          "answer_4cb841a8_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_4cb841a8_2",
+          "answer_4cb841a8_1",
+          "sharegpt_miOKGt1_13",
+          "35f052f9_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6991
+      },
+      "after": {
+        "case_id": "1c549ce4",
+        "category": "multi-session",
+        "question": "What is the total cost of the car cover and detailing spray I purchased?",
+        "gold_support_ids": [
+          "answer_4cb841a8_1",
+          "answer_4cb841a8_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_4cb841a8_2",
+          "answer_4cb841a8_1",
+          "sharegpt_miOKGt1_13",
+          "35f052f9_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6981
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "2133c1b5",
+      "category": "knowledge-update",
+      "question": "How long have I been living in my current apartment in Harajuku?",
+      "gold_support_ids": [
+        "answer_52382508_1",
+        "answer_52382508_2"
+      ],
+      "before": {
+        "case_id": "2133c1b5",
+        "category": "knowledge-update",
+        "question": "How long have I been living in my current apartment in Harajuku?",
+        "gold_support_ids": [
+          "answer_52382508_1",
+          "answer_52382508_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_52382508_1",
+          "answer_52382508_2",
+          "8ca0085a_1",
+          "1126be1e_2",
+          "ultrachat_354956"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5812
+      },
+      "after": {
+        "case_id": "2133c1b5",
+        "category": "knowledge-update",
+        "question": "How long have I been living in my current apartment in Harajuku?",
+        "gold_support_ids": [
+          "answer_52382508_1",
+          "answer_52382508_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_52382508_1",
+          "answer_52382508_2",
+          "8ca0085a_1",
+          "1126be1e_2",
+          "ultrachat_354956"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5435
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "21d02d0d",
+      "category": "multi-session",
+      "question": "How many fun runs did I miss in March due to work commitments?",
+      "gold_support_ids": [
+        "answer_2c637141_2",
+        "answer_2c637141_1"
+      ],
+      "before": {
+        "case_id": "21d02d0d",
+        "category": "multi-session",
+        "question": "How many fun runs did I miss in March due to work commitments?",
+        "gold_support_ids": [
+          "answer_2c637141_2",
+          "answer_2c637141_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_2c637141_1",
+          "answer_2c637141_2",
+          "a15fa6eb",
+          "ultrachat_36404",
+          "485f4604_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5793
+      },
+      "after": {
+        "case_id": "21d02d0d",
+        "category": "multi-session",
+        "question": "How many fun runs did I miss in March due to work commitments?",
+        "gold_support_ids": [
+          "answer_2c637141_2",
+          "answer_2c637141_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_2c637141_1",
+          "answer_2c637141_2",
+          "a15fa6eb",
+          "ultrachat_36404",
+          "485f4604_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6081
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "2a1811e2",
+      "category": "temporal-reasoning",
+      "question": "How many days had passed between the Hindu festival of Holi and the Sunday mass at St. Mary's Church?",
+      "gold_support_ids": [
+        "answer_1cc3cd0c_1",
+        "answer_1cc3cd0c_2"
+      ],
+      "before": {
+        "case_id": "2a1811e2",
+        "category": "temporal-reasoning",
+        "question": "How many days had passed between the Hindu festival of Holi and the Sunday mass at St. Mary's Church?",
+        "gold_support_ids": [
+          "answer_1cc3cd0c_1",
+          "answer_1cc3cd0c_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_1cc3cd0c_1",
+          "answer_1cc3cd0c_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3893
+      },
+      "after": {
+        "case_id": "2a1811e2",
+        "category": "temporal-reasoning",
+        "question": "How many days had passed between the Hindu festival of Holi and the Sunday mass at St. Mary's Church?",
+        "gold_support_ids": [
+          "answer_1cc3cd0c_1",
+          "answer_1cc3cd0c_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_1cc3cd0c_1",
+          "answer_1cc3cd0c_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3925
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "2e6d26dc",
+      "category": "multi-session",
+      "question": "How many babies were born to friends and family members in the last few months?",
+      "gold_support_ids": [
+        "answer_fa526fc0_4",
+        "answer_fa526fc0_3",
+        "answer_fa526fc0_1",
+        "answer_fa526fc0_2"
+      ],
+      "before": {
+        "case_id": "2e6d26dc",
+        "category": "multi-session",
+        "question": "How many babies were born to friends and family members in the last few months?",
+        "gold_support_ids": [
+          "answer_fa526fc0_4",
+          "answer_fa526fc0_3",
+          "answer_fa526fc0_1",
+          "answer_fa526fc0_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_fa526fc0_2",
+          "answer_fa526fc0_4",
+          "answer_fa526fc0_3",
+          "answer_fa526fc0_1",
+          "ultrachat_541982"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6686
+      },
+      "after": {
+        "case_id": "2e6d26dc",
+        "category": "multi-session",
+        "question": "How many babies were born to friends and family members in the last few months?",
+        "gold_support_ids": [
+          "answer_fa526fc0_4",
+          "answer_fa526fc0_3",
+          "answer_fa526fc0_1",
+          "answer_fa526fc0_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_fa526fc0_2",
+          "answer_fa526fc0_4",
+          "answer_fa526fc0_3",
+          "answer_fa526fc0_1",
+          "ultrachat_541982"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6500
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "3b6f954b",
+      "category": "single-session-user",
+      "question": "Where did I attend for my study abroad program?",
+      "gold_support_ids": [
+        "answer_94030872"
+      ],
+      "before": {
+        "case_id": "3b6f954b",
+        "category": "single-session-user",
+        "question": "Where did I attend for my study abroad program?",
+        "gold_support_ids": [
+          "answer_94030872"
+        ],
+        "retrieved_support_ids": [
+          "answer_94030872",
+          "ultrachat_64326",
+          "ultrachat_294369",
+          "c271c071",
+          "c85ef24e_3"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3721
+      },
+      "after": {
+        "case_id": "3b6f954b",
+        "category": "single-session-user",
+        "question": "Where did I attend for my study abroad program?",
+        "gold_support_ids": [
+          "answer_94030872"
+        ],
+        "retrieved_support_ids": [
+          "answer_94030872",
+          "ultrachat_64326",
+          "ultrachat_294369",
+          "c271c071",
+          "c85ef24e_3"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3823
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "3c1045c8",
+      "category": "multi-session",
+      "question": "How much older am I than the average age of employees in my department?",
+      "gold_support_ids": [
+        "answer_c8cc60d6_2",
+        "answer_c8cc60d6_1"
+      ],
+      "before": {
+        "case_id": "3c1045c8",
+        "category": "multi-session",
+        "question": "How much older am I than the average age of employees in my department?",
+        "gold_support_ids": [
+          "answer_c8cc60d6_2",
+          "answer_c8cc60d6_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_c8cc60d6_2",
+          "answer_c8cc60d6_1",
+          "ultrachat_20893",
+          "sharegpt_GYqnAhC_190",
+          "sharegpt_xY3p1o7_127"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6315
+      },
+      "after": {
+        "case_id": "3c1045c8",
+        "category": "multi-session",
+        "question": "How much older am I than the average age of employees in my department?",
+        "gold_support_ids": [
+          "answer_c8cc60d6_2",
+          "answer_c8cc60d6_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_c8cc60d6_2",
+          "answer_c8cc60d6_1",
+          "ultrachat_20893",
+          "sharegpt_GYqnAhC_190",
+          "sharegpt_xY3p1o7_127"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6541
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "4100d0a0",
+      "category": "single-session-user",
+      "question": "What is my ethnicity?",
+      "gold_support_ids": [
+        "answer_83c13ff9"
+      ],
+      "before": {
+        "case_id": "4100d0a0",
+        "category": "single-session-user",
+        "question": "What is my ethnicity?",
+        "gold_support_ids": [
+          "answer_83c13ff9"
+        ],
+        "retrieved_support_ids": [
+          "answer_83c13ff9",
+          "8d068598",
+          "ultrachat_215071",
+          "sharegpt_Viy08ou_0",
+          "sharegpt_8w0MhIA_0"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4027
+      },
+      "after": {
+        "case_id": "4100d0a0",
+        "category": "single-session-user",
+        "question": "What is my ethnicity?",
+        "gold_support_ids": [
+          "answer_83c13ff9"
+        ],
+        "retrieved_support_ids": [
+          "answer_83c13ff9",
+          "8d068598",
+          "ultrachat_215071",
+          "sharegpt_Viy08ou_0",
+          "sharegpt_8w0MhIA_0"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4065
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "4bc144e2",
+      "category": "multi-session",
+      "question": "How much did I spend on car wash and parking ticket?",
+      "gold_support_ids": [
+        "answer_9ef115d4_1",
+        "answer_9ef115d4_2"
+      ],
+      "before": {
+        "case_id": "4bc144e2",
+        "category": "multi-session",
+        "question": "How much did I spend on car wash and parking ticket?",
+        "gold_support_ids": [
+          "answer_9ef115d4_1",
+          "answer_9ef115d4_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_9ef115d4_1",
+          "answer_9ef115d4_2",
+          "9416c7de"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6671
+      },
+      "after": {
+        "case_id": "4bc144e2",
+        "category": "multi-session",
+        "question": "How much did I spend on car wash and parking ticket?",
+        "gold_support_ids": [
+          "answer_9ef115d4_1",
+          "answer_9ef115d4_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_9ef115d4_1",
+          "answer_9ef115d4_2",
+          "9416c7de"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6721
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "4f54b7c9",
+      "category": "multi-session",
+      "question": "How many antique items did I inherit or acquire from my family members?",
+      "gold_support_ids": [
+        "answer_50940cb7_2",
+        "answer_50940cb7_1"
+      ],
+      "before": {
+        "case_id": "4f54b7c9",
+        "category": "multi-session",
+        "question": "How many antique items did I inherit or acquire from my family members?",
+        "gold_support_ids": [
+          "answer_50940cb7_2",
+          "answer_50940cb7_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_50940cb7_2",
+          "answer_50940cb7_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4153
+      },
+      "after": {
+        "case_id": "4f54b7c9",
+        "category": "multi-session",
+        "question": "How many antique items did I inherit or acquire from my family members?",
+        "gold_support_ids": [
+          "answer_50940cb7_2",
+          "answer_50940cb7_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_50940cb7_2",
+          "answer_50940cb7_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4268
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "4fd1909e",
+      "category": "single-session-user",
+      "question": "Where did I attend the Imagine Dragons concert?",
+      "gold_support_ids": [
+        "answer_2952aee4"
+      ],
+      "before": {
+        "case_id": "4fd1909e",
+        "category": "single-session-user",
+        "question": "Where did I attend the Imagine Dragons concert?",
+        "gold_support_ids": [
+          "answer_2952aee4"
+        ],
+        "retrieved_support_ids": [
+          "answer_2952aee4",
+          "ultrachat_186237",
+          "2479cbae",
+          "ad2135af",
+          "1fca10eb"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4918
+      },
+      "after": {
+        "case_id": "4fd1909e",
+        "category": "single-session-user",
+        "question": "Where did I attend the Imagine Dragons concert?",
+        "gold_support_ids": [
+          "answer_2952aee4"
+        ],
+        "retrieved_support_ids": [
+          "answer_2952aee4",
+          "ultrachat_186237",
+          "2479cbae",
+          "ad2135af",
+          "1fca10eb"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4977
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "5a7937c8",
+      "category": "multi-session",
+      "question": "How many days did I spend participating in faith-related activities in December?",
+      "gold_support_ids": [
+        "answer_4cef8a3c_3",
+        "answer_4cef8a3c_1",
+        "answer_4cef8a3c_2"
+      ],
+      "before": {
+        "case_id": "5a7937c8",
+        "category": "multi-session",
+        "question": "How many days did I spend participating in faith-related activities in December?",
+        "gold_support_ids": [
+          "answer_4cef8a3c_3",
+          "answer_4cef8a3c_1",
+          "answer_4cef8a3c_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_4cef8a3c_1",
+          "answer_4cef8a3c_2",
+          "answer_4cef8a3c_3",
+          "b6bc5b09_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 7160
+      },
+      "after": {
+        "case_id": "5a7937c8",
+        "category": "multi-session",
+        "question": "How many days did I spend participating in faith-related activities in December?",
+        "gold_support_ids": [
+          "answer_4cef8a3c_3",
+          "answer_4cef8a3c_1",
+          "answer_4cef8a3c_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_4cef8a3c_1",
+          "answer_4cef8a3c_2",
+          "answer_4cef8a3c_3",
+          "b6bc5b09_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 7051
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "618f13b2",
+      "category": "knowledge-update",
+      "question": "How many times have I worn my new black Converse Chuck Taylor All Star sneakers?",
+      "gold_support_ids": [
+        "answer_caf5b52e_1",
+        "answer_caf5b52e_2"
+      ],
+      "before": {
+        "case_id": "618f13b2",
+        "category": "knowledge-update",
+        "question": "How many times have I worn my new black Converse Chuck Taylor All Star sneakers?",
+        "gold_support_ids": [
+          "answer_caf5b52e_1",
+          "answer_caf5b52e_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_caf5b52e_1",
+          "answer_caf5b52e_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3297
+      },
+      "after": {
+        "case_id": "618f13b2",
+        "category": "knowledge-update",
+        "question": "How many times have I worn my new black Converse Chuck Taylor All Star sneakers?",
+        "gold_support_ids": [
+          "answer_caf5b52e_1",
+          "answer_caf5b52e_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_caf5b52e_1",
+          "answer_caf5b52e_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3387
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "6a1eabeb",
+      "category": "knowledge-update",
+      "question": "What was my personal best time in the charity 5K run?",
+      "gold_support_ids": [
+        "answer_a25d4a91_1",
+        "answer_a25d4a91_2"
+      ],
+      "before": {
+        "case_id": "6a1eabeb",
+        "category": "knowledge-update",
+        "question": "What was my personal best time in the charity 5K run?",
+        "gold_support_ids": [
+          "answer_a25d4a91_1",
+          "answer_a25d4a91_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_a25d4a91_2",
+          "answer_a25d4a91_1",
+          "4aaf678f_3",
+          "4b637e89_4",
+          "6c456a5d"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6013
+      },
+      "after": {
+        "case_id": "6a1eabeb",
+        "category": "knowledge-update",
+        "question": "What was my personal best time in the charity 5K run?",
+        "gold_support_ids": [
+          "answer_a25d4a91_1",
+          "answer_a25d4a91_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_a25d4a91_2",
+          "answer_a25d4a91_1",
+          "4aaf678f_3",
+          "4b637e89_4",
+          "6c456a5d"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6011
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "6c49646a",
+      "category": "multi-session",
+      "question": "What is the total distance I covered in my four road trips?",
+      "gold_support_ids": [
+        "answer_cc1ced21_2",
+        "answer_cc1ced21_1"
+      ],
+      "before": {
+        "case_id": "6c49646a",
+        "category": "multi-session",
+        "question": "What is the total distance I covered in my four road trips?",
+        "gold_support_ids": [
+          "answer_cc1ced21_2",
+          "answer_cc1ced21_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_cc1ced21_1",
+          "answer_cc1ced21_2",
+          "8acb29f9_2",
+          "9f220c66_1",
+          "d3065d85"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6381
+      },
+      "after": {
+        "case_id": "6c49646a",
+        "category": "multi-session",
+        "question": "What is the total distance I covered in my four road trips?",
+        "gold_support_ids": [
+          "answer_cc1ced21_2",
+          "answer_cc1ced21_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_cc1ced21_1",
+          "answer_cc1ced21_2",
+          "8acb29f9_2",
+          "9f220c66_1",
+          "d3065d85"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6368
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "7024f17c",
+      "category": "multi-session",
+      "question": "How many hours of jogging and yoga did I do last week?",
+      "gold_support_ids": [
+        "answer_a21f3697_1",
+        "answer_a21f3697_2",
+        "answer_a21f3697_3"
+      ],
+      "before": {
+        "case_id": "7024f17c",
+        "category": "multi-session",
+        "question": "How many hours of jogging and yoga did I do last week?",
+        "gold_support_ids": [
+          "answer_a21f3697_1",
+          "answer_a21f3697_2",
+          "answer_a21f3697_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_a21f3697_2",
+          "answer_a21f3697_1",
+          "answer_a21f3697_3"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5968
+      },
+      "after": {
+        "case_id": "7024f17c",
+        "category": "multi-session",
+        "question": "How many hours of jogging and yoga did I do last week?",
+        "gold_support_ids": [
+          "answer_a21f3697_1",
+          "answer_a21f3697_2",
+          "answer_a21f3697_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_a21f3697_2",
+          "answer_a21f3697_1",
+          "answer_a21f3697_3"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6023
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "71017276",
+      "category": "temporal-reasoning",
+      "question": "How many weeks ago did I meet up with my aunt and receive the crystal chandelier?",
+      "gold_support_ids": [
+        "answer_0b4a8adc_1"
+      ],
+      "before": {
+        "case_id": "71017276",
+        "category": "temporal-reasoning",
+        "question": "How many weeks ago did I meet up with my aunt and receive the crystal chandelier?",
+        "gold_support_ids": [
+          "answer_0b4a8adc_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_0b4a8adc_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 2508
+      },
+      "after": {
+        "case_id": "71017276",
+        "category": "temporal-reasoning",
+        "question": "How many weeks ago did I meet up with my aunt and receive the crystal chandelier?",
+        "gold_support_ids": [
+          "answer_0b4a8adc_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_0b4a8adc_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 2430
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "71017277",
+      "category": "temporal-reasoning",
+      "question": "I received a piece of jewelry last Saturday from whom?",
+      "gold_support_ids": [
+        "answer_0b4a8adc_1"
+      ],
+      "before": {
+        "case_id": "71017277",
+        "category": "temporal-reasoning",
+        "question": "I received a piece of jewelry last Saturday from whom?",
+        "gold_support_ids": [
+          "answer_0b4a8adc_1"
+        ],
+        "retrieved_support_ids": [
+          "e5b86922_1",
+          "answer_0b4a8adc_1",
+          "ultrachat_557308",
+          "f8de4e92_4"
+        ],
+        "first_gold_rank": 2,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5996
+      },
+      "after": {
+        "case_id": "71017277",
+        "category": "temporal-reasoning",
+        "question": "I received a piece of jewelry last Saturday from whom?",
+        "gold_support_ids": [
+          "answer_0b4a8adc_1"
+        ],
+        "retrieved_support_ids": [
+          "e5b86922_1",
+          "answer_0b4a8adc_1",
+          "ultrachat_557308",
+          "f8de4e92_4"
+        ],
+        "first_gold_rank": 2,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5996
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "720133ac",
+      "category": "multi-session",
+      "question": "What is the total cost of Lola's vet visit and flea medication?",
+      "gold_support_ids": [
+        "answer_c9dfeaea_1",
+        "answer_c9dfeaea_2"
+      ],
+      "before": {
+        "case_id": "720133ac",
+        "category": "multi-session",
+        "question": "What is the total cost of Lola's vet visit and flea medication?",
+        "gold_support_ids": [
+          "answer_c9dfeaea_1",
+          "answer_c9dfeaea_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_c9dfeaea_1",
+          "answer_c9dfeaea_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4495
+      },
+      "after": {
+        "case_id": "720133ac",
+        "category": "multi-session",
+        "question": "What is the total cost of Lola's vet visit and flea medication?",
+        "gold_support_ids": [
+          "answer_c9dfeaea_1",
+          "answer_c9dfeaea_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_c9dfeaea_1",
+          "answer_c9dfeaea_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4551
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "726462e0",
+      "category": "single-session-user",
+      "question": "What was the discount I got on my first purchase from the new clothing brand?",
+      "gold_support_ids": [
+        "answer_f38f679b"
+      ],
+      "before": {
+        "case_id": "726462e0",
+        "category": "single-session-user",
+        "question": "What was the discount I got on my first purchase from the new clothing brand?",
+        "gold_support_ids": [
+          "answer_f38f679b"
+        ],
+        "retrieved_support_ids": [
+          "answer_f38f679b",
+          "741c6781_1",
+          "9c05acfe_2",
+          "cdd9704d_1",
+          "5b83c26e_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 7421
+      },
+      "after": {
+        "case_id": "726462e0",
+        "category": "single-session-user",
+        "question": "What was the discount I got on my first purchase from the new clothing brand?",
+        "gold_support_ids": [
+          "answer_f38f679b"
+        ],
+        "retrieved_support_ids": [
+          "answer_f38f679b",
+          "741c6781_1",
+          "9c05acfe_2",
+          "cdd9704d_1",
+          "5b83c26e_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 7402
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "7527f7e2",
+      "category": "single-session-user",
+      "question": "How much did I spend on a designer handbag?",
+      "gold_support_ids": [
+        "answer_7cb94507"
+      ],
+      "before": {
+        "case_id": "7527f7e2",
+        "category": "single-session-user",
+        "question": "How much did I spend on a designer handbag?",
+        "gold_support_ids": [
+          "answer_7cb94507"
+        ],
+        "retrieved_support_ids": [
+          "answer_7cb94507",
+          "eae6a7c0",
+          "44bbd8cd_2",
+          "c7c4cf1e_2",
+          "864a563d_3"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6223
+      },
+      "after": {
+        "case_id": "7527f7e2",
+        "category": "single-session-user",
+        "question": "How much did I spend on a designer handbag?",
+        "gold_support_ids": [
+          "answer_7cb94507"
+        ],
+        "retrieved_support_ids": [
+          "answer_7cb94507",
+          "eae6a7c0",
+          "44bbd8cd_2",
+          "c7c4cf1e_2",
+          "864a563d_3"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6111
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "7a87bd0c",
+      "category": "knowledge-update",
+      "question": "How long have I been sticking to my daily tidying routine?",
+      "gold_support_ids": [
+        "answer_d08a934d_1",
+        "answer_d08a934d_2"
+      ],
+      "before": {
+        "case_id": "7a87bd0c",
+        "category": "knowledge-update",
+        "question": "How long have I been sticking to my daily tidying routine?",
+        "gold_support_ids": [
+          "answer_d08a934d_1",
+          "answer_d08a934d_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_d08a934d_1",
+          "answer_d08a934d_2",
+          "81f318a2_1",
+          "15519944_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5747
+      },
+      "after": {
+        "case_id": "7a87bd0c",
+        "category": "knowledge-update",
+        "question": "How long have I been sticking to my daily tidying routine?",
+        "gold_support_ids": [
+          "answer_d08a934d_1",
+          "answer_d08a934d_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_d08a934d_1",
+          "answer_d08a934d_2",
+          "81f318a2_1",
+          "15519944_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5747
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "853b0a1d",
+      "category": "single-session-user",
+      "question": "How old was I when my grandma gave me the silver necklace?",
+      "gold_support_ids": [
+        "answer_69811d4a"
+      ],
+      "before": {
+        "case_id": "853b0a1d",
+        "category": "single-session-user",
+        "question": "How old was I when my grandma gave me the silver necklace?",
+        "gold_support_ids": [
+          "answer_69811d4a"
+        ],
+        "retrieved_support_ids": [
+          "answer_69811d4a",
+          "c70f9f9c",
+          "sharegpt_n3MgsgL_0"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4315
+      },
+      "after": {
+        "case_id": "853b0a1d",
+        "category": "single-session-user",
+        "question": "How old was I when my grandma gave me the silver necklace?",
+        "gold_support_ids": [
+          "answer_69811d4a"
+        ],
+        "retrieved_support_ids": [
+          "answer_69811d4a",
+          "c70f9f9c",
+          "sharegpt_n3MgsgL_0"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4557
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "86b68151",
+      "category": "single-session-user",
+      "question": "Where did I buy my new bookshelf from?",
+      "gold_support_ids": [
+        "answer_dc11c1eb"
+      ],
+      "before": {
+        "case_id": "86b68151",
+        "category": "single-session-user",
+        "question": "Where did I buy my new bookshelf from?",
+        "gold_support_ids": [
+          "answer_dc11c1eb"
+        ],
+        "retrieved_support_ids": [
+          "answer_dc11c1eb",
+          "0abaca24_1",
+          "4e671700",
+          "sharegpt_beV15ZO_0",
+          "159ab103"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5758
+      },
+      "after": {
+        "case_id": "86b68151",
+        "category": "single-session-user",
+        "question": "Where did I buy my new bookshelf from?",
+        "gold_support_ids": [
+          "answer_dc11c1eb"
+        ],
+        "retrieved_support_ids": [
+          "answer_dc11c1eb",
+          "0abaca24_1",
+          "4e671700",
+          "sharegpt_beV15ZO_0",
+          "159ab103"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5758
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "8cf4d046",
+      "category": "multi-session",
+      "question": "What is the average GPA of my undergraduate and graduate studies?",
+      "gold_support_ids": [
+        "answer_e2278b24_1",
+        "answer_e2278b24_2"
+      ],
+      "before": {
+        "case_id": "8cf4d046",
+        "category": "multi-session",
+        "question": "What is the average GPA of my undergraduate and graduate studies?",
+        "gold_support_ids": [
+          "answer_e2278b24_1",
+          "answer_e2278b24_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_e2278b24_2",
+          "answer_e2278b24_1",
+          "ultrachat_554855",
+          "410ec447",
+          "sharegpt_WjpyexI_15"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5208
+      },
+      "after": {
+        "case_id": "8cf4d046",
+        "category": "multi-session",
+        "question": "What is the average GPA of my undergraduate and graduate studies?",
+        "gold_support_ids": [
+          "answer_e2278b24_1",
+          "answer_e2278b24_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_e2278b24_2",
+          "answer_e2278b24_1",
+          "ultrachat_554855",
+          "410ec447",
+          "sharegpt_WjpyexI_15"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5558
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "8e91e7d9",
+      "category": "multi-session",
+      "question": "What is the total number of siblings I have?",
+      "gold_support_ids": [
+        "answer_477ae455_1",
+        "answer_477ae455_2"
+      ],
+      "before": {
+        "case_id": "8e91e7d9",
+        "category": "multi-session",
+        "question": "What is the total number of siblings I have?",
+        "gold_support_ids": [
+          "answer_477ae455_1",
+          "answer_477ae455_2"
+        ],
+        "retrieved_support_ids": [
+          "sharegpt_PZrBCF2_0",
+          "sharegpt_8lpX5R7_19",
+          "ultrachat_147574",
+          "answer_477ae455_2",
+          "2f980ae0_2"
+        ],
+        "first_gold_rank": 4,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5797
+      },
+      "after": {
+        "case_id": "8e91e7d9",
+        "category": "multi-session",
+        "question": "What is the total number of siblings I have?",
+        "gold_support_ids": [
+          "answer_477ae455_1",
+          "answer_477ae455_2"
+        ],
+        "retrieved_support_ids": [
+          "sharegpt_PZrBCF2_0",
+          "sharegpt_8lpX5R7_19",
+          "ultrachat_147574",
+          "answer_477ae455_2",
+          "2f980ae0_2"
+        ],
+        "first_gold_rank": 4,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5797
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "8fb83627",
+      "category": "knowledge-update",
+      "question": "How many issues of National Geographic have I finished reading?",
+      "gold_support_ids": [
+        "answer_966cecbb_1",
+        "answer_966cecbb_2"
+      ],
+      "before": {
+        "case_id": "8fb83627",
+        "category": "knowledge-update",
+        "question": "How many issues of National Geographic have I finished reading?",
+        "gold_support_ids": [
+          "answer_966cecbb_1",
+          "answer_966cecbb_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_966cecbb_1",
+          "answer_966cecbb_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5073
+      },
+      "after": {
+        "case_id": "8fb83627",
+        "category": "knowledge-update",
+        "question": "How many issues of National Geographic have I finished reading?",
+        "gold_support_ids": [
+          "answer_966cecbb_1",
+          "answer_966cecbb_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_966cecbb_1",
+          "answer_966cecbb_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5073
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "9a707b81",
+      "category": "temporal-reasoning",
+      "question": "How many days ago did I attend a baking class at a local culinary school when I made my friend's birthday cake?",
+      "gold_support_ids": [
+        "answer_dba89487_2",
+        "answer_dba89487_1"
+      ],
+      "before": {
+        "case_id": "9a707b81",
+        "category": "temporal-reasoning",
+        "question": "How many days ago did I attend a baking class at a local culinary school when I made my friend's birthday cake?",
+        "gold_support_ids": [
+          "answer_dba89487_2",
+          "answer_dba89487_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_dba89487_2",
+          "sharegpt_sW9QRz1_0"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3151
+      },
+      "after": {
+        "case_id": "9a707b81",
+        "category": "temporal-reasoning",
+        "question": "How many days ago did I attend a baking class at a local culinary school when I made my friend's birthday cake?",
+        "gold_support_ids": [
+          "answer_dba89487_2",
+          "answer_dba89487_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_dba89487_2",
+          "sharegpt_sW9QRz1_0"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3123
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "9ea5eabc",
+      "category": "knowledge-update",
+      "question": "Where did I go on my most recent family trip?",
+      "gold_support_ids": [
+        "answer_02e66dec_1",
+        "answer_02e66dec_2"
+      ],
+      "before": {
+        "case_id": "9ea5eabc",
+        "category": "knowledge-update",
+        "question": "Where did I go on my most recent family trip?",
+        "gold_support_ids": [
+          "answer_02e66dec_1",
+          "answer_02e66dec_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_02e66dec_2",
+          "answer_02e66dec_1",
+          "9bf5da2d",
+          "418c27fa",
+          "29695e1c_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4463
+      },
+      "after": {
+        "case_id": "9ea5eabc",
+        "category": "knowledge-update",
+        "question": "Where did I go on my most recent family trip?",
+        "gold_support_ids": [
+          "answer_02e66dec_1",
+          "answer_02e66dec_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_02e66dec_2",
+          "answer_02e66dec_1",
+          "9bf5da2d",
+          "418c27fa",
+          "29695e1c_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4463
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "a3332713",
+      "category": "multi-session",
+      "question": "What is the total amount I spent on gifts for my coworker and brother?",
+      "gold_support_ids": [
+        "answer_16ece55f_2",
+        "answer_16ece55f_1"
+      ],
+      "before": {
+        "case_id": "a3332713",
+        "category": "multi-session",
+        "question": "What is the total amount I spent on gifts for my coworker and brother?",
+        "gold_support_ids": [
+          "answer_16ece55f_2",
+          "answer_16ece55f_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_16ece55f_2",
+          "answer_16ece55f_1",
+          "67388dfc_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6026
+      },
+      "after": {
+        "case_id": "a3332713",
+        "category": "multi-session",
+        "question": "What is the total amount I spent on gifts for my coworker and brother?",
+        "gold_support_ids": [
+          "answer_16ece55f_2",
+          "answer_16ece55f_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_16ece55f_2",
+          "answer_16ece55f_1",
+          "67388dfc_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5775
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "a96c20ee",
+      "category": "multi-session",
+      "question": "At which university did I present a poster on my thesis research?",
+      "gold_support_ids": [
+        "answer_ef84b994_1",
+        "answer_ef84b994_2"
+      ],
+      "before": {
+        "case_id": "a96c20ee",
+        "category": "multi-session",
+        "question": "At which university did I present a poster on my thesis research?",
+        "gold_support_ids": [
+          "answer_ef84b994_1",
+          "answer_ef84b994_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_ef84b994_1",
+          "answer_ef84b994_2",
+          "sharegpt_HxYsSjW_0",
+          "sharegpt_00qHEQ6_0",
+          "sharegpt_p5ZjxkA_36"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4215
+      },
+      "after": {
+        "case_id": "a96c20ee",
+        "category": "multi-session",
+        "question": "At which university did I present a poster on my thesis research?",
+        "gold_support_ids": [
+          "answer_ef84b994_1",
+          "answer_ef84b994_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_ef84b994_1",
+          "answer_ef84b994_2",
+          "sharegpt_HxYsSjW_0",
+          "sharegpt_00qHEQ6_0",
+          "sharegpt_p5ZjxkA_36"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4317
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "ac031881",
+      "category": "single-session-assistant",
+      "question": "I'm trying to recall what the designation on my jumpsuit was that helped me find the file number in the records room?",
+      "gold_support_ids": [
+        "answer_sharegpt_GYqnAhC_190"
+      ],
+      "before": {
+        "case_id": "ac031881",
+        "category": "single-session-assistant",
+        "question": "I'm trying to recall what the designation on my jumpsuit was that helped me find the file number in the records room?",
+        "gold_support_ids": [
+          "answer_sharegpt_GYqnAhC_190"
+        ],
+        "retrieved_support_ids": [
+          "answer_sharegpt_GYqnAhC_190",
+          "ebb47912"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3057
+      },
+      "after": {
+        "case_id": "ac031881",
+        "category": "single-session-assistant",
+        "question": "I'm trying to recall what the designation on my jumpsuit was that helped me find the file number in the records room?",
+        "gold_support_ids": [
+          "answer_sharegpt_GYqnAhC_190"
+        ],
+        "retrieved_support_ids": [
+          "answer_sharegpt_GYqnAhC_190",
+          "ebb47912"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3153
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "af082822",
+      "category": "temporal-reasoning",
+      "question": "How many weeks ago did I attend the friends and family sale at Nordstrom?",
+      "gold_support_ids": [
+        "answer_b51b6115_1"
+      ],
+      "before": {
+        "case_id": "af082822",
+        "category": "temporal-reasoning",
+        "question": "How many weeks ago did I attend the friends and family sale at Nordstrom?",
+        "gold_support_ids": [
+          "answer_b51b6115_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_b51b6115_1",
+          "1040e24b_1",
+          "1fcb4134_2",
+          "1dfef591_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6331
+      },
+      "after": {
+        "case_id": "af082822",
+        "category": "temporal-reasoning",
+        "question": "How many weeks ago did I attend the friends and family sale at Nordstrom?",
+        "gold_support_ids": [
+          "answer_b51b6115_1"
+        ],
+        "retrieved_support_ids": [
+          "1040e24b_1",
+          "answer_b51b6115_1",
+          "1fcb4134_2",
+          "1dfef591_2"
+        ],
+        "first_gold_rank": 2,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6383
+      },
+      "retrieved_support_ids_changed": true,
+      "gold_hit_changed": false,
+      "rank_delta": "regressed_rank"
+    },
+    {
+      "case_id": "b6019101",
+      "category": "knowledge-update",
+      "question": "How many MCU films did I watch in the last 3 months?",
+      "gold_support_ids": [
+        "answer_67074b4b_1",
+        "answer_67074b4b_2"
+      ],
+      "before": {
+        "case_id": "b6019101",
+        "category": "knowledge-update",
+        "question": "How many MCU films did I watch in the last 3 months?",
+        "gold_support_ids": [
+          "answer_67074b4b_1",
+          "answer_67074b4b_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_67074b4b_2",
+          "answer_67074b4b_1",
+          "sharegpt_aVExml0_235",
+          "ultrachat_72569",
+          "ultrachat_204275"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6253
+      },
+      "after": {
+        "case_id": "b6019101",
+        "category": "knowledge-update",
+        "question": "How many MCU films did I watch in the last 3 months?",
+        "gold_support_ids": [
+          "answer_67074b4b_1",
+          "answer_67074b4b_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_67074b4b_2",
+          "answer_67074b4b_1",
+          "sharegpt_aVExml0_235",
+          "ultrachat_72569",
+          "ultrachat_204275"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6247
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "c18a7dc8",
+      "category": "multi-session",
+      "question": "How many years older am I than when I graduated from college?",
+      "gold_support_ids": [
+        "answer_2e2085fa_2",
+        "answer_2e2085fa_1"
+      ],
+      "before": {
+        "case_id": "c18a7dc8",
+        "category": "multi-session",
+        "question": "How many years older am I than when I graduated from college?",
+        "gold_support_ids": [
+          "answer_2e2085fa_2",
+          "answer_2e2085fa_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_2e2085fa_1",
+          "sharegpt_1GIviXc_0",
+          "9d5a389d",
+          "sharegpt_ErOTMZ3_149",
+          "sharegpt_YPC6Oll_18"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4820
+      },
+      "after": {
+        "case_id": "c18a7dc8",
+        "category": "multi-session",
+        "question": "How many years older am I than when I graduated from college?",
+        "gold_support_ids": [
+          "answer_2e2085fa_2",
+          "answer_2e2085fa_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_2e2085fa_1",
+          "sharegpt_1GIviXc_0",
+          "9d5a389d",
+          "sharegpt_ErOTMZ3_149",
+          "sharegpt_YPC6Oll_18"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4850
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "c5e8278d",
+      "category": "single-session-user",
+      "question": "What was my last name before I changed it?",
+      "gold_support_ids": [
+        "answer_f6168136"
+      ],
+      "before": {
+        "case_id": "c5e8278d",
+        "category": "single-session-user",
+        "question": "What was my last name before I changed it?",
+        "gold_support_ids": [
+          "answer_f6168136"
+        ],
+        "retrieved_support_ids": [
+          "answer_f6168136",
+          "89b1028d_1",
+          "aaf71ce2_2",
+          "sharegpt_DB8U4oH_9",
+          "d777e7da_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5911
+      },
+      "after": {
+        "case_id": "c5e8278d",
+        "category": "single-session-user",
+        "question": "What was my last name before I changed it?",
+        "gold_support_ids": [
+          "answer_f6168136"
+        ],
+        "retrieved_support_ids": [
+          "answer_f6168136",
+          "89b1028d_1",
+          "aaf71ce2_2",
+          "sharegpt_DB8U4oH_9",
+          "d777e7da_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5911
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "cc06de0d",
+      "category": "multi-session",
+      "question": "For my daily commute, how much more expensive was the taxi ride compared to the train fare?",
+      "gold_support_ids": [
+        "answer_4fb01417_2",
+        "answer_4fb01417_1"
+      ],
+      "before": {
+        "case_id": "cc06de0d",
+        "category": "multi-session",
+        "question": "For my daily commute, how much more expensive was the taxi ride compared to the train fare?",
+        "gold_support_ids": [
+          "answer_4fb01417_2",
+          "answer_4fb01417_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_4fb01417_2",
+          "answer_4fb01417_1",
+          "01551a39_2",
+          "55033f6f"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5180
+      },
+      "after": {
+        "case_id": "cc06de0d",
+        "category": "multi-session",
+        "question": "For my daily commute, how much more expensive was the taxi ride compared to the train fare?",
+        "gold_support_ids": [
+          "answer_4fb01417_2",
+          "answer_4fb01417_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_4fb01417_2",
+          "answer_4fb01417_1",
+          "01551a39_2",
+          "55033f6f"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5243
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "d52b4f67",
+      "category": "single-session-user",
+      "question": "Where did I attend my cousin's wedding?",
+      "gold_support_ids": [
+        "answer_0df6aa4b"
+      ],
+      "before": {
+        "case_id": "d52b4f67",
+        "category": "single-session-user",
+        "question": "Where did I attend my cousin's wedding?",
+        "gold_support_ids": [
+          "answer_0df6aa4b"
+        ],
+        "retrieved_support_ids": [
+          "answer_0df6aa4b",
+          "cd1f21d0_3",
+          "sharegpt_2yVrL3l_45",
+          "62a6d083",
+          "29545df8_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4035
+      },
+      "after": {
+        "case_id": "d52b4f67",
+        "category": "single-session-user",
+        "question": "Where did I attend my cousin's wedding?",
+        "gold_support_ids": [
+          "answer_0df6aa4b"
+        ],
+        "retrieved_support_ids": [
+          "answer_0df6aa4b",
+          "cd1f21d0_3",
+          "sharegpt_2yVrL3l_45",
+          "62a6d083",
+          "29545df8_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4028
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "d7c942c3",
+      "category": "knowledge-update",
+      "question": "Is my mom using the same grocery list method as me?",
+      "gold_support_ids": [
+        "answer_eecb10d9_1",
+        "answer_eecb10d9_2"
+      ],
+      "before": {
+        "case_id": "d7c942c3",
+        "category": "knowledge-update",
+        "question": "Is my mom using the same grocery list method as me?",
+        "gold_support_ids": [
+          "answer_eecb10d9_1",
+          "answer_eecb10d9_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_eecb10d9_2",
+          "answer_eecb10d9_1",
+          "b2243528_1",
+          "4f435d20_2",
+          "ddf0f116_3"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5903
+      },
+      "after": {
+        "case_id": "d7c942c3",
+        "category": "knowledge-update",
+        "question": "Is my mom using the same grocery list method as me?",
+        "gold_support_ids": [
+          "answer_eecb10d9_1",
+          "answer_eecb10d9_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_eecb10d9_2",
+          "answer_eecb10d9_1",
+          "b2243528_1",
+          "4f435d20_2",
+          "ddf0f116_3"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5617
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "db467c8c",
+      "category": "knowledge-update",
+      "question": "How long have my parents been staying with me in the US?",
+      "gold_support_ids": [
+        "answer_611b6e83_1",
+        "answer_611b6e83_2"
+      ],
+      "before": {
+        "case_id": "db467c8c",
+        "category": "knowledge-update",
+        "question": "How long have my parents been staying with me in the US?",
+        "gold_support_ids": [
+          "answer_611b6e83_1",
+          "answer_611b6e83_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_611b6e83_1",
+          "answer_611b6e83_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5870
+      },
+      "after": {
+        "case_id": "db467c8c",
+        "category": "knowledge-update",
+        "question": "How long have my parents been staying with me in the US?",
+        "gold_support_ids": [
+          "answer_611b6e83_1",
+          "answer_611b6e83_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_611b6e83_1",
+          "answer_611b6e83_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5927
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "dccbc061",
+      "category": "single-session-user",
+      "question": "What was my previous stance on spirituality?",
+      "gold_support_ids": [
+        "answer_8f276838"
+      ],
+      "before": {
+        "case_id": "dccbc061",
+        "category": "single-session-user",
+        "question": "What was my previous stance on spirituality?",
+        "gold_support_ids": [
+          "answer_8f276838"
+        ],
+        "retrieved_support_ids": [
+          "answer_8f276838",
+          "ultrachat_343",
+          "ultrachat_519037",
+          "sharegpt_MKMWjX0_25"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4698
+      },
+      "after": {
+        "case_id": "dccbc061",
+        "category": "single-session-user",
+        "question": "What was my previous stance on spirituality?",
+        "gold_support_ids": [
+          "answer_8f276838"
+        ],
+        "retrieved_support_ids": [
+          "answer_8f276838",
+          "ultrachat_343",
+          "ultrachat_519037",
+          "sharegpt_MKMWjX0_25"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4730
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "dfde3500",
+      "category": "knowledge-update",
+      "question": "What day of the week did I meet with my previous language exchange tutor Juan?",
+      "gold_support_ids": [
+        "answer_35d6c0be_1",
+        "answer_35d6c0be_2"
+      ],
+      "before": {
+        "case_id": "dfde3500",
+        "category": "knowledge-update",
+        "question": "What day of the week did I meet with my previous language exchange tutor Juan?",
+        "gold_support_ids": [
+          "answer_35d6c0be_1",
+          "answer_35d6c0be_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_35d6c0be_1",
+          "answer_35d6c0be_2",
+          "sharegpt_xab6zXe_0",
+          "sharegpt_80caWYI_1",
+          "59c704ad_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5197
+      },
+      "after": {
+        "case_id": "dfde3500",
+        "category": "knowledge-update",
+        "question": "What day of the week did I meet with my previous language exchange tutor Juan?",
+        "gold_support_ids": [
+          "answer_35d6c0be_1",
+          "answer_35d6c0be_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_35d6c0be_1",
+          "answer_35d6c0be_2",
+          "sharegpt_xab6zXe_0",
+          "sharegpt_80caWYI_1",
+          "59c704ad_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5396
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "e01b8e2f",
+      "category": "single-session-user",
+      "question": "Where did I go on a week-long trip with my family?",
+      "gold_support_ids": [
+        "answer_5ca6cd28"
+      ],
+      "before": {
+        "case_id": "e01b8e2f",
+        "category": "single-session-user",
+        "question": "Where did I go on a week-long trip with my family?",
+        "gold_support_ids": [
+          "answer_5ca6cd28"
+        ],
+        "retrieved_support_ids": [
+          "answer_5ca6cd28",
+          "86c5d31d",
+          "ultrachat_41805",
+          "8acfa731",
+          "8be2c3f1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5473
+      },
+      "after": {
+        "case_id": "e01b8e2f",
+        "category": "single-session-user",
+        "question": "Where did I go on a week-long trip with my family?",
+        "gold_support_ids": [
+          "answer_5ca6cd28"
+        ],
+        "retrieved_support_ids": [
+          "answer_5ca6cd28",
+          "86c5d31d",
+          "ultrachat_41805",
+          "8acfa731",
+          "8be2c3f1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5396
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "edced276",
+      "category": "multi-session",
+      "question": "How many days did I spend in total traveling in Hawaii and in New York City?",
+      "gold_support_ids": [
+        "answer_60e8941a_2",
+        "answer_60e8941a_1"
+      ],
+      "before": {
+        "case_id": "edced276",
+        "category": "multi-session",
+        "question": "How many days did I spend in total traveling in Hawaii and in New York City?",
+        "gold_support_ids": [
+          "answer_60e8941a_2",
+          "answer_60e8941a_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_60e8941a_2",
+          "answer_60e8941a_1",
+          "ultrachat_202227",
+          "59a6150d_3",
+          "ultrachat_378743"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5422
+      },
+      "after": {
+        "case_id": "edced276",
+        "category": "multi-session",
+        "question": "How many days did I spend in total traveling in Hawaii and in New York City?",
+        "gold_support_ids": [
+          "answer_60e8941a_2",
+          "answer_60e8941a_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_60e8941a_2",
+          "answer_60e8941a_1",
+          "ultrachat_202227",
+          "59a6150d_3",
+          "ultrachat_378743"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5522
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "ef66a6e5",
+      "category": "multi-session",
+      "question": "How many sports have I played competitively in the past?",
+      "gold_support_ids": [
+        "answer_f7fd1029_2",
+        "answer_f7fd1029_1"
+      ],
+      "before": {
+        "case_id": "ef66a6e5",
+        "category": "multi-session",
+        "question": "How many sports have I played competitively in the past?",
+        "gold_support_ids": [
+          "answer_f7fd1029_2",
+          "answer_f7fd1029_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_f7fd1029_1",
+          "answer_f7fd1029_2",
+          "8c25f527",
+          "74c2d3a1_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6347
+      },
+      "after": {
+        "case_id": "ef66a6e5",
+        "category": "multi-session",
+        "question": "How many sports have I played competitively in the past?",
+        "gold_support_ids": [
+          "answer_f7fd1029_2",
+          "answer_f7fd1029_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_f7fd1029_1",
+          "answer_f7fd1029_2",
+          "8c25f527",
+          "74c2d3a1_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6352
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "f8c5f88b",
+      "category": "single-session-user",
+      "question": "Where did I buy my new tennis racket from?",
+      "gold_support_ids": [
+        "answer_c3567066"
+      ],
+      "before": {
+        "case_id": "f8c5f88b",
+        "category": "single-session-user",
+        "question": "Where did I buy my new tennis racket from?",
+        "gold_support_ids": [
+          "answer_c3567066"
+        ],
+        "retrieved_support_ids": [
+          "answer_c3567066",
+          "15232887_1",
+          "91880423",
+          "1ede478b",
+          "54e9197a"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5948
+      },
+      "after": {
+        "case_id": "f8c5f88b",
+        "category": "single-session-user",
+        "question": "Where did I buy my new tennis racket from?",
+        "gold_support_ids": [
+          "answer_c3567066"
+        ],
+        "retrieved_support_ids": [
+          "answer_c3567066",
+          "15232887_1",
+          "91880423",
+          "1ede478b",
+          "54e9197a"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5792
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "f9e8c073",
+      "category": "knowledge-update",
+      "question": "How many sessions of the bereavement support group did I attend?",
+      "gold_support_ids": [
+        "answer_b191df5b_1",
+        "answer_b191df5b_2"
+      ],
+      "before": {
+        "case_id": "f9e8c073",
+        "category": "knowledge-update",
+        "question": "How many sessions of the bereavement support group did I attend?",
+        "gold_support_ids": [
+          "answer_b191df5b_1",
+          "answer_b191df5b_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_b191df5b_1",
+          "answer_b191df5b_2",
+          "22db3cc3_1",
+          "ultrachat_179318",
+          "ultrachat_88473"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4851
+      },
+      "after": {
+        "case_id": "f9e8c073",
+        "category": "knowledge-update",
+        "question": "How many sessions of the bereavement support group did I attend?",
+        "gold_support_ids": [
+          "answer_b191df5b_1",
+          "answer_b191df5b_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_b191df5b_1",
+          "answer_b191df5b_2",
+          "22db3cc3_1",
+          "ultrachat_179318",
+          "ultrachat_88473"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5030
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "faba32e5",
+      "category": "single-session-user",
+      "question": "How long did Alex marinate the BBQ ribs in special sauce?",
+      "gold_support_ids": [
+        "answer_39b12014"
+      ],
+      "before": {
+        "case_id": "faba32e5",
+        "category": "single-session-user",
+        "question": "How long did Alex marinate the BBQ ribs in special sauce?",
+        "gold_support_ids": [
+          "answer_39b12014"
+        ],
+        "retrieved_support_ids": [
+          "answer_39b12014",
+          "770d11f5",
+          "69f3fc12_1",
+          "c6c5bb8b_4",
+          "ultrachat_425944"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 7158
+      },
+      "after": {
+        "case_id": "faba32e5",
+        "category": "single-session-user",
+        "question": "How long did Alex marinate the BBQ ribs in special sauce?",
+        "gold_support_ids": [
+          "answer_39b12014"
+        ],
+        "retrieved_support_ids": [
+          "answer_39b12014",
+          "770d11f5",
+          "69f3fc12_1",
+          "c6c5bb8b_4",
+          "ultrachat_425944"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 7215
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_0a05b494",
+      "category": "temporal-reasoning",
+      "question": "Who did I meet first, the woman selling jam at the farmer's market or the tourist from Australia?",
+      "gold_support_ids": [
+        "answer_a68db5db_2",
+        "answer_a68db5db_1"
+      ],
+      "before": {
+        "case_id": "gpt4_0a05b494",
+        "category": "temporal-reasoning",
+        "question": "Who did I meet first, the woman selling jam at the farmer's market or the tourist from Australia?",
+        "gold_support_ids": [
+          "answer_a68db5db_2",
+          "answer_a68db5db_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_a68db5db_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 2283
+      },
+      "after": {
+        "case_id": "gpt4_0a05b494",
+        "category": "temporal-reasoning",
+        "question": "Who did I meet first, the woman selling jam at the farmer's market or the tourist from Australia?",
+        "gold_support_ids": [
+          "answer_a68db5db_2",
+          "answer_a68db5db_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_a68db5db_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 2235
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_2f584639",
+      "category": "temporal-reasoning",
+      "question": "Which gift did I buy first, the necklace for my sister or the photo album for my mom?",
+      "gold_support_ids": [
+        "answer_11a8f823_2",
+        "answer_11a8f823_1"
+      ],
+      "before": {
+        "case_id": "gpt4_2f584639",
+        "category": "temporal-reasoning",
+        "question": "Which gift did I buy first, the necklace for my sister or the photo album for my mom?",
+        "gold_support_ids": [
+          "answer_11a8f823_2",
+          "answer_11a8f823_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_11a8f823_2",
+          "answer_11a8f823_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3370
+      },
+      "after": {
+        "case_id": "gpt4_2f584639",
+        "category": "temporal-reasoning",
+        "question": "Which gift did I buy first, the necklace for my sister or the photo album for my mom?",
+        "gold_support_ids": [
+          "answer_11a8f823_2",
+          "answer_11a8f823_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_11a8f823_2",
+          "answer_11a8f823_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3458
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_2f8be40d",
+      "category": "multi-session",
+      "question": "How many weddings have I attended in this year?",
+      "gold_support_ids": [
+        "answer_e7b0637e_2",
+        "answer_e7b0637e_1",
+        "answer_e7b0637e_3"
+      ],
+      "before": {
+        "case_id": "gpt4_2f8be40d",
+        "category": "multi-session",
+        "question": "How many weddings have I attended in this year?",
+        "gold_support_ids": [
+          "answer_e7b0637e_2",
+          "answer_e7b0637e_1",
+          "answer_e7b0637e_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_e7b0637e_1",
+          "81b971b8_2",
+          "answer_e7b0637e_2",
+          "ultrachat_217382",
+          "answer_e7b0637e_3"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6691
+      },
+      "after": {
+        "case_id": "gpt4_2f8be40d",
+        "category": "multi-session",
+        "question": "How many weddings have I attended in this year?",
+        "gold_support_ids": [
+          "answer_e7b0637e_2",
+          "answer_e7b0637e_1",
+          "answer_e7b0637e_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_e7b0637e_1",
+          "81b971b8_2",
+          "answer_e7b0637e_2",
+          "ultrachat_217382",
+          "answer_e7b0637e_3"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6691
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_372c3eed",
+      "category": "multi-session",
+      "question": "How many years in total did I spend in formal education from high school to the completion of my Bachelor's degree?",
+      "gold_support_ids": [
+        "answer_35c5419d_3",
+        "answer_35c5419d_2",
+        "answer_35c5419d_1"
+      ],
+      "before": {
+        "case_id": "gpt4_372c3eed",
+        "category": "multi-session",
+        "question": "How many years in total did I spend in formal education from high school to the completion of my Bachelor's degree?",
+        "gold_support_ids": [
+          "answer_35c5419d_3",
+          "answer_35c5419d_2",
+          "answer_35c5419d_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_35c5419d_1",
+          "answer_35c5419d_3",
+          "sharegpt_6VqlSoL_25",
+          "sharegpt_2hMUduQ_1",
+          "4d1125f9_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6627
+      },
+      "after": {
+        "case_id": "gpt4_372c3eed",
+        "category": "multi-session",
+        "question": "How many years in total did I spend in formal education from high school to the completion of my Bachelor's degree?",
+        "gold_support_ids": [
+          "answer_35c5419d_3",
+          "answer_35c5419d_2",
+          "answer_35c5419d_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_35c5419d_1",
+          "answer_35c5419d_3",
+          "sharegpt_6VqlSoL_25",
+          "sharegpt_2hMUduQ_1",
+          "4d1125f9_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6583
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_45189cb4",
+      "category": "temporal-reasoning",
+      "question": "What is the order of the sports events I watched in January?",
+      "gold_support_ids": [
+        "answer_e6c20e52_3",
+        "answer_e6c20e52_2",
+        "answer_e6c20e52_1"
+      ],
+      "before": {
+        "case_id": "gpt4_45189cb4",
+        "category": "temporal-reasoning",
+        "question": "What is the order of the sports events I watched in January?",
+        "gold_support_ids": [
+          "answer_e6c20e52_3",
+          "answer_e6c20e52_2",
+          "answer_e6c20e52_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_e6c20e52_3",
+          "dc3ee1d1_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3438
+      },
+      "after": {
+        "case_id": "gpt4_45189cb4",
+        "category": "temporal-reasoning",
+        "question": "What is the order of the sports events I watched in January?",
+        "gold_support_ids": [
+          "answer_e6c20e52_3",
+          "answer_e6c20e52_2",
+          "answer_e6c20e52_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_e6c20e52_3",
+          "dc3ee1d1_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3438
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_4cd9eba1",
+      "category": "temporal-reasoning",
+      "question": "How many weeks have I been accepted into the exchange program when I started attending the pre-departure orientation sessions?",
+      "gold_support_ids": [
+        "answer_5fcca8bc_2",
+        "answer_5fcca8bc_1"
+      ],
+      "before": {
+        "case_id": "gpt4_4cd9eba1",
+        "category": "temporal-reasoning",
+        "question": "How many weeks have I been accepted into the exchange program when I started attending the pre-departure orientation sessions?",
+        "gold_support_ids": [
+          "answer_5fcca8bc_2",
+          "answer_5fcca8bc_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_5fcca8bc_1",
+          "answer_5fcca8bc_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3343
+      },
+      "after": {
+        "case_id": "gpt4_4cd9eba1",
+        "category": "temporal-reasoning",
+        "question": "How many weeks have I been accepted into the exchange program when I started attending the pre-departure orientation sessions?",
+        "gold_support_ids": [
+          "answer_5fcca8bc_2",
+          "answer_5fcca8bc_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_5fcca8bc_1",
+          "answer_5fcca8bc_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3391
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_5438fa52",
+      "category": "temporal-reasoning",
+      "question": "Which event happened first, my attendance at a cultural festival or the start of my Spanish classes?",
+      "gold_support_ids": [
+        "answer_b10f3828_1",
+        "answer_b10f3828_2"
+      ],
+      "before": {
+        "case_id": "gpt4_5438fa52",
+        "category": "temporal-reasoning",
+        "question": "Which event happened first, my attendance at a cultural festival or the start of my Spanish classes?",
+        "gold_support_ids": [
+          "answer_b10f3828_1",
+          "answer_b10f3828_2"
+        ],
+        "retrieved_support_ids": [
+          "ab8dce45",
+          "answer_b10f3828_1",
+          "528f481d_6",
+          "b4f07fef_2"
+        ],
+        "first_gold_rank": 2,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6740
+      },
+      "after": {
+        "case_id": "gpt4_5438fa52",
+        "category": "temporal-reasoning",
+        "question": "Which event happened first, my attendance at a cultural festival or the start of my Spanish classes?",
+        "gold_support_ids": [
+          "answer_b10f3828_1",
+          "answer_b10f3828_2"
+        ],
+        "retrieved_support_ids": [
+          "ab8dce45",
+          "answer_b10f3828_1",
+          "528f481d_6",
+          "b4f07fef_2"
+        ],
+        "first_gold_rank": 2,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6740
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_59c863d7",
+      "category": "multi-session",
+      "question": "How many model kits have I worked on or bought?",
+      "gold_support_ids": [
+        "answer_593bdffd_4",
+        "answer_593bdffd_1",
+        "answer_593bdffd_3",
+        "answer_593bdffd_2"
+      ],
+      "before": {
+        "case_id": "gpt4_59c863d7",
+        "category": "multi-session",
+        "question": "How many model kits have I worked on or bought?",
+        "gold_support_ids": [
+          "answer_593bdffd_4",
+          "answer_593bdffd_1",
+          "answer_593bdffd_3",
+          "answer_593bdffd_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_593bdffd_1",
+          "answer_593bdffd_4",
+          "answer_593bdffd_2",
+          "eb47739f_2",
+          "sharegpt_Opm4kTV_0"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5788
+      },
+      "after": {
+        "case_id": "gpt4_59c863d7",
+        "category": "multi-session",
+        "question": "How many model kits have I worked on or bought?",
+        "gold_support_ids": [
+          "answer_593bdffd_4",
+          "answer_593bdffd_1",
+          "answer_593bdffd_3",
+          "answer_593bdffd_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_593bdffd_1",
+          "answer_593bdffd_4",
+          "answer_593bdffd_2",
+          "eb47739f_2",
+          "sharegpt_Opm4kTV_0"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 5788
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_7abb270c",
+      "category": "temporal-reasoning",
+      "question": "What is the order of the six museums I visited from earliest to latest?",
+      "gold_support_ids": [
+        "answer_7093d898_1",
+        "answer_7093d898_2",
+        "answer_7093d898_3",
+        "answer_7093d898_4",
+        "answer_7093d898_5",
+        "answer_7093d898_6"
+      ],
+      "before": {
+        "case_id": "gpt4_7abb270c",
+        "category": "temporal-reasoning",
+        "question": "What is the order of the six museums I visited from earliest to latest?",
+        "gold_support_ids": [
+          "answer_7093d898_1",
+          "answer_7093d898_2",
+          "answer_7093d898_3",
+          "answer_7093d898_4",
+          "answer_7093d898_5",
+          "answer_7093d898_6"
+        ],
+        "retrieved_support_ids": [
+          "answer_7093d898_6"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 1721
+      },
+      "after": {
+        "case_id": "gpt4_7abb270c",
+        "category": "temporal-reasoning",
+        "question": "What is the order of the six museums I visited from earliest to latest?",
+        "gold_support_ids": [
+          "answer_7093d898_1",
+          "answer_7093d898_2",
+          "answer_7093d898_3",
+          "answer_7093d898_4",
+          "answer_7093d898_5",
+          "answer_7093d898_6"
+        ],
+        "retrieved_support_ids": [
+          "answer_7093d898_6"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 1721
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_7ca326fa",
+      "category": "temporal-reasoning",
+      "question": "Who graduated first, second and third among Emma, Rachel and Alex?",
+      "gold_support_ids": [
+        "answer_cf021b36_1",
+        "answer_cf021b36_2",
+        "answer_cf021b36_3"
+      ],
+      "before": {
+        "case_id": "gpt4_7ca326fa",
+        "category": "temporal-reasoning",
+        "question": "Who graduated first, second and third among Emma, Rachel and Alex?",
+        "gold_support_ids": [
+          "answer_cf021b36_1",
+          "answer_cf021b36_2",
+          "answer_cf021b36_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_cf021b36_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 2140
+      },
+      "after": {
+        "case_id": "gpt4_7ca326fa",
+        "category": "temporal-reasoning",
+        "question": "Who graduated first, second and third among Emma, Rachel and Alex?",
+        "gold_support_ids": [
+          "answer_cf021b36_1",
+          "answer_cf021b36_2",
+          "answer_cf021b36_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_cf021b36_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 2127
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_7de946e7",
+      "category": "temporal-reasoning",
+      "question": "Which health issue did I deal with first, the persistent cough or the skin tag removal?",
+      "gold_support_ids": [
+        "answer_6a78e959_2",
+        "answer_6a78e959_1"
+      ],
+      "before": {
+        "case_id": "gpt4_7de946e7",
+        "category": "temporal-reasoning",
+        "question": "Which health issue did I deal with first, the persistent cough or the skin tag removal?",
+        "gold_support_ids": [
+          "answer_6a78e959_2",
+          "answer_6a78e959_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_6a78e959_2",
+          "answer_6a78e959_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3860
+      },
+      "after": {
+        "case_id": "gpt4_7de946e7",
+        "category": "temporal-reasoning",
+        "question": "Which health issue did I deal with first, the persistent cough or the skin tag removal?",
+        "gold_support_ids": [
+          "answer_6a78e959_2",
+          "answer_6a78e959_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_6a78e959_2",
+          "answer_6a78e959_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3628
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_7f6b06db",
+      "category": "temporal-reasoning",
+      "question": "What is the order of the three trips I took in the past three months, from earliest to latest?",
+      "gold_support_ids": [
+        "answer_5d8c99d3_1",
+        "answer_5d8c99d3_2",
+        "answer_5d8c99d3_3"
+      ],
+      "before": {
+        "case_id": "gpt4_7f6b06db",
+        "category": "temporal-reasoning",
+        "question": "What is the order of the three trips I took in the past three months, from earliest to latest?",
+        "gold_support_ids": [
+          "answer_5d8c99d3_1",
+          "answer_5d8c99d3_2",
+          "answer_5d8c99d3_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_5d8c99d3_3",
+          "answer_5d8c99d3_2",
+          "answer_5d8c99d3_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4477
+      },
+      "after": {
+        "case_id": "gpt4_7f6b06db",
+        "category": "temporal-reasoning",
+        "question": "What is the order of the three trips I took in the past three months, from earliest to latest?",
+        "gold_support_ids": [
+          "answer_5d8c99d3_1",
+          "answer_5d8c99d3_2",
+          "answer_5d8c99d3_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_5d8c99d3_3",
+          "answer_5d8c99d3_2",
+          "answer_5d8c99d3_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 4477
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_8c8961ae",
+      "category": "temporal-reasoning",
+      "question": "Which trip did I take first, the one to Europe with family or the solo trip to Thailand?",
+      "gold_support_ids": [
+        "answer_72d9aa58_1",
+        "answer_72d9aa58_2"
+      ],
+      "before": {
+        "case_id": "gpt4_8c8961ae",
+        "category": "temporal-reasoning",
+        "question": "Which trip did I take first, the one to Europe with family or the solo trip to Thailand?",
+        "gold_support_ids": [
+          "answer_72d9aa58_1",
+          "answer_72d9aa58_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_72d9aa58_1",
+          "answer_72d9aa58_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3741
+      },
+      "after": {
+        "case_id": "gpt4_8c8961ae",
+        "category": "temporal-reasoning",
+        "question": "Which trip did I take first, the one to Europe with family or the solo trip to Thailand?",
+        "gold_support_ids": [
+          "answer_72d9aa58_1",
+          "answer_72d9aa58_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_72d9aa58_1",
+          "answer_72d9aa58_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3905
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_93159ced",
+      "category": "temporal-reasoning",
+      "question": "How long have I been working before I started my current job at NovaTech?",
+      "gold_support_ids": [
+        "answer_e5131a1b_2",
+        "answer_e5131a1b_1"
+      ],
+      "before": {
+        "case_id": "gpt4_93159ced",
+        "category": "temporal-reasoning",
+        "question": "How long have I been working before I started my current job at NovaTech?",
+        "gold_support_ids": [
+          "answer_e5131a1b_2",
+          "answer_e5131a1b_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_e5131a1b_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 2091
+      },
+      "after": {
+        "case_id": "gpt4_93159ced",
+        "category": "temporal-reasoning",
+        "question": "How long have I been working before I started my current job at NovaTech?",
+        "gold_support_ids": [
+          "answer_e5131a1b_2",
+          "answer_e5131a1b_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_e5131a1b_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 2093
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_9a159967",
+      "category": "temporal-reasoning",
+      "question": "Which airline did I fly with the most in March and April?",
+      "gold_support_ids": [
+        "answer_8a42fedf_1",
+        "answer_8a42fedf_3",
+        "answer_8a42fedf_2"
+      ],
+      "before": {
+        "case_id": "gpt4_9a159967",
+        "category": "temporal-reasoning",
+        "question": "Which airline did I fly with the most in March and April?",
+        "gold_support_ids": [
+          "answer_8a42fedf_1",
+          "answer_8a42fedf_3",
+          "answer_8a42fedf_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_8a42fedf_3",
+          "300cfc4a",
+          "answer_8a42fedf_2",
+          "75671e3f_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6523
+      },
+      "after": {
+        "case_id": "gpt4_9a159967",
+        "category": "temporal-reasoning",
+        "question": "Which airline did I fly with the most in March and April?",
+        "gold_support_ids": [
+          "answer_8a42fedf_1",
+          "answer_8a42fedf_3",
+          "answer_8a42fedf_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_8a42fedf_3",
+          "300cfc4a",
+          "answer_8a42fedf_2",
+          "75671e3f_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6662
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_cd90e484",
+      "category": "temporal-reasoning",
+      "question": "How long did I use my new binoculars before I saw the American goldfinches returning to the area?",
+      "gold_support_ids": [
+        "answer_aa930b56_1",
+        "answer_aa930b56_2"
+      ],
+      "before": {
+        "case_id": "gpt4_cd90e484",
+        "category": "temporal-reasoning",
+        "question": "How long did I use my new binoculars before I saw the American goldfinches returning to the area?",
+        "gold_support_ids": [
+          "answer_aa930b56_1",
+          "answer_aa930b56_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_aa930b56_2",
+          "answer_aa930b56_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3805
+      },
+      "after": {
+        "case_id": "gpt4_cd90e484",
+        "category": "temporal-reasoning",
+        "question": "How long did I use my new binoculars before I saw the American goldfinches returning to the area?",
+        "gold_support_ids": [
+          "answer_aa930b56_1",
+          "answer_aa930b56_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_aa930b56_2",
+          "answer_aa930b56_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3805
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_d12ceb0e",
+      "category": "multi-session",
+      "question": "What is the average age of me, my parents, and my grandparents?",
+      "gold_support_ids": [
+        "answer_2504635e_3",
+        "answer_2504635e_2",
+        "answer_2504635e_1"
+      ],
+      "before": {
+        "case_id": "gpt4_d12ceb0e",
+        "category": "multi-session",
+        "question": "What is the average age of me, my parents, and my grandparents?",
+        "gold_support_ids": [
+          "answer_2504635e_3",
+          "answer_2504635e_2",
+          "answer_2504635e_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_2504635e_2",
+          "2fe5510e_3",
+          "73f4798f",
+          "answer_2504635e_1",
+          "answer_2504635e_3"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6153
+      },
+      "after": {
+        "case_id": "gpt4_d12ceb0e",
+        "category": "multi-session",
+        "question": "What is the average age of me, my parents, and my grandparents?",
+        "gold_support_ids": [
+          "answer_2504635e_3",
+          "answer_2504635e_2",
+          "answer_2504635e_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_2504635e_2",
+          "2fe5510e_3",
+          "73f4798f",
+          "answer_2504635e_1",
+          "answer_2504635e_3"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6390
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_d31cdae3",
+      "category": "temporal-reasoning",
+      "question": "Which trip did the narrator take first, the solo trip to Europe or the family road trip across the American Southwest?",
+      "gold_support_ids": [
+        "answer_8464304d_1",
+        "answer_8464304d_2"
+      ],
+      "before": {
+        "case_id": "gpt4_d31cdae3",
+        "category": "temporal-reasoning",
+        "question": "Which trip did the narrator take first, the solo trip to Europe or the family road trip across the American Southwest?",
+        "gold_support_ids": [
+          "answer_8464304d_1",
+          "answer_8464304d_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_8464304d_2",
+          "ultrachat_324099"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3387
+      },
+      "after": {
+        "case_id": "gpt4_d31cdae3",
+        "category": "temporal-reasoning",
+        "question": "Which trip did the narrator take first, the solo trip to Europe or the family road trip across the American Southwest?",
+        "gold_support_ids": [
+          "answer_8464304d_1",
+          "answer_8464304d_2"
+        ],
+        "retrieved_support_ids": [
+          "answer_8464304d_2",
+          "ultrachat_324099"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3252
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_d6585ce8",
+      "category": "temporal-reasoning",
+      "question": "What is the order of the concerts and musical events I attended in the past two months, starting from the earliest?",
+      "gold_support_ids": [
+        "answer_f999b05b_1",
+        "answer_f999b05b_4",
+        "answer_f999b05b_2",
+        "answer_f999b05b_5",
+        "answer_f999b05b_3"
+      ],
+      "before": {
+        "case_id": "gpt4_d6585ce8",
+        "category": "temporal-reasoning",
+        "question": "What is the order of the concerts and musical events I attended in the past two months, starting from the earliest?",
+        "gold_support_ids": [
+          "answer_f999b05b_1",
+          "answer_f999b05b_4",
+          "answer_f999b05b_2",
+          "answer_f999b05b_5",
+          "answer_f999b05b_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_f999b05b_3",
+          "answer_f999b05b_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3627
+      },
+      "after": {
+        "case_id": "gpt4_d6585ce8",
+        "category": "temporal-reasoning",
+        "question": "What is the order of the concerts and musical events I attended in the past two months, starting from the earliest?",
+        "gold_support_ids": [
+          "answer_f999b05b_1",
+          "answer_f999b05b_4",
+          "answer_f999b05b_2",
+          "answer_f999b05b_5",
+          "answer_f999b05b_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_f999b05b_3",
+          "answer_f999b05b_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3627
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_d6585ce9",
+      "category": "temporal-reasoning",
+      "question": "Who did I go with to the music event last Saturday?",
+      "gold_support_ids": [
+        "answer_f999b05c_1",
+        "answer_f999b05c_4",
+        "answer_f999b05c_2",
+        "answer_f999b05c_5",
+        "answer_f999b05c_3"
+      ],
+      "before": {
+        "case_id": "gpt4_d6585ce9",
+        "category": "temporal-reasoning",
+        "question": "Who did I go with to the music event last Saturday?",
+        "gold_support_ids": [
+          "answer_f999b05c_1",
+          "answer_f999b05c_4",
+          "answer_f999b05c_2",
+          "answer_f999b05c_5",
+          "answer_f999b05c_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_f999b05c_2",
+          "58dd3f35"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3455
+      },
+      "after": {
+        "case_id": "gpt4_d6585ce9",
+        "category": "temporal-reasoning",
+        "question": "Who did I go with to the music event last Saturday?",
+        "gold_support_ids": [
+          "answer_f999b05c_1",
+          "answer_f999b05c_4",
+          "answer_f999b05c_2",
+          "answer_f999b05c_5",
+          "answer_f999b05c_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_f999b05c_2",
+          "58dd3f35"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3455
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_d84a3211",
+      "category": "multi-session",
+      "question": "How much total money have I spent on bike-related expenses since the start of the year?",
+      "gold_support_ids": [
+        "answer_2880eb6c_2",
+        "answer_2880eb6c_4",
+        "answer_2880eb6c_1",
+        "answer_2880eb6c_3"
+      ],
+      "before": {
+        "case_id": "gpt4_d84a3211",
+        "category": "multi-session",
+        "question": "How much total money have I spent on bike-related expenses since the start of the year?",
+        "gold_support_ids": [
+          "answer_2880eb6c_2",
+          "answer_2880eb6c_4",
+          "answer_2880eb6c_1",
+          "answer_2880eb6c_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_2880eb6c_2",
+          "answer_2880eb6c_3",
+          "answer_2880eb6c_4",
+          "answer_2880eb6c_1",
+          "sharegpt_TY5Si51_17"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6523
+      },
+      "after": {
+        "case_id": "gpt4_d84a3211",
+        "category": "multi-session",
+        "question": "How much total money have I spent on bike-related expenses since the start of the year?",
+        "gold_support_ids": [
+          "answer_2880eb6c_2",
+          "answer_2880eb6c_4",
+          "answer_2880eb6c_1",
+          "answer_2880eb6c_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_2880eb6c_2",
+          "answer_2880eb6c_3",
+          "answer_2880eb6c_4",
+          "answer_2880eb6c_1",
+          "sharegpt_TY5Si51_17"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 6590
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    },
+    {
+      "case_id": "gpt4_ec93e27f",
+      "category": "temporal-reasoning",
+      "question": "Which mode of transport did I use most recently, a bus or a train?",
+      "gold_support_ids": [
+        "answer_e3aa84c4_2",
+        "answer_e3aa84c4_1"
+      ],
+      "before": {
+        "case_id": "gpt4_ec93e27f",
+        "category": "temporal-reasoning",
+        "question": "Which mode of transport did I use most recently, a bus or a train?",
+        "gold_support_ids": [
+          "answer_e3aa84c4_2",
+          "answer_e3aa84c4_1"
+        ],
+        "retrieved_support_ids": [
+          "6b63bdc5_2",
+          "answer_e3aa84c4_1"
+        ],
+        "first_gold_rank": 2,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 3412
+      },
+      "after": {
+        "case_id": "gpt4_ec93e27f",
+        "category": "temporal-reasoning",
+        "question": "Which mode of transport did I use most recently, a bus or a train?",
+        "gold_support_ids": [
+          "answer_e3aa84c4_2",
+          "answer_e3aa84c4_1"
+        ],
+        "retrieved_support_ids": [
+          "answer_e3aa84c4_1"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 1583
+      },
+      "retrieved_support_ids_changed": true,
+      "gold_hit_changed": false,
+      "rank_delta": "improved_rank"
+    },
+    {
+      "case_id": "gpt4_f49edff3",
+      "category": "temporal-reasoning",
+      "question": "Which three events happened in the order from first to last: the day I helped my friend prepare the nursery, the day I helped my cousin pick out stuff for her baby shower, and the day I ordered a customized phone case for my friend's birthday?",
+      "gold_support_ids": [
+        "answer_3e9fce53_1",
+        "answer_3e9fce53_2",
+        "answer_3e9fce53_3"
+      ],
+      "before": {
+        "case_id": "gpt4_f49edff3",
+        "category": "temporal-reasoning",
+        "question": "Which three events happened in the order from first to last: the day I helped my friend prepare the nursery, the day I helped my cousin pick out stuff for her baby shower, and the day I ordered a customized phone case for my friend's birthday?",
+        "gold_support_ids": [
+          "answer_3e9fce53_1",
+          "answer_3e9fce53_2",
+          "answer_3e9fce53_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_3e9fce53_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 2251
+      },
+      "after": {
+        "case_id": "gpt4_f49edff3",
+        "category": "temporal-reasoning",
+        "question": "Which three events happened in the order from first to last: the day I helped my friend prepare the nursery, the day I helped my cousin pick out stuff for her baby shower, and the day I ordered a customized phone case for my friend's birthday?",
+        "gold_support_ids": [
+          "answer_3e9fce53_1",
+          "answer_3e9fce53_2",
+          "answer_3e9fce53_3"
+        ],
+        "retrieved_support_ids": [
+          "answer_3e9fce53_2"
+        ],
+        "first_gold_rank": 1,
+        "gold_hit": true,
+        "context_mode": "memory_plus_source_chunk",
+        "context_tokens": 2328
+      },
+      "retrieved_support_ids_changed": false,
+      "gold_hit_changed": false,
+      "rank_delta": "unchanged_rank"
+    }
+  ]
+}

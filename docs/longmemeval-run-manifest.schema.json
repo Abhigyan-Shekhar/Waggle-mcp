@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://waggle.local/schemas/longmemeval-run-manifest.schema.json",
+  "title": "Waggle LongMemEval run manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "run_id",
+    "created_at",
+    "dataset_path",
+    "dataset_sha256",
+    "prompt_version",
+    "conditions",
+    "models",
+    "retrieval_config",
+    "result_jsonl",
+    "projected_total_paid_cost_usd",
+    "max_total_paid_cost_usd",
+    "heldout_policy"
+  ],
+  "properties": {
+    "run_id": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "minLength": 1 },
+    "dataset_path": { "type": "string", "minLength": 1 },
+    "dataset_sha256": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "prompt_version": { "type": "string", "minLength": 1 },
+    "answering_prompt_style": { "type": "string", "minLength": 1 },
+    "judge_protocol": { "type": "string", "minLength": 1 },
+    "ingestion_protocol": { "type": "string", "minLength": 1 },
+    "conditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "models": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "retrieval_config": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "embedding_model",
+          "chunking_policy",
+          "ingestion_granularity",
+          "retrieval_unit",
+          "answer_context_mode",
+          "memory_generation",
+          "temporal_fields"
+        ],
+        "properties": {
+          "embedding_model": { "type": "string", "minLength": 1 },
+          "chunking_policy": { "type": "string", "minLength": 1 },
+          "ingestion_granularity": { "type": "string", "enum": ["session"] },
+          "retrieval_unit": { "type": "string", "enum": ["chunk_only", "memory_then_chunk"] },
+          "answer_context_mode": { "type": "string", "enum": ["source_chunk_only", "memory_plus_source_chunk"] },
+          "memory_generation": { "type": "string", "enum": ["none", "contextual_atomic_facts"] },
+          "temporal_fields": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["documentDate", "eventDate"] }
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "result_jsonl": { "type": "string", "minLength": 1 },
+    "projected_total_paid_cost_usd": { "type": "number", "minimum": 0 },
+    "max_total_paid_cost_usd": { "type": "number", "maximum": 180 },
+    "heldout_policy": {
+      "type": "string",
+      "const": "heldout rows are not inspected until final evaluation"
+    }
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "dataset": "benchmarks/longmemeval/longmemeval_s_cleaned.json",
+  "embedding_model": "all-MiniLM-L6-v2",
+  "retrieval_limit": 5,
+  "cases": [
+    {
+      "case_id": "4dfccbf8",
+      "category": "temporal-reasoning",
+      "question": "What did I do with Rachel on the Wednesday two months ago?",
+      "gold_support_ids": [
+        "answer_4bebc783_1",
+        "answer_4bebc783_2"
+      ],
+      "retrieved_support_ids": [
+        "edd89480_1",
+        "a63ad8e3_3",
+        "answer_4bebc783_1",
+        "sharegpt_oXgiN7q_131",
+        "87317e05_1",
+        "sharegpt_7EAenKv_0",
+        "1c177942_4",
+        "7db28e68_1",
+        "953aaad5_3",
+        "sharegpt_n1o07ij_0"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 3,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 7307,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [edd89480_1] documentDate=2023/01/02 (Mon) 03:36 user: We actually had a lot of discussions and debates during the marathon, especially after each movie. It was great to see how everyone's opinions and reactions differed, and we had some really interesting conversations about the characters and their motivations. We didn't take many breaks, though - we were all too invested in the story to stop!\n2. Chunk [a63ad8e3_3] documentDate=2023/01/04 (Wed) 01:21 user: That's really helpful, thanks for the references! Speaking of which, our last meeting was on March 1st, and I remember getting some great suggestions from my group member, Rachel, on how to improve my data analysis section. Do you think I should consider using a mixed-methods approach, combining survey data with social network analysis, like the study by Burke et al. (2010)?\n3. Chunk [answer_4bebc783_1] documentDate=2023/02/01 (Wed) 14:38 user: I've been really enjoying the lessons, and I feel like I'm making good progress. One thing I've been struggling with is fingerpicking - my fingers get all tangled up and it's hard for me to get a smooth sound. Rachel's been giving me some exercises to prac"
+    },
+    {
+      "case_id": "gpt4_21adecb5",
+      "category": "temporal-reasoning",
+      "question": "How many months passed between the completion of my undergraduate degree and the submission of my master's thesis?",
+      "gold_support_ids": [
+        "answer_1e2369c9_1",
+        "answer_1e2369c9_2"
+      ],
+      "retrieved_support_ids": [
+        "sharegpt_ipLglky_42",
+        "e1f37e24",
+        "answer_1e2369c9_2",
+        "sharegpt_cUXo8S0_0",
+        "928890e4_1",
+        "ultrachat_444790",
+        "sharegpt_pydqYVn_0",
+        "666d4c9e",
+        "b99bd2df",
+        "answer_1e2369c9_1"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 3,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 6230,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [sharegpt_ipLglky_42] documentDate=2022/10/31 (Mon) 14:49 user: Part 30 not relied upon this basis because the terms of cl 17 of the original contract for variations were not precisely followed or, arguably, apposite in some aspects. If I am wrong on my preference for the owners' argument on practical completion date - because, for instance, it is accepted that the ordinary meaning of building works within the contract definition and within the definition of \"practical complet...\n2. Chunk [e1f37e24] documentDate=2023/03/30 (Thu) 07:47 user: By the way, I've been meaning to ask you, who is your thesis advisor? I'm just curious because I've been trying to get a sense of your research context.\n3. Chunk [sharegpt_ipLglky_42] documentDate=2022/10/31 (Mon) 14:49 user: [documentDate: 2022/10/31 (Mon) 14:49] Part 29 those issues it considered to be material. The Tribunal dealt with the 19 July 2017 letter as one part of a course of conduct (which included the builder\u2019s correspondence) that led the Tribunal to conclude that there was an agreement between the parties. Furthermore, we note that in its post-hearing submissions the builder did not specifically ci"
+    },
+    {
+      "case_id": "gpt4_d6585ce9",
+      "category": "temporal-reasoning",
+      "question": "Who did I go with to the music event last Saturday?",
+      "gold_support_ids": [
+        "answer_f999b05c_1",
+        "answer_f999b05c_4",
+        "answer_f999b05c_2",
+        "answer_f999b05c_5",
+        "answer_f999b05c_3"
+      ],
+      "retrieved_support_ids": [
+        "answer_f999b05c_2",
+        "answer_f999b05c_4",
+        "58dd3f35",
+        "answer_f999b05c_5",
+        "answer_f999b05c_3",
+        "answer_f999b05c_1",
+        "a554ed79_4",
+        "b3763b6b_1"
+      ],
+      "gold_support_hit": true,
+      "first_gold_rank": 1,
+      "context_mode": "memory_plus_source_chunk",
+      "context_tokens": 7523,
+      "context_excerpt": "Candidate Source Hits:\n1. Chunk [answer_f999b05c_2] documentDate=2023/04/01 (Sat) 15:57 assistant: Here are some general tips to help you make the most of local music events: **Before the Event** 1. **Check the details**: Verify the event details, including the date, time, location, and lineup, to ensure you're prepared and know what to expect. 2. **Plan ahead**: Arrive early to grab a good spot, especially if it's a popular event. 3. **Dress appropriately**: Check the weather forecast and dress accordingly. If...\n2. Chunk [answer_f999b05c_2] documentDate=2023/04/01 (Sat) 15:57 assistant: I'm glad you're excited to explore local music events in your area! Unfortunately, I'm a large language model, I don't have access to your location or personal preferences, so I can't provide specific recommendations for local music events or venues in your area. However, I can suggest some ways for you to find local music events and venues that might interest you: 1. **Online Event Calendars**: Check online event...\n3. Chunk [answer_f999b05c_4] documentDate=2023/03/25 (Sat) 16:21 user: I've been thinking about attending a music festival in the future, do you know any good ones that I should look "
+    }
+  ],
+  "summary": {
+    "cases": 3,
+    "gold_support_hits": 3,
+    "context_modes": {
+      "memory_plus_source_chunk": 3
+    }
+  }
+}
