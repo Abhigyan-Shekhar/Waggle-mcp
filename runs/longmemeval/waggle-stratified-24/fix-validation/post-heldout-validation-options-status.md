@@ -46,14 +46,57 @@ The stress suite still needs to be authored or restored before it can be used as
 A mock split was created for already-inspected failure cases:
 
 - `runs/longmemeval/waggle-stratified-24/fix-validation/known-failure-validation-split-plan.json`
+- `runs/longmemeval/waggle-stratified-24/fix-validation/known-failure-validation-7401057b-split-plan.json`
 
-The attempted MiniLM-backed reader+judge run did not complete. The process stalled before writing any rows. Separate probes showed the local project venv Python executables currently hang even on trivial startup, and MiniLM/SentenceTransformers initialization is therefore blocked in this environment.
+The initial MiniLM-backed reader+judge run did not complete. The process stalled before writing any rows.
+
+Follow-up diagnosis separated two issues:
+
+1. `.runtime-build-venv/bin/python` hangs even before site initialization and should not be used for this validation run.
+2. System Python 3.11 can use `.runtime-build-venv` site-packages, but Transformers/SentenceTransformers startup was blocked by a slow `importlib.metadata.packages_distributions()` scan.
+
+The runner now patches that Transformers distribution scan before embedding model construction. With:
+
+```bash
+PYTHONPATH=/Users/abhigyanshekhar/Desktop/MCP/src:/Users/abhigyanshekhar/Desktop/MCP/scripts:/Users/abhigyanshekhar/Desktop/MCP/.runtime-build-venv/lib/python3.11/site-packages \
+/opt/homebrew/bin/python3.11 -u scripts/run_longmemeval_waggle_phase.py ...
+```
+
+MiniLM loads and reaches the reader call.
+
+The current blocker for completing the remaining known-failure validation is Groq daily token quota for `llama-3.3-70b-versatile`, not local runtime. The attempted continuation reached `_groq_answer()` and received:
+
+```text
+Rate limit reached for model `llama-3.3-70b-versatile` ... tokens per day (TPD): Limit 100000, Used ~95194, Requested 6621. Please try again in ~26m.
+```
 
 Status:
 
 - Static context validation: complete.
+- MiniLM runtime/import path: fixed for the runner via system Python 3.11 plus metadata-scan patch.
 - Reader+judge confirmation on known failures: still open.
-- Cause: local venv/runtime stall, not Groq quota.
+- Current cause: Groq `llama-3.3-70b-versatile` TPD quota, not local runtime.
+
+Completed partial reader+judge output:
+
+- `runs/longmemeval/waggle-stratified-24/fix-validation/known-failure-validation-waggle-llama70b-postheldout-runtimefix.jsonl`
+- Completed rows: 7 / 8
+- Total cost recorded for completed rows: about `$0.029`
+
+Known-failure validation outcomes so far:
+
+| Case | Category | Purpose | Judge | Outcome |
+| --- | --- | --- | ---: | --- |
+| `7401057b` | KU | Hilton recency/free-night count | 0 | Not fixed; model still answered single free night instead of two. |
+| `73d42213` | MS | clinic arrival time | 1 | Fixed end-to-end. |
+| `8752c811` | SSA | 27th prompt parameter, Sound effects | 1 | Fixed end-to-end. |
+| `f523d9fe` | SSA | Netflix show, Doc Martin | 1 | Fixed end-to-end. |
+| `dfde3500` | KU | previous tutor day, Wednesday | 1 | Fixed end-to-end. |
+| `a82c026e` | SSU | game specificity control | 0 | Still not fixed; answer omitted `DLC`. |
+| `0bb5a684` | TR | temporal date-anchor control | 1 | Fixed/end-to-end correct. |
+| `0db4c65d` | TR | temporal date-anchor control | n/a | Not run; stopped by Groq TPD quota before this row. |
+
+The precise-source fixes are now validated end-to-end on the three intended cases. The recency-resolution fix is only partially validated: `dfde3500` passes, but `7401057b` still fails, so recency should not be described as solved.
 
 The static validation already confirmed that the repaired contexts include the target evidence for:
 

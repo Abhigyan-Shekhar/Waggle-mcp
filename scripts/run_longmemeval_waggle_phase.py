@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
 import os
 import re
@@ -45,6 +46,24 @@ SSP_TYPE_PRIOR = {
 }
 SSP_FALLBACK_MIN_TOP_SCORE = 0.34
 SSP_FALLBACK_MIN_MARGIN = 0.025
+
+
+def _patch_transformers_distribution_scan() -> None:
+    """Avoid slow importlib.metadata scans during Transformers startup.
+
+    On this local evaluation environment, Transformers calls
+    importlib.metadata.packages_distributions() while importing. That scan can
+    stall for minutes across the project/runtime site-packages. Transformers
+    only needs a package-to-distribution mapping for optional dependency
+    checks; a narrow map for the packages used by this harness is enough.
+    """
+    importlib.metadata.packages_distributions = lambda: {
+        "numpy": ["numpy"],
+        "sentence-transformers": ["sentence-transformers"],
+        "tokenizers": ["tokenizers"],
+        "torch": ["torch"],
+        "transformers": ["transformers"],
+    }
 
 
 def _token_estimate(text: str) -> int:
@@ -1249,6 +1268,12 @@ def _groq_answer(prompt: str, model: str) -> tuple[str, int, int]:
         )
         if response.status_code == 429:
             last_error = response.text
+            print(
+                f"Groq rate limit for model {model}; sleeping {backoff:.0f}s before retry. "
+                f"Response: {last_error[:500]}",
+                file=sys.stderr,
+                flush=True,
+            )
             time.sleep(backoff)
             backoff = min(backoff * 2, 60.0)
             continue
@@ -1316,6 +1341,7 @@ def run_waggle_phase(
     agent_id: str,
     retrieval_limit: int,
 ) -> int:
+    _patch_transformers_distribution_scan()
     cases = plan_longmemeval_run._load_cases(dataset)
     case_by_id = {plan_longmemeval_run._case_id(case, index): case for index, case in enumerate(cases, start=1)}
     plan = _load_json(split_plan)
