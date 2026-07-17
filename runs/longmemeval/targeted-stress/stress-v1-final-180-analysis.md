@@ -152,3 +152,34 @@ This means the `assistant_inference_vs_user_constraint` misses are better
 described as Llama-judge false negatives than confirmed source-authority
 failures. The stress suite still shows parity, but after second judging it no
 longer shows a replicated failure mechanism.
+
+This does not retract the real LongMemEval-S source-authority failure observed
+in `7401057b`. In that case, Waggle retrieved the relevant support but answered
+with the older assistant-inferred single-night Hilton value instead of the later
+user-stated two-night value. The narrower conclusion is that the synthetic
+stress suite did not replicate that real failure under second judging. The most
+likely explanation is that these synthetic source-authority cases are too small
+and direct: the corrected user value is short, explicit, and close to the query,
+whereas `7401057b` occurred inside a much larger context with older evidence
+appearing earlier and the correct two-night evidence appearing mid-context.
+
+### Judge Bias Pattern
+
+Across Qwen adjudications run so far:
+
+- LongMemEval-S disagreement rows: `24` rejudged rows.
+- Targeted stress key rows: `6` rejudged rows.
+- Total: `30` rejudged rows.
+
+Flip direction:
+
+| flip type | count |
+|---|---:|
+| Llama `no` -> Qwen `yes` | 7 |
+| Llama `yes` -> Qwen `no` | 1 |
+| agree `yes` | 13 |
+| agree `no` | 9 |
+
+This suggests the Llama judge is more false-negative-prone than false-positive
+prone on the inspected rows. Any Llama-only score should therefore be treated as
+a conservative estimate until independently adjudicated.
