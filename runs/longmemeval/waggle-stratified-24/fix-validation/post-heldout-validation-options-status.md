@@ -77,11 +77,12 @@ Status:
 - Reader+judge confirmation on known failures: still open.
 - Current cause: Groq `llama-3.3-70b-versatile` TPD quota, not local runtime.
 
-Completed partial reader+judge output:
+Completed reader+judge output:
 
 - `runs/longmemeval/waggle-stratified-24/fix-validation/known-failure-validation-waggle-llama70b-postheldout-runtimefix.jsonl`
-- Completed rows: 7 / 8
-- Total cost recorded for completed rows: about `$0.029`
+- `runs/longmemeval/waggle-stratified-24/fix-validation/known-failure-validation-0db4c65d-waggle-llama70b-runtimefix.jsonl`
+- Completed rows: 8 / 8
+- Total cost recorded for completed rows: about `$0.035`
 
 Known-failure validation outcomes so far:
 
@@ -94,9 +95,9 @@ Known-failure validation outcomes so far:
 | `dfde3500` | KU | previous tutor day, Wednesday | 1 | Fixed end-to-end. |
 | `a82c026e` | SSU | game specificity control | 0 | Still not fixed; answer omitted `DLC`. |
 | `0bb5a684` | TR | temporal date-anchor control | 1 | Fixed/end-to-end correct. |
-| `0db4c65d` | TR | temporal date-anchor control | n/a | Not run; stopped by Groq TPD quota before this row. |
+| `0db4c65d` | TR | temporal date-anchor control | 1 | Fixed/end-to-end correct. |
 
-The precise-source fixes are now validated end-to-end on the three intended cases. The recency-resolution fix is only partially validated: `dfde3500` passes, but `7401057b` still fails, so recency should not be described as solved.
+The precise-source fixes are now validated end-to-end on the three intended cases. The TR date-anchor controls both pass. The recency-resolution fix is only partially validated: `dfde3500` passes, but `7401057b` still fails, so recency should not be described as solved.
 
 The static validation already confirmed that the repaired contexts include the target evidence for:
 
