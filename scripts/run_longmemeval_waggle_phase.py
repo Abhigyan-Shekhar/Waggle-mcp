@@ -373,6 +373,31 @@ def _looks_personalization_query(question: str) -> bool:
     return any(marker in lowered for marker in advice_markers) and any(marker in lowered for marker in personal_markers)
 
 
+def _needs_precise_source_context(case: dict[str, Any]) -> bool:
+    question = _question(case).lower()
+    exact_markers = (
+        "exact",
+        "verbatim",
+        "remind me what",
+        "what was the",
+        "what is the",
+        "which one",
+        "what show",
+        "which show",
+        "what day",
+        "which day",
+        "day of the week",
+        "used as an example",
+        "on that list",
+        "parameter",
+    )
+    list_markers = ("list", "numbered", "ordinal", "item")
+    has_ordinal = bool(re.search(r"\b\d+(?:st|nd|rd|th)\b", question))
+    return has_ordinal or any(marker in question for marker in exact_markers) or (
+        any(marker in question for marker in list_markers) and any(term in question for term in ("what", "which", "remind"))
+    )
+
+
 def _lexical_score(query: str, node: Any) -> float:
     query_tokens = _content_tokens(query)
     node_tokens = _content_tokens(f"{getattr(node, 'label', '')} {getattr(node, 'content', '')}")
@@ -891,6 +916,25 @@ def _render_transcript_hits(
     return "\n\n".join(blocks)
 
 
+def _render_precise_source_sessions(
+    case_graph: dict[str, Any], session_ids: list[str], *, max_sessions: int = 3, max_message_chars: int = 6000
+) -> str:
+    blocks: list[str] = []
+    session_dates = case_graph["session_dates"]
+    session_messages = case_graph["session_messages"]
+    for session_id in session_ids[:max_sessions]:
+        lines = [f"Chunk [{session_id}]:"]
+        if session_dates.get(session_id):
+            lines.append(f"documentDate: {session_dates[session_id]}")
+        for message in session_messages.get(session_id, []):
+            role = _message_role(message) or "unknown"
+            text = _message_text(message)
+            if text:
+                lines.append(f"{role}: {_clip_text(text, max_message_chars)}")
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks)
+
+
 def _render_search_hits(case_graph: dict[str, Any], hits: list[Any], *, max_hits: int = 5, max_hit_chars: int = 420) -> str:
     lines = ["Candidate Source Hits:"]
     for index, hit in enumerate(hits[:max_hits], start=1):
@@ -931,6 +975,7 @@ def _context_from_waggle(
     question = _question(case)
     task = _task(case)
     effective_limit = _effective_retrieval_limit(task, retrieval_limit)
+    precise_source_context = _needs_precise_source_context(case)
 
     if condition == "full_context":
         blocks = [
@@ -1024,7 +1069,12 @@ def _context_from_waggle(
     other_nodes = [node for node in retrieved_nodes if _node_type_value(node) not in priority_types]
 
     memory_lines: list[str] = []
-    if task in EVIDENCE_FIRST_TASKS and flat_hits and task not in {"single-session-user", "single-session-assistant", "knowledge-update"}:
+    if (
+        task in EVIDENCE_FIRST_TASKS
+        and flat_hits
+        and task not in {"single-session-user", "single-session-assistant", "knowledge-update"}
+        and not precise_source_context
+    ):
         memory_lines.append(_render_search_hits(case_graph, flat_hits, max_hits=max(3, effective_limit)))
     if task == "multi-session":
         ms_focus = _ms_focus_lines(case, case_graph, context_session_ids)
@@ -1043,12 +1093,12 @@ def _context_from_waggle(
             memory_lines.extend(summary_lines)
         memory_lines.append("Personalization Focus:")
         memory_lines.extend(focus_lines)
-    if priority_nodes and not compact_direct_answer:
+    if priority_nodes and not compact_direct_answer and not precise_source_context:
         title = "Personalization Memory:" if task == "single-session-preference" else "Structured Memory:"
         memory_lines.append(title)
         priority_limit = min(3, effective_limit) if task == "single-session-preference" else effective_limit
         memory_lines.extend(_node_line(node, case_graph) for node in priority_nodes[: max(1, priority_limit)])
-    if other_nodes and not compact_direct_answer:
+    if other_nodes and not compact_direct_answer and not precise_source_context:
         memory_lines.append("Other Retrieved Memory:")
         other_limit = min(3, effective_limit) if task == "single-session-preference" else effective_limit * 2
         memory_lines.extend(_node_line(node, case_graph) for node in other_nodes[: max(1, other_limit)])
@@ -1069,16 +1119,23 @@ def _context_from_waggle(
             max_record_chars = 900
         else:
             max_record_chars = 1000
-    chunk_context = (
-        ""
-        if max_source_sessions <= 0
-        else _render_transcript_hits(
+    if max_source_sessions <= 0:
+        chunk_context = ""
+    elif precise_source_context:
+        chunk_context = _render_precise_source_sessions(
+            case_graph,
+            context_session_ids,
+            max_sessions=min(max_source_sessions, 3),
+            max_message_chars=6000,
+        )
+    else:
+        chunk_context = _render_transcript_hits(
             case_graph, context_session_ids, max_sessions=max_source_sessions, max_record_chars=max_record_chars
         )
-    )
     context = "\n".join(memory_lines).strip()
     if chunk_context:
-        source_context = f"Source Transcript Chunks:\n{chunk_context}"
+        source_title = "Precise Source Transcript Chunks" if precise_source_context else "Source Transcript Chunks"
+        source_context = f"{source_title}:\n{chunk_context}"
         context = f"{context}\n\n{source_context}".strip() if context else source_context
     context_mode = "memory_plus_source_chunk"
     if task == "single-session-preference":
@@ -1119,6 +1176,7 @@ def _build_prompt(case: dict[str, Any], condition: str, context: str) -> str:
         task_instructions = (
             "Task-specific rule for temporal questions:\n"
             "Use documentDate and source transcript dates as the event timeline. Do not treat Question Date as the event date unless a source chunk says the event happened then.\n"
+            "When two dated source chunks give competing anchors, use the date attached to the source event being asked about, not a later question or recommendation date.\n"
             "If a memory summary conflicts with source transcript timing, source chunks win.\n\n"
         )
     elif task == "multi-session":
@@ -1133,7 +1191,9 @@ def _build_prompt(case: dict[str, Any], condition: str, context: str) -> str:
         task_instructions = (
             "Task-specific rule for knowledge-update questions:\n"
             "Use Candidate Source Hits and Source Transcript Chunks to compare older and newer facts.\n"
-            "Prefer the newest explicit value that answers the question. If the question says now/current, answer with the latest value only.\n"
+            "If multiple values for the same fact appear, prefer the most recent explicit value that answers the question.\n"
+            "Prefer values stated directly by the user over assistant-inferred, tentative, or hedged values.\n"
+            "If the question says now/current, answer with the latest value only. If it explicitly asks for an older/previous value, answer that requested older value instead.\n"
             "Do not answer I don't know when a newer explicit value appears in the context.\n\n"
         )
     elif task in {"single-session-user", "single-session-assistant"}:
@@ -1151,12 +1211,13 @@ def _build_prompt(case: dict[str, Any], condition: str, context: str) -> str:
         f"{context}\n\n"
         "Understanding the Context:\n"
         "Structured memory sections summarize durable facts inferred from prior turns.\n"
-        "Source Transcript Chunks are verbatim transcript records.\n"
+        "Source Transcript Chunks and Precise Source Transcript Chunks are verbatim transcript records.\n"
         "Use documentDate to reason about timing and updates.\n\n"
         f"{task_instructions}"
         "Instructions:\n"
         "Use structured memory to identify relevant sessions and user-specific constraints.\n"
         "Use source transcript chunks as the source of detail.\n"
+        "Conflict and recency rule: when multiple retrieved facts refer to the same thing, prefer the most recent explicit user-stated value unless the question explicitly asks for an earlier, previous, or first value. Treat assistant suggestions, tentative plans, and hedged summaries as weaker evidence than direct user statements.\n"
         "If the context does not contain enough information, respond with \"I don't know\".\n"
         "Base your answer only on the provided context.\n\n"
         "Answer:"

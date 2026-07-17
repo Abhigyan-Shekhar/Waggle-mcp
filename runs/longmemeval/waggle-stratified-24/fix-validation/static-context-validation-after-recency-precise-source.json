@@ -1,0 +1,268 @@
+[
+  {
+    "case_id": "7401057b",
+    "category": "knowledge-update",
+    "question": "How many free night's stays can I redeem at any Hilton property with my accumulated points?",
+    "needs_precise_source_context": false,
+    "context_tokens": 7025,
+    "context_mode": "memory_plus_source_chunk",
+    "retrieved_support_ids": [
+      "answer_94650bfa_1",
+      "answer_94650bfa_2",
+      "5e906cb0_1"
+    ],
+    "has_conflict_recency_rule": true,
+    "has_direct_user_preference_rule": true,
+    "uses_precise_source_title": false,
+    "term_positions": {
+      "2 free": [],
+      "single free": [
+        {
+          "token_index": 764,
+          "relative": 0.109
+        },
+        {
+          "token_index": 3011,
+          "relative": 0.429
+        },
+        {
+          "token_index": 3117,
+          "relative": 0.444
+        }
+      ],
+      "two": [
+        {
+          "token_index": 1067,
+          "relative": 0.152
+        },
+        {
+          "token_index": 3389,
+          "relative": 0.482
+        },
+        {
+          "token_index": 3563,
+          "relative": 0.507
+        },
+        {
+          "token_index": 4201,
+          "relative": 0.598
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "73d42213",
+    "category": "multi-session",
+    "question": "What time did I reach the clinic on Monday?",
+    "needs_precise_source_context": false,
+    "context_tokens": 6810,
+    "context_mode": "memory_plus_source_chunk",
+    "retrieved_support_ids": [
+      "answer_1881e7db_2",
+      "answer_1881e7db_1",
+      "9614d065_1",
+      "02e9f7e3_3"
+    ],
+    "has_conflict_recency_rule": true,
+    "has_direct_user_preference_rule": false,
+    "uses_precise_source_title": false,
+    "term_positions": {
+      "two hours": [
+        {
+          "token_index": 66,
+          "relative": 0.01
+        },
+        {
+          "token_index": 173,
+          "relative": 0.025
+        },
+        {
+          "token_index": 642,
+          "relative": 0.094
+        },
+        {
+          "token_index": 887,
+          "relative": 0.13
+        },
+        {
+          "token_index": 2126,
+          "relative": 0.312
+        }
+      ],
+      "7 AM": [
+        {
+          "token_index": 1922,
+          "relative": 0.282
+        },
+        {
+          "token_index": 1929,
+          "relative": 0.283
+        },
+        {
+          "token_index": 3342,
+          "relative": 0.491
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "8752c811",
+    "category": "single-session-assistant",
+    "question": "I remember you provided a list of 100 prompt parameters that I can specify to influence your output. Can you remind me what was the 27th parameter on that list?",
+    "needs_precise_source_context": true,
+    "context_tokens": 5731,
+    "context_mode": "memory_plus_source_chunk",
+    "retrieved_support_ids": [
+      "answer_sharegpt_6pWK9yx_0",
+      "ultrachat_401721",
+      "sharegpt_Bjn7mKF_360",
+      "sharegpt_5Rpp72b_191",
+      "sharegpt_cTla0Yd_0"
+    ],
+    "has_conflict_recency_rule": true,
+    "has_direct_user_preference_rule": false,
+    "uses_precise_source_title": true,
+    "term_positions": {
+      "Sound effects": [
+        {
+          "token_index": 1681,
+          "relative": 0.293
+        }
+      ],
+      "27th": [],
+      "ambient": [
+        {
+          "token_index": 1689,
+          "relative": 0.295
+        }
+      ],
+      "diegetic": [
+        {
+          "token_index": 1691,
+          "relative": 0.295
+        },
+        {
+          "token_index": 1695,
+          "relative": 0.296
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "a82c026e",
+    "category": "single-session-user",
+    "question": "What game did I finally beat last weekend?",
+    "needs_precise_source_context": false,
+    "context_tokens": 5116,
+    "context_mode": "memory_plus_source_chunk",
+    "retrieved_support_ids": [
+      "answer_787e6a6d",
+      "752392bb_3",
+      "sharegpt_MBVSMQO_45",
+      "sharegpt_CMeL2P1_0",
+      "ccaabf0b_1"
+    ],
+    "has_conflict_recency_rule": true,
+    "has_direct_user_preference_rule": false,
+    "uses_precise_source_title": false,
+    "term_positions": {
+      "Dark Souls 3 DLC": [
+        {
+          "token_index": 790,
+          "relative": 0.154
+        },
+        {
+          "token_index": 1416,
+          "relative": 0.277
+        }
+      ],
+      "last boss": [
+        {
+          "token_index": 779,
+          "relative": 0.152
+        },
+        {
+          "token_index": 786,
+          "relative": 0.154
+        },
+        {
+          "token_index": 1412,
+          "relative": 0.276
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "dfde3500",
+    "category": "knowledge-update",
+    "question": "What day of the week did I meet with my previous language exchange tutor Juan?",
+    "needs_precise_source_context": false,
+    "context_tokens": 5396,
+    "context_mode": "memory_plus_source_chunk",
+    "retrieved_support_ids": [
+      "answer_35d6c0be_1",
+      "answer_35d6c0be_2",
+      "sharegpt_xab6zXe_0",
+      "sharegpt_80caWYI_1",
+      "59c704ad_1"
+    ],
+    "has_conflict_recency_rule": true,
+    "has_direct_user_preference_rule": true,
+    "uses_precise_source_title": false,
+    "term_positions": {
+      "Wednesday": [],
+      "Juan": [
+        {
+          "token_index": 1448,
+          "relative": 0.268
+        },
+        {
+          "token_index": 1677,
+          "relative": 0.311
+        },
+        {
+          "token_index": 1727,
+          "relative": 0.32
+        },
+        {
+          "token_index": 1746,
+          "relative": 0.324
+        },
+        {
+          "token_index": 1807,
+          "relative": 0.335
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "f523d9fe",
+    "category": "single-session-assistant",
+    "question": "I wanted to check back on our previous conversation about Netflix. I mentioned that I wanted to be able to access all seasons of old shows? Do you remember what show I used as an example, the one that only had the last season available?",
+    "needs_precise_source_context": true,
+    "context_tokens": 11032,
+    "context_mode": "memory_plus_source_chunk",
+    "retrieved_support_ids": [
+      "answer_sharegpt_m2xJfjo_0",
+      "44165708",
+      "fbfda981"
+    ],
+    "has_conflict_recency_rule": true,
+    "has_direct_user_preference_rule": false,
+    "uses_precise_source_title": true,
+    "term_positions": {
+      "Doc Martin": [
+        {
+          "token_index": 1485,
+          "relative": 0.135
+        }
+      ],
+      "last season": [
+        {
+          "token_index": 1503,
+          "relative": 0.136
+        }
+      ]
+    }
+  }
+]
