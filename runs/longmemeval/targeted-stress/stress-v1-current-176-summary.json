@@ -1,0 +1,318 @@
+{
+  "non_official_longmemeval": {
+    "by_category": {},
+    "by_condition": {},
+    "by_condition_category": {},
+    "by_split": {},
+    "overall": {
+      "rows": 0
+    }
+  },
+  "official_longmemeval": {
+    "by_category": {},
+    "by_condition": {},
+    "by_condition_category": {},
+    "by_split": {},
+    "overall": {
+      "rows": 0
+    }
+  },
+  "row_count": 176,
+  "supplementary_stress": {
+    "by_category": {
+      "adversarial_contradictions": {
+        "efficiency": {
+          "mean_context_tokens": 303.8833333333333,
+          "mean_input_tokens": 728.1333333333333,
+          "mean_latency_seconds": 4.886624959016664,
+          "mean_output_tokens": 55.0,
+          "total_cost_usd": 0.03519683
+        },
+        "qa": {
+          "mean_judge_score": 0.9333333333333333,
+          "scored_rows": 60
+        },
+        "retrieval": {
+          "exact_support_at_10": 1.0,
+          "exact_support_at_15": 1.0,
+          "exact_support_at_5": 1.0,
+          "support_hit_at_10": 1.0,
+          "support_hit_at_15": 1.0,
+          "support_hit_at_5": 1.0
+        },
+        "rows": 60
+      },
+      "agent_decision_memory": {
+        "efficiency": {
+          "mean_context_tokens": 275.32142857142856,
+          "mean_input_tokens": 630.8571428571429,
+          "mean_latency_seconds": 5.939616710607148,
+          "mean_output_tokens": 40.982142857142854,
+          "total_cost_usd": 0.0289719
+        },
+        "qa": {
+          "mean_judge_score": 1.0,
+          "scored_rows": 56
+        },
+        "retrieval": {
+          "exact_support_at_10": 1.0,
+          "exact_support_at_15": 1.0,
+          "exact_support_at_5": 1.0,
+          "support_hit_at_10": 1.0,
+          "support_hit_at_15": 1.0,
+          "support_hit_at_5": 1.0
+        },
+        "rows": 56
+      },
+      "cross_session_chains": {
+        "efficiency": {
+          "mean_context_tokens": 341.5833333333333,
+          "mean_input_tokens": 719.7166666666667,
+          "mean_latency_seconds": 4.730300529149989,
+          "mean_output_tokens": 141.93333333333334,
+          "total_cost_usd": 0.04338376
+        },
+        "qa": {
+          "mean_judge_score": 1.0,
+          "scored_rows": 60
+        },
+        "retrieval": {
+          "exact_support_at_10": 1.0,
+          "exact_support_at_15": 1.0,
+          "exact_support_at_5": 1.0,
+          "support_hit_at_10": 1.0,
+          "support_hit_at_15": 1.0,
+          "support_hit_at_5": 1.0
+        },
+        "rows": 60
+      }
+    },
+    "by_condition": {
+      "flat_vector": {
+        "efficiency": {
+          "mean_context_tokens": 209.8068181818182,
+          "mean_input_tokens": 590.9318181818181,
+          "mean_latency_seconds": 5.204470050602262,
+          "mean_output_tokens": 82.05681818181819,
+          "total_cost_usd": 0.04863583
+        },
+        "qa": {
+          "mean_judge_score": 0.9772727272727273,
+          "scored_rows": 88
+        },
+        "retrieval": {
+          "exact_support_at_10": 1.0,
+          "exact_support_at_15": 1.0,
+          "exact_support_at_5": 1.0,
+          "support_hit_at_10": 1.0,
+          "support_hit_at_15": 1.0,
+          "support_hit_at_5": 1.0
+        },
+        "rows": 88
+      },
+      "waggle_full": {
+        "efficiency": {
+          "mean_context_tokens": 405.4886363636364,
+          "mean_input_tokens": 797.6931818181819,
+          "mean_latency_seconds": 5.132280688988643,
+          "mean_output_tokens": 78.29545454545455,
+          "total_cost_usd": 0.058916659999999996
+        },
+        "qa": {
+          "mean_judge_score": 0.9772727272727273,
+          "scored_rows": 88
+        },
+        "retrieval": {
+          "exact_support_at_10": 1.0,
+          "exact_support_at_15": 1.0,
+          "exact_support_at_5": 1.0,
+          "support_hit_at_10": 1.0,
+          "support_hit_at_15": 1.0,
+          "support_hit_at_5": 1.0
+        },
+        "rows": 88
+      }
+    },
+    "by_condition_category": {
+      "flat_vector|adversarial_contradictions": {
+        "efficiency": {
+          "mean_context_tokens": 213.16666666666666,
+          "mean_input_tokens": 640.1333333333333,
+          "mean_latency_seconds": 4.918140276299997,
+          "mean_output_tokens": 53.266666666666666,
+          "total_cost_usd": 0.01596866
+        },
+        "qa": {
+          "mean_judge_score": 0.9333333333333333,
+          "scored_rows": 30
+        },
+        "retrieval": {
+          "exact_support_at_10": 1.0,
+          "exact_support_at_15": 1.0,
+          "exact_support_at_5": 1.0,
+          "support_hit_at_10": 1.0,
+          "support_hit_at_15": 1.0,
+          "support_hit_at_5": 1.0
+        },
+        "rows": 30
+      },
+      "flat_vector|agent_decision_memory": {
+        "efficiency": {
+          "mean_context_tokens": 187.57142857142858,
+          "mean_input_tokens": 540.6785714285714,
+          "mean_latency_seconds": 5.943177190428563,
+          "mean_output_tokens": 45.785714285714285,
+          "total_cost_usd": 0.01318181
+        },
+        "qa": {
+          "mean_judge_score": 1.0,
+          "scored_rows": 28
+        },
+        "retrieval": {
+          "exact_support_at_10": 1.0,
+          "exact_support_at_15": 1.0,
+          "exact_support_at_5": 1.0,
+          "support_hit_at_10": 1.0,
+          "support_hit_at_15": 1.0,
+          "support_hit_at_5": 1.0
+        },
+        "rows": 28
+      },
+      "flat_vector|cross_session_chains": {
+        "efficiency": {
+          "mean_context_tokens": 227.2,
+          "mean_input_tokens": 588.6333333333333,
+          "mean_latency_seconds": 4.801339827733311,
+          "mean_output_tokens": 144.7,
+          "total_cost_usd": 0.01948536
+        },
+        "qa": {
+          "mean_judge_score": 1.0,
+          "scored_rows": 30
+        },
+        "retrieval": {
+          "exact_support_at_10": 1.0,
+          "exact_support_at_15": 1.0,
+          "exact_support_at_5": 1.0,
+          "support_hit_at_10": 1.0,
+          "support_hit_at_15": 1.0,
+          "support_hit_at_5": 1.0
+        },
+        "rows": 30
+      },
+      "waggle_full|adversarial_contradictions": {
+        "efficiency": {
+          "mean_context_tokens": 394.6,
+          "mean_input_tokens": 816.1333333333333,
+          "mean_latency_seconds": 4.855109641733331,
+          "mean_output_tokens": 56.733333333333334,
+          "total_cost_usd": 0.01922817
+        },
+        "qa": {
+          "mean_judge_score": 0.9333333333333333,
+          "scored_rows": 30
+        },
+        "retrieval": {
+          "exact_support_at_10": 1.0,
+          "exact_support_at_15": 1.0,
+          "exact_support_at_5": 1.0,
+          "support_hit_at_10": 1.0,
+          "support_hit_at_15": 1.0,
+          "support_hit_at_5": 1.0
+        },
+        "rows": 30
+      },
+      "waggle_full|agent_decision_memory": {
+        "efficiency": {
+          "mean_context_tokens": 363.07142857142856,
+          "mean_input_tokens": 721.0357142857143,
+          "mean_latency_seconds": 5.936056230785733,
+          "mean_output_tokens": 36.17857142857143,
+          "total_cost_usd": 0.01579009
+        },
+        "qa": {
+          "mean_judge_score": 1.0,
+          "scored_rows": 28
+        },
+        "retrieval": {
+          "exact_support_at_10": 1.0,
+          "exact_support_at_15": 1.0,
+          "exact_support_at_5": 1.0,
+          "support_hit_at_10": 1.0,
+          "support_hit_at_15": 1.0,
+          "support_hit_at_5": 1.0
+        },
+        "rows": 28
+      },
+      "waggle_full|cross_session_chains": {
+        "efficiency": {
+          "mean_context_tokens": 455.96666666666664,
+          "mean_input_tokens": 850.8,
+          "mean_latency_seconds": 4.659261230566669,
+          "mean_output_tokens": 139.16666666666666,
+          "total_cost_usd": 0.0238984
+        },
+        "qa": {
+          "mean_judge_score": 1.0,
+          "scored_rows": 30
+        },
+        "retrieval": {
+          "exact_support_at_10": 1.0,
+          "exact_support_at_15": 1.0,
+          "exact_support_at_5": 1.0,
+          "support_hit_at_10": 1.0,
+          "support_hit_at_15": 1.0,
+          "support_hit_at_5": 1.0
+        },
+        "rows": 30
+      }
+    },
+    "by_split": {
+      "stress": {
+        "efficiency": {
+          "mean_context_tokens": 307.64772727272725,
+          "mean_input_tokens": 694.3125,
+          "mean_latency_seconds": 5.168375369795452,
+          "mean_output_tokens": 80.17613636363636,
+          "total_cost_usd": 0.10755249
+        },
+        "qa": {
+          "mean_judge_score": 0.9772727272727273,
+          "scored_rows": 176
+        },
+        "retrieval": {
+          "exact_support_at_10": 1.0,
+          "exact_support_at_15": 1.0,
+          "exact_support_at_5": 1.0,
+          "support_hit_at_10": 1.0,
+          "support_hit_at_15": 1.0,
+          "support_hit_at_5": 1.0
+        },
+        "rows": 176
+      }
+    },
+    "overall": {
+      "efficiency": {
+        "mean_context_tokens": 307.64772727272725,
+        "mean_input_tokens": 694.3125,
+        "mean_latency_seconds": 5.168375369795452,
+        "mean_output_tokens": 80.17613636363636,
+        "total_cost_usd": 0.10755249
+      },
+      "qa": {
+        "mean_judge_score": 0.9772727272727273,
+        "scored_rows": 176
+      },
+      "retrieval": {
+        "exact_support_at_10": 1.0,
+        "exact_support_at_15": 1.0,
+        "exact_support_at_5": 1.0,
+        "support_hit_at_10": 1.0,
+        "support_hit_at_15": 1.0,
+        "support_hit_at_5": 1.0
+      },
+      "rows": 176
+    }
+  },
+  "total_cost_usd": 0.10755249
+}
