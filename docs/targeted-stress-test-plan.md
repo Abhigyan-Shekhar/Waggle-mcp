@@ -46,8 +46,14 @@ The full stress suite target is 90 cases:
 - 30 `cross_session_chains`
 - 30 `agent_decision_memory`
 
-The first committed artifact is a 9-case seed suite, three cases per category,
-for smoke testing the harness and prompt behavior before authoring all 90 cases.
+The first committed artifact was a 9-case seed suite, three cases per category,
+for smoke testing the harness and prompt behavior. The seed run completed and
+showed the cases were too easy to distinguish Waggle from flat retrieval: both
+conditions retrieved all gold support and scored 8/9 with one likely judge false
+negative.
+
+The full v1 suite expands this to 90 deterministic cases, 30 per category, with
+more semantically adjacent distractors and more multi-session dependencies.
 
 Each case stores:
 
@@ -97,12 +103,11 @@ Secondary diagnostics:
 
 ## Execution Order
 
-1. Generate and inspect the 9-case seed suite.
-2. Run the seed suite through `flat_vector` and `waggle_full`.
+1. Generate and inspect the 9-case seed suite. Done.
+2. Run the seed suite through `flat_vector` and `waggle_full`. Done.
 3. Confirm rows validate as `supplementary_stress` with
    `official_table_eligible=false`.
-4. If the seed suite behaves as expected, author the remaining cases to reach
-   90 total.
+4. Author the remaining cases to reach 90 total.
 5. Freeze the harness commit before the full 90-case run.
 6. Run the full stress suite uninterrupted and report it separately from
    LongMemEval-S.
@@ -112,11 +117,13 @@ Secondary diagnostics:
 - Dataset generator: `scripts/create_targeted_stress_seed.py`
 - Seed dataset: `benchmarks/longmemeval/targeted_stress_seed.json`
 - Seed split plan: `runs/longmemeval/targeted-stress/split-plan-stress-seed.json`
+- Full-suite generator: `scripts/create_targeted_stress_full.py`
+- Full-suite dataset: `benchmarks/longmemeval/targeted_stress_v1.json`
+- Full-suite split plan: `runs/longmemeval/targeted-stress/split-plan-stress-v1.json`
 
 ## Open Work
 
-- Run the 9-case seed suite with `flat_vector` and `waggle_full`.
+- Run the 90-case suite with `flat_vector` and `waggle_full`.
 - Add a second judge model for disagreement checks if the result is close.
-- Expand the suite from 9 to 90 cases after seed-suite validation.
 - Add a short paper-methods note that the stress suite was chosen after
   LongMemEval-S exposed source-authority and exact-answer-fidelity failures.

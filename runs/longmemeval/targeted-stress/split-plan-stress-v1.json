@@ -1,0 +1,555 @@
+{
+  "case_count": 90,
+  "dataset_path": "/Users/abhigyanshekhar/Desktop/MCP/benchmarks/longmemeval/targeted_stress_v1.json",
+  "dataset_sha256": "9ac9bc955b9fa3029c6f19aa35c6a8bcf374970009d195308ad4f257318e972a",
+  "notes": [
+    "Supplementary stress cases are not official LongMemEval-S rows.",
+    "Rows produced from this split must use suite=supplementary_stress and official_table_eligible=false.",
+    "This v1 suite contains 90 cases, 30 per stress category."
+  ],
+  "seed": "deterministic-targeted-stress-v1",
+  "splits": {
+    "stress": [
+      {
+        "case_id": "stress_ac_sa_01_hilton_free_nights",
+        "category": "adversarial_contradictions",
+        "mechanism": "source_authority_user_aside",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_sa_02_poster_size",
+        "category": "adversarial_contradictions",
+        "mechanism": "source_authority_user_aside",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_sa_03_tradein_credit",
+        "category": "adversarial_contradictions",
+        "mechanism": "source_authority_user_aside",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_sa_04_parking_permits",
+        "category": "adversarial_contradictions",
+        "mechanism": "source_authority_user_aside",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_sa_05_carryon_bags",
+        "category": "adversarial_contradictions",
+        "mechanism": "source_authority_user_aside",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_sa_06_study_rooms",
+        "category": "adversarial_contradictions",
+        "mechanism": "source_authority_user_aside",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_sa_07_meal_vouchers",
+        "category": "adversarial_contradictions",
+        "mechanism": "source_authority_user_aside",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_sa_08_repair_tickets",
+        "category": "adversarial_contradictions",
+        "mechanism": "source_authority_user_aside",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_sa_09_trial_seats",
+        "category": "adversarial_contradictions",
+        "mechanism": "source_authority_user_aside",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_sa_10_poster_copies",
+        "category": "adversarial_contradictions",
+        "mechanism": "source_authority_user_aside",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_dc_01_monitor_budget",
+        "category": "adversarial_contradictions",
+        "mechanism": "direct_user_correction",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_dc_02_workshop_time",
+        "category": "adversarial_contradictions",
+        "mechanism": "direct_user_correction",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_dc_03_guest_count",
+        "category": "adversarial_contradictions",
+        "mechanism": "direct_user_correction",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_dc_04_subscription_tier",
+        "category": "adversarial_contradictions",
+        "mechanism": "direct_user_correction",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_dc_05_invoice_due",
+        "category": "adversarial_contradictions",
+        "mechanism": "direct_user_correction",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_dc_06_photo_count",
+        "category": "adversarial_contradictions",
+        "mechanism": "direct_user_correction",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_dc_07_shirt_size",
+        "category": "adversarial_contradictions",
+        "mechanism": "direct_user_correction",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_dc_08_rental_days",
+        "category": "adversarial_contradictions",
+        "mechanism": "direct_user_correction",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_dc_09_donation_amount",
+        "category": "adversarial_contradictions",
+        "mechanism": "direct_user_correction",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_dc_10_pickup_location",
+        "category": "adversarial_contradictions",
+        "mechanism": "direct_user_correction",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_ai_01_dinner_constraint",
+        "category": "adversarial_contradictions",
+        "mechanism": "assistant_inference_vs_user_constraint",
+        "question_type": "single-session-preference"
+      },
+      {
+        "case_id": "stress_ac_ai_02_travel_style",
+        "category": "adversarial_contradictions",
+        "mechanism": "assistant_inference_vs_user_constraint",
+        "question_type": "single-session-preference"
+      },
+      {
+        "case_id": "stress_ac_ai_03_workout_limit",
+        "category": "adversarial_contradictions",
+        "mechanism": "assistant_inference_vs_user_constraint",
+        "question_type": "single-session-preference"
+      },
+      {
+        "case_id": "stress_ac_ai_04_gift_preference",
+        "category": "adversarial_contradictions",
+        "mechanism": "assistant_inference_vs_user_constraint",
+        "question_type": "single-session-preference"
+      },
+      {
+        "case_id": "stress_ac_ai_05_meeting_format",
+        "category": "adversarial_contradictions",
+        "mechanism": "assistant_inference_vs_user_constraint",
+        "question_type": "single-session-preference"
+      },
+      {
+        "case_id": "stress_ac_ai_06_reading_level",
+        "category": "adversarial_contradictions",
+        "mechanism": "assistant_inference_vs_user_constraint",
+        "question_type": "single-session-preference"
+      },
+      {
+        "case_id": "stress_ac_ai_07_decor_style",
+        "category": "adversarial_contradictions",
+        "mechanism": "assistant_inference_vs_user_constraint",
+        "question_type": "single-session-preference"
+      },
+      {
+        "case_id": "stress_ac_ai_08_transport_mode",
+        "category": "adversarial_contradictions",
+        "mechanism": "assistant_inference_vs_user_constraint",
+        "question_type": "single-session-preference"
+      },
+      {
+        "case_id": "stress_ac_ai_09_meal_timing",
+        "category": "adversarial_contradictions",
+        "mechanism": "assistant_inference_vs_user_constraint",
+        "question_type": "single-session-preference"
+      },
+      {
+        "case_id": "stress_ac_ai_10_pet_policy",
+        "category": "adversarial_contradictions",
+        "mechanism": "assistant_inference_vs_user_constraint",
+        "question_type": "single-session-preference"
+      },
+      {
+        "case_id": "stress_chain_tr_01_novel_reading",
+        "category": "cross_session_chains",
+        "mechanism": "two_session_temporal_arithmetic",
+        "question_type": "temporal-reasoning"
+      },
+      {
+        "case_id": "stress_chain_tr_02_prototype_demo",
+        "category": "cross_session_chains",
+        "mechanism": "two_session_temporal_arithmetic",
+        "question_type": "temporal-reasoning"
+      },
+      {
+        "case_id": "stress_chain_tr_03_planting_harvest",
+        "category": "cross_session_chains",
+        "mechanism": "two_session_temporal_arithmetic",
+        "question_type": "temporal-reasoning"
+      },
+      {
+        "case_id": "stress_chain_tr_04_ticket_purchase",
+        "category": "cross_session_chains",
+        "mechanism": "two_session_temporal_arithmetic",
+        "question_type": "temporal-reasoning"
+      },
+      {
+        "case_id": "stress_chain_tr_05_draft_submit",
+        "category": "cross_session_chains",
+        "mechanism": "two_session_temporal_arithmetic",
+        "question_type": "temporal-reasoning"
+      },
+      {
+        "case_id": "stress_chain_tr_06_bike_repair",
+        "category": "cross_session_chains",
+        "mechanism": "two_session_temporal_arithmetic",
+        "question_type": "temporal-reasoning"
+      },
+      {
+        "case_id": "stress_chain_tr_07_course_start",
+        "category": "cross_session_chains",
+        "mechanism": "two_session_temporal_arithmetic",
+        "question_type": "temporal-reasoning"
+      },
+      {
+        "case_id": "stress_chain_tr_08_visa_apply",
+        "category": "cross_session_chains",
+        "mechanism": "two_session_temporal_arithmetic",
+        "question_type": "temporal-reasoning"
+      },
+      {
+        "case_id": "stress_chain_tr_09_order_ship",
+        "category": "cross_session_chains",
+        "mechanism": "two_session_temporal_arithmetic",
+        "question_type": "temporal-reasoning"
+      },
+      {
+        "case_id": "stress_chain_tr_10_training_begin",
+        "category": "cross_session_chains",
+        "mechanism": "two_session_temporal_arithmetic",
+        "question_type": "temporal-reasoning"
+      },
+      {
+        "case_id": "stress_chain_ct_01_printer_cartridges",
+        "category": "cross_session_chains",
+        "mechanism": "multi_session_count_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_ct_02_notebook_packs",
+        "category": "cross_session_chains",
+        "mechanism": "multi_session_count_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_ct_03_coffee_bags",
+        "category": "cross_session_chains",
+        "mechanism": "multi_session_count_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_ct_04_raffle_tickets",
+        "category": "cross_session_chains",
+        "mechanism": "multi_session_count_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_ct_05_canvas_panels",
+        "category": "cross_session_chains",
+        "mechanism": "multi_session_count_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_ct_06_name_badges",
+        "category": "cross_session_chains",
+        "mechanism": "multi_session_count_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_ct_07_seed_packets",
+        "category": "cross_session_chains",
+        "mechanism": "multi_session_count_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_ct_08_usb_drives",
+        "category": "cross_session_chains",
+        "mechanism": "multi_session_count_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_ct_09_postcard_sets",
+        "category": "cross_session_chains",
+        "mechanism": "multi_session_count_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_ct_10_lab_vials",
+        "category": "cross_session_chains",
+        "mechanism": "multi_session_count_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_dep_01_grant_budget",
+        "category": "cross_session_chains",
+        "mechanism": "decision_dependency_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_dep_02_poster_upload",
+        "category": "cross_session_chains",
+        "mechanism": "decision_dependency_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_dep_03_venue_deposit",
+        "category": "cross_session_chains",
+        "mechanism": "decision_dependency_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_dep_04_app_release",
+        "category": "cross_session_chains",
+        "mechanism": "decision_dependency_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_dep_05_print_order",
+        "category": "cross_session_chains",
+        "mechanism": "decision_dependency_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_dep_06_survey_close",
+        "category": "cross_session_chains",
+        "mechanism": "decision_dependency_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_dep_07_abstract_revision",
+        "category": "cross_session_chains",
+        "mechanism": "decision_dependency_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_dep_08_invoice_submission",
+        "category": "cross_session_chains",
+        "mechanism": "decision_dependency_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_dep_09_portfolio_review",
+        "category": "cross_session_chains",
+        "mechanism": "decision_dependency_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_dep_10_training_roster",
+        "category": "cross_session_chains",
+        "mechanism": "decision_dependency_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_agent_dr_01_sqlite",
+        "category": "agent_decision_memory",
+        "mechanism": "decision_plus_rationale",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_agent_dr_02_playwright",
+        "category": "agent_decision_memory",
+        "mechanism": "decision_plus_rationale",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_agent_dr_03_markdown",
+        "category": "agent_decision_memory",
+        "mechanism": "decision_plus_rationale",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_agent_dr_04_duckdb",
+        "category": "agent_decision_memory",
+        "mechanism": "decision_plus_rationale",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_agent_dr_05_ruff",
+        "category": "agent_decision_memory",
+        "mechanism": "decision_plus_rationale",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_agent_dr_06_github_actions",
+        "category": "agent_decision_memory",
+        "mechanism": "decision_plus_rationale",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_agent_dr_07_jsonl",
+        "category": "agent_decision_memory",
+        "mechanism": "decision_plus_rationale",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_agent_dr_08_mini_lm",
+        "category": "agent_decision_memory",
+        "mechanism": "decision_plus_rationale",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_agent_dr_09_private_repo",
+        "category": "agent_decision_memory",
+        "mechanism": "decision_plus_rationale",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_agent_dr_10_heuristic_gate",
+        "category": "agent_decision_memory",
+        "mechanism": "decision_plus_rationale",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_agent_et_01_semantic_conflict_guardrail",
+        "category": "agent_decision_memory",
+        "mechanism": "exact_compound_answer_fidelity",
+        "question_type": "single-session-user"
+      },
+      {
+        "case_id": "stress_agent_et_02_source_authority_resolver",
+        "category": "agent_decision_memory",
+        "mechanism": "exact_compound_answer_fidelity",
+        "question_type": "single-session-user"
+      },
+      {
+        "case_id": "stress_agent_et_03_context_budget_arbiter",
+        "category": "agent_decision_memory",
+        "mechanism": "exact_compound_answer_fidelity",
+        "question_type": "single-session-user"
+      },
+      {
+        "case_id": "stress_agent_et_04_narrative_anchor_preserver",
+        "category": "agent_decision_memory",
+        "mechanism": "exact_compound_answer_fidelity",
+        "question_type": "single-session-user"
+      },
+      {
+        "case_id": "stress_agent_et_05_session_coverage_safety_net",
+        "category": "agent_decision_memory",
+        "mechanism": "exact_compound_answer_fidelity",
+        "question_type": "single-session-user"
+      },
+      {
+        "case_id": "stress_agent_et_06_evidence_first_answerer",
+        "category": "agent_decision_memory",
+        "mechanism": "exact_compound_answer_fidelity",
+        "question_type": "single-session-user"
+      },
+      {
+        "case_id": "stress_agent_et_07_gold_support_audit_log",
+        "category": "agent_decision_memory",
+        "mechanism": "exact_compound_answer_fidelity",
+        "question_type": "single-session-user"
+      },
+      {
+        "case_id": "stress_agent_et_08_typed_temporal_graph",
+        "category": "agent_decision_memory",
+        "mechanism": "exact_compound_answer_fidelity",
+        "question_type": "single-session-user"
+      },
+      {
+        "case_id": "stress_agent_et_09_exact_phrase_guard",
+        "category": "agent_decision_memory",
+        "mechanism": "exact_compound_answer_fidelity",
+        "question_type": "single-session-user"
+      },
+      {
+        "case_id": "stress_agent_et_10_blind_slice_freezer",
+        "category": "agent_decision_memory",
+        "mechanism": "exact_compound_answer_fidelity",
+        "question_type": "single-session-user"
+      },
+      {
+        "case_id": "stress_agent_cu_01_repo_visibility",
+        "category": "agent_decision_memory",
+        "mechanism": "project_constraint_update",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_agent_cu_02_license_scope",
+        "category": "agent_decision_memory",
+        "mechanism": "project_constraint_update",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_agent_cu_03_run_policy",
+        "category": "agent_decision_memory",
+        "mechanism": "project_constraint_update",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_agent_cu_04_budget_cap",
+        "category": "agent_decision_memory",
+        "mechanism": "project_constraint_update",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_agent_cu_05_judge_model",
+        "category": "agent_decision_memory",
+        "mechanism": "project_constraint_update",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_agent_cu_06_stress_reporting",
+        "category": "agent_decision_memory",
+        "mechanism": "project_constraint_update",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_agent_cu_07_qwen_full_context",
+        "category": "agent_decision_memory",
+        "mechanism": "project_constraint_update",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_agent_cu_08_user_studies",
+        "category": "agent_decision_memory",
+        "mechanism": "project_constraint_update",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_agent_cu_09_repo_collab",
+        "category": "agent_decision_memory",
+        "mechanism": "project_constraint_update",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_agent_cu_10_dataset_download",
+        "category": "agent_decision_memory",
+        "mechanism": "project_constraint_update",
+        "question_type": "knowledge-update"
+      }
+    ]
+  }
+}
