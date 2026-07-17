@@ -1,0 +1,69 @@
+{
+  "case_count": 9,
+  "dataset_path": "/Users/abhigyanshekhar/Desktop/MCP/benchmarks/longmemeval/targeted_stress_seed.json",
+  "dataset_sha256": "9b90f1ddc5b35719abb1ecbf86661b09bb4319fb3a989b85c789ecc7c4737f0a",
+  "notes": [
+    "Supplementary stress cases are not official LongMemEval-S rows.",
+    "Rows produced from this split must use suite=supplementary_stress and official_table_eligible=false.",
+    "This seed set is a 9-case smoke suite. The planned full stress suite is 90 cases, 30 per category."
+  ],
+  "seed": "hand-authored-targeted-stress-seed-v1",
+  "splits": {
+    "stress": [
+      {
+        "case_id": "stress_ac_001_user_aside_overrides_assistant",
+        "category": "adversarial_contradictions",
+        "mechanism": "source_authority_user_aside",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_002_direct_user_correction",
+        "category": "adversarial_contradictions",
+        "mechanism": "direct_user_correction",
+        "question_type": "knowledge-update"
+      },
+      {
+        "case_id": "stress_ac_003_assistant_hallucinated_preference",
+        "category": "adversarial_contradictions",
+        "mechanism": "assistant_inference_vs_user_constraint",
+        "question_type": "single-session-preference"
+      },
+      {
+        "case_id": "stress_chain_001_days_between_events",
+        "category": "cross_session_chains",
+        "mechanism": "two_session_temporal_arithmetic",
+        "question_type": "temporal-reasoning"
+      },
+      {
+        "case_id": "stress_chain_002_inventory_update",
+        "category": "cross_session_chains",
+        "mechanism": "multi_session_count_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_chain_003_dependency_deadline",
+        "category": "cross_session_chains",
+        "mechanism": "decision_dependency_chain",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_agent_001_decision_reason",
+        "category": "agent_decision_memory",
+        "mechanism": "decision_plus_rationale",
+        "question_type": "multi-session"
+      },
+      {
+        "case_id": "stress_agent_002_exact_compound_term",
+        "category": "agent_decision_memory",
+        "mechanism": "exact_compound_answer_fidelity",
+        "question_type": "single-session-user"
+      },
+      {
+        "case_id": "stress_agent_003_constraint_update",
+        "category": "agent_decision_memory",
+        "mechanism": "project_constraint_update",
+        "question_type": "knowledge-update"
+      }
+    ]
+  }
+}

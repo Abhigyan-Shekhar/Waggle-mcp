@@ -1,0 +1,553 @@
+[
+  {
+    "answer": "two free night stays",
+    "answer_session_ids": [
+      "stress_ac_001_s2"
+    ],
+    "case_id": "stress_ac_001_user_aside_overrides_assistant",
+    "expected_failure_mode": "Reader trusts an earlier assistant-inferred single-night claim over a later user-stated aside.",
+    "gold_evidence": [
+      "The user later states: I have enough Hilton points for two free night stays."
+    ],
+    "haystack_dates": [
+      "2024/03/01",
+      "2024/03/15",
+      "2024/03/18"
+    ],
+    "haystack_session_ids": [
+      "stress_ac_001_s1",
+      "stress_ac_001_s2",
+      "stress_ac_001_s3"
+    ],
+    "haystack_sessions": [
+      [
+        {
+          "content": "I'm thinking about using hotel points for a short Chicago trip.",
+          "role": "user"
+        },
+        {
+          "content": "With your current points, it sounds like you may have a single free night's stay available.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "For the Paris itinerary, keep the museum day light. Also, I have enough Hilton points for two free night stays, so lodging should not drive the schedule.",
+          "role": "user"
+        },
+        {
+          "content": "Understood. I will keep the museum day lighter and avoid over-weighting hotel cost in the Paris plan.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "Can you help me compare train options for Paris?",
+          "role": "user"
+        },
+        {
+          "content": "Yes. The main tradeoff is speed versus flexibility on departure time.",
+          "role": "assistant"
+        }
+      ]
+    ],
+    "mechanism": "source_authority_user_aside",
+    "question": "How many free Hilton night stays does the user currently have enough points for?",
+    "question_date": "2024/03/20",
+    "question_id": "stress_ac_001_user_aside_overrides_assistant",
+    "question_type": "knowledge-update",
+    "stress_category": "adversarial_contradictions"
+  },
+  {
+    "answer": "$350",
+    "answer_session_ids": [
+      "stress_ac_002_s2"
+    ],
+    "case_id": "stress_ac_002_direct_user_correction",
+    "expected_failure_mode": "Reader repeats the older budget because it is stated more prominently.",
+    "gold_evidence": [
+      "The user corrects the budget from $500 to $350."
+    ],
+    "haystack_dates": [
+      "2024/04/01",
+      "2024/04/04",
+      "2024/04/06"
+    ],
+    "haystack_session_ids": [
+      "stress_ac_002_s1",
+      "stress_ac_002_s2",
+      "stress_ac_002_s3"
+    ],
+    "haystack_sessions": [
+      [
+        {
+          "content": "I might spend up to $500 on a 27 inch monitor.",
+          "role": "user"
+        },
+        {
+          "content": "That budget gives you room for higher refresh-rate options.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "Actually, my real monitor limit is $350 after rent came in higher than expected.",
+          "role": "user"
+        },
+        {
+          "content": "Got it. I will keep monitor options under $350.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "What desk width do I need for a 27 inch monitor?",
+          "role": "user"
+        },
+        {
+          "content": "A desk at least 42 inches wide is usually comfortable.",
+          "role": "assistant"
+        }
+      ]
+    ],
+    "mechanism": "direct_user_correction",
+    "question": "What is the user's current maximum budget for the monitor?",
+    "question_date": "2024/04/08",
+    "question_id": "stress_ac_002_direct_user_correction",
+    "question_type": "knowledge-update",
+    "stress_category": "adversarial_contradictions"
+  },
+  {
+    "answer": "gluten-free",
+    "answer_session_ids": [
+      "stress_ac_003_s2"
+    ],
+    "case_id": "stress_ac_003_assistant_hallucinated_preference",
+    "expected_failure_mode": "Reader follows the assistant's earlier vegetarian inference instead of the user correction.",
+    "gold_evidence": [
+      "The user says they are not vegetarian and need gluten-free options."
+    ],
+    "haystack_dates": [
+      "2024/05/01",
+      "2024/05/07",
+      "2024/05/09"
+    ],
+    "haystack_session_ids": [
+      "stress_ac_003_s1",
+      "stress_ac_003_s2",
+      "stress_ac_003_s3"
+    ],
+    "haystack_sessions": [
+      [
+        {
+          "content": "I'm planning a dinner where one guest asked for lighter food.",
+          "role": "user"
+        },
+        {
+          "content": "A vegetarian menu may be the safest default for a lighter dinner.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "Quick correction: nobody is vegetarian. The real constraint is gluten-free because my cousin has celiac.",
+          "role": "user"
+        },
+        {
+          "content": "Thanks for clarifying. I will make the dinner plan gluten-free rather than vegetarian.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "Can dessert still feel special?",
+          "role": "user"
+        },
+        {
+          "content": "Yes. A flourless chocolate cake or fruit pavlova can work well.",
+          "role": "assistant"
+        }
+      ]
+    ],
+    "mechanism": "assistant_inference_vs_user_constraint",
+    "question": "What dietary constraint should the dinner plan respect?",
+    "question_date": "2024/05/12",
+    "question_id": "stress_ac_003_assistant_hallucinated_preference",
+    "question_type": "single-session-preference",
+    "stress_category": "adversarial_contradictions"
+  },
+  {
+    "answer": "15 days",
+    "answer_session_ids": [
+      "stress_chain_001_s1",
+      "stress_chain_001_s3"
+    ],
+    "case_id": "stress_chain_001_days_between_events",
+    "expected_failure_mode": "Graph traversal retrieves one date session but misses the second independent date session.",
+    "gold_evidence": [
+      "The user finished the novel on March 4.",
+      "The author reading was on March 19."
+    ],
+    "haystack_dates": [
+      "2024/03/04",
+      "2024/03/11",
+      "2024/03/19"
+    ],
+    "haystack_session_ids": [
+      "stress_chain_001_s1",
+      "stress_chain_001_s2",
+      "stress_chain_001_s3"
+    ],
+    "haystack_sessions": [
+      [
+        {
+          "content": "I finished The Glass Hotel tonight, March 4, and want to remember that date.",
+          "role": "user"
+        },
+        {
+          "content": "Noted. You finished The Glass Hotel on March 4.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "Can you suggest another literary novel?",
+          "role": "user"
+        },
+        {
+          "content": "You might like Station Eleven if you enjoyed Emily St. John Mandel's style.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "I attended the author reading on March 19 and took notes on the Q&A.",
+          "role": "user"
+        },
+        {
+          "content": "Recorded. The author reading happened on March 19.",
+          "role": "assistant"
+        }
+      ]
+    ],
+    "mechanism": "two_session_temporal_arithmetic",
+    "question": "How many days passed between finishing the novel and attending the author reading?",
+    "question_date": "2024/02/25",
+    "question_id": "stress_chain_001_days_between_events",
+    "question_type": "temporal-reasoning",
+    "stress_category": "cross_session_chains"
+  },
+  {
+    "answer": "7 cartridges",
+    "answer_session_ids": [
+      "stress_chain_002_s1",
+      "stress_chain_002_s2",
+      "stress_chain_002_s3"
+    ],
+    "case_id": "stress_chain_002_inventory_update",
+    "expected_failure_mode": "Retrieval gets a subset of sessions and answers from an incomplete arithmetic chain.",
+    "gold_evidence": [
+      "The user started with 6 cartridges.",
+      "The user used 2 cartridges.",
+      "The user bought 3 replacement cartridges."
+    ],
+    "haystack_dates": [
+      "2024/06/01",
+      "2024/06/04",
+      "2024/06/08",
+      "2024/06/09"
+    ],
+    "haystack_session_ids": [
+      "stress_chain_002_s1",
+      "stress_chain_002_s2",
+      "stress_chain_002_s3",
+      "stress_chain_002_s4"
+    ],
+    "haystack_sessions": [
+      [
+        {
+          "content": "Inventory note: the supply closet has 6 printer cartridges left.",
+          "role": "user"
+        },
+        {
+          "content": "Noted: 6 printer cartridges in the supply closet.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "We used 2 printer cartridges during the client packet print run.",
+          "role": "user"
+        },
+        {
+          "content": "That would bring the cartridge count down by 2.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "I bought 3 replacement printer cartridges today.",
+          "role": "user"
+        },
+        {
+          "content": "Recorded: 3 replacement cartridges were added.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "The stapler inventory is fine.",
+          "role": "user"
+        },
+        {
+          "content": "Good. No action needed for staplers.",
+          "role": "assistant"
+        }
+      ]
+    ],
+    "mechanism": "multi_session_count_chain",
+    "question": "How many printer cartridges should the user have now?",
+    "question_date": "2024/06/10",
+    "question_id": "stress_chain_002_inventory_update",
+    "question_type": "multi-session",
+    "stress_category": "cross_session_chains"
+  },
+  {
+    "answer": "July 22",
+    "answer_session_ids": [
+      "stress_chain_003_s1",
+      "stress_chain_003_s3"
+    ],
+    "case_id": "stress_chain_003_dependency_deadline",
+    "expected_failure_mode": "System retrieves the original deadline but misses the later dependency update.",
+    "gold_evidence": [
+      "The budget deadline was July 19.",
+      "The program officer extended the budget deadline to July 22."
+    ],
+    "haystack_dates": [
+      "2024/07/10",
+      "2024/07/12",
+      "2024/07/16"
+    ],
+    "haystack_session_ids": [
+      "stress_chain_003_s1",
+      "stress_chain_003_s2",
+      "stress_chain_003_s3"
+    ],
+    "haystack_sessions": [
+      [
+        {
+          "content": "The grant narrative is due July 17, and the budget is due July 19.",
+          "role": "user"
+        },
+        {
+          "content": "I'll track July 17 for the narrative and July 19 for the budget.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "Can you help outline the staffing section?",
+          "role": "user"
+        },
+        {
+          "content": "Yes. Start with roles, effort percentage, and budget justification.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "The program officer extended only the budget deadline to July 22; the narrative is still due July 17.",
+          "role": "user"
+        },
+        {
+          "content": "Noted. Budget deadline is now July 22, while the narrative deadline remains July 17.",
+          "role": "assistant"
+        }
+      ]
+    ],
+    "mechanism": "decision_dependency_chain",
+    "question": "What is the final date the user needs to submit the grant budget?",
+    "question_date": "2024/07/18",
+    "question_id": "stress_chain_003_dependency_deadline",
+    "question_type": "multi-session",
+    "stress_category": "cross_session_chains"
+  },
+  {
+    "answer": "SQLite, because the tool needs local/offline operation and simple setup.",
+    "answer_session_ids": [
+      "stress_agent_001_s2"
+    ],
+    "case_id": "stress_agent_001_decision_reason",
+    "expected_failure_mode": "Reader recalls the decision but drops the rationale.",
+    "gold_evidence": [
+      "The user decided on SQLite because local/offline operation mattered more than multi-user access."
+    ],
+    "haystack_dates": [
+      "2024/08/01",
+      "2024/08/02",
+      "2024/08/02"
+    ],
+    "haystack_session_ids": [
+      "stress_agent_001_s1",
+      "stress_agent_001_s2",
+      "stress_agent_001_s3"
+    ],
+    "haystack_sessions": [
+      [
+        {
+          "content": "For this prototype, compare Postgres and SQLite.",
+          "role": "user"
+        },
+        {
+          "content": "Postgres is stronger for multi-user services, while SQLite is simpler for local tools.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "Let's use SQLite. The reason is local/offline operation and simple setup matter more than multi-user access for this prototype.",
+          "role": "user"
+        },
+        {
+          "content": "Decision recorded: use SQLite for local/offline operation and simple setup.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "Add a note that migrations can wait.",
+          "role": "user"
+        },
+        {
+          "content": "Noted. Migrations are not part of the first prototype.",
+          "role": "assistant"
+        }
+      ]
+    ],
+    "mechanism": "decision_plus_rationale",
+    "question": "Which database did the user decide to use, and why?",
+    "question_date": "2024/08/03",
+    "question_id": "stress_agent_001_decision_reason",
+    "question_type": "multi-session",
+    "stress_category": "agent_decision_memory"
+  },
+  {
+    "answer": "semantic conflict guardrail",
+    "answer_session_ids": [
+      "stress_agent_002_s2"
+    ],
+    "case_id": "stress_agent_002_exact_compound_term",
+    "expected_failure_mode": "Reader drops a qualifier and answers with an incomplete compound phrase.",
+    "gold_evidence": [
+      "The user says the exact phrase should be semantic conflict guardrail."
+    ],
+    "haystack_dates": [
+      "2024/09/01",
+      "2024/09/04",
+      "2024/09/05"
+    ],
+    "haystack_session_ids": [
+      "stress_agent_002_s1",
+      "stress_agent_002_s2",
+      "stress_agent_002_s3"
+    ],
+    "haystack_sessions": [
+      [
+        {
+          "content": "Maybe call the feature a conflict guardrail.",
+          "role": "user"
+        },
+        {
+          "content": "Conflict guardrail is concise and clear.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "Use the exact phrase semantic conflict guardrail. Do not shorten it to conflict guardrail in the README.",
+          "role": "user"
+        },
+        {
+          "content": "Got it. The exact feature name is semantic conflict guardrail.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "The README should be short.",
+          "role": "user"
+        },
+        {
+          "content": "I'll keep the README concise while preserving exact feature names.",
+          "role": "assistant"
+        }
+      ]
+    ],
+    "mechanism": "exact_compound_answer_fidelity",
+    "question": "What exact feature name did the user settle on?",
+    "question_date": "2024/09/05",
+    "question_id": "stress_agent_002_exact_compound_term",
+    "question_type": "single-session-user",
+    "stress_category": "agent_decision_memory"
+  },
+  {
+    "answer": "private",
+    "answer_session_ids": [
+      "stress_agent_003_s2"
+    ],
+    "case_id": "stress_agent_003_constraint_update",
+    "expected_failure_mode": "System repeats an older project constraint after a later user correction.",
+    "gold_evidence": [
+      "The user changed the repo visibility requirement from public to private."
+    ],
+    "haystack_dates": [
+      "2024/10/01",
+      "2024/10/09",
+      "2024/10/10"
+    ],
+    "haystack_session_ids": [
+      "stress_agent_003_s1",
+      "stress_agent_003_s2",
+      "stress_agent_003_s3"
+    ],
+    "haystack_sessions": [
+      [
+        {
+          "content": "Create the repo as public so people can inspect the plan.",
+          "role": "user"
+        },
+        {
+          "content": "Understood. I will plan for a public repository.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "Change that: the repo needs to be private because the artifacts include dataset-derived traces.",
+          "role": "user"
+        },
+        {
+          "content": "Updated constraint: the repository should be private.",
+          "role": "assistant"
+        }
+      ],
+      [
+        {
+          "content": "Add Lisa once I have her GitHub username.",
+          "role": "user"
+        },
+        {
+          "content": "I will wait for Lisa's GitHub username before adding her as a collaborator.",
+          "role": "assistant"
+        }
+      ]
+    ],
+    "mechanism": "project_constraint_update",
+    "question": "What visibility should the repository use now?",
+    "question_date": "2024/10/11",
+    "question_id": "stress_agent_003_constraint_update",
+    "question_type": "knowledge-update",
+    "stress_category": "agent_decision_memory"
+  }
+]

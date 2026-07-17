@@ -26,6 +26,7 @@ DEFAULT_CONDITIONS = ["flat_vector", "waggle_full"]
 DEFAULT_READER_MODEL = "llama-3.3-70b-versatile"
 DEFAULT_AGENT_ID = "longmemeval"
 DEFAULT_JUDGE_MODEL = "llama-3.3-70b-versatile"
+SUITES = {"longmemeval_s", "supplementary_stress"}
 EVIDENCE_FIRST_TASKS = {
     "single-session-user",
     "single-session-assistant",
@@ -119,6 +120,22 @@ def _gold_support_ids(case: dict[str, Any]) -> list[str]:
         if isinstance(value, str) and value.strip():
             return [value.strip()]
     return []
+
+
+def _row_category(case: dict[str, Any], ref: dict[str, Any], *, suite: str) -> str:
+    if suite == "supplementary_stress":
+        for source in (ref, case):
+            for key in ("stress_category", "category"):
+                value = source.get(key)
+                if isinstance(value, str) and value.strip():
+                    category = value.strip()
+                    if category in validate_longmemeval_artifacts.STRESS_CATEGORIES:
+                        return category
+        raise ValueError(
+            "supplementary_stress rows require stress_category/category in "
+            f"{sorted(validate_longmemeval_artifacts.STRESS_CATEGORIES)}"
+        )
+    return str(ref.get("category") or plan_longmemeval_run._category(case))
 
 
 def _effective_retrieval_limit(task: str, retrieval_limit: int) -> int:
@@ -1340,7 +1357,10 @@ def run_waggle_phase(
     output_price_per_mtok: float,
     agent_id: str,
     retrieval_limit: int,
+    suite: str,
 ) -> int:
+    if suite not in SUITES:
+        raise ValueError(f"unsupported suite {suite!r}")
     _patch_transformers_distribution_scan()
     cases = plan_longmemeval_run._load_cases(dataset)
     case_by_id = {plan_longmemeval_run._case_id(case, index): case for index, case in enumerate(cases, start=1)}
@@ -1362,7 +1382,7 @@ def run_waggle_phase(
             case = case_by_id.get(case_id)
             if case is None:
                 raise ValueError(f"case_id {case_id!r} from split plan is missing from dataset")
-            category = str(ref.get("category") or plan_longmemeval_run._category(case))
+            category = _row_category(case, ref, suite=suite)
             case_graph = _build_case_graph(case, embedding_model=shared_embedding_model, agent_id=agent_id)
             try:
                 for condition in conditions:
@@ -1385,7 +1405,7 @@ def run_waggle_phase(
                         )
                     row = {
                         "case_id": case_id,
-                        "suite": "longmemeval_s",
+                        "suite": suite,
                         "split": split_name,
                         "category": category,
                         "condition": condition,
@@ -1412,7 +1432,9 @@ def run_waggle_phase(
                         },
                         "latency_seconds": time.perf_counter() - started,
                         "cost_usd": cost,
-                        "official_table_eligible": split_name in {"heldout", "full", "stratified_150"},
+                        "official_table_eligible": False
+                        if suite == "supplementary_stress"
+                        else split_name in {"heldout", "full", "stratified_150"},
                     }
                     handle.write(json.dumps(row, sort_keys=True) + "\n")
                     written += 1
@@ -1437,9 +1459,9 @@ def run_waggle_phase(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Run real Waggle-backed LongMemEval cases and emit schema-valid JSONL rows."
+        description="Run real Waggle-backed LongMemEval-compatible cases and emit schema-valid JSONL rows."
     )
-    parser.add_argument("dataset", type=Path, help="LongMemEval-S JSON dataset.")
+    parser.add_argument("dataset", type=Path, help="LongMemEval-compatible JSON dataset.")
     parser.add_argument("--split-plan", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--split", default="mock", choices=sorted(validate_longmemeval_artifacts.SPLITS))
@@ -1450,6 +1472,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--embedding-model", default="all-MiniLM-L6-v2")
     parser.add_argument("--agent-id", default=DEFAULT_AGENT_ID)
     parser.add_argument("--retrieval-limit", type=int, default=5)
+    parser.add_argument("--suite", default="longmemeval_s", choices=sorted(SUITES))
     parser.add_argument("--input-price-per-mtok", type=float, default=0.59)
     parser.add_argument("--output-price-per-mtok", type=float, default=0.79)
     args = parser.parse_args(argv)
@@ -1476,6 +1499,7 @@ def main(argv: list[str] | None = None) -> int:
         output_price_per_mtok=args.output_price_per_mtok,
         agent_id=args.agent_id,
         retrieval_limit=args.retrieval_limit,
+        suite=args.suite,
     )
 
 
