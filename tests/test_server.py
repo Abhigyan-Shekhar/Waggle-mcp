@@ -1067,7 +1067,7 @@ def test_export_abhi_tool_refuses_likely_secrets_without_force(tmp_path: Path) -
 def test_export_abhi_tool_refuses_node_secret_without_force(tmp_path: Path) -> None:
     app = make_app(tmp_path)
 
-    app.handle_tool_call(
+    store_result = app.handle_tool_call(
         "store_node",
         {
             "label": "API Key",
@@ -1076,7 +1076,7 @@ def test_export_abhi_tool_refuses_node_secret_without_force(tmp_path: Path) -> N
             "project": "security",
         },
     )
-
+    assert store_result.isError is False
     refused = app.handle_tool_call(
         "export_abhi",
         {
