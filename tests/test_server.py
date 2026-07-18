@@ -1064,6 +1064,30 @@ def test_export_abhi_tool_refuses_likely_secrets_without_force(tmp_path: Path) -
     assert "appear to contain secrets" in refused.content[0].text
     assert forced.isError is False
     assert Path(forced.structuredContent["output_path"]).exists()
+def test_export_abhi_tool_refuses_node_secret_without_force(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+
+    app.handle_tool_call(
+        "store_node",
+        {
+            "label": "API Key",
+            "content": "OpenAI key: sk-123456789012345678901234567890",
+            "node_type": NodeType.NOTE.value,
+            "project": "security",
+        },
+    )
+
+    refused = app.handle_tool_call(
+        "export_abhi",
+        {
+            "output_path": str(tmp_path / "node-secret.abhi"),
+            "project": "security",
+        },
+    )
+
+    assert refused.isError is True
+    assert "appear to contain secrets" in refused.content[0].text
+    assert "node:content" in refused.content[0].text    
 
 
 def test_export_abhi_tool_allows_false_positive_adjacent_text_without_force(tmp_path: Path) -> None:
