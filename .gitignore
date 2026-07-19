@@ -68,3 +68,6 @@ apps/vscode-extension/.vscode-test/
 # Graph UI ignores
 apps/mcp/graph-ui/node_modules/
 apps/mcp/graph-ui/test-results/
+
+# Local worktrees ignore
+.worktrees/
