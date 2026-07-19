@@ -496,6 +496,65 @@ When an API key is presented:
 | `export_markdown_vault` | Export one-file-per-node Markdown vaults |
 | `import_markdown_vault` | Re-import edited Markdown vault files |
 
+### Graphify import
+
+To test the Graphify import functionality locally, you can use the following minimal `graph.json` payload. 
+
+**Sample `graph.json`**
+```json
+{
+  "nodes": [
+    { "id": "node-1", "kind": "Concept", "name": "Authentication" },
+    { "id": "node-2", "kind": "Module", "name": "auth_service.py" }
+  ],
+  "edges": [
+    { "source": "node-1", "target": "node-2", "kind": "ImplementedBy", "confidence": "EXTRACTED" }
+  ]
+}
+
+#### Mapping Details
+When importing, note how properties are mapped:
+* **Node/Edge Kinds:** The `kind` field maps directly to the system's internal graph schema terminology.
+* **Confidence Mapping:** The Graphify confidence levels map as follows:
+  * `EXTRACTED` → High confidence (Explicitly defined in source)
+  * `INFERRED` → Medium confidence (Deduced by analysis)
+  * `AMBIGUOUS` → Low confidence (Requires manual review)
+
+#### Mapping Details
+When importing, note how properties are mapped:
+* **Node/Edge Kinds:** The `kind` field maps directly to the system's internal graph schema terminology.
+* **Confidence Mapping:** The Graphify confidence levels map as follows:
+  * `EXTRACTED` → High confidence (Explicitly defined in source)
+  * `INFERRED` → Medium confidence (Deduced by analysis)
+  * `AMBIGUOUS` → Low confidence (Requires manual review)
+
+#### Method 1: Using the HTTP API (cURL)
+You can POST the file directly to the API endpoint:
+```bash
+curl -X POST http://localhost:8000/api/graph/import-graphify \
+  -H "Content-Type: application/json" \
+  -d @graph.json
+```
+
+#### Method 2: Using the MCP Tool
+If you are interacting via the Model Context Protocol (MCP), invoke the tool like this:
+```json
+{
+  "name": "import_graphify",
+  "arguments": {
+    "file_path": "./graph.json"
+  }
+}
+```
+
+#### Expected Response
+Upon a successful import, the server will return a summary of the newly created graph entities:
+```json
+{
+  "nodes_created": 2,
+  "edges_created": 1
+}
+```
 ## Architecture snapshot
 
 ```text
