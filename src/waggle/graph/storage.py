@@ -951,6 +951,22 @@ class StorageMixin(MemoryGraphBase):
                 "UPDATE edges SET tenant_id = ? WHERE tenant_id IN ('', 'local-default')",
                 (self.tenant_id,),
             )
+        connection.execute(
+            """
+            DELETE FROM edges
+            WHERE rowid NOT IN (
+                SELECT MIN(rowid)
+                FROM edges
+                GROUP BY tenant_id, source_id, target_id, relationship
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_edges_unique_tuple
+            ON edges(tenant_id, source_id, target_id, relationship)
+            """
+        )
         transcript_columns = {
             row["name"] for row in connection.execute("PRAGMA table_info(transcript_records)").fetchall()
         }

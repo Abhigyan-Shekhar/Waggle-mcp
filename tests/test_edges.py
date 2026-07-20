@@ -646,3 +646,98 @@ class TestEdgeQualityReport:
             assert "non-dict metadata" in caplog.text
             # Both edges should be kept because the default confidence is 1.0
             assert len(doc["edges"]) == 2
+
+
+def test_legacy_duplicate_edge_migration(tmp_path: Path) -> None:
+    """Verify that initialization deduplicates legacy duplicate edge rows and enforces uniqueness."""
+    import sqlite3
+
+    db_file = tmp_path / "legacy_edges.db"
+    conn = sqlite3.connect(db_file)
+    # Create nodes and legacy edges table WITHOUT unique constraint on edges
+    conn.execute(
+        """
+        CREATE TABLE nodes (
+            id TEXT PRIMARY KEY,
+            tenant_id TEXT NOT NULL DEFAULT 'local-default',
+            agent_id TEXT DEFAULT '',
+            project TEXT DEFAULT '',
+            session_id TEXT DEFAULT '',
+            context_window_id TEXT DEFAULT NULL,
+            label TEXT NOT NULL,
+            content TEXT NOT NULL,
+            node_type TEXT NOT NULL,
+            tags TEXT DEFAULT '[]',
+            metadata TEXT DEFAULT '{}',
+            embedding BLOB,
+            embedding_model_id TEXT DEFAULT '',
+            embedding_dim INTEGER DEFAULT 0,
+            source_prompt TEXT DEFAULT '',
+            source_turn_pair_id TEXT DEFAULT '',
+            evidence_records TEXT DEFAULT '[]',
+            valid_from TEXT DEFAULT NULL,
+            valid_to TEXT DEFAULT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            access_count INTEGER DEFAULT 0
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE edges (
+            id TEXT PRIMARY KEY,
+            tenant_id TEXT NOT NULL DEFAULT 'local-default',
+            source_id TEXT NOT NULL,
+            target_id TEXT NOT NULL,
+            relationship TEXT NOT NULL,
+            weight REAL DEFAULT 1.0,
+            metadata TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    # Insert two nodes
+    now = "2026-01-01T00:00:00+00:00"
+    conn.execute(
+        "INSERT INTO nodes (id, tenant_id, label, content, node_type, created_at, updated_at) VALUES ('n1', 'local-default', 'Node 1', 'Content 1', 'fact', ?, ?)",
+        (now, now),
+    )
+    conn.execute(
+        "INSERT INTO nodes (id, tenant_id, label, content, node_type, created_at, updated_at) VALUES ('n2', 'local-default', 'Node 2', 'Content 2', 'fact', ?, ?)",
+        (now, now),
+    )
+
+    # Insert duplicate legacy edges (same tenant_id, source_id, target_id, relationship)
+    conn.execute(
+        "INSERT INTO edges VALUES ('e1', 'local-default', 'n1', 'n2', 'relates_to', 1.0, '{}', ?)",
+        (now,),
+    )
+    conn.execute(
+        "INSERT INTO edges VALUES ('e2', 'local-default', 'n1', 'n2', 'relates_to', 1.0, '{}', ?)",
+        (now,),
+    )
+    conn.commit()
+    conn.close()
+
+    # Now open with MemoryGraph, which triggers _initialize_database() and _migrate_legacy_schema()
+    graph = MemoryGraph(db_file, FakeEmbeddingModel())
+
+    # 1. Verify that duplicate edge rows were cleaned up and only one remains
+    with graph._lock, graph._connect() as check_conn:
+        edge_rows = check_conn.execute(
+            "SELECT id FROM edges WHERE source_id = 'n1' AND target_id = 'n2' AND relationship = 'relates_to'"
+        ).fetchall()
+        assert len(edge_rows) == 1
+        assert edge_rows[0]["id"] == "e1"
+
+        # 2. Verify that unique constraint/index is now enforced at DB boundary
+        with pytest.raises(sqlite3.IntegrityError):
+            check_conn.execute(
+                "INSERT INTO edges VALUES ('e3', 'local-default', 'n1', 'n2', 'relates_to', 1.0, '{}', ?)",
+                (now,),
+            )
+
+    # 3. Verify graph.add_edge with duplicate endpoints cleanly returns the existing edge
+    existing_edge = graph.add_edge(source_id="n1", target_id="n2", relationship="relates_to")
+    assert existing_edge.id == "e1"
