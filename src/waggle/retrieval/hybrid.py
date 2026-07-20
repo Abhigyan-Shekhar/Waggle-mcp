@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import sqlite3
 from collections import Counter, defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -185,6 +186,45 @@ class HybridRetriever:
             recency_half_life_days=getattr(graph, "recency_half_life_days", 30.0)
         )
         self.rerank_callable = rerank_callable
+
+    @property
+    def _lexical_cache_sig(self) -> Any:
+        cache = self.graph.root_graph._lexical_cache
+        return cache[0] if cache is not None else None
+
+    @_lexical_cache_sig.setter
+    def _lexical_cache_sig(self, value: Any) -> None:
+        cache = self.graph.root_graph._lexical_cache
+        if cache is None:
+            self.graph.root_graph._lexical_cache = (value, None, None)
+        else:
+            self.graph.root_graph._lexical_cache = (value, cache[1], cache[2])
+
+    @property
+    def _lexical_cache_bm25(self) -> Any:
+        cache = self.graph.root_graph._lexical_cache
+        return cache[1] if cache is not None else None
+
+    @_lexical_cache_bm25.setter
+    def _lexical_cache_bm25(self, value: Any) -> None:
+        cache = self.graph.root_graph._lexical_cache
+        if cache is None:
+            self.graph.root_graph._lexical_cache = (None, value, None)
+        else:
+            self.graph.root_graph._lexical_cache = (cache[0], value, cache[2])
+
+    @property
+    def _lexical_cache_payloads(self) -> Any:
+        cache = self.graph.root_graph._lexical_cache
+        return cache[2] if cache is not None else None
+
+    @_lexical_cache_payloads.setter
+    def _lexical_cache_payloads(self, value: Any) -> None:
+        cache = self.graph.root_graph._lexical_cache
+        if cache is None:
+            self.graph.root_graph._lexical_cache = (None, None, value)
+        else:
+            self.graph.root_graph._lexical_cache = (cache[0], cache[1], value)
 
     def retrieve(
         self,
@@ -419,6 +459,92 @@ class HybridRetriever:
         ranked.sort(key=lambda item: item.layer_scores["vector_node"], reverse=True)
         return ranked
 
+    def _get_lexical_db_signature(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        project: str,
+        agent_id: str,
+        session_id: str,
+        include_nodes: bool,
+    ) -> tuple[Any, ...]:
+        """Compute a content-sensitive signature of the current database state
+        for cached hybrid retrieval. Uses fast aggregates and hashes row metadata
+        (such as content_hash) instead of loading large transcript_text fields
+        to optimize memory consumption and speed up cache lookups.
+        """
+        import hashlib
+
+        tx_filters = ["tenant_id = ?"]
+        tx_params: list[Any] = [self.graph.tenant_id]
+        if project.strip():
+            tx_filters.append("project = ?")
+            tx_params.append(project.strip())
+        if session_id.strip():
+            tx_filters.append("session_id = ?")
+            tx_params.append(session_id.strip())
+        elif agent_id.strip():
+            tx_filters.append("agent_id = ?")
+            tx_params.append(agent_id.strip())
+
+        tx_rows = connection.execute(
+            f"""
+            SELECT id, role, content_hash, observed_at
+            FROM transcript_records
+            WHERE {" AND ".join(tx_filters)}
+            ORDER BY id
+            """,
+            tuple(tx_params),
+        ).fetchall()
+
+        tx_hasher = hashlib.sha256()
+        for r in tx_rows:
+            tx_hasher.update(f"{r[0]}|{r[1]}|{r[2]}|{r[3]}".encode())
+        tx_hash = tx_hasher.hexdigest()
+
+        node_count = 0
+        node_hash = ""
+        if include_nodes:
+            node_filters = ["tenant_id = ?"]
+            node_params: list[Any] = [self.graph.tenant_id]
+            if project.strip():
+                node_filters.append("project = ?")
+                node_params.append(project.strip())
+            if session_id.strip():
+                node_filters.append("session_id = ?")
+                node_params.append(session_id.strip())
+            elif agent_id.strip():
+                node_filters.append("agent_id = ?")
+                node_params.append(agent_id.strip())
+
+            node_rows = connection.execute(
+                f"""
+                SELECT id, label, node_type, content, updated_at
+                FROM nodes
+                WHERE {" AND ".join(node_filters)}
+                ORDER BY id
+                """,
+                tuple(node_params),
+            ).fetchall()
+            node_count = len(node_rows)
+            node_hasher = hashlib.sha256()
+            for r in node_rows:
+                node_hasher.update(f"{r[0]}|{r[1]}|{r[2]}|{r[3]}|{r[4]}".encode())
+            node_hash = node_hasher.hexdigest()
+
+        effective_agent_id = "" if session_id.strip() else agent_id.strip()
+        return (
+            self.graph.tenant_id,
+            project.strip(),
+            effective_agent_id,
+            session_id.strip(),
+            include_nodes,
+            len(tx_rows),
+            tx_hash,
+            node_count,
+            node_hash,
+        )
+
     def _rank_lexical(
         self,
         *,
@@ -429,61 +555,88 @@ class HybridRetriever:
         session_id: str,
         include_nodes: bool,
     ) -> list[CandidateMemory]:
-        documents: dict[str, list[str]] = {}
-        payloads: dict[str, CandidateMemory] = {}
-        for pair in turn_pairs:
-            doc_id = f"tp:{pair.turn_pair_id}"
-            documents[doc_id] = list(tokenize_text(pair.transcript_text))
-            payloads[doc_id] = CandidateMemory(
-                candidate_id=doc_id,
-                content=pair.transcript_text,
-                source="transcript",
-                turn_pair_id=pair.turn_pair_id,
-                transcript_text=pair.transcript_text,
-                observed_at=pair.observed_at,
+        cache = self.graph.root_graph._lexical_cache
+        sig = None
+        bm25 = None
+        payloads = None
+
+        with self.graph._lock.read(), self.graph._pool.checkout() as connection:
+            sig = self._get_lexical_db_signature(
+                connection,
+                project=project,
+                agent_id=agent_id,
+                session_id=session_id,
+                include_nodes=include_nodes,
             )
-        if include_nodes:
-            with self.graph._lock.read(), self.graph._pool.checkout() as connection:
-                filters = ["tenant_id = ?"]
-                params: list[Any] = [self.graph.tenant_id]
-                if project.strip():
-                    filters.append("project = ?")
-                    params.append(project.strip())
-                if session_id.strip():
-                    filters.append("session_id = ?")
-                    params.append(session_id.strip())
-                elif agent_id.strip():
-                    filters.append("agent_id = ?")
-                    params.append(agent_id.strip())
-                rows = connection.execute(
-                    f"""
-                    SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt,
-                           source_turn_pair_id, metadata, evidence_records, valid_from, valid_to, created_at, updated_at,
-                           access_count, tenant_id, embedding_model_id, embedding_dim
-                    FROM nodes
-                    WHERE {" AND ".join(filters)}
-                    """,
-                    tuple(params),
-                ).fetchall()
-            for row in rows:
-                node = self.graph._row_to_node(row)
-                doc_id = f"node:{node.id}"
-                documents[doc_id] = list(tokenize_text(f"{node.label} {node.content}"))
-                payloads[doc_id] = CandidateMemory(
-                    candidate_id=doc_id,
-                    content=f"{node.label}: {node.content}",
-                    source="node",
-                    turn_pair_id=node.source_turn_pair_id,
-                    node_ids=[node.id],
-                    observed_at=node.updated_at,
-                )
-        bm25 = SimpleBM25(documents)
+            if cache is not None and cache[0] == sig and cache[1] is not None and cache[2] is not None:
+                bm25 = cache[1]
+                payloads = cache[2]
+            else:
+                documents: dict[str, list[str]] = {}
+                payloads = {}
+                for pair in turn_pairs:
+                    doc_id = f"tp:{pair.turn_pair_id}"
+                    documents[doc_id] = list(tokenize_text(pair.transcript_text))
+                    payloads[doc_id] = CandidateMemory(
+                        candidate_id=doc_id,
+                        content=pair.transcript_text,
+                        source="transcript",
+                        turn_pair_id=pair.turn_pair_id,
+                        transcript_text=pair.transcript_text,
+                        observed_at=pair.observed_at,
+                    )
+                if include_nodes:
+                    filters = ["tenant_id = ?"]
+                    params: list[Any] = [self.graph.tenant_id]
+                    if project.strip():
+                        filters.append("project = ?")
+                        params.append(project.strip())
+                    if session_id.strip():
+                        filters.append("session_id = ?")
+                        params.append(session_id.strip())
+                    elif agent_id.strip():
+                        filters.append("agent_id = ?")
+                        params.append(agent_id.strip())
+                    rows = connection.execute(
+                        f"""
+                        SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt,
+                               source_turn_pair_id, metadata, evidence_records, valid_from, valid_to, created_at, updated_at,
+                               access_count, tenant_id, embedding_model_id, embedding_dim
+                        FROM nodes
+                        WHERE {" AND ".join(filters)}
+                        """,
+                        tuple(params),
+                    ).fetchall()
+                    for row in rows:
+                        node = self.graph._row_to_node(row)
+                        doc_id = f"node:{node.id}"
+                        documents[doc_id] = list(tokenize_text(f"{node.label} {node.content}"))
+                        payloads[doc_id] = CandidateMemory(
+                            candidate_id=doc_id,
+                            content=f"{node.label}: {node.content}",
+                            source="node",
+                            turn_pair_id=node.source_turn_pair_id,
+                            node_ids=[node.id],
+                            observed_at=node.updated_at,
+                        )
+                bm25 = SimpleBM25(documents)
+                self.graph.root_graph._lexical_cache = (sig, bm25, payloads)
+
         scores = bm25.score(query)
         ranked: list[CandidateMemory] = []
         for doc_id, score in scores.items():
             candidate = payloads[doc_id]
-            candidate.layer_scores = {"bm25": score}
-            ranked.append(candidate)
+            candidate_copy = CandidateMemory(
+                candidate_id=candidate.candidate_id,
+                content=candidate.content,
+                source=candidate.source,
+                turn_pair_id=candidate.turn_pair_id,
+                node_ids=list(candidate.node_ids),
+                transcript_text=candidate.transcript_text,
+                observed_at=candidate.observed_at,
+            )
+            candidate_copy.layer_scores = {"bm25": score}
+            ranked.append(candidate_copy)
         ranked.sort(key=lambda item: item.layer_scores["bm25"], reverse=True)
         return ranked
 
