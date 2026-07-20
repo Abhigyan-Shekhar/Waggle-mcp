@@ -80,6 +80,7 @@ from waggle.models import (
     ApiKeyRecord,
     AuditEventRecord,
     BackupResult,
+    ClearScopeResult,
     ConflictEntry,
     ConflictListResult,
     ConflictRecord,
@@ -496,6 +497,103 @@ class Neo4jMemoryGraph:
         finally:
             if owns_session:
                 active_session.close()
+
+    def clear_session(self, *, session_id: str, dry_run: bool = False) -> ClearScopeResult:
+        normalized_session = session_id.strip()
+        if not normalized_session:
+            raise ValueError("session_id is required.")
+        with self._lock, self._session() as session:
+            result = self._clear_scope_rows(session, scope="session", session_id=normalized_session, dry_run=dry_run)
+            if not dry_run:
+                self.emit_audit_event(
+                    event_type="graph.scope_cleared",
+                    resource_type="session",
+                    resource_id=normalized_session,
+                    action="delete",
+                    metadata=result.model_dump(mode="json"),
+                    session=session,
+                )
+            return result
+
+    def clear_project(self, *, project: str, dry_run: bool = False) -> ClearScopeResult:
+        normalized_project = project.strip()
+        if not normalized_project:
+            raise ValueError("project is required.")
+        with self._lock, self._session() as session:
+            result = self._clear_scope_rows(session, scope="project", project=normalized_project, dry_run=dry_run)
+            if not dry_run:
+                self.emit_audit_event(
+                    event_type="graph.scope_cleared",
+                    resource_type="project",
+                    resource_id=normalized_project,
+                    action="delete",
+                    metadata=result.model_dump(mode="json"),
+                    session=session,
+                )
+            return result
+
+    def clear_all(self, *, dry_run: bool = False) -> ClearScopeResult:
+        with self._lock, self._session() as session:
+            result = self._clear_scope_rows(session, scope="all", dry_run=dry_run)
+            if not dry_run:
+                self.emit_audit_event(
+                    event_type="graph.scope_cleared",
+                    resource_type="tenant",
+                    resource_id=self.tenant_id,
+                    action="delete",
+                    metadata=result.model_dump(mode="json"),
+                    session=session,
+                )
+            return result
+
+    def _clear_scope_rows(
+        self,
+        session: Any,
+        *,
+        scope: str,
+        project: str = "",
+        session_id: str = "",
+        dry_run: bool = False,
+    ) -> ClearScopeResult:
+        result = ClearScopeResult(scope=scope, project=project, session_id=session_id, dry_run=dry_run)
+        
+        params = {"tenant_id": self.tenant_id}
+        if scope == "all":
+            match_clause = "WHERE n.tenant_id = $tenant_id"
+            transcript_clause = "WHERE t.tenant_id = $tenant_id"
+        elif scope == "project":
+            match_clause = "WHERE n.tenant_id = $tenant_id AND n.project = $project"
+            transcript_clause = "WHERE t.tenant_id = $tenant_id AND t.project = $project"
+            params["project"] = project
+        elif scope == "session":
+            match_clause = "WHERE n.tenant_id = $tenant_id AND n.session_id = $session_id"
+            transcript_clause = "WHERE t.tenant_id = $tenant_id AND t.session_id = $session_id"
+            params["session_id"] = session_id
+        else:
+            return result
+
+        nodes_info = session.run(f"MATCH (n:MemoryNode) {match_clause} RETURN n.node_type AS node_type, count(n) AS count", **params)
+        for record in nodes_info:
+            node_type = record["node_type"]
+            count = record["count"]
+            result.counts_by_node_type[node_type] = count
+            result.deleted_nodes += count
+
+        edge_count = session.run(
+            f"MATCH (n:MemoryNode)-[r:MEMORY_EDGE]-() {match_clause} RETURN count(DISTINCT r) AS count", **params
+        ).single()
+        result.deleted_edges = edge_count["count"] if edge_count else 0
+        
+        transcript_count = session.run(
+            f"MATCH (t:MemoryTranscript) {transcript_clause} RETURN count(t) AS count", **params
+        ).single()
+        result.deleted_transcripts = transcript_count["count"] if transcript_count else 0
+        
+        if not dry_run:
+            session.run(f"MATCH (t:MemoryTranscript) {transcript_clause} DETACH DELETE t", **params).consume()
+            session.run(f"MATCH (n:MemoryNode) {match_clause} DETACH DELETE n", **params).consume()
+            
+        return result
 
     def emit_audit_event(
         self,
