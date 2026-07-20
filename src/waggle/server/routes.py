@@ -289,8 +289,9 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         request: Request, required_scope: str, *, tenant_override: str = ""
     ) -> tuple[Any, Any | None]:
         graph, principal = _graph_from_request(request, tenant_override=tenant_override)
-        if principal is not None:
-            principal.require_scope(required_scope)
+        if principal is None:
+            raise AuthenticationError("Missing X-API-Key header.")
+        principal.require_scope(required_scope)
         return graph, principal
 
     def _build_scoped_abhi(graph: Any, scope: dict[str, str]) -> tuple[dict[str, Any], dict[str, Any]]:
