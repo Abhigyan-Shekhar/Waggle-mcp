@@ -119,7 +119,9 @@ waggle-mcp serve --transport stdio
 
 ## Codex plugin binary blocked by OS
 
-The bundled Waggle runtime shipped with the Codex plugin is unsigned. macOS and Windows will block it on first run. This is expected behavior, not a broken install.
+The bundled Waggle runtime shipped with the Codex plugin is intentionally
+unsigned for the current self-hosted marketplace bundle. macOS and Windows can
+block it on first run. This is expected behavior, not a broken install.
 
 ### macOS — approve and retry
 
