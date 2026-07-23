@@ -13,6 +13,7 @@ No cloud account. No API key. Local by default.
 - [Claude Code](./claude-code.md)
 - [Claude Desktop](./claude-desktop.md)
 - [Codex](./codex.md)
+- [Codex marketplace release checklist](./codex-marketplace-release-checklist.md)
 - [Cursor](./cursor.md)
 - [Antigravity](./antigravity.md)
 - [Generic MCP clients](./generic-mcp.md)
