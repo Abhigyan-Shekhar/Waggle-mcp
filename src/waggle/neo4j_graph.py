@@ -561,13 +561,16 @@ class Neo4jMemoryGraph:
         if scope == "all":
             match_clause = "WHERE n.tenant_id = $tenant_id"
             transcript_clause = "WHERE t.tenant_id = $tenant_id"
+            ui_clause = "WHERE ui.tenant_id = $tenant_id"
         elif scope == "project":
             match_clause = "WHERE n.tenant_id = $tenant_id AND n.project = $project"
             transcript_clause = "WHERE t.tenant_id = $tenant_id AND t.project = $project"
+            ui_clause = "WHERE ui.tenant_id = $tenant_id AND ui.project = $project"
             params["project"] = project
         elif scope == "session":
             match_clause = "WHERE n.tenant_id = $tenant_id AND n.session_id = $session_id"
             transcript_clause = "WHERE t.tenant_id = $tenant_id AND t.session_id = $session_id"
+            ui_clause = "WHERE ui.tenant_id = $tenant_id AND ui.session_id = $session_id"
             params["session_id"] = session_id
         else:
             return result
@@ -589,7 +592,13 @@ class Neo4jMemoryGraph:
         ).single()
         result.deleted_transcripts = transcript_count["count"] if transcript_count else 0
         
+        ui_count = session.run(
+            f"MATCH (ui:GraphUIState) {ui_clause} RETURN count(ui) AS count", **params
+        ).single()
+        result.deleted_graph_ui_rows = ui_count["count"] if ui_count else 0
+        
         if not dry_run:
+            session.run(f"MATCH (ui:GraphUIState) {ui_clause} DETACH DELETE ui", **params).consume()
             session.run(f"MATCH (t:MemoryTranscript) {transcript_clause} DETACH DELETE t", **params).consume()
             session.run(f"MATCH (n:MemoryNode) {match_clause} DETACH DELETE n", **params).consume()
             
