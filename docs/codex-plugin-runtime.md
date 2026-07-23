@@ -84,42 +84,34 @@ Linux has no OS-level signing gate in this release flow.
 
 ## Signing
 
-Manual `workflow_dispatch` runs build unsigned runtimes by default, even if
-signing secrets are present. Set the workflow's `enable_signing` input to
-`true` only when you intentionally want to exercise the signed release path.
-The workflow also builds unsigned runtimes when Apple Developer ID and Windows
-Authenticode credentials are not configured. This is acceptable for the
-repo-hosted v1 validation path, but users should expect macOS Gatekeeper and
-Windows SmartScreen warnings because the binaries are not notarized/signed.
+The current Codex plugin release is intentionally unsigned. Apple Developer ID
+notarization and Windows Authenticode signing require paid accounts or
+certificates, so signing is not a release blocker for the self-hosted Codex
+marketplace bundle.
 
-For `v*` tag releases, signing is attempted when credentials are configured.
-macOS release binaries are signed with a Developer ID certificate and submitted
-for notarization before plugin packaging. Windows release binaries are
-Authenticode signed. The automated Windows path supports an OV PFX certificate;
-EV signing requires a cloud signing provider such as Azure Trusted Signing,
-DigiCert KeyLocker, or SSL.com eSigner rather than a portable PFX secret.
-OV-signed binaries can still see SmartScreen reputation prompts until the
-publisher and binary build reputation mature.
+Users should expect macOS Gatekeeper and Windows SmartScreen warnings on first
+launch. Keep checksum files, GitHub build provenance attestations, and the
+first-run approval steps in the install docs instead of treating signing as a
+required launch task.
 
-Store signing material in CI secrets and rotate it using the provider's normal
-renewal process. Add calendar reminders or scheduled checks for Apple Developer
-ID, notarization credentials, Windows signing certificates, and any cloud
-signing tokens before their expiry windows.
-
-Optional CI secrets for signed releases:
-
-| Secret name | Purpose |
-|---|---|
-| `APPLE_DEVELOPER_ID` | Full `Developer ID Application: ...` signing identity |
-| `APPLE_ID` | Apple ID used with `notarytool` |
-| `APPLE_TEAM_ID` | Apple Team ID |
-| `APPLE_NOTARY_PASSWORD` | App-specific password for notarization |
-| `WINDOWS_CERT_BASE64` | Base64-encoded Authenticode PFX |
-| `WINDOWS_CERT_PASSWORD` | PFX password |
+The workflow still contains optional signing hooks so a future maintainer can
+enable paid signing without redesigning the release pipeline. Until those
+credentials are intentionally configured, unsigned release artifacts are the
+expected output.
 
 The release workflow also generates GitHub build provenance attestations for
 the Codex plugin artifacts and verifies them with `gh attestation verify` before
 publishing. `.sha256` files remain a manual verification fallback.
+
+## Versioning
+
+The Codex plugin manifest version is intentionally separate from the GitHub
+release tag. The current plugin version is `0.1.1`; the current public GitHub
+release tag for the complete Codex marketplace bundle is `v0.1.17`.
+
+Earlier GitHub releases were trial releases while the Waggle repository was
+private. Do not align the plugin version to the GitHub tag unless the plugin
+surface itself changes.
 
 ## Compatibility
 
