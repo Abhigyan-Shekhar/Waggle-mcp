@@ -520,31 +520,12 @@ When importing, note how properties are mapped:
   * `INFERRED` → Medium confidence (Deduced by analysis)
   * `AMBIGUOUS` → Low confidence (Requires manual review)
 
-#### Mapping Details
-When importing, note how properties are mapped:
-* **Node/Edge Kinds:** The `kind` field maps directly to the system's internal graph schema terminology.
-* **Confidence Mapping:** The Graphify confidence levels map as follows:
-  * `EXTRACTED` → High confidence (Explicitly defined in source)
-  * `INFERRED` → Medium confidence (Deduced by analysis)
-  * `AMBIGUOUS` → Low confidence (Requires manual review)
-
-#### Method 1: Using the HTTP API (cURL)
+#### Using the HTTP API (cURL)
 You can POST the file directly to the API endpoint:
 ```bash
 curl -X POST http://localhost:8000/api/graph/import-graphify \
   -H "Content-Type: application/json" \
   -d @graph.json
-```
-
-#### Method 2: Using the MCP Tool
-If you are interacting via the Model Context Protocol (MCP), invoke the tool like this:
-```json
-{
-  "name": "import_graphify",
-  "arguments": {
-    "file_path": "./graph.json"
-  }
-}
 ```
 
 #### Expected Response
