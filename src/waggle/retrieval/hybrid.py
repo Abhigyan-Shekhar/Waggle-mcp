@@ -416,28 +416,66 @@ class HybridRetriever:
     def _rank_nodes(
         self, query_embedding: np.ndarray, *, project: str, agent_id: str, session_id: str
     ) -> list[CandidateMemory]:
-        with self.graph._lock.read(), self.graph._pool.checkout() as connection:
-            filters = ["tenant_id = ?", "embedding IS NOT NULL"]
-            params: list[Any] = [self.graph.tenant_id]
-            if project.strip():
-                filters.append("project = ?")
-                params.append(project.strip())
-            if session_id.strip():
-                filters.append("session_id = ?")
-                params.append(session_id.strip())
-            elif agent_id.strip():
-                filters.append("agent_id = ?")
-                params.append(agent_id.strip())
-            rows = connection.execute(
-                f"""
-                SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt,
-                       source_turn_pair_id, metadata, evidence_records, valid_from, valid_to, created_at, updated_at,
-                       access_count, embedding, tenant_id, embedding_model_id, embedding_dim
-                FROM nodes
-                WHERE {" AND ".join(filters)}
-                """,
-                tuple(params),
-            ).fetchall()
+        filters = ["tenant_id = ?", "embedding IS NOT NULL"]
+        params: list[Any] = [self.graph.tenant_id]
+        if project.strip():
+            filters.append("project = ?")
+            params.append(project.strip())
+        if session_id.strip():
+            filters.append("session_id = ?")
+            params.append(session_id.strip())
+        elif agent_id.strip():
+            filters.append("agent_id = ?")
+            params.append(agent_id.strip())
+
+        if getattr(self.graph, "_sqlite_vec_loaded", False):
+            with self.graph._lock.read(), self.graph._pool.checkout() as connection:
+                count = connection.execute(
+                    f"SELECT COUNT(*) FROM nodes WHERE {' AND '.join(filters)}",
+                    tuple(params),
+                ).fetchone()[0]
+                if count == 0:
+                    return []
+
+                vec_filters = ["v.tenant_id = ?"]
+                vec_params = [self.graph.tenant_id]
+                if project.strip():
+                    vec_filters.append("v.project = ?")
+                    vec_params.append(project.strip())
+                if session_id.strip():
+                    vec_filters.append("v.session_id = ?")
+                    vec_params.append(session_id.strip())
+                elif agent_id.strip():
+                    vec_filters.append("v.agent_id = ?")
+                    vec_params.append(agent_id.strip())
+
+                k = min(count, 200)
+                rows = connection.execute(
+                    f"""
+                    SELECT n.id, n.agent_id, n.project, n.session_id, n.context_window_id, n.label, n.content, n.node_type, n.tags, n.source_prompt,
+                           n.source_turn_pair_id, n.metadata, n.evidence_records, n.valid_from, n.valid_to, n.created_at, n.updated_at,
+                           n.access_count, n.embedding, n.tenant_id, n.embedding_model_id, n.embedding_dim
+                    FROM vec_nodes v
+                    JOIN nodes n ON v.rowid = n.rowid
+                    WHERE v.embedding MATCH ?
+                      AND {" AND ".join(vec_filters)}
+                      AND k = ?
+                    ORDER BY v.distance ASC
+                    """,
+                    (query_embedding.astype(np.float32).tobytes(), *vec_params, k),
+                ).fetchall()
+        else:
+            with self.graph._lock.read(), self.graph._pool.checkout() as connection:
+                rows = connection.execute(
+                    f"""
+                    SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt,
+                           source_turn_pair_id, metadata, evidence_records, valid_from, valid_to, created_at, updated_at,
+                           access_count, embedding, tenant_id, embedding_model_id, embedding_dim
+                    FROM nodes
+                    WHERE {" AND ".join(filters)}
+                    """,
+                    tuple(params),
+                ).fetchall()
         ranked: list[CandidateMemory] = []
         for row in rows:
             node = self.graph._row_to_node(row)
