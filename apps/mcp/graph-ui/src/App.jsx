@@ -1445,6 +1445,15 @@ export function App() {
                     <div key={node.id}>{node.label}</div>
                   ))}
                 </div>
+                {!boot.sampleMode && !readOnly ? (
+                  <button
+                    className="mt-3 w-full rounded-xl bg-white px-3 py-2 text-sm font-medium text-black"
+                    onClick={() => commitImport().catch((error) => setToast(error.message))}
+                    type="button"
+                  >
+                    Commit import
+                  </button>
+                ) : null}
               </div>
             ) : null}
 
