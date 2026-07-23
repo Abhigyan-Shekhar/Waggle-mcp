@@ -38,7 +38,11 @@ For more details on how these rules govern agent behavior, see the [Automatic Me
 
 ## First-run OS warnings (unsigned binary)
 
-The bundled Waggle runtime binary is currently unsigned. This means macOS and Windows will show a security warning on first launch. This is expected — it does not mean the binary is malicious.
+The bundled Waggle runtime binary is intentionally unsigned for the current
+self-hosted Codex plugin release because Apple Developer ID notarization and
+Windows Authenticode signing require paid accounts or certificates. This means
+macOS and Windows can show a security warning on first launch. This is expected
+and does not mean the binary is malicious.
 
 ### macOS (Gatekeeper)
 
@@ -93,6 +97,11 @@ marketplace artifacts are published on the
 > `v0.1.16` was a partial release and should not be used as a Codex
 > marketplace install source. Use `v0.1.17` instead.
 
+The Codex plugin version is intentionally separate from the GitHub release tag.
+The plugin manifest currently reports `0.1.1`; `v0.1.17` is the GitHub release
+tag for the public marketplace bundle after earlier private-repository trial
+releases.
+
 For the easiest install path, download and extract the marketplace bundle
 from the [`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17),
 then run:
@@ -116,13 +125,12 @@ gh attestation verify waggle-codex-marketplace-<tag>.zip \
   --repo Abhigyan-Shekhar/Waggle-mcp
 ```
 
-The repo-hosted v1 release may be unsigned. Manual release-validation workflow
-runs are unsigned by default unless `enable_signing` is set, and releases are
-also unsigned when Apple Developer ID and Windows Authenticode credentials are
-not configured in CI. In that case macOS Gatekeeper and Windows SmartScreen can
-show warnings. Verify the checksum and GitHub attestation before installing. If
-signing credentials are later enabled, Windows builds use OV Authenticode
-signing unless EV cloud signing is explicitly added.
+The repo-hosted v1 release is distributed as an unsigned bundle. macOS
+Gatekeeper and Windows SmartScreen can show warnings. Verify the checksum and
+GitHub attestation before installing.
+
+Maintainer release checks are documented in
+[`codex-marketplace-release-checklist.md`](./codex-marketplace-release-checklist.md).
 
 To upgrade, install the newer marketplace bundle from the GitHub release and
 refresh the plugin directory in Codex. Waggle memory is stored outside the
