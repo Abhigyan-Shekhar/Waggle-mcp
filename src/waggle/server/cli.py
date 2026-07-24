@@ -844,6 +844,458 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
     if args.command == "doctor":
         return _run_doctor_command(config, args)
     backend = _build_backend(config)
-    # (rest of file omitted for brevity)
-    raise RuntimeError("This file rewrite was incomplete. Please re-run with the full original content.")
+    if args.command == "create-tenant":
+        tenant = backend.ensure_tenant(args.tenant_id, args.name)
+        print(json.dumps(tenant.model_dump(), indent=2))
+        return 0
+    if args.command == "create-api-key":
+        expires_in_days = int(getattr(args, "expires_in_days", 0) or 0)
+        expires_at = utc_now() + timedelta(days=expires_in_days) if expires_in_days > 0 else None
+        tenant_backend = backend.for_tenant(args.tenant_id)
+        created = tenant_backend.create_api_key(
+            args.tenant_id,
+            args.name,
+            expires_at=expires_at,
+            created_by=str(getattr(args, "created_by", "") or "").strip(),
+            scopes=_parse_api_key_scopes(getattr(args, "scopes", "")) or None,
+        )
+        tenant_backend.emit_audit_event(
+            event_type="api_key.created",
+            actor_type="admin",
+            actor_id=str(getattr(args, "created_by", "") or "").strip() or "local-cli",
+            resource_type="api_key",
+            resource_id=created.record.api_key_id,
+            action="create",
+            metadata={
+                "name": created.record.name,
+                "prefix": created.record.prefix,
+                "expires_at": created.record.expires_at.isoformat() if created.record.expires_at else None,
+                "scopes": created.record.scopes,
+            },
+        )
+        print(
+            json.dumps(
+                {
+                    "api_key_id": created.record.api_key_id,
+                    "tenant_id": created.record.tenant_id,
+                    "prefix": created.record.prefix,
+                    "name": created.record.name,
+                    "status": created.record.status,
+                    "expires_at": created.record.expires_at.isoformat() if created.record.expires_at else None,
+                    "created_by": created.record.created_by,
+                    "scopes": created.record.scopes,
+                    "raw_api_key": created.raw_api_key,
+                },
+                indent=2,
+            )
+        )
+        return 0
+    if args.command == "list-api-keys":
+        print(
+            json.dumps(
+                [_serialize_api_key_record(record) for record in backend.list_api_keys(args.tenant_id)], indent=2
+            )
+        )
+        return 0
+    if args.command == "revoke-api-key":
+        tenant_backend = backend.for_tenant(getattr(args, "tenant_id", "") or config.default_tenant_id)
+        tenant_backend.revoke_api_key(args.api_key_id)
+        tenant_backend.emit_audit_event(
+            event_type="api_key.revoked",
+            actor_type="admin",
+            actor_id="local-cli",
+            resource_type="api_key",
+            resource_id=args.api_key_id,
+            action="revoke",
+        )
+        print(json.dumps({"revoked": args.api_key_id}))
+        return 0
+    if args.command in {
+        "retention-status",
+        "set-retention",
+        "prune-retention",
+        "list-retention-runs",
+        "list-audit-events",
+    }:
+        retention_backend = backend.for_tenant(getattr(args, "tenant_id", "") or config.default_tenant_id)
+        policy_kwargs = {
+            "default_enabled": config.retention_enabled,
+            "default_retention_days": config.retention_days,
+            "default_prune_interval_hours": config.retention_prune_interval_hours,
+        }
+        if args.command == "retention-status":
+            policy = retention_backend.get_retention_policy(**policy_kwargs)
+            payload = _serialize_retention_policy(policy)
+            payload["recent_runs"] = [
+                _serialize_retention_run(run) for run in retention_backend.list_retention_runs(limit=5)
+            ]
+            print(json.dumps(payload, indent=2))
+            return 0
+        if args.command == "set-retention":
+            policy = retention_backend.update_retention_policy(
+                enabled=getattr(args, "enabled", None),
+                retention_days=getattr(args, "days", None),
+                prune_interval_hours=getattr(args, "interval_hours", None),
+                **policy_kwargs,
+            )
+            retention_backend.emit_audit_event(
+                event_type="retention.policy.updated",
+                actor_type="admin",
+                actor_id="local-cli",
+                resource_type="retention_policy",
+                resource_id=policy.tenant_id,
+                action="update",
+                metadata={
+                    "enabled": policy.enabled,
+                    "retention_days": policy.retention_days,
+                    "prune_interval_hours": policy.prune_interval_hours,
+                },
+            )
+            print(json.dumps(_serialize_retention_policy(policy), indent=2))
+            return 0
+        if args.command == "prune-retention":
+            run = retention_backend.prune_retention(
+                batch_size=getattr(args, "batch_size", 1000),
+                **policy_kwargs,
+            )
+            payload = _serialize_retention_run(run)
+            payload["policy"] = _serialize_retention_policy(retention_backend.get_retention_policy(**policy_kwargs))
+            print(json.dumps(payload, indent=2))
+            return 0
+        if args.command == "list-audit-events":
+            events = retention_backend.list_audit_events(
+                limit=getattr(args, "limit", 100),
+                event_type=getattr(args, "event_type", ""),
+                actor_id=getattr(args, "actor_id", ""),
+                resource_id=getattr(args, "resource_id", ""),
+                resource_type=getattr(args, "resource_type", ""),
+                status=getattr(args, "status", ""),
+            )
+            print(json.dumps([_serialize_audit_event(event) for event in events], indent=2))
+            return 0
+        runs = retention_backend.list_retention_runs(limit=getattr(args, "limit", 20))
+        print(json.dumps([_serialize_retention_run(run) for run in runs], indent=2))
+        return 0
+    if args.command == "migrate-sqlite":
+        if config.backend != "neo4j":
+            raise ValidationFailure("migrate-sqlite requires WAGGLE_BACKEND=neo4j for the target environment.")
+        source = MemoryGraph(
+            args.db_path,
+            EmbeddingModel(
+                config.model_name,
+                embedding_backend=config.embedding_backend,
+            ),
+            tenant_id=args.tenant_id,
+            export_dir=config.export_dir,
+        )
+        target = backend.for_tenant(args.tenant_id)
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as handle:
+            temp_path = Path(handle.name)
+        backup = source.export_graph_backup(output_path=temp_path)
+        imported = target.import_graph_backup(input_path=temp_path)
+        print(
+            json.dumps(
+                {
+                    "backup": backup.model_dump(),
+                    "import": imported.model_dump(),
+                },
+                indent=2,
+            )
+        )
+        temp_path.unlink(missing_ok=True)
+        return 0
+    if args.command == "export":
+        _assert_export_safe(
+            backend,
+            force=bool(getattr(args, "force", False)),
+            project=getattr(args, "project", ""),
+            agent_id=getattr(args, "agent_id", ""),
+            session_id=getattr(args, "session_id", ""),
+            scope=getattr(args, "scope", "all"),
+            since_date=getattr(args, "since_date", ""),
+        )
+        exported = backend.export_abhi(
+            output_path=args.output_path,
+            project=getattr(args, "project", ""),
+            agent_id=getattr(args, "agent_id", ""),
+            session_id=getattr(args, "session_id", ""),
+            scope=getattr(args, "scope", "all"),
+            since_date=getattr(args, "since_date", ""),
+            include_embeddings=bool(getattr(args, "include_embeddings", True)),
+            passphrase=_resolve_passphrase(args),
+            redact_patterns=list(getattr(args, "redact_patterns", []) or []),
+            sign=bool(getattr(args, "sign", False)),
+            signing_key_dir=getattr(args, "signing_key_dir", "~/.waggle/keys"),
+        )
+        print(json.dumps(exported.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "checkpoint-context":
+        scope = getattr(args, "scope", "") or ""
+        if not scope:
+            if getattr(args, "session_id", ""):
+                scope = "session"
+            elif getattr(args, "project", ""):
+                scope = "project"
+            elif getattr(args, "since_date", ""):
+                scope = "since-date"
+            else:
+                scope = "all"
+        _assert_export_safe(
+            backend,
+            force=bool(getattr(args, "force", False)),
+            project=getattr(args, "project", ""),
+            agent_id=getattr(args, "agent_id", ""),
+            session_id=getattr(args, "session_id", ""),
+            scope=scope,
+            since_date=getattr(args, "since_date", ""),
+        )
+        exported = backend.export_abhi(
+            output_path=args.output_path,
+            project=getattr(args, "project", ""),
+            agent_id=getattr(args, "agent_id", ""),
+            session_id=getattr(args, "session_id", ""),
+            scope=scope,
+            since_date=getattr(args, "since_date", ""),
+            include_embeddings=bool(getattr(args, "include_embeddings", True)),
+            passphrase=_resolve_passphrase(args),
+            redact_patterns=list(getattr(args, "redact_patterns", []) or []),
+            sign=bool(getattr(args, "sign", False)),
+            signing_key_dir=getattr(args, "signing_key_dir", "~/.waggle/keys"),
+        )
+        payload = exported.model_dump(mode="json")
+        payload["checkpoint_scope"] = scope
+        print(json.dumps(payload, indent=2))
+        return 0
+    if args.command == "clear-session":
+        dry_run = bool(getattr(args, "dry_run", False))
+        if not dry_run and not bool(getattr(args, "yes", False)):
+            raise ValidationFailure("clear-session is destructive and requires --yes.")
+        cleared = backend.clear_session(session_id=args.session_id, dry_run=dry_run)
+        print(json.dumps(cleared.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "clear-project":
+        dry_run = bool(getattr(args, "dry_run", False))
+        if not dry_run and not bool(getattr(args, "yes", False)):
+            raise ValidationFailure("clear-project is destructive and requires --yes.")
+        cleared = backend.clear_project(project=args.project, dry_run=dry_run)
+        print(json.dumps(cleared.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "clear-all":
+        dry_run = bool(getattr(args, "dry_run", False))
+        if not dry_run and not bool(getattr(args, "yes", False)):
+            raise ValidationFailure("clear-all is destructive and requires --yes.")
+        cleared = backend.clear_all(dry_run=dry_run)
+        print(json.dumps(cleared.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "import":
+        input_path = getattr(args, "input_path", None) or getattr(args, "input_path_flag", "")
+        imported = backend.import_abhi(
+            input_path=input_path,
+            passphrase=_resolve_passphrase(args),
+            namespace=getattr(args, "namespace", ""),
+            merge_strategy=getattr(args, "merge_strategy", "skip-existing"),
+            verify_signature=bool(getattr(args, "verify_signature", False)),
+            read_only=bool(getattr(args, "read_only", False)),
+            reembed_on_mismatch=bool(getattr(args, "reembed_on_mismatch", False)),
+        )
+        print(json.dumps(imported.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "validate":
+        validation = backend.validate_abhi(input_path=args.input_path, passphrase=_resolve_passphrase(args))
+        print(json.dumps(validation.model_dump(mode="json"), indent=2))
+        return 0 if validation.valid else 1
+    if args.command == "inspect":
+        inspected = backend.inspect_abhi(input_path=args.input_path, passphrase=_resolve_passphrase(args))
+        print(json.dumps(inspected.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "diff":
+        input_path_a = getattr(args, "input_path_a", None) or getattr(args, "input_path_a_flag", "")
+        input_path_b = getattr(args, "input_path_b", None) or getattr(args, "input_path_b_flag", "")
+        diff = backend.diff_abhi(input_path_a=input_path_a, input_path_b=input_path_b)
+        print(json.dumps(diff.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "merge":
+        left_input_path = getattr(args, "left_input_path_flag", "") or args.left_input_path
+        right_input_path = getattr(args, "right_input_path_flag", "") or args.right_input_path
+        merged = backend.merge_abhi(
+            base_input_path=args.base_input_path or left_input_path,
+            left_input_path=left_input_path,
+            right_input_path=right_input_path,
+            output_path=args.output_path,
+            merge_strategy=args.merge_strategy,
+        )
+        print(json.dumps(merged.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "query":
+        queried = backend.query_abhi(
+            input_path=args.input_path,
+            query_id=getattr(args, "query_id", ""),
+            query_text=getattr(args, "query_text", ""),
+            passphrase=_resolve_passphrase(args),
+        )
+        print(json.dumps(queried.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "load-chunks":
+        loaded = backend.load_abhi_chunks(
+            input_path=args.input_path,
+            chunk_ids=getattr(args, "chunk_ids", []),
+            query_id=getattr(args, "query_id", ""),
+            query_text=getattr(args, "query_text", ""),
+            passphrase=_resolve_passphrase(args),
+        )
+        print(json.dumps(loaded.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "push":
+        _require_drive_sync()
+        passphrase = _resolve_passphrase(args)
+        _assert_export_safe(
+            backend,
+            force=bool(getattr(args, "force", False)),
+            project=getattr(args, "project", ""),
+            agent_id=getattr(args, "agent_id", ""),
+            session_id=getattr(args, "session_id", ""),
+            scope=getattr(args, "scope", "all"),
+            since_date=getattr(args, "since_date", ""),
+        )
+        exported = backend.export_abhi(
+            output_path=args.output_path,
+            project=getattr(args, "project", ""),
+            agent_id=getattr(args, "agent_id", ""),
+            session_id=getattr(args, "session_id", ""),
+            scope=getattr(args, "scope", "all"),
+            since_date=getattr(args, "since_date", ""),
+            include_embeddings=bool(getattr(args, "include_embeddings", True)),
+            passphrase=passphrase,
+        )
+        credentials = ensure_drive_credentials(
+            client_secret_path=args.client_secret_path,
+            token_path=_resolve_drive_token_path(args, config),
+            open_browser=bool(getattr(args, "open_browser", True)),
+        )
+        pushed = push_file_to_drive(
+            local_path=exported.output_path,
+            folder_id=str(getattr(args, "folder_id", "") or ""),
+            credentials=credentials,
+            remote_name=str(getattr(args, "remote_name", "") or ""),
+            encrypted=bool(passphrase),
+        )
+        print(json.dumps(pushed.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "pull":
+        _require_drive_sync()
+        passphrase = _resolve_passphrase(args)
+        credentials = ensure_drive_credentials(
+            client_secret_path=args.client_secret_path,
+            token_path=_resolve_drive_token_path(args, config),
+            open_browser=bool(getattr(args, "open_browser", True)),
+        )
+        remote_file_id, remote_name = resolve_drive_file_id(
+            file_ref=args.file_ref,
+            credentials=credentials,
+            folder_id=str(getattr(args, "folder_id", "") or ""),
+        )
+        download_path = Path(getattr(args, "download_path", "") or backend.export_dir / f"{remote_file_id}.abhi")
+        _, resolved_name = download_drive_file(
+            file_id=remote_file_id,
+            destination_path=download_path,
+            credentials=credentials,
+        )
+        local_document = build_abhi_document(backend.get_graph_snapshot())
+        remote_document = load_abhi_document(download_path, passphrase=passphrase)
+        merged_output = Path(getattr(args, "merged_output", "") or backend.export_dir / f"merged-{remote_file_id}.abhi")
+        selected_merge_strategy = getattr(args, "merge_strategy", None) or DEFAULT_ABHI_MERGE_STRATEGY
+        selected_import_strategy = getattr(args, "import_strategy", None) or "skip-existing"
 
+        merged_path = merge_downloaded_abhi(
+            local_document=local_document,
+            remote_document=remote_document,
+            output_path=merged_output,
+            merge_strategy=selected_merge_strategy,
+        )
+        imported = backend.import_abhi(
+            input_path=merged_path,
+            passphrase=passphrase,
+            namespace=getattr(args, "namespace", ""),
+            merge_strategy=selected_import_strategy,
+            verify_signature=bool(getattr(args, "verify_signature", False)),
+            read_only=bool(getattr(args, "read_only", False)),
+            reembed_on_mismatch=bool(getattr(args, "reembed_on_mismatch", False)),
+        )
+        from waggle.models import DrivePullResult
+
+        result = DrivePullResult(
+            remote_file_id=remote_file_id,
+            remote_name=resolved_name or remote_name,
+            downloaded_path=str(download_path),
+            merged_output_path=merged_path,
+            merge_strategy=selected_merge_strategy,
+            nodes_created=imported.nodes_created,
+            nodes_updated=imported.nodes_updated,
+            edges_created=imported.edges_created,
+            edges_updated=imported.edges_updated,
+        )
+        print(json.dumps(result.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "share":
+        _require_drive_sync()
+        credentials = ensure_drive_credentials(
+            client_secret_path=args.client_secret_path,
+            token_path=_resolve_drive_token_path(args, config),
+            open_browser=bool(getattr(args, "open_browser", True)),
+        )
+        remote_file_id, _ = resolve_drive_file_id(
+            file_ref=args.file_ref,
+            credentials=credentials,
+            folder_id=str(getattr(args, "folder_id", "") or ""),
+        )
+        shared = share_drive_file(file_id=remote_file_id, credentials=credentials)
+        print(json.dumps(shared.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "export-context-bundle":
+        exported = backend.export_context_bundle(
+            mode=args.mode,
+            query=args.query,
+            project=args.project,
+            agent_id=getattr(args, "agent_id", ""),
+            session_id=getattr(args, "session_id", ""),
+            max_nodes=args.max_nodes,
+            max_depth=args.max_depth,
+            retrieval_mode=getattr(args, "retrieval_mode", "graph"),
+            format=args.format,
+            output_path=args.output_path,
+            include_edges=args.include_edges,
+            include_timestamps=args.include_timestamps,
+            include_source_prompt=args.include_source_prompt,
+            audience=args.audience,
+        )
+        print(json.dumps(exported.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "export-markdown-vault":
+        exported = backend.export_markdown_vault(
+            root_path=args.root_path,
+            project=getattr(args, "project", ""),
+            agent_id=getattr(args, "agent_id", ""),
+            session_id=getattr(args, "session_id", ""),
+        )
+        print(json.dumps(exported.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "import-markdown-vault":
+        imported = backend.import_markdown_vault(root_path=args.root_path)
+        print(json.dumps(imported.model_dump(mode="json"), indent=2))
+        return 0
+    if args.command == "backfill-windows":
+        from waggle.backfill import backfill_context_windows
+
+        if not isinstance(backend, MemoryGraph):
+            raise ValidationFailure("backfill-windows is currently supported only for the SQLite backend.")
+        stats = backfill_context_windows(backend, dry_run=bool(args.dry_run))
+        print(json.dumps(stats.model_dump(mode="json"), indent=2))
+        return 1 if stats.errors else 0
+    if args.command == "ingest-transcript-handoff":
+        return _run_ingest_transcript_handoff(config, args)
+    if args.command == "features":
+        print(_FEATURES_GUIDE)
+        return 0
+    if args.command == "doctor":
+        return _run_doctor_command(config, args)
+    raise ValidationFailure(f"Unknown command: {args.command}")
