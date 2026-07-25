@@ -153,6 +153,7 @@ from .base import (
     MemoryGraphBase,
     _decode_metadata,
     _encode_metadata,
+    _filter_edges_by_confidence,
     _filter_valid_nodes,
     _normalized_content_hash,
     _parse_datetime,
@@ -221,6 +222,7 @@ class TraversalMixin(MemoryGraphBase):
         retrieval_mode: str = "graph",
         include_invalidated: bool = False,
         as_of: datetime | None = None,
+        min_confidence: float | None = None,
     ) -> SubgraphResult:
         query_text = query.strip()
         if not query_text:
@@ -231,6 +233,8 @@ class TraversalMixin(MemoryGraphBase):
             raise ValueError("max_depth cannot be negative.")
         if expand_depth < 0:
             raise ValueError("expand_depth cannot be negative.")
+        if min_confidence is not None and not (0.0 <= min_confidence <= 1.0):
+            raise ValueError("min_confidence must be between 0.0 and 1.0.")
         normalized_mode = retrieval_mode.strip().lower()
         normalized_mode = {"replay": "verbatim", "fusion": "hybrid"}.get(normalized_mode, normalized_mode)
         # Accept "hybrid_no_rerank" as alias for "hybrid" (reranking is configurable via HybridRetrievalConfig)
@@ -260,6 +264,10 @@ class TraversalMixin(MemoryGraphBase):
                 result.nodes,
                 include_invalidated=include_invalidated,
                 as_of=as_of,
+            )
+            result.edges = _filter_edges_by_confidence(
+                result.edges,
+                min_confidence=min_confidence,
             )
             return result
 
@@ -304,6 +312,10 @@ class TraversalMixin(MemoryGraphBase):
         if normalized_mode == "graph":
             if graph_result.retrieval_mode not in {"tiered", "flat_fallback"}:
                 graph_result.retrieval_mode = "graph"
+            graph_result.edges = _filter_edges_by_confidence(
+                graph_result.edges,
+                min_confidence=min_confidence,
+            )
             return graph_result
         if normalized_mode == "verbatim":
             return SubgraphResult(
@@ -315,7 +327,10 @@ class TraversalMixin(MemoryGraphBase):
         fusion_hits = self._build_fusion_hits(graph_result or SubgraphResult(query=query_text), replay_hits)
         return SubgraphResult(
             nodes=graph_result.nodes if graph_result is not None else [],
-            edges=graph_result.edges if graph_result is not None else [],
+            edges=_filter_edges_by_confidence(
+                graph_result.edges if graph_result is not None else [],
+                min_confidence=min_confidence,
+            ),
             replay_hits=replay_hits,
             fusion_hits=fusion_hits[:max_nodes],
             retrieval_mode="hybrid",

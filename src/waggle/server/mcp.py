@@ -359,6 +359,12 @@ class WaggleServer:
                             "minimum": 0,
                             "description": "Optional support expansion depth. At 1, graph mode may return up to twice max_nodes.",
                         },
+                        "min_confidence": {
+                            "type": "number",
+                            "minimum": 0.0,
+                            "maximum": 1.0,
+                            "description": "Minimum edge confidence (0.0-1.0) required to include an edge. Omit to include all edges regardless of confidence.",
+                        },
                         **_scope_properties(),
                         "retrieval_mode": {
                             "type": "string",
@@ -1489,6 +1495,7 @@ class WaggleServer:
                         retrieval_mode=arguments.get("retrieval_mode", "hybrid"),
                         include_invalidated=bool(arguments.get("include_invalidated", False)),
                         as_of=_as_of,
+                        min_confidence=arguments.get("min_confidence"),
                     )
                     result = self._tool_result(
                         serialize_subgraph(subgraph),

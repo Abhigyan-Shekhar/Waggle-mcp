@@ -213,6 +213,105 @@ def test_add_query_and_related(tmp_path: Path) -> None:
     assert related_labels == {"FastAPI Project", "Python Preference"}
 
 
+def test_query_excludes_edges_below_min_confidence(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    project = graph.add_node(
+        label="FastAPI Project",
+        content="User is building a FastAPI backend service",
+        node_type=NodeType.ENTITY,
+        tags=["backend"],
+    ).node
+    strong_pref = graph.add_node(
+        label="Python Preference",
+        content="User strongly prefers Python for backend work",
+        node_type=NodeType.PREFERENCE,
+    ).node
+    weak_pref = graph.add_node(
+        label="Maybe Rust Preference",
+        content="User once mentioned maybe liking Rust for backend work",
+        node_type=NodeType.PREFERENCE,
+    ).node
+    graph.add_edge(
+        source_id=project.id,
+        target_id=strong_pref.id,
+        relationship=RelationType.RELATES_TO,
+        metadata={"edge_confidence": 0.9},
+    )
+    graph.add_edge(
+        source_id=project.id,
+        target_id=weak_pref.id,
+        relationship=RelationType.RELATES_TO,
+        metadata={"edge_confidence": 0.3},
+    )
+    result = graph.query(
+        query="python backend",
+        max_nodes=5,
+        max_depth=2,
+        min_confidence=0.7,
+    )
+    relationships = [(edge.source_id, edge.target_id) for edge in result.edges]
+    assert (project.id, strong_pref.id) in relationships
+    assert (project.id, weak_pref.id) not in relationships
+
+
+def test_query_includes_all_edges_when_min_confidence_not_set(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    project = graph.add_node(
+        label="FastAPI Project",
+        content="User is building a FastAPI backend service",
+        node_type=NodeType.ENTITY,
+        tags=["backend"],
+    ).node
+    weak_pref = graph.add_node(
+        label="Maybe Rust Preference",
+        content="User once mentioned maybe liking Rust for backend work",
+        node_type=NodeType.PREFERENCE,
+    ).node
+    graph.add_edge(
+        source_id=project.id,
+        target_id=weak_pref.id,
+        relationship=RelationType.RELATES_TO,
+        metadata={"edge_confidence": 0.1},
+    )
+    result = graph.query(query="python backend", max_nodes=5, max_depth=2)
+    relationships = [(edge.source_id, edge.target_id) for edge in result.edges]
+    assert (project.id, weak_pref.id) in relationships
+
+
+def test_query_treats_missing_edge_confidence_as_fully_confident(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    project = graph.add_node(
+        label="FastAPI Project",
+        content="User is building a FastAPI backend service",
+        node_type=NodeType.ENTITY,
+        tags=["backend"],
+    ).node
+    preference = graph.add_node(
+        label="Python Preference",
+        content="User strongly prefers Python for backend work",
+        node_type=NodeType.PREFERENCE,
+    ).node
+    graph.add_edge(
+        source_id=project.id,
+        target_id=preference.id,
+        relationship=RelationType.RELATES_TO,
+    )
+    result = graph.query(
+        query="python backend",
+        max_nodes=5,
+        max_depth=2,
+        min_confidence=0.99,
+    )
+    relationships = [(edge.source_id, edge.target_id) for edge in result.edges]
+    assert (project.id, preference.id) in relationships
+
+
+def test_query_rejects_out_of_range_min_confidence(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    with pytest.raises(ValueError):
+        graph.query(query="anything", min_confidence=1.5)
+
+
 def test_update_delete_and_stats(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
     node = graph.add_node(

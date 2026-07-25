@@ -16,7 +16,7 @@ from typing import Any
 
 from waggle.embeddings import EmbeddingModel
 from waggle.intelligence import normalize_text
-from waggle.models import EvidenceRecord, Node
+from waggle.models import Edge, EvidenceRecord, Node
 
 LOGGER = logging.getLogger(__name__)
 
@@ -424,6 +424,20 @@ def _filter_valid_nodes(
 
     now = datetime.now(UTC)
     return [node for node in nodes if node.valid_to is None or node.valid_to > now]
+
+
+def _filter_edges_by_confidence(
+    edges: list[Edge],
+    *,
+    min_confidence: float | None = None,
+) -> list[Edge]:
+    """Filter *edges* by their stored confidence score.
+    Edges without an explicit ``edge_confidence`` in metadata default to 1.0
+    (fully confident), matching the convention used in abhi export.
+    """
+    if min_confidence is None:
+        return edges
+    return [edge for edge in edges if float(edge.metadata.get("edge_confidence", 1.0)) >= min_confidence]
 
 
 def recency_weight(
