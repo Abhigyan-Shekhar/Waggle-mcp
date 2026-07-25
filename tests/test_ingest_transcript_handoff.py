@@ -11,6 +11,8 @@ Coverage:
 - system and tool messages stored as transcript provenance, excluded from extraction pairing
 - Leading assistant block and trailing user block are transcript-only with correct counts
 - Identical transcript re-run: no new transcript records, no new turns, no duplicate nodes
+- Per-source message-identity manifest matches persisted identities
+- Growing transcript re-ingest re-embeds only new turns, never previously-stored ones
 - Duplicate-node rerun path reports reused rather than creating new nodes
 - Genuine contradiction extraction still succeeds and reports conflicts
 - Empty messages array returns exit code 0, all-zero counts, and export_skipped
@@ -139,6 +141,17 @@ def make_transcript_payload(
         "session_id": session_id,
         "messages": messages,
     }
+
+
+class CountingEmbeddingModel(FakeEmbeddingModel):
+    """Tracks embed() calls so tests can assert unchanged turns are not re-embedded."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def embed(self, text: str) -> np.ndarray:
+        self.calls += 1
+        return super().embed(text)
 
 
 # ---------------------------------------------------------------------------
@@ -413,6 +426,60 @@ class TestIngestTranscriptHandoffBackend:
         assert result2.transcript_records_written == 2
         assert result2.transcript_records_skipped == 2
         assert result2.logical_turns_processed == 1
+
+    def test_message_identity_manifest_reflects_stored_identities(self, tmp_path: Path) -> None:
+        """The per-source manifest returns exactly the identities already persisted for a session."""
+        graph = make_graph(tmp_path)
+        payload = TranscriptIngestionInput(
+            session_id="manifest-session",
+            messages=[
+                TranscriptMessage(role="user", content="Track manifest state.", message_id="m1"),
+                TranscriptMessage(role="assistant", content="Acknowledged.", message_id="m2"),
+            ],
+        )
+        graph.ingest_transcript_handoff(payload, export_format="json", output_path=str(tmp_path / "b1"))
+
+        with graph._pool.checkout() as connection:
+            manifest = graph._load_message_identity_manifest(connection, session_id="manifest-session")
+
+        assert manifest == {"m1", "m2"}
+
+    def test_growing_transcript_reembeds_only_new_turns(self, tmp_path: Path) -> None:
+        """Bulk re-ingest must skip embedding for unchanged turns and embed only new ones."""
+        model = CountingEmbeddingModel()
+        graph = MemoryGraph(tmp_path / "memory.db", model)
+        base_messages = [
+            TranscriptMessage(role="user", content="We use Kafka for events.", message_id="m1"),
+            TranscriptMessage(role="assistant", content="Noted.", message_id="m2"),
+        ]
+        graph.ingest_transcript_handoff(
+            TranscriptIngestionInput(session_id="reembed-session", messages=base_messages),
+            export_format="json",
+            output_path=str(tmp_path / "b1"),
+        )
+        calls_after_first = model.calls
+        assert calls_after_first > 0
+
+        grown_messages = [
+            *base_messages,
+            TranscriptMessage(role="user", content="Also add Redis for cache.", message_id="m3"),
+            TranscriptMessage(role="assistant", content="Noted.", message_id="m4"),
+        ]
+        graph.ingest_transcript_handoff(
+            TranscriptIngestionInput(session_id="reembed-session", messages=grown_messages),
+            export_format="json",
+            output_path=str(tmp_path / "b2"),
+        )
+        calls_after_second = model.calls
+        assert calls_after_second > calls_after_first
+
+        # Re-ingesting the identical grown transcript must not embed anything further.
+        graph.ingest_transcript_handoff(
+            TranscriptIngestionInput(session_id="reembed-session", messages=grown_messages),
+            export_format="json",
+            output_path=str(tmp_path / "b3"),
+        )
+        assert model.calls == calls_after_second
 
     def test_tool_interleaved_evidence_uses_real_transcript_turn_indices(self, tmp_path: Path) -> None:
         graph = make_graph(tmp_path)
