@@ -4,6 +4,7 @@ import Cytoscape from "cytoscape";
 import coseBilkent from "cytoscape-cose-bilkent";
 import { apiRequest, buildScopeQuery } from "./lib/api";
 import { readBootConfig } from "./lib/boot-config";
+import ScrollToTop from "./ScrollToTop";
 import {
   buildExtractionHealth,
   buildFilterBuckets,
@@ -1483,6 +1484,8 @@ export function App() {
 
       <ContextMenu menu={menu} onClose={() => setMenu(null)} onAction={(actionId, nodeId) => handleMenuAction(actionId, nodeId).catch((error) => setToast(error.message))} />
       <EdgeDialog edge={edgeDialog} onCancel={() => setEdgeDialog(null)} onSave={(relationship) => saveEdgeDialog(relationship).catch((error) => setToast(error.message))} />
+    <ScrollToTop />
     </div>
+    
   );
 }
