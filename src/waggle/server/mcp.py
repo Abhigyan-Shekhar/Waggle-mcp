@@ -860,6 +860,16 @@ class WaggleServer:
                             "default": False,
                             "description": "When true, include RELATES_TO edges with edge_confidence < 0.7 that are normally filtered from exports.",
                         },
+                        "strict_export": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "When true, raise DanglingEdgeError on unresolvable dangling edges.",
+                        },
+                        "include_deps": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "When true, automatically pull and include node/edge dependencies to resolve dangling references.",
+                        },
                         **_scope_properties(),
                     }
                 ),
@@ -1761,6 +1771,8 @@ class WaggleServer:
                             agent_id=arguments.get("agent_id", ""),
                             session_id=arguments.get("session_id", ""),
                             include_low_confidence_edges=bool(arguments.get("include_low_confidence_edges", False)),
+                            strict_export=bool(arguments.get("strict_export", False)),
+                            include_deps=bool(arguments.get("include_deps", False)),
                         )
                         edge_filter = exported.export_context.get("edge_filter", {})
                         filter_summary = ""

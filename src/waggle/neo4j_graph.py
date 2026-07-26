@@ -2409,20 +2409,45 @@ def update_node(
         project: str = "",
         agent_id: str = "",
         session_id: str = "",
-        include_embeddings: bool = False,
+        scope: str = "all",
+        since_date: str = "",
+        include_embeddings: bool = True,
         passphrase: str = "",
+        redact_patterns: list[str] | None = None,
+        sign: bool = False,
+        signing_key_dir: str | Path | None = None,
+        include_low_confidence_edges: bool = False,
+        low_confidence_threshold: float = 0.7,
+        strict_export: bool = False,
+        include_deps: bool = False,
     ) -> AbhiExportResult:
         with self._lock, self._session() as session:
             snapshot = self._build_backup_snapshot(session, include_embeddings=include_embeddings)
         snapshot["ui"] = self.get_ui_state(project=project, agent_id=agent_id, session_id=session_id)
-        filtered = filter_snapshot_by_scope(snapshot, project=project, agent_id=agent_id, session_id=session_id)
         if output_path is None:
             self.export_dir.mkdir(parents=True, exist_ok=True)
             timestamp = utc_now().strftime("%Y%m%d-%H%M%S")
             destination = self.export_dir / f"waggle-memory-{timestamp}.abhi"
         else:
             destination = Path(output_path).expanduser()
-        return write_abhi_document(filtered, output_path=destination, passphrase=passphrase)
+        return write_abhi_document(
+            snapshot,
+            output_path=destination,
+            passphrase=passphrase,
+            scope=scope,
+            project=project,
+            agent_id=agent_id,
+            session_id=session_id,
+            since_date=since_date,
+            include_embeddings=include_embeddings,
+            redact_patterns=redact_patterns,
+            sign=sign,
+            signing_key_dir=signing_key_dir,
+            include_low_confidence_edges=include_low_confidence_edges,
+            low_confidence_threshold=low_confidence_threshold,
+            strict_export=strict_export,
+            include_deps=include_deps,
+        )
 
     def get_graph_snapshot(
         self,
