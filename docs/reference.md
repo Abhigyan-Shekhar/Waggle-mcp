@@ -498,19 +498,23 @@ When an API key is presented:
 
 ### Graphify import
 
-To test the Graphify import functionality locally, you can use the following minimal `graph.json` payload. 
+To test the Graphify import functionality locally, you can use the following minimal payload. The API expects the payload to define the `format` alongside the `content`.
 
-**Sample `graph.json`**
+**Sample `import_payload.json`**
 ```json
 {
-  "nodes": [
-    { "id": "node-1", "kind": "Concept", "name": "Authentication" },
-    { "id": "node-2", "kind": "Module", "name": "auth_service.py" }
-  ],
-  "edges": [
-    { "source": "node-1", "target": "node-2", "kind": "ImplementedBy", "confidence": "EXTRACTED" }
-  ]
+  "format": "graphify",
+  "content": {
+    "nodes": [
+      { "id": "node-1", "kind": "Concept", "name": "Authentication" },
+      { "id": "node-2", "kind": "Module", "name": "auth_service.py" }
+    ],
+    "edges": [
+      { "source": "node-1", "target": "node-2", "kind": "ImplementedBy", "confidence": "EXTRACTED" }
+    ]
+  }
 }
+```
 
 #### Mapping Details
 When importing, note how properties are mapped:
@@ -521,21 +525,13 @@ When importing, note how properties are mapped:
   * `AMBIGUOUS` → Low confidence (Requires manual review)
 
 #### Using the HTTP API (cURL)
-You can POST the file directly to the API endpoint:
+You can POST the payload directly to the unified import endpoint:
 ```bash
-curl -X POST http://localhost:8000/api/graph/import-graphify \
+curl -X POST http://localhost:8000/api/graph/import \
   -H "Content-Type: application/json" \
-  -d @graph.json
+  -d @import_payload.json
 ```
 
-#### Expected Response
-Upon a successful import, the server will return a summary of the newly created graph entities:
-```json
-{
-  "nodes_created": 2,
-  "edges_created": 1
-}
-```
 ## Architecture snapshot
 
 ```text
