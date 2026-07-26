@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import secrets
+import sys
 import threading
 import urllib.parse
 import webbrowser
@@ -352,7 +353,14 @@ def _run_local_oauth_flow(
     if open_browser:
         webbrowser.open(auth_url)
     else:
-        raise RuntimeError(f"Open this URL to authorize Waggle Drive access: {auth_url}")
+        print(
+            "\nAuthorize Waggle Drive access by visiting this URL:\n",
+            file=sys.stderr,
+            flush=True,
+        )
+        print(auth_url, file=sys.stderr, flush=True)
+        print("\nWaiting for authorization...\n", file=sys.stderr, flush=True)
+
     thread.join(timeout=300)
     code = code_holder.get("code", "")
     if not code:
