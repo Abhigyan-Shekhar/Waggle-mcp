@@ -4,6 +4,7 @@ import Cytoscape from "cytoscape";
 import coseBilkent from "cytoscape-cose-bilkent";
 import { apiRequest, buildScopeQuery } from "./lib/api";
 import { readBootConfig } from "./lib/boot-config";
+import ScrollToTop from "./ScrollToTop";
 import {
   buildExtractionHealth,
   buildFilterBuckets,
@@ -19,6 +20,7 @@ import {
   summarizeSourcePrompts
 } from "./lib/graph-utils";
 import { SAMPLE_GRAPH_SNAPSHOT, SAMPLE_RETRIEVAL, SAMPLE_TRANSCRIPTS } from "./sample-data";
+import { VirtualList } from "./VirtualList";
 
 Cytoscape.use(coseBilkent);
 
@@ -865,6 +867,14 @@ export function App() {
   const diffPayload = abhiDiff?.payload?.diff || {};
   const nodeDiffRecords = diffPayload.node_records || diffPayload.nodes || [];
   const edgeDiffRecords = diffPayload.edge_records || diffPayload.edges || [];
+
+  const filteredNodeDiffRecords = useMemo(() => {
+    return nodeDiffRecords.filter((record) => record.classification !== "identical");
+  }, [nodeDiffRecords]);
+
+  const filteredEdgeDiffRecords = useMemo(() => {
+    return edgeDiffRecords.filter((record) => record.classification !== "identical");
+  }, [edgeDiffRecords]);
   const diffCount = (records, classification) => records.filter((record) => record.classification === classification).length;
   const legacyDiffCount = (key) => (diffPayload[key] ?? []).length;
   const diffSummaryCount = (records, classification, legacyKey) => {
@@ -1046,52 +1056,56 @@ export function App() {
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-auto p-4 scrollbar-thin">
-                <div className="space-y-3">
-                  {visibleTranscriptRecords.map((record) => {
-                    const pairId = `${record.session_id || "default"}:pair:${Math.floor((record.turn_index || 0) / 2)}`;
-                    const pair = transcriptPairs.find((item) => item.id === pairId);
-                    return (
-                      <div key={`${record.session_id}:${record.turn_index}:${record.role}`} className="rounded-2xl border border-white/8 bg-black/15 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="text-sm font-semibold text-white">{record.role}</div>
-                            <div className="text-xs text-graph-muted">
-                              {record.project || "-"} · {record.agent_id || "-"} · {record.session_id || "-"} · turn {record.turn_index}
-                            </div>
+              <VirtualList
+                items={visibleTranscriptRecords}
+                className="flex-1 overflow-auto p-4 scrollbar-thin"
+                itemKey={(record, index) => record.id || `${record.session_id || "default"}:${record.turn_index || 0}:${record.role || "user"}:${index}`}
+                spacingClass="pb-3"
+                footer={
+                  !transcriptSearch.trim() && transcriptTotalCount > transcriptRecords.length ? (
+                    <div className="flex justify-center pt-2 pb-4">
+                      <button
+                        className="rounded-xl border border-white/10 px-4 py-2 text-sm text-graph-muted hover:text-white"
+                        onClick={() => loadMoreTranscripts().catch((error) => setToast(error.message))}
+                        type="button"
+                      >
+                        Load more ({transcriptRecords.length} of {transcriptTotalCount})
+                      </button>
+                    </div>
+                  ) : null
+                }
+                renderItem={(record) => {
+                  const pairId = `${record.session_id || "default"}:pair:${Math.floor((record.turn_index || 0) / 2)}`;
+                  const pair = transcriptPairs.find((item) => item.id === pairId);
+                  return (
+                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-white">{record.role}</div>
+                          <div className="text-xs text-graph-muted">
+                            {record.project || "-"} · {record.agent_id || "-"} · {record.session_id || "-"} · turn {record.turn_index}
                           </div>
-                          <button
-                            className="rounded-xl border border-white/10 px-3 py-2 text-xs"
-                            onClick={() => {
-                              setHighlightedTurnPairId(pairId);
-                              setActiveTab("graph");
-                              setLayerMode("both");
-                              if (pair?.derivedNodeIds?.[0]) {
-                                setSelectedNodeId(pair.derivedNodeIds[0]);
-                              }
-                            }}
-                            type="button"
-                          >
-                            Show in graph
-                          </button>
                         </div>
-                        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-graph-text">{record.transcript_text || record.transcript_snippet}</p>
+                        <button
+                          className="rounded-xl border border-white/10 px-3 py-2 text-xs"
+                          onClick={() => {
+                            setHighlightedTurnPairId(pairId);
+                            setActiveTab("graph");
+                            setLayerMode("both");
+                            if (pair?.derivedNodeIds?.[0]) {
+                              setSelectedNodeId(pair.derivedNodeIds[0]);
+                            }
+                          }}
+                          type="button"
+                        >
+                          Show in graph
+                        </button>
                       </div>
-                    );
-                  })}
-                </div>
-                {!transcriptSearch.trim() && transcriptTotalCount > transcriptRecords.length ? (
-                  <div className="flex justify-center pt-2 pb-4">
-                    <button
-                      className="rounded-xl border border-white/10 px-4 py-2 text-sm text-graph-muted hover:text-white"
-                      onClick={() => loadMoreTranscripts().catch((error) => setToast(error.message))}
-                      type="button"
-                    >
-                      Load more ({transcriptRecords.length} of {transcriptTotalCount})
-                    </button>
-                  </div>
-                ) : null}
-              </div>
+                      <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-graph-text">{record.transcript_text || record.transcript_snippet}</p>
+                    </div>
+                  );
+                }}
+              />
             </div>
           ) : null}
 
@@ -1109,36 +1123,48 @@ export function App() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
                         <div className="mb-2 text-xs uppercase tracking-[0.16em] text-graph-muted">Graph / vector / recency</div>
-                        <div className="space-y-2">
-                          {(retrievalResult.debug?.flat_top_nodes || []).map((node) => (
-                            <div key={node.node_id} className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
+                        <VirtualList
+                          items={retrievalResult.debug?.flat_top_nodes || []}
+                          className="max-h-64 overflow-auto scrollbar-thin"
+                          itemKey={(node, index) => node.node_id || `node-${index}`}
+                          spacingClass="pb-2"
+                          renderItem={(node) => (
+                            <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
                               <div className="font-medium text-white">{node.label}</div>
                               <div className="mt-1 text-xs text-graph-muted">
                                 final {Number(node.final_score || 0).toFixed(2)} · vector {Number(node.similarity_score || 0).toFixed(2)} · recency {Number(node.recency_score || 0).toFixed(2)}
                               </div>
                             </div>
-                          ))}
-                        </div>
+                          )}
+                        />
                       </div>
                       <div>
                         <div className="mb-2 text-xs uppercase tracking-[0.16em] text-graph-muted">Replay / BM25 hybrid</div>
-                        <div className="space-y-2">
-                          {(retrievalResult.replay_hits || []).map((hit, index) => (
-                            <div key={`${hit.session_id}:${hit.turn_index}:${index}`} className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
+                        <VirtualList
+                          items={retrievalResult.replay_hits || []}
+                          className="max-h-64 overflow-auto scrollbar-thin"
+                          itemKey={(hit, index) => `${hit.session_id}:${hit.turn_index}:${index}`}
+                          spacingClass="pb-2"
+                          renderItem={(hit, index) => (
+                            <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
                               <div className="font-medium text-white">{hit.role}</div>
                               <div className="mt-1 text-xs text-graph-muted">score {Number(hit.score || 0).toFixed(2)} · {hit.session_id} · turn {hit.turn_index}</div>
                               <div className="mt-2 text-sm text-white">{hit.transcript_snippet}</div>
                             </div>
-                          ))}
-                        </div>
+                          )}
+                        />
                       </div>
                     </div>
                   </Section>
 
                   <Section title="RRF fused ranking" extra={<span className="text-sm text-white">{retrievalResult.token_estimate} tokens</span>}>
-                    <div className="space-y-2">
-                      {(retrievalResult.fusion_hits || []).map((hit) => (
-                        <div key={`${hit.fused_rank}:${hit.content}`} className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
+                    <VirtualList
+                      items={retrievalResult.fusion_hits || []}
+                      className="max-h-96 overflow-auto scrollbar-thin"
+                      itemKey={(hit, index) => `${hit.fused_rank ?? ""}:${hit.content ?? ""}:${index}`}
+                      spacingClass="pb-2"
+                      renderItem={(hit) => (
+                        <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
                           <div className="font-medium text-white">
                             #{hit.fused_rank} {hit.content}
                           </div>
@@ -1147,21 +1173,25 @@ export function App() {
                           </div>
                           <div className="mt-2 text-sm text-white">{hit.reasoning}</div>
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    />
                   </Section>
 
                   <Section title="Window routing">
-                    <div className="space-y-2">
-                      {(retrievalResult.debug?.all_windows || []).map((window) => (
-                        <div key={window.window_id} className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
+                    <VirtualList
+                      items={retrievalResult.debug?.all_windows || []}
+                      className="max-h-64 overflow-auto scrollbar-thin"
+                      itemKey={(window, index) => window.window_id || `window-${index}`}
+                      spacingClass="pb-2"
+                      renderItem={(window) => (
+                        <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-sm">
                           <div className="font-medium text-white">{window.title || window.session_id}</div>
                           <div className="mt-1 text-xs text-graph-muted">
                             route {Number(window.routing_score || 0).toFixed(2)} · similarity {Number(window.similarity || 0).toFixed(2)} · recency {Number(window.recency || 0).toFixed(2)}
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    />
                   </Section>
                 </div>
               ) : null}
@@ -1219,9 +1249,13 @@ export function App() {
                   <div className="mt-4 grid gap-4 lg:grid-cols-2">
                     <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Node changes</div>
-                      <div className="mt-3 max-h-72 space-y-2 overflow-auto scrollbar-thin">
-                        {nodeDiffRecords.filter((record) => record.classification !== "identical").map((record) => (
-                          <div key={record.node_id || record.id} className="rounded-xl border border-white/8 bg-black/15 p-3 text-xs">
+                      <VirtualList
+                        items={filteredNodeDiffRecords}
+                        className="mt-3 max-h-72 overflow-auto scrollbar-thin"
+                        itemKey={(record, index) => record.node_id || record.id || `node-diff-${index}`}
+                        spacingClass="pb-2"
+                        renderItem={(record) => (
+                          <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-xs">
                             <div className="font-medium text-white">{record.node_id || record.id}</div>
                             <div className="mt-1 text-graph-muted">{record.classification}</div>
                             {(record.deltas || []).map((delta) => (
@@ -1232,15 +1266,19 @@ export function App() {
                               </div>
                             ))}
                           </div>
-                        ))}
-                      </div>
+                        )}
+                      />
                     </div>
 
                     <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
                       <div className="text-xs uppercase tracking-[0.16em] text-graph-muted">Edge changes</div>
-                      <div className="mt-3 max-h-72 space-y-2 overflow-auto scrollbar-thin">
-                        {edgeDiffRecords.filter((record) => record.classification !== "identical").map((record) => (
-                          <div key={record.edge_id || record.id} className="rounded-xl border border-white/8 bg-black/15 p-3 text-xs">
+                      <VirtualList
+                        items={filteredEdgeDiffRecords}
+                        className="mt-3 max-h-72 overflow-auto scrollbar-thin"
+                        itemKey={(record, index) => record.edge_id || record.id || `edge-diff-${index}`}
+                        spacingClass="pb-2"
+                        renderItem={(record) => (
+                          <div className="rounded-xl border border-white/8 bg-black/15 p-3 text-xs">
                             <div className="font-medium text-white">{record.edge_id || record.id}</div>
                             <div className="mt-1 text-graph-muted">{record.classification}</div>
                             {(record.deltas || []).map((delta) => (
@@ -1251,8 +1289,8 @@ export function App() {
                               </div>
                             ))}
                           </div>
-                        ))}
-                      </div>
+                        )}
+                      />
                     </div>
                   </div>
                 ) : null}
@@ -1408,6 +1446,15 @@ export function App() {
                     <div key={node.id}>{node.label}</div>
                   ))}
                 </div>
+                {!boot.sampleMode && !readOnly ? (
+                  <button
+                    className="mt-3 w-full rounded-xl bg-white px-3 py-2 text-sm font-medium text-black"
+                    onClick={() => commitImport().catch((error) => setToast(error.message))}
+                    type="button"
+                  >
+                    Commit import
+                  </button>
+                ) : null}
               </div>
             ) : null}
 
@@ -1437,6 +1484,8 @@ export function App() {
 
       <ContextMenu menu={menu} onClose={() => setMenu(null)} onAction={(actionId, nodeId) => handleMenuAction(actionId, nodeId).catch((error) => setToast(error.message))} />
       <EdgeDialog edge={edgeDialog} onCancel={() => setEdgeDialog(null)} onSave={(relationship) => saveEdgeDialog(relationship).catch((error) => setToast(error.message))} />
+    <ScrollToTop />
     </div>
+    
   );
 }

@@ -98,6 +98,20 @@ def test_codex_plugin_versions_match_and_do_not_regress() -> None:
     assert _version_tuple(versions[0]) >= minimum_published_plugin_version
 
 
+def test_codex_release_docs_record_intentional_version_split_and_unsigned_policy() -> None:
+    codex_guide = (ROOT / "docs" / "install" / "codex.md").read_text()
+    runtime_guide = (ROOT / "docs" / "codex-plugin-runtime.md").read_text()
+    checklist = (ROOT / "docs" / "install" / "codex-marketplace-release-checklist.md").read_text()
+
+    for text in [codex_guide, runtime_guide, checklist]:
+        assert "0.1.1" in text
+        assert "v0.1.17" in text
+
+    assert "intentionally unsigned" in codex_guide
+    assert "intentionally unsigned" in runtime_guide
+    assert "not release blockers" in checklist
+
+
 def _extract_toml_fence(markdown: str, *, expected_table: str) -> str:
     for match in re.finditer(r"```toml\n(.*?)\n```", markdown, re.DOTALL):
         block = match.group(1)
