@@ -1087,7 +1087,7 @@ def test_export_abhi_tool_refuses_node_secret_without_force(tmp_path: Path) -> N
 
     assert refused.isError is True
     assert "appear to contain secrets" in refused.content[0].text
-    assert "node:content" in refused.content[0].text    
+    assert "node:content" in refused.content[0].text
 
 
 def test_export_abhi_tool_allows_false_positive_adjacent_text_without_force(tmp_path: Path) -> None:

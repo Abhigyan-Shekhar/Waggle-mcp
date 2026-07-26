@@ -211,8 +211,6 @@ def _scan_export_transcripts_for_secrets(
             if match is None:
                 continue
 
-            secret = match.group(0)
-
             preview = text
             for _, redact_pattern in _EXPORT_SECRET_PATTERNS:
                 preview = redact_pattern.sub("[REDACTED]", preview)
