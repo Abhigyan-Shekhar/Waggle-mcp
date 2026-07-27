@@ -59,6 +59,16 @@ def make_graph(tmp_path: Path) -> MemoryGraph:
     return MemoryGraph(tmp_path / "memory.db", FakeEmbeddingModel())
 
 
+def test_memory_graph_refuses_corrupted_database_before_mutating(tmp_path: Path) -> None:
+    db_path = tmp_path / "memory.db"
+    db_path.write_bytes(b"not a sqlite database")
+
+    with pytest.raises(ValidationFailure, match="failed SQLite integrity validation"):
+        MemoryGraph(db_path, FakeEmbeddingModel())
+
+    assert db_path.read_bytes() == b"not a sqlite database"
+
+
 def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -2290,6 +2300,78 @@ def test_malformed_cached_communities_treats_as_miss(tmp_path: Path, monkeypatch
     graph.get_topics()
     # Should have recomputed despite communities_stale being 0
     assert calls == 1
+
+
+def test_update_edge_invalidates_communities_cache(tmp_path: Path) -> None:
+    """Test that update_edge marks communities as stale."""
+    graph = make_graph(tmp_path)
+    n1 = graph.add_node(label="N1", content="Content 1", node_type=NodeType.ENTITY).node
+    n2 = graph.add_node(label="N2", content="Content 2", node_type=NodeType.ENTITY).node
+    edge = graph.add_edge(source_id=n1.id, target_id=n2.id, relationship="relates_to")
+
+    graph.get_topics()
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 0
+
+    graph.update_edge(edge_id=edge.id, weight=0.5)
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 1
+
+
+def test_delete_edge_invalidates_communities_cache(tmp_path: Path) -> None:
+    """Test that delete_edge marks communities as stale."""
+    graph = make_graph(tmp_path)
+    n1 = graph.add_node(label="N1", content="Content 1", node_type=NodeType.ENTITY).node
+    n2 = graph.add_node(label="N2", content="Content 2", node_type=NodeType.ENTITY).node
+    edge = graph.add_edge(source_id=n1.id, target_id=n2.id, relationship="relates_to")
+
+    graph.get_topics()
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 0
+
+    graph.delete_edge(edge_id=edge.id)
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 1
+
+
+def test_resolve_conflict_invalidates_communities_cache(tmp_path: Path) -> None:
+    """Test that resolve_conflict marks communities as stale."""
+    graph = make_graph(tmp_path)
+    n1 = graph.add_node(label="N1", content="Content 1", node_type=NodeType.ENTITY).node
+    n2 = graph.add_node(label="N2", content="Content 2", node_type=NodeType.ENTITY).node
+    edge = graph.add_edge(source_id=n1.id, target_id=n2.id, relationship="contradicts")
+
+    graph.get_topics()
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 0
+
+    graph.resolve_conflict(edge_id=edge.id, winner=n1.id)
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 1
 
 
 def test_observe_conversation_round_trip_stamps_transcript_embeddings_and_turn_pairs(

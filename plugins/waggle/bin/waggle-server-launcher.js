@@ -13,20 +13,49 @@ const TARGETS = {
   "win32:x64": ["win32-x86_64", "waggle-server.exe"],
 };
 
+function pluginRoot() {
+  return path.resolve(__dirname, "..");
+}
+
+function pluginVersion() {
+  try {
+    const manifestPath = path.join(pluginRoot(), ".codex-plugin", "plugin.json");
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    return manifest.version || "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+function diagnosticLines(extraLines = []) {
+  return [
+    `platform=${process.platform}`,
+    `arch=${process.arch}`,
+    `pluginVersion=${pluginVersion()}`,
+    `dbPath=${process.env.WAGGLE_DB_PATH || "~/.waggle/waggle.db"}`,
+    ...extraLines,
+  ];
+}
+
 function resolveBinary() {
   const target = TARGETS[`${process.platform}:${process.arch}`];
   if (!target) {
-    throw new Error(`Unsupported Waggle bundled runtime target: ${process.platform}/${process.arch}`);
+    throw new Error(
+      [
+        `Unsupported Waggle bundled runtime target: ${process.platform}/${process.arch}`,
+        ...diagnosticLines(),
+      ].join("\n")
+    );
   }
 
-  const pluginRoot = path.resolve(__dirname, "..");
-  const binaryPath = path.join(pluginRoot, "runtime", target[0], target[1]);
+  const binaryPath = path.join(pluginRoot(), "runtime", target[0], target[1]);
   if (!fs.existsSync(binaryPath)) {
     throw new Error(
       [
         `Missing bundled Waggle server binary for ${target[0]}.`,
         `Expected: ${binaryPath}`,
         "Upgrade or reinstall the Waggle Codex plugin. This plugin does not use waggle-mcp from PATH.",
+        ...diagnosticLines([`target=${target[0]}`]),
       ].join("\n")
     );
   }
@@ -57,7 +86,15 @@ function main() {
   });
 
   child.on("error", (error) => {
-    console.error(`Failed to launch bundled Waggle server: ${error.message}`);
+    console.error(
+      [
+        `Failed to launch bundled Waggle server: ${error.message}`,
+        ...diagnosticLines([
+          `binaryPath=${binaryPath}`,
+          `args=${JSON.stringify(process.argv.slice(2))}`,
+        ]),
+      ].join("\n")
+    );
     process.exit(78);
   });
 
@@ -65,6 +102,18 @@ function main() {
     if (signal) {
       process.kill(process.pid, signal);
       return;
+    }
+    if (code !== 0) {
+      console.error(
+        [
+          "Bundled Waggle server exited unsuccessfully.",
+          ...diagnosticLines([
+            `binaryPath=${binaryPath}`,
+            `args=${JSON.stringify(process.argv.slice(2))}`,
+            `exitCode=${code === null ? "null" : code}`,
+          ]),
+        ].join("\n")
+      );
     }
     process.exit(code === null ? 1 : code);
   });
