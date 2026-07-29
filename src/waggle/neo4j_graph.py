@@ -556,7 +556,7 @@ class Neo4jMemoryGraph:
         dry_run: bool = False,
     ) -> ClearScopeResult:
         result = ClearScopeResult(scope=scope, project=project, session_id=session_id, dry_run=dry_run)
-        
+
         params = {"tenant_id": self.tenant_id}
         if scope == "all":
             match_clause = "WHERE n.tenant_id = $tenant_id"
@@ -586,22 +586,22 @@ class Neo4jMemoryGraph:
             f"MATCH (n:MemoryNode)-[r:MEMORY_EDGE]-() {match_clause} RETURN count(DISTINCT r) AS count", **params
         ).single()
         result.deleted_edges = edge_count["count"] if edge_count else 0
-        
+
         transcript_count = session.run(
             f"MATCH (t:MemoryTranscript) {transcript_clause} RETURN count(t) AS count", **params
         ).single()
         result.deleted_transcripts = transcript_count["count"] if transcript_count else 0
-        
+
         ui_count = session.run(
             f"MATCH (ui:GraphUIState) {ui_clause} RETURN count(ui) AS count", **params
         ).single()
         result.deleted_graph_ui_rows = ui_count["count"] if ui_count else 0
-        
+
         if not dry_run:
             session.run(f"MATCH (ui:GraphUIState) {ui_clause} DETACH DELETE ui", **params).consume()
             session.run(f"MATCH (t:MemoryTranscript) {transcript_clause} DETACH DELETE t", **params).consume()
             session.run(f"MATCH (n:MemoryNode) {match_clause} DETACH DELETE n", **params).consume()
-            
+
         return result
 
     def emit_audit_event(
