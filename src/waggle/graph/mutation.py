@@ -144,6 +144,7 @@ class MutationMixin(MemoryGraphBase):
                             (merged_node.context_window_id, self.tenant_id, merged_node.id),
                         )
                         self._mark_window_embedding_stale(active_connection, merged_node.context_window_id)
+                    self._mark_communities_stale(active_connection)
                     self.emit_audit_event(
                         event_type="graph.node.updated",
                         resource_type="node",
@@ -201,6 +202,7 @@ class MutationMixin(MemoryGraphBase):
             )
             self._mark_window_embedding_stale(active_connection, resolved_context_window_id)
             self._update_window_node_count(active_connection, resolved_context_window_id)
+            self._mark_communities_stale(active_connection)
             conflicts = self._register_conflicts(active_connection, node) if self.enable_dedup else []
             self.emit_audit_event(
                 event_type="graph.node.created",
@@ -280,6 +282,7 @@ class MutationMixin(MemoryGraphBase):
                     edge.created_at.isoformat(),
                 ),
             )
+            self._mark_communities_stale(active_connection)
             if edge.relationship in {RelationType.UPDATES.value, RelationType.CONTRADICTS.value}:
                 self._mark_node_superseded(
                     active_connection, old_node=target_node, new_node=source_node, relationship=edge.relationship
@@ -401,6 +404,7 @@ class MutationMixin(MemoryGraphBase):
                     new_node=self.get_node(edge.source_id),
                     relationship=edge.relationship,
                 )
+            self._mark_communities_stale(connection)
 
             updated_edge = Edge(
                 id=edge.id,
@@ -547,6 +551,8 @@ class MutationMixin(MemoryGraphBase):
             elif content is not None and resolved_context_window_id:
                 self._mark_window_embedding_stale(connection, resolved_context_window_id)
 
+            self._mark_communities_stale(connection)
+
             self.emit_audit_event(
                 event_type="graph.node.updated",
                 resource_type="node",
@@ -613,6 +619,7 @@ class MutationMixin(MemoryGraphBase):
                 self._mark_node_superseded(
                     connection, old_node=target_node, new_node=source_node, relationship=updated_edge.relationship
                 )
+            self._mark_communities_stale(connection)
             self.emit_audit_event(
                 event_type="graph.relationship.updated",
                 resource_type="edge",
@@ -630,6 +637,7 @@ class MutationMixin(MemoryGraphBase):
                 raise ValueError(f"Edge not found: {edge_id}")
             edge = self._row_to_edge(row)
             connection.execute("DELETE FROM edges WHERE id = ? AND tenant_id = ?", (edge_id, self.tenant_id))
+            self._mark_communities_stale(connection)
             self.emit_audit_event(
                 event_type="graph.relationship.deleted",
                 resource_type="edge",
@@ -654,6 +662,7 @@ class MutationMixin(MemoryGraphBase):
             if node.context_window_id:
                 self._mark_window_embedding_stale(connection, node.context_window_id)
                 self._update_window_node_count(connection, node.context_window_id)
+            self._mark_communities_stale(connection)
             self.emit_audit_event(
                 event_type="graph.node.deleted",
                 resource_type="node",
@@ -910,6 +919,9 @@ class MutationMixin(MemoryGraphBase):
                 )
         elif scope == "all":
             result.deleted_repos = len(repo_ids)
+
+        if not dry_run and (result.deleted_nodes > 0 or result.deleted_edges > 0):
+            self._mark_communities_stale(connection)
 
         return result
 
@@ -1337,6 +1349,8 @@ class MutationMixin(MemoryGraphBase):
                 (canonical_id, self.tenant_id),
             ).fetchone()
             updated_canonical = self._row_to_node(updated_row)
+            if merged_ids:
+                self._mark_communities_stale(connection)
 
         return CanonicalizeResult(
             canonical_node=updated_canonical,
@@ -1623,7 +1637,10 @@ class MutationMixin(MemoryGraphBase):
             """,
             (self.tenant_id, source_id, target_id, normalize_relationship(relationship)),
         )
-        return int(cursor.rowcount or 0) > 0
+        deleted = int(cursor.rowcount or 0) > 0
+        if deleted:
+            self._mark_communities_stale(connection)
+        return deleted
 
     def _find_existing_edge(
         self,

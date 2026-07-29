@@ -772,7 +772,15 @@ class WaggleServer:
                     "Note: scope filtering (project, agent_id, session_id) is optional and silently ignored — "
                     "topic detection always runs across the full tenant graph."
                 ),
-                inputSchema=_object_input_schema(_scope_properties()),
+                inputSchema=_object_input_schema(
+                    {
+                        **_scope_properties(),
+                        "force_recompute": {
+                            "type": "boolean",
+                            "description": "Bypass cached topic partition and force full recomputation.",
+                        },
+                    }
+                ),
             ),
             types.Tool(
                 name="get_stats",
@@ -859,6 +867,16 @@ class WaggleServer:
                             "type": "boolean",
                             "default": False,
                             "description": "When true, include RELATES_TO edges with edge_confidence < 0.7 that are normally filtered from exports.",
+                        },
+                        "strict_export": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "When true, raise DanglingEdgeError on unresolvable dangling edges.",
+                        },
+                        "include_deps": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "When true, automatically pull and include node/edge dependencies to resolve dangling references.",
                         },
                         **_scope_properties(),
                     }
@@ -1660,7 +1678,8 @@ class WaggleServer:
                         serialize_prime_context(context_result), self._prime_context_payload(context_result)
                     )
                 elif name == "get_topics":
-                    topics = graph.get_topics()
+                    force_recompute = bool(arguments.get("force_recompute", False))
+                    topics = graph.get_topics(force_recompute=force_recompute)
                     result = self._tool_result(serialize_topics(topics), self._topic_payload(topics))
                 elif name == "get_stats":
                     stats = graph.get_stats()
@@ -1761,6 +1780,8 @@ class WaggleServer:
                             agent_id=arguments.get("agent_id", ""),
                             session_id=arguments.get("session_id", ""),
                             include_low_confidence_edges=bool(arguments.get("include_low_confidence_edges", False)),
+                            strict_export=bool(arguments.get("strict_export", False)),
+                            include_deps=bool(arguments.get("include_deps", False)),
                         )
                         edge_filter = exported.export_context.get("edge_filter", {})
                         filter_summary = ""
