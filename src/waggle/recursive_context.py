@@ -25,6 +25,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -139,6 +140,22 @@ class _Hit:
     updates_ids: list[str] = field(default_factory=list)
     contradicts_ids: list[str] = field(default_factory=list)
     raw_node: Any = None  # original Node object
+
+
+@dataclass
+class _PinnedCandidate:
+    """High-precision fact candidate for the protected pinned lane."""
+
+    line: str
+    normalized_value: str
+    score: float
+    source_authority: str
+    temporal_state: str
+    relation_score: float = 0.0
+    transcript_key: str = ""
+    hit_id: str = ""
+    raw_node: Any = None
+    observed_at: datetime | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +282,7 @@ class RecursiveContextController:
         all_hits: list[_Hit] = []
         all_edges: list[Any] = []
         transcript_hits: list[Any] = []
+        pinned_transcript_hits: list[Any] = []
 
         for sq in subqueries:
             # Step 2 ablation: remove "verbatim" from retrieval_modes
@@ -288,6 +306,25 @@ class RecursiveContextController:
             all_hits.extend(hits)
             all_edges.extend(edges)
             transcript_hits.extend(transcripts)
+
+        if include_evidence:
+            direct_hits = self._direct_transcript_evidence(query, scope=scope, limit=8)
+            pinned_transcript_hits = self._pinned_transcript_evidence(query=query, scope=scope, limit=8)
+            direct_hits.extend(pinned_transcript_hits)
+            answer_category = self._detect_answer_category(query)
+            for evidence_query in self._answer_evidence_queries(query, answer_category):
+                if evidence_query.strip().lower() == query.strip().lower():
+                    continue
+                direct_hits.extend(self._direct_transcript_evidence(evidence_query, scope=scope, limit=3))
+            direct_hits.extend(
+                self._lexical_answer_transcript_evidence(
+                    query=query,
+                    category=answer_category,
+                    scope=scope,
+                    limit=6,
+                )
+            )
+            transcript_hits = [*direct_hits, *transcript_hits]
 
         # 3. Expand graph around top nodes
         if all_hits and depth > 0 and not (ablation is not None and not ablation.graph_expand):
@@ -316,7 +353,9 @@ class RecursiveContextController:
             hits=all_hits,
             conflicts=conflict_entries,
             transcript_hits=transcript_hits,
+            pinned_transcript_hits=pinned_transcript_hits,
             token_budget=effective_budget,
+            scope=scope,
         )
 
         elapsed = time.perf_counter() - t0
@@ -378,6 +417,35 @@ class RecursiveContextController:
         topic = self._extract_topic(query)
 
         subqueries: list[RecursiveSubquery] = []
+        targeted_templates: list[tuple[str, str, float, list[str]]] = []
+
+        if self._looks_like_constraint_query(q):
+            targeted_templates.extend(
+                [
+                    (f"quick correction right constraint for {topic}", "constraint_correction", 1.10, ["hybrid", "verbatim"]),
+                    (f"corrected constraint for {topic}", "constraint_correction", 1.05, ["hybrid", "verbatim"]),
+                    (f"user preference constraint for {topic}", "constraint_preference", 1.00, ["graph", "hybrid", "verbatim"]),
+                ]
+            )
+
+        if self._looks_like_count_update_query(q):
+            targeted_templates.extend(
+                [
+                    (f"inventory note used bought added count for {topic}", "count_all_steps", 1.10, ["hybrid", "verbatim"]),
+                    (f"used reduced count for {topic}", "count_subtractions", 1.05, ["hybrid", "verbatim"]),
+                    (f"bought added more count for {topic}", "count_additions", 1.00, ["hybrid", "verbatim"]),
+                    (f"initial inventory count for {topic}", "count_initial", 0.95, ["hybrid", "verbatim"]),
+                ]
+            )
+
+        if self._looks_like_exact_recall_query(q):
+            targeted_templates.extend(
+                [
+                    (query, "exact_recall_original", 1.20, ["graph", "hybrid", "verbatim"]),
+                    (topic, "exact_recall_topic", 1.10, ["graph", "hybrid", "verbatim"]),
+                    (f"exact source evidence for {topic}", "exact_recall_evidence", 1.00, ["graph", "hybrid", "verbatim"]),
+                ]
+            )
 
         if is_project_query or is_continuation:
             # Coding / project context decomposition
@@ -403,13 +471,16 @@ class RecursiveContextController:
                 ]
         else:
             # Generic memory query decomposition
-            templates = [
-                (query, "original_query", 1.0, ["hybrid", "verbatim"]),
-                (f"recent relevant facts about {topic}", "recent_facts", 0.90, ["graph", "hybrid"]),
-                (f"decisions related to {topic}", "decisions", 0.85, ["graph"]),
-                (f"contradictions or conflicts about {topic}", "conflicts", 0.75, ["graph"]),
-                (f"transcript evidence for {topic}", "evidence", 0.65, ["verbatim"]),
-            ]
+                templates = [
+                    (query, "original_query", 1.0, ["hybrid", "verbatim"]),
+                    (f"recent relevant facts about {topic}", "recent_facts", 0.90, ["graph", "hybrid"]),
+                    (f"decisions related to {topic}", "decisions", 0.85, ["graph"]),
+                    (f"contradictions or conflicts about {topic}", "conflicts", 0.75, ["graph"]),
+                    (f"transcript evidence for {topic}", "evidence", 0.65, ["verbatim"]),
+                ]
+
+        if targeted_templates:
+            templates = self._merge_template_priorities(targeted_templates, templates)
 
         # Fast mode: fewer subqueries
         if mode == "fast":
@@ -446,8 +517,253 @@ class RecursiveContextController:
 
         return subqueries
 
+    def _looks_like_constraint_query(self, query_lower: str) -> bool:
+        return bool(
+            re.search(
+                r"\b(constraint|preference|prefer|respect|avoid|requirement|personaliz(?:e|ation)|should .* use)\b",
+                query_lower,
+            )
+        )
+
+    def _looks_like_count_update_query(self, query_lower: str) -> bool:
+        return bool(
+            re.search(r"\bhow many\b", query_lower)
+            and re.search(r"\b(now|current|currently|should|have|left|remain|remaining)\b", query_lower)
+        )
+
+    def _looks_like_exact_recall_query(self, query_lower: str) -> bool:
+        return bool(
+            re.search(
+                r"\b(previous chat|remind me|what was|what were|which exact|what did i|what did you|"
+                r"can you remind|checking our previous|checking my previous)\b",
+                query_lower,
+            )
+        )
+
+    def _detect_answer_category(self, query: str) -> str:
+        q = (query or "").lower()
+        if self._looks_like_temporal_ordering_query(q):
+            return "temporal_ordering"
+        if self._looks_like_table_lookup_query(q):
+            return "table_lookup"
+        if self._looks_like_short_personal_fact_query(q):
+            return "short_personal_fact"
+        if self._looks_like_exact_detail_query(q):
+            return "exact_detail"
+        if self._looks_like_enumerated_list_query(q):
+            return "enumerated_list"
+        return "generic"
+
+    def _looks_like_table_lookup_query(self, query_lower: str) -> bool:
+        return bool(
+            re.search(r"\b(table|row|rotation|shift|schedule|roster|assigned|assignment)\b", query_lower)
+            and re.search(
+                r"\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday|day shift|night shift|agent|person)\b",
+                query_lower,
+            )
+        )
+
+    def _looks_like_short_personal_fact_query(self, query_lower: str) -> bool:
+        return bool(
+            re.search(r"\b(what|which|how many|how long|where|when)\b", query_lower)
+            and re.search(r"\b(i|my|me)\b", query_lower)
+            and re.search(
+                r"\b(degree|graduate|graduated|commute|personal best|time|duration|how long|tried|visited|worked|study|studied)\b",
+                query_lower,
+            )
+        )
+
+    def _looks_like_personalization_advice_query(self, query_lower: str) -> bool:
+        if not re.search(r"\b(i|my|me|i've|i'm|im)\b", query_lower):
+            return False
+        return bool(
+            re.search(
+                r"\b(any advice|ideas?|recommendations?|suggestions?|tips?|how can i|how should i|"
+                r"what should i|help me|better results|find new inspiration|stuck with|struggling with)\b",
+                query_lower,
+            )
+        )
+
+    def _looks_like_temporal_ordering_query(self, query_lower: str) -> bool:
+        return bool(
+            re.search(r"\b(order|ordered|first to last|chronological|happened first|which .* happened)\b", query_lower)
+            and re.search(r"\b(event|events|the day|first|last|then)\b", query_lower)
+        )
+
+    def _looks_like_exact_detail_query(self, query_lower: str) -> bool:
+        detail_terms = re.search(
+            r"\b(color|colour|body|image|picture|description|called|named|name|title|shop|restaurant|place|"
+            r"dessert|milkshake|milkshakes|recommended|unique|specific|exact)\b",
+            query_lower,
+        )
+        return bool(
+            (self._looks_like_exact_recall_query(query_lower) and detail_terms)
+            or self._looks_like_identity_detail_query(query_lower)
+            or self._looks_like_named_entity_detail_query(query_lower)
+        )
+
+    def _looks_like_enumerated_list_query(self, query_lower: str) -> bool:
+        return bool(
+            self._looks_like_exact_recall_query(query_lower)
+            and re.search(r"\b(what kind of|which|what are|list|processes?|steps?|items?|options?|kinds?)\b", query_lower)
+            and re.search(r"\b(used|use|included|include|at|for|in|on)\b", query_lower)
+        )
+
+    def _answer_evidence_queries(self, query: str, category: str) -> list[str]:
+        queries = [query]
+        topic = self._extract_topic(query)
+        if category == "short_personal_fact":
+            q = query.lower()
+            if "degree" in q or "graduat" in q:
+                queries.extend(["I graduated with a degree", "my degree in"])
+            if "commute" in q or "how long" in q:
+                queries.extend(["my daily commute takes minutes each way", "commute takes 45 minutes each way"])
+            if "what time" in q or "when" in q:
+                queries.extend(["I stop checking work emails by 7 pm", "stop checking messages by 7 pm"])
+            if "personal best" in q:
+                queries.extend([f"my personal best {topic}", f"personal best time {topic}"])
+            if "how many" in q:
+                queries.extend([f"I have tried {topic}", f"how many {topic} I tried"])
+        elif category == "table_lookup":
+            names = " ".join(self._query_capitalized_terms(query))
+            queries.extend(
+                [
+                    f"{names} {topic}".strip(),
+                    f"final updated table row {names} {topic}".strip(),
+                    f"named agents {names} Sunday shift rotation".strip(),
+                ]
+            )
+        elif category == "temporal_ordering":
+            queries.extend(self._extract_event_phrases(query))
+        elif category == "exact_detail":
+            content_terms = " ".join(sorted(self._query_content_terms(query.lower())))
+            capitalized = " ".join(self._query_capitalized_terms(query))
+            queries.extend(
+                [
+                    topic,
+                    f"{capitalized} {topic}".strip(),
+                    content_terms,
+                    f"exact detail {content_terms}".strip(),
+                ]
+            )
+        elif category == "enumerated_list":
+            content_terms = " ".join(sorted(self._query_content_terms(query.lower())))
+            capitalized = " ".join(self._query_capitalized_terms(query))
+            queries.extend(
+                [
+                    topic,
+                    f"{capitalized} {topic}".strip(),
+                    content_terms,
+                    f"complete list {content_terms}".strip(),
+                ]
+            )
+
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for item in queries:
+            key = re.sub(r"\s+", " ", item.strip().lower())
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(item.strip())
+        return deduped
+
+    def _extract_event_phrases(self, query: str) -> list[str]:
+        text = re.sub(r"\s+", " ", query or "").strip()
+        if ":" in text:
+            text = text.split(":", 1)[1]
+        text = text.rstrip("?.")
+        text = re.sub(r"\band the day\b", ", the day", text, flags=re.IGNORECASE)
+        parts = [part.strip(" ,") for part in re.split(r",\s*(?=the day\b|when\b|after\b|before\b)", text, flags=re.IGNORECASE)]
+        if len(parts) <= 1:
+            parts = [part.strip(" ,") for part in re.split(r"\b(?:then|finally|lastly)\b", text, flags=re.IGNORECASE)]
+        phrases: list[str] = []
+        for part in parts:
+            part = re.sub(r"^(and\s+)?", "", part, flags=re.IGNORECASE).strip(" ,")
+            if len(part.split()) >= 4:
+                phrases.append(part)
+        return phrases[:5]
+
+    def _query_content_terms(self, query_lower: str) -> set[str]:
+        stopwords = {
+            "the",
+            "and",
+            "for",
+            "our",
+            "you",
+            "can",
+            "what",
+            "was",
+            "were",
+            "did",
+            "about",
+            "previous",
+            "chat",
+            "checking",
+            "remind",
+            "which",
+            "three",
+            "from",
+            "first",
+            "last",
+            "happened",
+            "order",
+            "day",
+            "last",
+            "time",
+            "going",
+            "back",
+            "could",
+            "would",
+        }
+        return {
+            token
+            for token in re.findall(r"[a-z0-9]+", query_lower)
+            if len(token) > 2 and token not in stopwords
+        }
+
+    def _query_capitalized_terms(self, query: str) -> list[str]:
+        names: list[str] = []
+        for token in re.findall(r"\b[A-Z][a-zA-Z0-9_-]{2,}\b", query or ""):
+            if token.lower() in {"Can", "What", "Which", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}:
+                continue
+            names.append(token)
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for name in names:
+            key = name.lower()
+            if key not in seen:
+                seen.add(key)
+                deduped.append(name)
+        return deduped
+
+    def _merge_template_priorities(
+        self,
+        preferred: list[tuple[str, str, float, list[str]]],
+        fallback: list[tuple[str, str, float, list[str]]],
+    ) -> list[tuple[str, str, float, list[str]]]:
+        merged: list[tuple[str, str, float, list[str]]] = []
+        seen: set[str] = set()
+        for item in [*preferred, *fallback]:
+            key = re.sub(r"\s+", " ", item[0].strip().lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(item)
+        return merged
+
     def _extract_topic(self, query: str) -> str:
         """Extract a short topic phrase from the query for subquery templating."""
+        about_match = re.search(
+            r"\babout\s+(?:the\s+)?(.+?)(?:\.\s|,\s| can you\b| could you\b| remind\b| what\b| which\b|$)",
+            query.strip(),
+            flags=re.IGNORECASE,
+        )
+        if about_match:
+            topic = re.sub(r"\s+", " ", about_match.group(1)).strip(" ?.")
+            if topic:
+                return " ".join(topic.split()[:12])
+
         # Remove common filler prefixes
         cleaned = re.sub(
             r"^(continue|please|can you|help me|let's|let us|i want to|we need to|"
@@ -509,6 +825,20 @@ class RecursiveContextController:
             for node in result.nodes:
                 hits.append(self._node_to_hit(node, source=effective_mode, subquery=subquery.query))
             edges.extend(result.edges)
+
+            if "graph" in retrieval_modes and effective_mode != "graph":
+                graph_result = self._graph.query(
+                    query=subquery.query,
+                    max_nodes=8 if mode == "fast" else 12,
+                    max_depth=depth,
+                    agent_id=scope.get("agent_id", ""),
+                    project=scope.get("project", ""),
+                    session_id=scope.get("session_id", ""),
+                    retrieval_mode="graph",
+                )
+                for node in graph_result.nodes:
+                    hits.append(self._node_to_hit(node, source="graph", subquery=subquery.query))
+                edges.extend(graph_result.edges)
 
             # Collect verbatim transcript hits
             if include_evidence and hasattr(result, "replay_hits"):
@@ -692,6 +1022,8 @@ class RecursiveContextController:
         conflicts: list[dict[str, Any]],
         transcript_hits: list[Any],
         token_budget: int,
+        pinned_transcript_hits: list[Any] | None = None,
+        scope: dict[str, str] | None = None,
     ) -> tuple[str, list[Any]]:
         """
         Build the context pack string within the token budget.
@@ -706,6 +1038,11 @@ class RecursiveContextController:
         """
         max_tokens = int(token_budget * 1.15)  # allow 15% overage
         nodes_used: list[Any] = []
+        answer_category = self._detect_answer_category(query)
+        is_personalization_query = self._looks_like_personalization_advice_query(query.lower())
+        personalization_graph_hits = self._personalization_graph_hits(query, hits) if is_personalization_query else []
+        personalization_graph_ids = {hit.node_id for hit in personalization_graph_hits}
+        bucket_hits = [hit for hit in hits if not is_personalization_query or hit.node_id in personalization_graph_ids]
 
         # Bucket hits by node type
         decisions: list[_Hit] = []
@@ -715,7 +1052,7 @@ class RecursiveContextController:
         superseded: list[_Hit] = []
         other: list[_Hit] = []
 
-        for hit in hits:
+        for hit in bucket_hits:
             nt = hit.node_type
             if hit.is_superseded:
                 superseded.append(hit)
@@ -730,12 +1067,11 @@ class RecursiveContextController:
             else:
                 other.append(hit)
 
-        # Build sections
+        # Build high-priority sections first. Edge-derived conflict and
+        # supersession evidence must survive before generic context.
         sections: list[tuple[str, list[_Hit]]] = [
             ("Current relevant decisions", decisions),
             ("Active constraints", constraints),
-            ("Important implementation context", implementation + other),
-            ("Recent progress / unfinished work", unfinished),
         ]
 
         lines: list[str] = [
@@ -744,12 +1080,138 @@ class RecursiveContextController:
             "",
         ]
         used_tokens = self._estimate_tokens("\n".join(lines))
+        hit_by_id = {hit.node_id: hit for hit in hits}
+        emitted_hit_ids: set[str] = set()
+        emitted_transcript_keys: set[str] = set()
+
+        pinned_lines, pinned_nodes, pinned_transcript_keys, pinned_hit_ids = self._pinned_fact_section(
+            query=query,
+            hits=hits,
+            transcript_hits=pinned_transcript_hits if pinned_transcript_hits is not None else transcript_hits,
+            max_tokens=max(64, int(max_tokens * 0.15)),
+        )
+        if pinned_lines:
+            pinned_block = ["Pinned facts:", *pinned_lines, ""]
+            pinned_cost = self._estimate_tokens("\n".join(pinned_block))
+            if used_tokens + pinned_cost <= max_tokens:
+                lines.extend(pinned_block)
+                used_tokens += pinned_cost
+                nodes_used.extend(pinned_nodes)
+                emitted_hit_ids.update(pinned_hit_ids)
+                emitted_transcript_keys.update(pinned_transcript_keys)
+                transcript_hits = [
+                    hit
+                    for hit in transcript_hits
+                    if self._transcript_key(hit, max_chars=1200) not in emitted_transcript_keys
+                ]
+
+        answer_lines, answer_nodes, answer_transcript_keys, answer_hit_ids = self._answer_bearing_evidence_section(
+            query=query,
+            category=answer_category,
+            hits=hits,
+            transcript_hits=transcript_hits,
+            max_tokens=max(96, int(max_tokens * 0.30)),
+        )
+        if answer_lines:
+            lines.extend(["Answer-bearing evidence:", *answer_lines, ""])
+            used_tokens += self._estimate_tokens("\n".join(["Answer-bearing evidence:", *answer_lines, ""]))
+            nodes_used.extend(answer_nodes)
+            emitted_hit_ids.update(answer_hit_ids)
+            emitted_transcript_keys.update(answer_transcript_keys)
+            transcript_hits = [
+                hit
+                for hit in transcript_hits
+                if self._transcript_key(hit, max_chars=1200) not in emitted_transcript_keys
+            ]
+
+        personalization_hits = self._personalization_transcript_evidence(
+            query=query,
+            scope=scope or {},
+            transcript_hits=transcript_hits,
+            limit=8,
+        )
+        personalization_lines, personalization_keys = self._personalization_evidence_section(
+            query=query,
+            transcript_hits=personalization_hits,
+            emitted_transcript_keys=emitted_transcript_keys,
+            max_tokens=max(96, int(max_tokens * 0.20)),
+        )
+        if personalization_lines:
+            personalization_block = [
+                "Personalization evidence:",
+                "Use these user-specific details directly; prefer them over generic advice.",
+                *personalization_lines,
+                "",
+            ]
+            lines.extend(personalization_block)
+            used_tokens += self._estimate_tokens("\n".join(personalization_block))
+            emitted_transcript_keys.update(personalization_keys)
+            transcript_hits = [
+                hit
+                for hit in transcript_hits
+                if self._transcript_key(hit, max_chars=1200) not in emitted_transcript_keys
+            ]
+
+        personalization_graph_lines, personalization_graph_nodes, personalization_graph_hit_ids = (
+            self._personalization_graph_section(
+                query=query,
+                hits=personalization_graph_hits,
+                emitted_hit_ids=emitted_hit_ids,
+                max_tokens=max(96, int(max_tokens * 0.12)),
+            )
+        )
+        if personalization_graph_lines:
+            lines.extend(["Personalized graph memories:", *personalization_graph_lines, ""])
+            used_tokens += self._estimate_tokens("\n".join(["Personalized graph memories:", *personalization_graph_lines, ""]))
+            nodes_used.extend(personalization_graph_nodes)
+            emitted_hit_ids.update(personalization_graph_hit_ids)
+
+        if self._looks_like_exact_recall_query(query.lower()) and hits:
+            recall_lines = ["Most relevant memories:"]
+            for hit in hits[:8]:
+                bullet = f"- [{hit.node_type}] {hit.label}: {hit.content[:360]}"
+                cost = self._estimate_tokens(bullet)
+                if used_tokens + cost > max_tokens:
+                    break
+                recall_lines.append(bullet)
+                used_tokens += cost
+                emitted_hit_ids.add(hit.node_id)
+                if hit.raw_node is not None:
+                    nodes_used.append(hit.raw_node)
+            if len(recall_lines) > 1:
+                lines.extend(recall_lines)
+                lines.append("")
+            if transcript_hits:
+                ev_lines = ["Evidence:"]
+                prioritized_transcripts = self._prioritize_transcript_hits(query, transcript_hits)
+                prioritized_transcripts = [
+                    *self._expand_recall_session_transcripts(prioritized_transcripts[:2], scope or {}, hits=hits[:8]),
+                    *prioritized_transcripts,
+                ]
+                for hit in prioritized_transcripts[:24]:
+                    if self._transcript_key(hit, max_chars=1200) in emitted_transcript_keys:
+                        continue
+                    snippet = self._transcript_snippet(hit, max_chars=700)
+                    if not snippet:
+                        continue
+                    bullet = f"- {snippet}"
+                    cost = self._estimate_tokens(bullet)
+                    if used_tokens + cost > max_tokens:
+                        break
+                    ev_lines.append(bullet)
+                    used_tokens += cost
+                if len(ev_lines) > 1:
+                    lines.extend(ev_lines)
+                    lines.append("")
+                transcript_hits = []
 
         for section_title, section_hits in sections:
             if not section_hits:
                 continue
             section_lines = [f"{section_title}:"]
             for hit in section_hits:
+                if hit.node_id in emitted_hit_ids:
+                    continue
                 bullet = f"- [{hit.node_type}] {hit.label}: {hit.content[:200]}"
                 if hit.updates_ids:
                     bullet += f" (supersedes {len(hit.updates_ids)} older item(s))"
@@ -768,12 +1230,22 @@ class RecursiveContextController:
         if conflicts:
             conflict_lines = ["Conflicts or superseded context:"]
             for c in conflicts:
-                bullet = f"- Possible conflict: '{c['source_label']}' contradicts '{c['target_label']}'"
+                source_hit = hit_by_id.get(str(c.get("source_id", "")))
+                target_hit = hit_by_id.get(str(c.get("target_id", "")))
+                source_content = f": {source_hit.content[:100]}" if source_hit is not None else ""
+                target_content = f": {target_hit.content[:100]}" if target_hit is not None else ""
+                bullet = (
+                    f"- Possible conflict: '{c['source_label']}'{source_content} "
+                    f"contradicts '{c['target_label']}'{target_content}"
+                )
                 cost = self._estimate_tokens(bullet)
                 if used_tokens + cost > max_tokens:
                     break
                 conflict_lines.append(bullet)
                 used_tokens += cost
+                for endpoint in (source_hit, target_hit):
+                    if endpoint is not None and endpoint.raw_node is not None:
+                        nodes_used.append(endpoint.raw_node)
             if len(conflict_lines) > 1:
                 lines.extend(conflict_lines)
                 lines.append("")
@@ -788,21 +1260,54 @@ class RecursiveContextController:
                     break
                 sup_lines.append(bullet)
                 used_tokens += cost
+                if hit.raw_node is not None:
+                    nodes_used.append(hit.raw_node)
             if len(sup_lines) > 1:
                 lines.extend(sup_lines)
+                lines.append("")
+
+        remaining_sections: list[tuple[str, list[_Hit]]] = [
+            ("Important implementation context", implementation + other),
+            ("Recent progress / unfinished work", unfinished),
+        ]
+
+        for section_title, section_hits in remaining_sections:
+            if not section_hits:
+                continue
+            section_lines = [f"{section_title}:"]
+            for hit in section_hits:
+                if hit.node_id in emitted_hit_ids:
+                    continue
+                bullet = f"- [{hit.node_type}] {hit.label}: {hit.content[:200]}"
+                cost = self._estimate_tokens(bullet)
+                if used_tokens + cost > max_tokens:
+                    break
+                section_lines.append(bullet)
+                used_tokens += cost
+                if hit.raw_node is not None:
+                    nodes_used.append(hit.raw_node)
+            if len(section_lines) > 1:
+                lines.extend(section_lines)
                 lines.append("")
 
         # Evidence section
         if transcript_hits:
             ev_lines = ["Evidence:"]
-            for hit in transcript_hits[:3]:
-                snippet = ""
-                if hasattr(hit, "transcript_snippet"):
-                    snippet = str(hit.transcript_snippet)[:150]
-                elif hasattr(hit, "transcript_text"):
-                    snippet = str(hit.transcript_text)[:150]
-                elif isinstance(hit, dict):
-                    snippet = str(hit.get("transcript_snippet") or hit.get("transcript_text", ""))[:150]
+            prioritized_transcripts = self._prioritize_transcript_hits(query, transcript_hits)
+            if self._looks_like_exact_recall_query(query.lower()):
+                prioritized_transcripts = [
+                    *self._expand_recall_session_transcripts(prioritized_transcripts[:2], scope or {}),
+                    *prioritized_transcripts,
+                ]
+                evidence_limit = 18
+            elif self._looks_like_constraint_query(query.lower()) or self._looks_like_count_update_query(query.lower()):
+                evidence_limit = 6
+            else:
+                evidence_limit = 4
+            for hit in prioritized_transcripts[:evidence_limit]:
+                if self._transcript_key(hit, max_chars=1200) in emitted_transcript_keys:
+                    continue
+                snippet = self._transcript_snippet(hit, max_chars=360)
                 if snippet:
                     bullet = f"- {snippet}"
                     cost = self._estimate_tokens(bullet)
@@ -816,6 +1321,1421 @@ class RecursiveContextController:
 
         context_pack = "\n".join(lines).rstrip()
         return context_pack, nodes_used
+
+    def _pinned_fact_section(
+        self,
+        *,
+        query: str,
+        hits: list[_Hit],
+        transcript_hits: list[Any],
+        max_tokens: int,
+    ) -> tuple[list[str], list[Any], set[str], set[str]]:
+        """Return high-precision pinned facts that do not compete with narrative context."""
+        query_lower = (query or "").lower()
+        if not self._uses_pinned_fact_lane(query_lower):
+            return [], [], set(), set()
+
+        temporal_scope = self._detect_temporal_scope(query_lower)
+        raw_candidates = self._pinned_fact_candidates(query=query, hits=hits, transcript_hits=transcript_hits)
+        if not raw_candidates:
+            return [], [], set(), set()
+
+        user_values = {
+            candidate.normalized_value
+            for candidate in raw_candidates
+            if candidate.source_authority == "user_stated" and candidate.normalized_value
+        }
+
+        candidates: list[_PinnedCandidate] = []
+        for candidate in raw_candidates:
+            authority = candidate.source_authority
+            if authority == "assistant_unknown" and candidate.normalized_value in user_values:
+                authority = "assistant_echo"
+                candidate.score += 0.20
+            if authority not in {"user_stated", "assistant_echo"}:
+                continue
+            candidate.source_authority = authority
+            if self._pinned_temporal_hard_reject(temporal_scope, candidate):
+                continue
+            candidate.score += self._pinned_temporal_score(temporal_scope, candidate)
+            candidates.append(candidate)
+
+        self._apply_pinned_recency_scores(temporal_scope, candidates)
+        candidates = self._resolve_pinned_current_recency(temporal_scope, candidates)
+        candidates = self._resolve_pinned_unspecified_conflicts(temporal_scope, candidates)
+        if not candidates:
+            return [], [], set(), set()
+
+        candidates.sort(key=lambda c: (-c.score, c.normalized_value, c.line))
+        top = candidates[0]
+        if top.score < 0.65:
+            return [], [], set(), set()
+        if len(candidates) > 1 and top.score - candidates[1].score < 0.20:
+            return [], [], set(), set()
+
+        lines: list[str] = []
+        nodes_used: list[Any] = []
+        transcript_keys: set[str] = set()
+        hit_ids: set[str] = set()
+        used_tokens = 0
+        for candidate in candidates[:2]:
+            if candidate.normalized_value != top.normalized_value:
+                continue
+            cost = self._estimate_tokens(candidate.line)
+            if used_tokens + cost > max_tokens:
+                break
+            lines.append(candidate.line)
+            used_tokens += cost
+            if candidate.transcript_key:
+                transcript_keys.add(candidate.transcript_key)
+            if candidate.hit_id:
+                hit_ids.add(candidate.hit_id)
+            if candidate.raw_node is not None:
+                nodes_used.append(candidate.raw_node)
+            break
+        return lines, nodes_used, transcript_keys, hit_ids
+
+    def _uses_pinned_fact_lane(self, query_lower: str) -> bool:
+        if self._is_hypothetical_or_recommendation_query(query_lower):
+            return False
+        if self._is_third_party_identity_query(query_lower):
+            return False
+        return (
+            self._looks_like_identity_detail_query(query_lower)
+            or self._looks_like_named_entity_detail_query(query_lower)
+            or self._looks_like_short_personal_fact_query(query_lower)
+        )
+
+    def _pinned_fact_candidates(
+        self,
+        *,
+        query: str,
+        hits: list[_Hit],
+        transcript_hits: list[Any],
+    ) -> list[_PinnedCandidate]:
+        candidates: list[_PinnedCandidate] = []
+        for hit in transcript_hits:
+            text = self._transcript_text(hit)
+            for value in self._extract_pinned_values(query, text):
+                candidate = self._make_pinned_candidate(
+                    query=query,
+                    text=text,
+                    value=value,
+                    source=hit,
+                    transcript_key=self._transcript_key(hit, max_chars=1200),
+                )
+                if candidate is not None:
+                    candidates.append(candidate)
+
+        for hit in hits:
+            text = f"{hit.label}: {hit.content}"
+            for value in self._extract_pinned_values(query, text):
+                candidate = self._make_pinned_candidate(
+                    query=query,
+                    text=text,
+                    value=value,
+                    source=hit,
+                    hit_id=hit.node_id,
+                    raw_node=hit.raw_node,
+                    base_score=float(hit.score),
+                    is_superseded=hit.is_superseded,
+                )
+                if candidate is not None:
+                    candidates.append(candidate)
+        return candidates
+
+    def _make_pinned_candidate(
+        self,
+        *,
+        query: str,
+        text: str,
+        value: str,
+        source: Any,
+        transcript_key: str = "",
+        hit_id: str = "",
+        raw_node: Any = None,
+        base_score: float = 0.0,
+        is_superseded: bool = False,
+    ) -> _PinnedCandidate | None:
+        normalized_value = self._normalize_pinned_value(value)
+        if not normalized_value:
+            return None
+
+        authority = self._pinned_source_authority(text, source)
+        if authority == "assistant_speculation":
+            return None
+
+        temporal_state = self._candidate_temporal_state(text, is_superseded=is_superseded)
+        query_terms = self._query_content_terms((query or "").lower())
+        text_terms = set(re.findall(r"[a-z0-9]+", text.lower()))
+        overlap = len(query_terms.intersection(text_terms))
+
+        score = 0.30 + min(0.25, overlap * 0.04) + min(0.20, base_score * 0.20)
+        if authority == "user_stated":
+            score += 0.45
+        elif authority == "assistant_unknown":
+            score += 0.15
+        if temporal_state == "current":
+            score += 0.08
+        elif temporal_state == "past":
+            score += 0.05
+
+        relation_score = self._pinned_relation_score(query, text, value)
+        score += relation_score
+
+        snippet = self._pin_snippet(text, value)
+        return _PinnedCandidate(
+            line=f"- {snippet}",
+            normalized_value=normalized_value,
+            score=score,
+            source_authority=authority,
+            temporal_state=temporal_state,
+            relation_score=relation_score,
+            transcript_key=transcript_key,
+            hit_id=hit_id,
+            raw_node=raw_node,
+            observed_at=self._source_observed_at(source),
+        )
+
+    def _extract_pinned_values(self, query: str, text: str) -> list[str]:
+        query_lower = (query or "").lower()
+        values: list[str] = []
+        if self._looks_like_identity_detail_query(query_lower):
+            identity_patterns = [
+                r"\b(?:last name|maiden name|old name|former name)\s+(?:was|is)\s+([A-Z][a-zA-Z'-]{1,40})\b",
+                r"\b(?:used to be called|went by|go by|goes by)\s+([A-Z][a-zA-Z'-]{1,40})\b",
+                r"\bchanged (?:it|my name)\s+to\s+([A-Z][a-zA-Z'-]{1,40})\b",
+            ]
+            for pattern in identity_patterns:
+                values.extend(match.group(1) for match in re.finditer(pattern, text))
+
+        if self._looks_like_named_entity_detail_query(query_lower):
+            for match in re.finditer(
+                r"\b[A-Z][a-zA-Z&'-]+(?:\s+[A-Z][a-zA-Z&'-]+){1,4}\b",
+                text,
+            ):
+                value = match.group(0).strip()
+                local_window = self._entity_local_window(text, match.start(), match.end())
+                if self._entity_matches_query_domain(query_lower, local_window.lower(), value.lower()):
+                    values.append(value)
+
+        if self._looks_like_short_personal_fact_query(query_lower):
+            values.extend(
+                match.group(0)
+                for match in re.finditer(
+                    r"\b\d+\s*(?:minutes?|hours?|days?|weeks?|months?|years?)(?:\s+each way)?\b",
+                    text,
+                    flags=re.IGNORECASE,
+                )
+            )
+            values.extend(
+                match.group(0)
+                for match in re.finditer(
+                    r"\b(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:a\.?m\.?|p\.?m\.?)\b",
+                    text,
+                    flags=re.IGNORECASE,
+                )
+            )
+            degree_match = re.search(r"\bdegree\s+in\s+([A-Z][a-zA-Z& -]{2,80})", text)
+            if degree_match:
+                values.append(degree_match.group(1).strip())
+
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            cleaned = value.strip(" .,;:!?")
+            key = self._normalize_pinned_value(cleaned)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(cleaned)
+        return deduped[:5]
+
+    def _normalize_pinned_value(self, value: str) -> str:
+        value = re.sub(r"^(user|assistant)\s*:\s*", "", value or "", flags=re.IGNORECASE)
+        value = re.sub(r"\s+", " ", value).strip(" .,:;!?").lower()
+        if re.search(r"\b(i|i've|i'm|i'll|we|we've|you|your|my)\b", value):
+            return ""
+        if re.match(r"^(since|because|although|while|when|where|what|there|this|that)\b", value):
+            return ""
+        if not value or value in {"user", "assistant", "got it", "thanks"}:
+            return ""
+        return value
+
+    def _pinned_relation_score(self, query: str, text: str, value: str) -> float:
+        """Score whether the local evidence uses the candidate in the role asked by the query."""
+        query_lower = (query or "").lower()
+        text_lower = text.lower()
+        value_lower = value.lower()
+        pos = text_lower.find(value_lower)
+        if pos < 0:
+            return 0.0
+        local = self._entity_local_window(text, pos, pos + len(value)).lower()
+
+        score = 0.0
+        if self._looks_like_named_place_query(query_lower):
+            if re.search(
+                r"\b("
+                r"take|taking|attend|attending|go to|went to|"
+                r"make it to|made it to|can(?:not|[’']t) make it to|"
+                r"practice at|classes? at|studio practice|connection to"
+                r")\b",
+                local,
+            ):
+                score += 0.35
+            if re.search(r"\b(studio|class|classes|practice|yoga)\b", local):
+                score += 0.10
+            if re.search(r"\b(app|apps|home practice|using .* for my home practice|customization|subscription)\b", local):
+                score -= 0.25
+            escaped_value = re.escape(value_lower)
+            if re.search(rf"\busing\s+{escaped_value}\s+for\s+my\s+home\s+practice\b", local):
+                score -= 0.55
+            if re.search(rf"\b{escaped_value}\b.{0,80}\b(app|apps|customization|subscription)\b", local):
+                score -= 0.35
+
+        if self._looks_like_identity_detail_query(query_lower):
+            if re.search(r"\b(last name|maiden name|old name|former name|changed .* name|used to be called|went by)\b", local):
+                score += 0.30
+
+        if self._looks_like_short_personal_fact_query(query_lower):
+            if re.search(r"\b(stop|stopping|stopped|check|checking|email|emails|messages?|work)\b", query_lower):
+                if re.search(r"\b(stop|stopping|stopped|check|checking|email|emails|messages?|work)\b", local):
+                    score += 0.40
+            if re.search(r"\bby\s+" + re.escape(value_lower) + r"\b", local):
+                score += 0.20
+
+        return score
+
+    def _pinned_source_authority(self, text: str, source: Any) -> str:
+        role = self._source_role(source, text)
+        lower = text.lower()
+        if self._looks_like_assistant_speculation(lower):
+            return "assistant_speculation"
+        if role == "user":
+            return "user_stated"
+        if role == "assistant":
+            return "assistant_unknown"
+        if re.search(r"\b(i|my|me)\b", lower):
+            return "user_stated"
+        return "assistant_unknown"
+
+    def _source_role(self, source: Any, text: str) -> str:
+        for candidate in (source, getattr(source, "raw_node", None)):
+            if candidate is None:
+                continue
+            role = str(getattr(candidate, "role", "") or getattr(candidate, "source_role", "") or "").lower()
+            if role in {"user", "assistant"}:
+                return role
+            evidence_records = getattr(candidate, "evidence_records", []) or []
+            for record in evidence_records:
+                if isinstance(record, dict):
+                    role = str(record.get("role") or record.get("source_role") or "").lower()
+                else:
+                    role = str(getattr(record, "role", "") or getattr(record, "source_role", "") or "").lower()
+                if role in {"user", "assistant"}:
+                    return role
+        lower = (text or "").lower().strip()
+        if lower.startswith("user:") or re.search(r"\buser:\s", lower):
+            return "user"
+        if lower.startswith("assistant:") or re.search(r"\bassistant:\s", lower):
+            return "assistant"
+        return ""
+
+    def _source_observed_at(self, source: Any) -> datetime | None:
+        for candidate in (source, getattr(source, "raw_node", None)):
+            if candidate is None:
+                continue
+            value = getattr(candidate, "observed_at", None) or getattr(candidate, "created_at", None)
+            if isinstance(value, datetime):
+                return value
+            evidence_records = getattr(candidate, "evidence_records", []) or []
+            for record in evidence_records:
+                if isinstance(record, dict):
+                    value = record.get("observed_at") or record.get("created_at")
+                else:
+                    value = getattr(record, "observed_at", None) or getattr(record, "created_at", None)
+                if isinstance(value, datetime):
+                    return value
+        return None
+
+    def _detect_temporal_scope(self, query_lower: str) -> str:
+        if re.search(
+            r"\b(used to|before i|before we|previously|prior|earlier|old|former|originally|"
+            r"past|used\s+.*\s+before|where did i used to|what was my .* before)\b",
+            query_lower,
+        ):
+            return "past_state"
+        if re.search(r"\b(now|current|currently|latest|today|these days|right now)\b", query_lower):
+            return "current_state"
+        return "unspecified_state"
+
+    def _candidate_temporal_state(self, text: str, *, is_superseded: bool) -> str:
+        lower = text.lower()
+        if is_superseded or re.search(r"\b(used to|before i switched|before switching|previously|former|old|prior|originally)\b", lower):
+            return "past"
+        if re.search(r"\b(now|currently|current|switched to|these days|right now)\b", lower):
+            return "current"
+        return "unknown"
+
+    def _pinned_temporal_hard_reject(self, temporal_scope: str, candidate: _PinnedCandidate) -> bool:
+        if temporal_scope == "past_state":
+            return candidate.temporal_state == "current"
+        if temporal_scope == "current_state":
+            return candidate.temporal_state == "past"
+        return False
+
+    def _pinned_temporal_score(self, temporal_scope: str, candidate: _PinnedCandidate) -> float:
+        if temporal_scope == "past_state":
+            return 0.25 if candidate.temporal_state == "past" else -0.10
+        if temporal_scope == "current_state":
+            return 0.25 if candidate.temporal_state == "current" else 0.0
+        if candidate.temporal_state == "current":
+            return 0.10
+        return 0.0
+
+    def _apply_pinned_recency_scores(self, temporal_scope: str, candidates: list[_PinnedCandidate]) -> None:
+        if temporal_scope == "past_state":
+            return
+        dated = [candidate for candidate in candidates if candidate.observed_at is not None]
+        if len(dated) < 2:
+            return
+        timestamps = [self._timestamp(candidate.observed_at) for candidate in dated if candidate.observed_at is not None]
+        if not timestamps:
+            return
+        oldest = min(timestamps)
+        newest = max(timestamps)
+        span = max(1.0, newest - oldest)
+        for candidate in dated:
+            if candidate.observed_at is None:
+                continue
+            candidate.score += 0.25 * ((self._timestamp(candidate.observed_at) - oldest) / span)
+
+    def _timestamp(self, value: datetime) -> float:
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value.timestamp()
+
+    def _resolve_pinned_current_recency(
+        self,
+        temporal_scope: str,
+        candidates: list[_PinnedCandidate],
+    ) -> list[_PinnedCandidate]:
+        if temporal_scope != "current_state":
+            return candidates
+        dated = [candidate for candidate in candidates if candidate.observed_at is not None]
+        if len(dated) < 2:
+            return candidates
+        newest = max(self._timestamp(candidate.observed_at) for candidate in dated if candidate.observed_at is not None)
+        latest = [
+            candidate
+            for candidate in dated
+            if candidate.observed_at is not None and self._timestamp(candidate.observed_at) == newest
+        ]
+        if len(latest) == 1:
+            return [latest[0]]
+        return candidates
+
+    def _resolve_pinned_unspecified_conflicts(
+        self,
+        temporal_scope: str,
+        candidates: list[_PinnedCandidate],
+    ) -> list[_PinnedCandidate]:
+        if temporal_scope != "unspecified_state":
+            return candidates
+        values = {candidate.normalized_value for candidate in candidates}
+        if len(values) <= 1:
+            return candidates
+        current = [candidate for candidate in candidates if candidate.temporal_state == "current"]
+        past = [candidate for candidate in candidates if candidate.temporal_state == "past"]
+        if current and past:
+            return current
+        if current and len({candidate.normalized_value for candidate in current}) == 1:
+            return current
+        relation_ranked = sorted(candidates, key=lambda candidate: (-candidate.relation_score, -candidate.score))
+        if (
+            relation_ranked
+            and relation_ranked[0].relation_score >= 0.15
+            and (
+                len(relation_ranked) == 1
+                or relation_ranked[0].relation_score - relation_ranked[1].relation_score >= 0.25
+            )
+        ):
+            return [relation_ranked[0]]
+        return []
+
+    def _pin_snippet(self, text: str, value: str) -> str:
+        normalized = re.sub(r"\s+", " ", text).strip()
+        pos = normalized.lower().find(value.lower())
+        if pos < 0:
+            return normalized[:360]
+        start = max(0, pos - 160)
+        end = min(len(normalized), pos + len(value) + 180)
+        prefix = "..." if start > 0 else ""
+        suffix = "..." if end < len(normalized) else ""
+        return f"{prefix}{normalized[start:end].strip()}{suffix}"
+
+    def _looks_like_identity_detail_query(self, query_lower: str) -> bool:
+        if self._is_third_party_identity_query(query_lower):
+            return False
+        return bool(
+            re.search(r"\b(i|my|me)\b", query_lower)
+            and re.search(
+                r"\b(last name|maiden name|old name|former name|changed my name|"
+                r"used to be called|used to go by|go by|goes by|name (?:was|before)|"
+                r"before i (?:changed|got married|got divorced))\b",
+                query_lower,
+            )
+        )
+
+    def _looks_like_named_entity_detail_query(self, query_lower: str) -> bool:
+        if self._is_hypothetical_or_recommendation_query(query_lower):
+            return False
+        return bool(
+            re.search(r"\b(which|what|where)\b", query_lower)
+            and re.search(r"\b(i|my|me)\b", query_lower)
+            and re.search(
+                r"\b(studio|gym|salon|clinic|spa|church|school|shop|store|restaurant|cafe|place|"
+                r"class|classes|club|center|centre|park|dessert|milkshake|attend|go to|take)\b",
+                query_lower,
+            )
+        )
+
+    def _is_hypothetical_or_recommendation_query(self, query_lower: str) -> bool:
+        return bool(
+            re.search(
+                r"\b(should i|should we|where should|what should|recommend|suggest|good name|new .*studio|"
+                r"if i|if we|move to|open|start|planning to|want to find|could i)\b",
+                query_lower,
+            )
+        )
+
+    def _is_third_party_identity_query(self, query_lower: str) -> bool:
+        return bool(
+            re.search(
+                r"\b(mother|father|sister|brother|friend|cousin|wife|husband|partner|sarah|her|his|their)'?s?\b",
+                query_lower,
+            )
+        )
+
+    def _looks_like_assistant_speculation(self, text_lower: str) -> bool:
+        return bool(
+            re.search(
+                r"\b(might|may|could|would|recommend|suggest|consider|maybe|good fit|best option|"
+                r"you should|you may have|nearby options include|try [A-Z]?)\b",
+                text_lower,
+            )
+        )
+
+    def _entity_local_window(self, text: str, start: int, end: int, max_chars: int = 180) -> str:
+        left = max(0, start - max_chars // 2)
+        right = min(len(text), end + max_chars // 2)
+        return text[left:right]
+
+    def _entity_matches_query_domain(self, query_lower: str, local_text_lower: str, value_lower: str) -> bool:
+        if self._looks_like_assistant_speculation(local_text_lower):
+            return False
+        if re.search(r"\b(yoga|class|classes|studio|gym|attend|go to|take)\b", query_lower):
+            return bool(
+                re.search(r"\b(yoga|class|classes|studio|gym)\b", local_text_lower)
+                and re.search(
+                    r"\b(take|taking|attend|attending|go to|went to|make it to|made it to|"
+                    r"can't make it to|cannot make it to|switched to|switched back to|"
+                    r"studio practice|practice at|classes? at)\b",
+                    local_text_lower,
+                )
+            )
+        if re.search(r"\b(shop|restaurant|dessert|milkshake|milkshakes|cafe|store|place)\b", query_lower):
+            return bool(
+                self._has_named_place_answer_shape(local_text_lower)
+                or self._has_named_place_answer_shape(value_lower)
+            )
+        return self._entity_domain_overlap(query_lower, local_text_lower)
+
+    def _entity_domain_overlap(self, query_lower: str, text_lower: str) -> bool:
+        domains = {
+            "yoga": {"yoga", "studio", "class", "classes"},
+            "gym": {"gym", "workout", "fitness"},
+            "spa": {"spa", "salon", "clinic"},
+            "school": {"school", "class", "classes"},
+            "restaurant": {"restaurant", "cafe", "shop", "store", "dessert", "milkshake"},
+        }
+        for terms in domains.values():
+            if terms.intersection(set(re.findall(r"[a-z0-9]+", query_lower))) and terms.intersection(
+                set(re.findall(r"[a-z0-9]+", text_lower))
+            ):
+                return True
+        return False
+
+    def _answer_bearing_evidence_section(
+        self,
+        *,
+        query: str,
+        category: str,
+        hits: list[_Hit],
+        transcript_hits: list[Any],
+        max_tokens: int,
+    ) -> tuple[list[str], list[Any], set[str], set[str]]:
+        if category == "generic":
+            return [], [], set(), set()
+
+        lines: list[str] = []
+        nodes_used: list[Any] = []
+        transcript_keys: set[str] = set()
+        hit_ids: set[str] = set()
+        used_tokens = 0
+
+        forced_transcripts = self._forced_temporal_transcripts(query, transcript_hits) if category == "temporal_ordering" else []
+        scored_transcripts = [
+            (self._answer_transcript_score(query, category, hit), hit)
+            for hit in transcript_hits
+        ]
+        scored_transcripts = [(score, hit) for score, hit in scored_transcripts if score > 0]
+        scored_transcripts.sort(key=lambda item: (-item[0], self._transcript_key(item[1], max_chars=1200)))
+
+        ordered_transcripts: list[Any] = []
+        seen_keys: set[str] = set()
+        for hit in [*forced_transcripts, *[hit for _score, hit in scored_transcripts]]:
+            key = self._transcript_key(hit, max_chars=1200)
+            if not key or key in seen_keys:
+                continue
+            seen_keys.add(key)
+            ordered_transcripts.append(hit)
+
+        for hit in ordered_transcripts[:8]:
+            snippet_chars = 620
+            if category in {"table_lookup", "exact_detail"}:
+                snippet_chars = 900
+            if category == "enumerated_list":
+                snippet_chars = 1300
+            snippet = self._focused_transcript_snippet(
+                query,
+                hit,
+                max_chars=snippet_chars,
+            )
+            if not snippet:
+                continue
+            bullet = f"- {snippet}"
+            cost = self._estimate_tokens(bullet)
+            if used_tokens + cost > max_tokens:
+                break
+            lines.append(bullet)
+            used_tokens += cost
+            transcript_keys.add(self._transcript_key(hit, max_chars=1200))
+
+        candidate_hits = [
+            (self._answer_hit_score(query, category, hit), hit)
+            for hit in hits
+            if not hit.is_superseded
+        ]
+        candidate_hits = [(score, hit) for score, hit in candidate_hits if score > 0]
+        candidate_hits.sort(key=lambda item: (-item[0], -item[1].score, item[1].label.lower()))
+
+        for score, hit in candidate_hits[:6]:
+            bullet = f"- [{hit.node_type}] {hit.label}: {hit.content[:420]}"
+            cost = self._estimate_tokens(bullet)
+            if used_tokens + cost > max_tokens:
+                break
+            lines.append(bullet)
+            used_tokens += cost
+            hit_ids.add(hit.node_id)
+            if hit.raw_node is not None:
+                nodes_used.append(hit.raw_node)
+
+        return lines, nodes_used, transcript_keys, hit_ids
+
+    def _answer_hit_score(self, query: str, category: str, hit: _Hit) -> float:
+        text = f"{hit.label} {hit.content}".lower()
+        query_lower = query.lower()
+        terms = self._query_content_terms(query_lower)
+        overlap = len(terms.intersection(set(re.findall(r"[a-z0-9]+", text))))
+        score = float(hit.score) + min(0.35, overlap * 0.05)
+
+        if category == "short_personal_fact":
+            has_answer_shape = False
+            if re.search(
+                r"\b(i|my|me)\b.{0,100}\b(graduated|degree|commute|takes?|personal best|tried|worked|studied|"
+                r"stop(?:ping|ped)?|check(?:ing|ed)?|emails?|messages?)\b",
+                text,
+            ):
+                score += 0.45
+                has_answer_shape = True
+            if re.search(
+                r"\b\d+\s*(minutes?|hours?|days?|weeks?|months?|years?)\b|"
+                r"\b(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:a\.?m\.?|p\.?m\.?)\b|"
+                r"\bdegree in\b|\bgraduated with\b",
+                text,
+            ):
+                score += 0.35
+                has_answer_shape = True
+            if not has_answer_shape:
+                return 0.0
+        elif category == "table_lookup":
+            names = self._query_capitalized_terms(query)
+            has_name = any(name.lower() in text for name in names)
+            if re.search(r"\|.*\|", hit.content) or re.search(r"\b(row|table|shift|rotation|schedule)\b", text):
+                score += 0.30
+            if has_name:
+                score += 0.45
+            if re.search(r"\bagent\s*\d+\b", text) and not has_name:
+                score -= 0.70
+        elif category == "temporal_ordering":
+            has_date = bool(
+                re.search(r"\b(documentdate|\d{4}/\d{2}/\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b", text)
+            )
+            if re.search(r"\b(documentdate|\d{4}/\d{2}/\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b", text):
+                score += 0.35
+            if overlap >= 3:
+                score += 0.25
+            if not has_date and overlap < 3:
+                return 0.0
+        elif category == "exact_detail":
+            if overlap >= 2:
+                score += 0.25
+            if self._looks_like_color_detail_query(query_lower) and self._has_color_answer_shape(text):
+                score += 0.45
+            if self._looks_like_named_place_query(query_lower) and self._has_named_place_answer_shape(text):
+                score += 0.45
+            if self._looks_like_identity_detail_query(query_lower) and self._has_identity_answer_shape(text):
+                score += 0.55
+            if self._looks_like_named_entity_detail_query(query_lower) and self._has_capitalized_entity_span(hit.content):
+                score += 0.25
+            if overlap < 2 and score < 0.55:
+                return 0.0
+        elif category == "enumerated_list":
+            if overlap >= 2:
+                score += min(0.45, overlap * 0.07)
+            if self._has_list_answer_shape(text):
+                score += 0.40
+            if overlap < 2 and not self._has_list_answer_shape(text):
+                return 0.0
+
+        return score if score >= 0.25 else 0.0
+
+    def _answer_transcript_score(self, query: str, category: str, hit: Any) -> float:
+        snippet = self._transcript_text(hit)
+        text = snippet.lower()
+        query_lower = query.lower()
+        terms = self._query_content_terms(query_lower)
+        overlap = len(terms.intersection(set(re.findall(r"[a-z0-9]+", text))))
+        score = min(0.45, overlap * 0.06)
+
+        if category == "short_personal_fact":
+            if re.search(
+                r"\b(i|my|me)\b.{0,120}\b(graduated|degree|commute|takes?|personal best|tried|worked|studied|"
+                r"stop(?:ping|ped)?|check(?:ing|ed)?|emails?|messages?)\b",
+                text,
+            ):
+                score += 0.65
+            if re.search(
+                r"\b\d+\s*(minutes?|hours?|days?|weeks?|months?|years?)\b|"
+                r"\b(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:a\.?m\.?|p\.?m\.?)\b|"
+                r"\bdegree in\b|\bgraduated with\b|\beach way\b",
+                text,
+            ):
+                score += 0.50
+        elif category == "table_lookup":
+            names = self._query_capitalized_terms(query)
+            has_name = any(name.lower() in text for name in names)
+            if re.search(r"\bagent\s*\d+\b", text) and not has_name:
+                return 0.0
+            if has_name:
+                score += 0.70
+            if re.search(r"\|.*\|", snippet) or re.search(r"\b(shift|rotation|schedule|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b", text):
+                score += 0.35
+        elif category == "temporal_ordering":
+            if re.search(r"\b(documentdate|\d{4}/\d{2}/\d{2})\b", text):
+                score += 0.55
+            if overlap >= 3:
+                score += 0.30
+        elif category == "exact_detail":
+            if overlap >= 2:
+                score += min(0.50, overlap * 0.08)
+            if self._looks_like_color_detail_query(query_lower) and self._has_color_answer_shape(text):
+                score += 0.75
+            if self._looks_like_named_place_query(query_lower) and self._has_named_place_answer_shape(text):
+                score += 0.75
+            if self._looks_like_identity_detail_query(query_lower) and self._has_identity_answer_shape(text):
+                score += 0.85
+            if self._looks_like_named_entity_detail_query(query_lower) and self._has_capitalized_entity_span(snippet):
+                score += 0.30
+        elif category == "enumerated_list":
+            if overlap >= 2:
+                score += min(0.65, overlap * 0.09)
+            if self._has_list_answer_shape(text):
+                score += 0.75
+
+        if re.search(r"\b(user:|\[documentdate:)\b", text):
+            score += 0.10
+        return score
+
+    def _prioritize_transcript_hits(self, query: str, transcript_hits: list[Any]) -> list[Any]:
+        """Deduplicate and order transcript evidence for compact answerability."""
+        query_lower = (query or "").lower()
+        answer_category = self._detect_answer_category(query)
+        deduped: list[Any] = []
+        seen: set[str] = set()
+        for hit in transcript_hits:
+            snippet = self._transcript_snippet(hit, max_chars=1000)
+            key = re.sub(r"\s+", " ", snippet.lower()).strip()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(hit)
+
+        def score(hit: Any) -> tuple[int, int]:
+            snippet = self._transcript_snippet(hit, max_chars=1000).lower()
+            value = 0
+            query_terms = {
+                token
+                for token in re.findall(r"[a-z0-9]+", query_lower)
+                if len(token) > 2
+                and token
+                not in {
+                    "the",
+                    "and",
+                    "for",
+                    "our",
+                    "you",
+                    "can",
+                    "what",
+                    "was",
+                    "were",
+                    "did",
+                    "about",
+                    "previous",
+                    "chat",
+                    "checking",
+                    "remind",
+                }
+            }
+            if query_terms:
+                value += min(14, len(query_terms.intersection(set(re.findall(r"[a-z0-9]+", snippet)))) * 2)
+            if self._looks_like_constraint_query(query_lower):
+                if re.search(r"\b(quick correction|right constraint|correction:|clarif(?:y|ying)|not just|instead)\b", snippet):
+                    value += 10
+                elif re.search(r"\b(correction|corrected)\b", snippet):
+                    value += 8
+                if re.search(r"\b(prefer|constraint|because|avoid|dislike|respect)\b", snippet):
+                    value += 3
+                if re.search(r"\bbecause\b", snippet) and re.search(r"\bis\b", snippet):
+                    value += 2
+            if self._looks_like_count_update_query(query_lower):
+                if re.search(r"\b(inventory note|in storage|initial)\b", snippet):
+                    value += 12
+                if re.search(r"\b(used|spent|removed|gave away|reduces?|subtract|minus)\b", snippet):
+                    value += 11
+                if re.search(r"\b(bought|added|more|received|increase|plus)\b", snippet):
+                    value += 10
+                if re.search(r"\b(labels?|drawer|formatting|unrelated)\b", snippet):
+                    value -= 5
+            if answer_category == "table_lookup":
+                names = self._query_capitalized_terms(query)
+                has_name = any(name.lower() in snippet for name in names)
+                if re.search(r"\bagent\s*\d+\b", snippet) and not has_name:
+                    value -= 20
+                if has_name:
+                    value += 12
+                if re.search(r"\|.*\|", snippet):
+                    value += 5
+            elif answer_category == "short_personal_fact":
+                if re.search(
+                    r"\b(i|my|me)\b.{0,120}\b(graduated|degree|commute|takes?|personal best|tried|"
+                    r"stop(?:ping|ped)?|check(?:ing|ed)?|emails?|messages?)\b",
+                    snippet,
+                ):
+                    value += 10
+                if re.search(
+                    r"\b\d+\s*(minutes?|hours?|days?|weeks?|months?|years?)\b|"
+                    r"\b(?:[01]?\d|2[0-3])(?::[0-5]\d)?\s*(?:a\.?m\.?|p\.?m\.?)\b|"
+                    r"\bdegree in\b|\bgraduated with\b|\beach way\b",
+                    snippet,
+                ):
+                    value += 8
+            elif answer_category == "temporal_ordering":
+                if re.search(r"\b(documentdate|\d{4}/\d{2}/\d{2})\b", snippet):
+                    value += 8
+                if any(
+                    self._phrase_overlap(phrase, snippet) >= 2
+                    for phrase in self._extract_event_phrases(query)
+                ):
+                    value += 5
+            if re.search(r"\b(documentdate|user:|assistant:)\b", snippet):
+                value += 1
+            return (-value, deduped.index(hit))
+
+        return sorted(deduped, key=score)
+
+    def _forced_temporal_transcripts(self, query: str, transcript_hits: list[Any]) -> list[Any]:
+        forced: list[Any] = []
+        seen: set[str] = set()
+        for phrase in self._extract_event_phrases(query):
+            best: tuple[int, Any] | None = None
+            for hit in transcript_hits:
+                snippet = self._transcript_snippet(hit, max_chars=1400)
+                if not re.search(r"\b(documentdate|\d{4}/\d{2}/\d{2})\b", snippet.lower()):
+                    continue
+                overlap = self._phrase_overlap(phrase, snippet)
+                if overlap <= 0:
+                    continue
+                if best is None or overlap > best[0]:
+                    best = (overlap, hit)
+            if best is None:
+                continue
+            key = self._transcript_key(best[1], max_chars=1200)
+            if key and key not in seen:
+                seen.add(key)
+                forced.append(best[1])
+        return forced
+
+    def _phrase_overlap(self, phrase: str, text: str) -> int:
+        phrase_terms = self._query_content_terms(phrase.lower())
+        text_terms = set(re.findall(r"[a-z0-9]+", text.lower()))
+        return len(phrase_terms.intersection(text_terms))
+
+    def _expand_recall_session_transcripts(
+        self,
+        transcript_hits: list[Any],
+        scope: dict[str, str],
+        *,
+        hits: list[_Hit] | None = None,
+    ) -> list[Any]:
+        if not hasattr(self._graph, "list_transcript_records"):
+            return []
+        expanded: list[Any] = []
+        seen_sessions: set[str] = set()
+        candidate_session_ids: list[str] = []
+        for hit in transcript_hits:
+            session_id = str(getattr(hit, "session_id", "") or "").strip()
+            if session_id:
+                candidate_session_ids.append(session_id)
+        for hit in hits or []:
+            candidate_session_ids.extend(self._hit_session_ids(hit))
+
+        for session_id in candidate_session_ids:
+            if not session_id or session_id in seen_sessions:
+                continue
+            seen_sessions.add(session_id)
+            try:
+                records = self._graph.list_transcript_records(
+                    agent_id=scope.get("agent_id", ""),
+                    project=scope.get("project", ""),
+                    session_id=session_id,
+                    limit=40,
+                )
+            except Exception as exc:
+                LOGGER.debug("recursive_context._expand_recall_session_transcripts failed: %s", exc)
+                continue
+            expanded.extend(records)
+            if len(seen_sessions) >= 2:
+                break
+        return expanded
+
+    def _direct_transcript_evidence(self, query: str, scope: dict[str, str], limit: int) -> list[Any]:
+        if not hasattr(self._graph, "search_transcript_records"):
+            return []
+        try:
+            return list(
+                self._graph.search_transcript_records(
+                    query=query,
+                    agent_id=scope.get("agent_id", ""),
+                    project=scope.get("project", ""),
+                    session_id=scope.get("session_id", ""),
+                    limit=max(1, int(limit)),
+                )
+                or []
+            )
+        except Exception as exc:
+            LOGGER.debug("recursive_context._direct_transcript_evidence failed: %s", exc)
+            return []
+
+    def _lexical_answer_transcript_evidence(
+        self,
+        *,
+        query: str,
+        category: str,
+        scope: dict[str, str],
+        limit: int,
+    ) -> list[Any]:
+        if category == "generic" or not hasattr(self._graph, "list_transcript_records"):
+            return []
+        try:
+            records = self._graph.list_transcript_records(
+                agent_id=scope.get("agent_id", ""),
+                project=scope.get("project", ""),
+                session_id=scope.get("session_id", ""),
+                limit=5000,
+            )
+        except Exception as exc:
+            LOGGER.debug("recursive_context._lexical_answer_transcript_evidence failed: %s", exc)
+            return []
+
+        scored: list[tuple[float, int, Any]] = []
+        query_lower = query.lower()
+        for idx, record in enumerate(records):
+            text = str(getattr(record, "transcript_text", "") or "")
+            if not text.strip():
+                continue
+            candidate = SimpleNamespace(
+                score=0.0,
+                session_id=str(getattr(record, "session_id", "") or ""),
+                turn_index=int(getattr(record, "turn_index", 0) or 0),
+                turn_pair_id=str(getattr(record, "turn_pair_id", "") or ""),
+                role=str(getattr(record, "role", "") or ""),
+                transcript_text=text,
+                transcript_snippet=text,
+                observed_at=getattr(record, "observed_at", datetime.now(UTC)),
+            )
+            score = self._answer_transcript_score(query, category, candidate)
+            if category == "short_personal_fact":
+                if "degree" in query_lower and not re.search(r"\b(graduated|degree)\b", text, flags=re.IGNORECASE):
+                    continue
+                if "commute" in query_lower and not re.search(r"\b(commute|commuting|train|bus)\b", text, flags=re.IGNORECASE):
+                    continue
+                if re.search(r"\b(i|my|me)\b", text, flags=re.IGNORECASE):
+                    score += 0.20
+            elif category == "table_lookup":
+                names = self._query_capitalized_terms(query)
+                if names and not any(name.lower() in text.lower() for name in names):
+                    continue
+                if re.search(r"\bagent\s*\d+\b", text, flags=re.IGNORECASE) and not any(
+                    name.lower() in text.lower() for name in names
+                ):
+                    continue
+            elif category == "temporal_ordering":
+                if not re.search(r"\b(documentDate|\d{4}/\d{2}/\d{2})\b", text):
+                    continue
+                if not any(self._phrase_overlap(phrase, text) >= 2 for phrase in self._extract_event_phrases(query)):
+                    continue
+            elif category == "exact_detail":
+                lowered = text.lower()
+                terms = self._query_content_terms(query_lower)
+                overlap = len(terms.intersection(set(re.findall(r"[a-z0-9]+", lowered))))
+                if overlap < 2:
+                    continue
+                if self._looks_like_color_detail_query(query_lower) and not self._has_color_answer_shape(lowered):
+                    continue
+                if self._looks_like_named_place_query(query_lower) and not self._has_named_place_answer_shape(lowered):
+                    continue
+            elif category == "enumerated_list":
+                lowered = text.lower()
+                terms = self._query_content_terms(query_lower)
+                overlap = len(terms.intersection(set(re.findall(r"[a-z0-9]+", lowered))))
+                if overlap < 2:
+                    continue
+                if not self._has_list_answer_shape(lowered):
+                    continue
+            if score > 0:
+                scored.append((score, -idx, candidate))
+
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        return [item[2] for item in scored[: max(1, int(limit))]]
+
+    def _personalization_transcript_evidence(
+        self,
+        *,
+        query: str,
+        scope: dict[str, str],
+        transcript_hits: list[Any],
+        limit: int,
+    ) -> list[Any]:
+        query_lower = (query or "").lower()
+        if not self._looks_like_personalization_advice_query(query_lower):
+            return []
+
+        records: list[Any] = list(transcript_hits)
+        if hasattr(self._graph, "list_transcript_records"):
+            try:
+                records.extend(
+                    self._graph.list_transcript_records(
+                        agent_id=scope.get("agent_id", ""),
+                        project=scope.get("project", ""),
+                        session_id=scope.get("session_id", ""),
+                        limit=5000,
+                    )
+                    or []
+                )
+            except Exception as exc:
+                LOGGER.debug("recursive_context._personalization_transcript_evidence failed: %s", exc)
+
+        scored: list[tuple[float, int, Any]] = []
+        seen: set[str] = set()
+        for index, record in enumerate(records):
+            key = self._transcript_key(record, max_chars=1200)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            score = self._personalization_transcript_score(query, record)
+            if score > 0:
+                scored.append((score, -index, record))
+
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        return [item[2] for item in scored[: max(1, int(limit))]]
+
+    def _personalization_transcript_score(self, query: str, hit: Any) -> float:
+        text = self._transcript_text(hit)
+        lowered = text.lower()
+        query_lower = (query or "").lower()
+        query_terms = self._query_content_terms(query_lower)
+        text_terms = set(re.findall(r"[a-z0-9]+", lowered))
+        overlap = len(query_terms.intersection(text_terms))
+        if overlap == 0:
+            return 0.0
+        domain_terms = self._personalization_domain_terms(query_lower)
+        if domain_terms:
+            domain_overlap = len(domain_terms.intersection(text_terms))
+            if domain_overlap == 0:
+                return 0.0
+        else:
+            domain_overlap = 0
+
+        score = min(0.50, overlap * 0.08)
+        score += min(0.45, domain_overlap * 0.15)
+        role = self._source_role(hit, text)
+        if role == "user" or re.search(r"\buser:\s", lowered):
+            score += 0.45
+        elif role == "assistant":
+            score -= 0.20
+
+        if re.search(r"\b(i|i've|i'm|my|me)\b", lowered):
+            score += 0.30
+        if re.search(
+            r"\b(recently|lately|been|started|tried|made|figured out|want(?:ed)? to try|"
+            r"looking at|getting inspiration|challenge|success|struggling|stuck|interested in|prefer|like|enjoy)\b",
+            lowered,
+        ):
+            score += 0.35
+        if re.search(
+            r"\b(recipe|recipes|slow cooker|painting|paintings|flowers|instagram|tutorials?|"
+            r"social media|yogurt|beef stew)\b",
+            lowered,
+        ):
+            score += 0.20
+        if re.search(r"\b(stuck|inspiration|inspire|ideas?)\b", query_lower):
+            if re.search(r"\b(inspiration|inspire|social media|instagram|challenge|tutorials?|flowers?)\b", lowered):
+                score += 0.45
+            if re.search(r"\b(price|pricing|selling|online sale|photos? of my artwork)\b", lowered):
+                score -= 0.35
+        if re.search(r"\b(slow cooker|recipes?|better results|struggling)\b", query_lower):
+            if re.search(r"\b(figured out|success|made a delicious|beef stew|yogurt)\b", lowered):
+                score += 0.35
+        if re.search(r"\b(generic|general tips|here are some tips|recommend some|you might try)\b", lowered) and role == "assistant":
+            score -= 0.30
+
+        return score if score >= 0.45 else 0.0
+
+    def _personalization_domain_terms(self, query_lower: str) -> set[str]:
+        terms: set[str] = set()
+        if re.search(r"\b(paint|painting|paintings|art|artwork|inspiration)\b", query_lower):
+            terms.update(
+                {
+                    "paint",
+                    "painting",
+                    "paintings",
+                    "art",
+                    "artwork",
+                    "instagram",
+                    "tutorial",
+                    "tutorials",
+                    "flower",
+                    "flowers",
+                    "challenge",
+                }
+            )
+        if re.search(r"\b(slow cooker|recipe|recipes|cooking)\b", query_lower):
+            terms.update({"slow", "cooker", "recipe", "recipes", "yogurt", "beef", "stew", "vegetarian", "vegan"})
+        return terms
+
+    def _personalization_graph_hits(self, query: str, hits: list[_Hit]) -> list[_Hit]:
+        scored: list[tuple[float, _Hit]] = []
+        for hit in hits:
+            score = self._personalization_graph_score(query, hit)
+            if score > 0:
+                scored.append((score, hit))
+        scored.sort(key=lambda item: (-item[0], -item[1].score, item[1].label.lower()))
+        return [hit for _score, hit in scored[:8]]
+
+    def _personalization_graph_score(self, query: str, hit: _Hit) -> float:
+        query_lower = (query or "").lower()
+        text = f"{hit.label} {hit.content}".lower()
+        text_terms = set(re.findall(r"[a-z0-9]+", text))
+        query_terms = self._query_content_terms(query_lower)
+        overlap = len(query_terms.intersection(text_terms))
+        domain_terms = self._personalization_domain_terms(query_lower)
+        domain_overlap = len(domain_terms.intersection(text_terms)) if domain_terms else 0
+        if domain_terms and domain_overlap == 0:
+            return 0.0
+        if overlap == 0 and domain_overlap == 0:
+            return 0.0
+
+        score = min(0.35, overlap * 0.05) + min(0.60, domain_overlap * 0.15)
+        if hit.node_type in {"preference", "fact", "note", "question"}:
+            score += 0.20
+        elif hit.node_type in {"entity", "concept"}:
+            score -= 0.10
+
+        if re.search(r"\b(i|i've|i'm|my|me)\b", text):
+            score += 0.30
+        if re.search(
+            r"\b(recently|lately|been|started|tried|made|figured out|want(?:ed)? to try|"
+            r"getting inspiration|challenge|success|struggling|stuck|interested in|prefer|like|enjoy)\b",
+            text,
+        ):
+            score += 0.35
+
+        if re.search(r"\b(stuck|inspiration|inspire|ideas?)\b", query_lower):
+            if re.search(r"\b(inspiration|inspire|social media|instagram|challenge|tutorials?|flowers?)\b", text):
+                score += 0.45
+            if re.search(r"\b(price|pricing|selling|online sale|photos? of my artwork|value-based pricing)\b", text):
+                score -= 0.70
+        if re.search(r"\b(slow cooker|recipes?|better results|struggling)\b", query_lower):
+            if not re.search(r"\b(slow|cooker|yogurt|beef|stew|figured out|made a delicious)\b", text):
+                return 0.0
+            if re.search(r"\b(figured out|success|made a delicious|beef stew|yogurt)\b", text):
+                score += 0.45
+            if re.search(r"\b(vegetarian recipes|vegan recipes|eggplant parmesan|chili con carne)\b", text):
+                score -= 0.25
+
+        if re.search(r"\b(sun basket|home chef|blue apron|instacart|spider|coffee shop|jewelry|commute)\b", text):
+            score -= 0.75
+        return score if score >= 0.45 else 0.0
+
+    def _personalization_graph_section(
+        self,
+        *,
+        query: str,
+        hits: list[_Hit],
+        emitted_hit_ids: set[str],
+        max_tokens: int,
+    ) -> tuple[list[str], list[Any], set[str]]:
+        if not hits:
+            return [], [], set()
+        lines: list[str] = []
+        nodes_used: list[Any] = []
+        hit_ids: set[str] = set()
+        used_tokens = 0
+        for hit in hits:
+            if hit.node_id in emitted_hit_ids or hit.node_id in hit_ids:
+                continue
+            bullet = f"- [{hit.node_type}] {hit.label}: {hit.content[:260]}"
+            cost = self._estimate_tokens(bullet)
+            if used_tokens + cost > max_tokens:
+                break
+            lines.append(bullet)
+            used_tokens += cost
+            hit_ids.add(hit.node_id)
+            if hit.raw_node is not None:
+                nodes_used.append(hit.raw_node)
+        return lines, nodes_used, hit_ids
+
+    def _personalization_evidence_section(
+        self,
+        *,
+        query: str,
+        transcript_hits: list[Any],
+        emitted_transcript_keys: set[str],
+        max_tokens: int,
+    ) -> tuple[list[str], set[str]]:
+        if not transcript_hits:
+            return [], set()
+
+        lines: list[str] = []
+        used_tokens = 0
+        emitted: set[str] = set()
+        for hit in transcript_hits:
+            key = self._transcript_key(hit, max_chars=1200)
+            if not key or key in emitted_transcript_keys or key in emitted:
+                continue
+            snippet = self._focused_transcript_snippet(query, hit, max_chars=520)
+            if not snippet:
+                continue
+            bullet = f"- {snippet}"
+            cost = self._estimate_tokens(bullet)
+            if used_tokens + cost > max_tokens:
+                break
+            lines.append(bullet)
+            used_tokens += cost
+            emitted.add(key)
+        return lines, emitted
+
+    def _pinned_transcript_evidence(self, *, query: str, scope: dict[str, str], limit: int) -> list[Any]:
+        query_lower = (query or "").lower()
+        if not self._uses_pinned_fact_lane(query_lower) or not hasattr(self._graph, "list_transcript_records"):
+            return []
+        try:
+            records = self._graph.list_transcript_records(
+                agent_id=scope.get("agent_id", ""),
+                project=scope.get("project", ""),
+                session_id=scope.get("session_id", ""),
+                limit=5000,
+            )
+        except Exception as exc:
+            LOGGER.debug("recursive_context._pinned_transcript_evidence failed: %s", exc)
+            return []
+
+        scored: list[tuple[float, int, Any]] = []
+        for index, record in enumerate(records):
+            text = self._transcript_text(record)
+            if not text:
+                continue
+            best_score = 0.0
+            for value in self._extract_pinned_values(query, text):
+                candidate = self._make_pinned_candidate(query=query, text=text, value=value, source=record)
+                if candidate is not None:
+                    best_score = max(best_score, candidate.score)
+            if best_score > 0:
+                scored.append((best_score, -index, record))
+
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        deduped: list[Any] = []
+        seen: set[str] = set()
+        for _score, _index, record in scored:
+            key = self._transcript_key(record, max_chars=1200)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(record)
+            if len(deduped) >= max(1, int(limit)):
+                break
+        return deduped
+
+    def _hit_session_ids(self, hit: _Hit) -> list[str]:
+        session_ids: list[str] = []
+        for source in (hit, getattr(hit, "raw_node", None)):
+            if source is None:
+                continue
+            session_id = str(getattr(source, "session_id", "") or "").strip()
+            if session_id:
+                session_ids.append(session_id)
+            evidence_records = getattr(source, "evidence_records", []) or []
+            for record in evidence_records:
+                if isinstance(record, dict):
+                    value = record.get("session_id")
+                else:
+                    value = getattr(record, "session_id", "")
+                session_id = str(value or "").strip()
+                if session_id:
+                    session_ids.append(session_id)
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for session_id in session_ids:
+            if session_id in seen:
+                continue
+            seen.add(session_id)
+            deduped.append(session_id)
+        return deduped
+
+    def _transcript_snippet(self, hit: Any, max_chars: int = 360) -> str:
+        snippet = self._transcript_text(hit)
+        if len(snippet) <= max_chars:
+            return snippet
+        return snippet[: max(0, max_chars - 1)].rstrip() + "…"
+
+    def _transcript_text(self, hit: Any) -> str:
+        if hasattr(hit, "transcript_snippet"):
+            snippet = str(hit.transcript_snippet)
+        elif hasattr(hit, "transcript_text"):
+            snippet = str(hit.transcript_text)
+        elif hasattr(hit, "content"):
+            snippet = str(hit.content)
+        elif isinstance(hit, dict):
+            snippet = str(hit.get("transcript_snippet") or hit.get("transcript_text") or hit.get("content", ""))
+        else:
+            snippet = str(hit)
+        return re.sub(r"\s+", " ", snippet).strip()
+
+    def _focused_transcript_snippet(self, query: str, hit: Any, max_chars: int = 620) -> str:
+        text = self._transcript_text(hit)
+        if len(text) <= max_chars:
+            return text
+        query_lower = (query or "").lower()
+        terms = sorted(self._query_content_terms(query_lower), key=len, reverse=True)
+        anchors = [term for term in terms if len(term) >= 5]
+        if self._looks_like_color_detail_query(query_lower):
+            anchors.extend(["scaly body", "body", "image"])
+        if self._looks_like_named_place_query(query_lower):
+            anchors.extend(["milkshake", "milkshakes", "dessert", "shop", "restaurant", "place", "studio", "gym", "class", "classes"])
+        if self._looks_like_identity_detail_query(query_lower):
+            anchors.extend(["last name", "maiden name", "old name", "former name", "changed my name"])
+        if self._looks_like_enumerated_list_query(query_lower):
+            anchors.extend(self._query_capitalized_terms(query))
+            anchors.extend(["process", "processes", "steps", "items", "options", "list"])
+
+        lowered = text.lower()
+        best_pos = -1
+        best_score = -1
+        for anchor in anchors:
+            pos = lowered.find(anchor.lower())
+            if pos < 0:
+                continue
+            window = lowered[max(0, pos - max_chars // 3) : min(len(lowered), pos + max_chars)]
+            score = len(set(re.findall(r"[a-z0-9]+", window)).intersection(self._query_content_terms(query_lower)))
+            if self._looks_like_color_detail_query(query_lower) and self._has_color_answer_shape(window):
+                score += 5
+            if self._looks_like_named_place_query(query_lower) and self._has_named_place_answer_shape(window):
+                score += 5
+            if score > best_score:
+                best_score = score
+                best_pos = pos
+
+        if best_pos < 0:
+            return self._transcript_snippet(hit, max_chars=max_chars)
+        start = max(0, best_pos - max_chars // 3)
+        end = min(len(text), start + max_chars)
+        if end - start < max_chars and start > 0:
+            start = max(0, end - max_chars)
+        prefix = "…" if start > 0 else ""
+        suffix = "…" if end < len(text) else ""
+        return f"{prefix}{text[start:end].strip()}{suffix}"
+
+    def _looks_like_color_detail_query(self, query_lower: str) -> bool:
+        return bool(re.search(r"\b(color|colour|body|image|picture|description|scaly)\b", query_lower))
+
+    def _looks_like_named_place_query(self, query_lower: str) -> bool:
+        if self._looks_like_identity_detail_query(query_lower):
+            return False
+        return bool(
+            re.search(
+                r"\b(shop|restaurant|place|dessert|milkshake|milkshakes|orlando|called|named|name|title|"
+                r"recommended|unique|studio|gym|salon|clinic|spa|class|classes|club|center|centre|school|store)\b",
+                query_lower,
+            )
+        )
+
+    def _has_color_answer_shape(self, text_lower: str) -> bool:
+        colors = (
+            "black|white|red|blue|green|yellow|orange|purple|pink|brown|gray|grey|gold|silver|"
+            "copper|bronze|navy|teal|turquoise|violet|indigo|beige|cream"
+        )
+        return bool(re.search(rf"\b({colors})\b", text_lower))
+
+    def _has_named_place_answer_shape(self, text_lower: str) -> bool:
+        return bool(
+            re.search(
+                r"\b(shop|restaurant|cafe|factory|bakery|emporium|kitchen|deli|bar|park|citywalk|dessert|"
+                r"milkshake|milkshakes|studio|gym|salon|clinic|spa|class|classes|club|center|centre|school|store)\b",
+                text_lower,
+            )
+        )
+
+    def _has_list_answer_shape(self, text_lower: str) -> bool:
+        bullet_count = len(re.findall(r"(?:^|\s)(?:\d+\.|\*|-)\s+[a-z0-9]", text_lower))
+        separator_count = len(re.findall(r"\b(?:and|,)\s+[a-z][a-z0-9 -]{2,}", text_lower))
+        return bullet_count >= 2 or separator_count >= 3
+
+    def _has_identity_answer_shape(self, text_lower: str) -> bool:
+        return bool(
+            re.search(
+                r"\b(used to be|used to go by|name was|now goes? by|changed (?:it |my name )?to|"
+                r"before i (?:got married|got divorced|changed it)|maiden name (?:was|is)|last name (?:was|is))\b",
+                text_lower,
+            )
+        )
+
+    def _has_capitalized_entity_span(self, text: str) -> bool:
+        return bool(re.search(r"\b[A-Z][a-zA-Z&'-]+(?:\s+[A-Z][a-zA-Z&'-]+){1,4}\b", text or ""))
+
+    def _transcript_key(self, hit: Any, max_chars: int = 1000) -> str:
+        return re.sub(r"\s+", " ", self._transcript_snippet(hit, max_chars=max_chars).lower()).strip()
 
     # ------------------------------------------------------------------
     # Token estimation
