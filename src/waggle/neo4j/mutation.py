@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 from datetime import datetime
 from typing import Any
@@ -881,11 +882,24 @@ class Neo4jMutationMixin(MemoryGraphBase):
         return int(summary.counters.relationships_deleted or 0) > 0
 
     def _insert_snapshot_node(self, session: Any, raw_node: dict[str, Any]) -> None:
-        embedding_bytes = raw_node.get("embedding")
-        raw = decode_embedding_blob(embedding_bytes) if isinstance(embedding_bytes, bytes) else None
-        if raw is not None and len(raw) % np.dtype(np.float32).itemsize == 0:
-            embedding = np.frombuffer(raw, dtype=np.float32).astype(np.float32).tolist()
-        else:
+        embedding_val = raw_node.get("embedding")
+        embedding = None
+        if embedding_val is not None:
+            if isinstance(embedding_val, list):
+                embedding = [float(x) for x in embedding_val]
+            elif isinstance(embedding_val, str) and embedding_val.strip():
+                try:
+                    raw_bytes = base64.b64decode(embedding_val)
+                    if len(raw_bytes) % np.dtype(np.float32).itemsize == 0:
+                        embedding = np.frombuffer(raw_bytes, dtype=np.float32).astype(np.float32).tolist()
+                except Exception:
+                    pass
+            elif isinstance(embedding_val, bytes):
+                raw = decode_embedding_blob(embedding_val)
+                if raw is not None and len(raw) % np.dtype(np.float32).itemsize == 0:
+                    embedding = np.frombuffer(raw, dtype=np.float32).astype(np.float32).tolist()
+
+        if embedding is None:
             embedding = self.embedding_model.embed(raw_node["content"]).astype(np.float32).tolist()
         session.run(
             """
@@ -917,11 +931,24 @@ class Neo4jMutationMixin(MemoryGraphBase):
         ).consume()
 
     def _update_snapshot_node(self, session: Any, raw_node: dict[str, Any]) -> None:
-        embedding_bytes = raw_node.get("embedding")
-        raw = decode_embedding_blob(embedding_bytes) if isinstance(embedding_bytes, bytes) else None
-        if raw is not None and len(raw) % np.dtype(np.float32).itemsize == 0:
-            embedding = np.frombuffer(raw, dtype=np.float32).astype(np.float32).tolist()
-        else:
+        embedding_val = raw_node.get("embedding")
+        embedding = None
+        if embedding_val is not None:
+            if isinstance(embedding_val, list):
+                embedding = [float(x) for x in embedding_val]
+            elif isinstance(embedding_val, str) and embedding_val.strip():
+                try:
+                    raw_bytes = base64.b64decode(embedding_val)
+                    if len(raw_bytes) % np.dtype(np.float32).itemsize == 0:
+                        embedding = np.frombuffer(raw_bytes, dtype=np.float32).astype(np.float32).tolist()
+                except Exception:
+                    pass
+            elif isinstance(embedding_val, bytes):
+                raw = decode_embedding_blob(embedding_val)
+                if raw is not None and len(raw) % np.dtype(np.float32).itemsize == 0:
+                    embedding = np.frombuffer(raw, dtype=np.float32).astype(np.float32).tolist()
+
+        if embedding is None:
             embedding = self.embedding_model.embed(raw_node["content"]).astype(np.float32).tolist()
         session.run(
             """

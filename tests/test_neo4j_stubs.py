@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import inspect
+import json
 from datetime import UTC, datetime
+from pathlib import Path
 from types import MethodType
 from unittest.mock import MagicMock
 
@@ -413,3 +415,46 @@ def test_neo4j_snapshot_scope_persistence() -> None:
             assert kwargs["project"] == "my-project"
             assert kwargs["session_id"] == "my-session"
     assert update_called
+
+
+def test_neo4j_import_graph_backup_preserves_embeddings(tmp_path: Path) -> None:
+    graph = make_mock_graph()
+    mock_session = graph._session.return_value
+
+    # We mock _fetch_node to return None so it performs insert
+    graph._fetch_node = MagicMock(return_value=None)
+
+    backup_data = {
+        "schema_version": 5,
+        "tenant_id": "local-default",
+        "nodes": [
+            {
+                "id": "node_123",
+                "label": "TestNode",
+                "content": "test content",
+                "node_type": "note",
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "updated_at": "2026-01-01T00:00:00+00:00",
+            }
+        ],
+        "edges": [],
+        "embeddings": {
+            "node_123": "AACAPwAAAEA="  # float32 array [1.0, 2.0]
+        },
+    }
+
+    backup_file = tmp_path / "backup.json"
+    backup_file.write_text(json.dumps(backup_data))
+
+    graph.import_graph_backup(input_path=backup_file)
+
+    # Verify that session.run was called to CREATE the node with the preserved embedding
+    create_called = False
+    for call in mock_session.run.call_args_list:
+        query = call[0][0]
+        kwargs = call[1]
+        if "CREATE (n:MemoryNode" in query:
+            create_called = True
+            assert "embedding" in kwargs
+            assert kwargs["embedding"] == [1.0, 2.0]
+    assert create_called

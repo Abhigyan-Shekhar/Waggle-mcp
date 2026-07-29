@@ -3663,10 +3663,25 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             for raw_window in snapshot.get("context_windows", []):
                 self._upsert_snapshot_context_window(connection, {**raw_window, "tenant_id": self.tenant_id})
 
+            # Resolve the embeddings map from the snapshot
+            embeddings_map = {}
+            raw_embeddings = snapshot.get("embeddings")
+            if isinstance(raw_embeddings, dict):
+                if "vectors" in raw_embeddings and isinstance(raw_embeddings["vectors"], dict):
+                    embeddings_map = raw_embeddings["vectors"]
+                else:
+                    embeddings_map = raw_embeddings
+
             for raw_node in snapshot.get("nodes", []):
                 raw_node = {**raw_node, "tenant_id": raw_node.get("tenant_id") or snapshot_tenant}
                 if raw_node["tenant_id"] != self.tenant_id:
                     raw_node["tenant_id"] = self.tenant_id
+
+                node_id = str(raw_node.get("id") or "").strip()
+                if raw_node.get("embedding") is None:
+                    if node_id in embeddings_map:
+                        raw_node["embedding"] = embeddings_map[node_id]
+
                 if self._fetch_node_row(connection, raw_node["id"]) is None:
                     self._insert_snapshot_node(connection, raw_node)
                     result.nodes_created += 1
