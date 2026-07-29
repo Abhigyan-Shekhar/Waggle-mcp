@@ -1,10 +1,30 @@
 const SOURCE_RULES = [
   { id: "codex", label: "Codex", color: "#6bdcff", matchers: ["codex"] },
-  { id: "claude", label: "Claude", color: "#f4c06c", matchers: ["claude", "anthropic"] },
+  {
+    id: "claude",
+    label: "Claude",
+    color: "#f4c06c",
+    matchers: ["claude", "anthropic"],
+  },
   { id: "cursor", label: "Cursor", color: "#b696ff", matchers: ["cursor"] },
-  { id: "chatgpt", label: "ChatGPT", color: "#79f2a0", matchers: ["chatgpt", "openai"] },
-  { id: "gemini", label: "Gemini", color: "#ff9f7d", matchers: ["gemini", "google"] },
-  { id: "imported", label: "Imported", color: "#ff8bd1", matchers: ["imported"] }
+  {
+    id: "chatgpt",
+    label: "ChatGPT",
+    color: "#79f2a0",
+    matchers: ["chatgpt", "openai"],
+  },
+  {
+    id: "gemini",
+    label: "Gemini",
+    color: "#ff9f7d",
+    matchers: ["gemini", "google"],
+  },
+  {
+    id: "imported",
+    label: "Imported",
+    color: "#ff8bd1",
+    matchers: ["imported"],
+  },
 ];
 
 export const GRAPH_TOKENS = {
@@ -19,18 +39,18 @@ export const GRAPH_TOKENS = {
     edge: "rgba(196, 205, 219, 0.2)",
     edgeActive: "rgba(255, 255, 255, 0.72)",
     importedGlow: "#ff8bd1",
-    transcript: "#8ba2bf"
+    transcript: "#8ba2bf",
   },
   glow: {
     node: "0 0 18px rgba(107, 220, 255, 0.3)",
     imported: "0 0 18px rgba(255, 139, 209, 0.32)",
-    panel: "0 18px 50px rgba(0,0,0,0.35)"
+    panel: "0 18px 50px rgba(0,0,0,0.35)",
   },
   spacing: {
     canvasPadding: 28,
     pillGap: 8,
-    panelRadius: 18
-  }
+    panelRadius: 18,
+  },
 };
 
 export function inferSource(node) {
@@ -40,7 +60,7 @@ export function inferSource(node) {
     node.session_id,
     node.label,
     node.content,
-    ...(node.tags || [])
+    ...(node.tags || []),
   ]
     .join(" ")
     .toLowerCase();
@@ -50,7 +70,7 @@ export function inferSource(node) {
   }
 
   const match = SOURCE_RULES.find((rule) =>
-    rule.matchers.some((matcher) => haystack.includes(matcher))
+    rule.matchers.some((matcher) => haystack.includes(matcher)),
   );
   return match || { id: "waggle", label: "Waggle", color: "#7f8ea3" };
 }
@@ -58,11 +78,14 @@ export function inferSource(node) {
 export function normalizeGraph(snapshot, importedNodeIds = []) {
   const importedSet = new Set(importedNodeIds);
   const nodes = (snapshot.nodes || []).map((node) => {
-    const imported = importedSet.has(node.id) || (node.tags || []).includes("imported");
+    const imported =
+      importedSet.has(node.id) || (node.tags || []).includes("imported");
     return {
       ...node,
       imported,
-      source: imported ? SOURCE_RULES.find((rule) => rule.id === "imported") : inferSource(node)
+      source: imported
+        ? SOURCE_RULES.find((rule) => rule.id === "imported")
+        : inferSource(node),
     };
   });
   const degree = Object.fromEntries(nodes.map((node) => [node.id, 0]));
@@ -75,12 +98,12 @@ export function normalizeGraph(snapshot, importedNodeIds = []) {
     nodes: nodes.map((node) => ({
       ...node,
       degree: degree[node.id] || 0,
-      size: 18 + Math.min((degree[node.id] || 0) * 3.25, 28)
+      size: 18 + Math.min((degree[node.id] || 0) * 3.25, 28),
     })),
     edges: (snapshot.edges || []).map((edge) => ({
       ...edge,
-      label: edge.relationship
-    }))
+      label: edge.relationship,
+    })),
   };
 }
 
@@ -96,41 +119,70 @@ export function buildFilterBuckets(nodes, transcripts = []) {
       tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
     }
     if (node.session_id) {
-      sessionCounts.set(node.session_id, (sessionCounts.get(node.session_id) || 0) + 1);
+      sessionCounts.set(
+        node.session_id,
+        (sessionCounts.get(node.session_id) || 0) + 1,
+      );
     }
     if (node.agent_id) {
       agentCounts.set(node.agent_id, (agentCounts.get(node.agent_id) || 0) + 1);
     }
     if (node.project) {
-      projectCounts.set(node.project, (projectCounts.get(node.project) || 0) + 1);
+      projectCounts.set(
+        node.project,
+        (projectCounts.get(node.project) || 0) + 1,
+      );
     }
     sourceCounts.set(node.source.id, {
       id: node.source.id,
       label: node.source.label,
       color: node.source.color,
-      count: (sourceCounts.get(node.source.id)?.count || 0) + 1
+      count: (sourceCounts.get(node.source.id)?.count || 0) + 1,
     });
   }
 
   for (const record of transcripts) {
     if (record.session_id) {
-      sessionCounts.set(record.session_id, (sessionCounts.get(record.session_id) || 0) + 1);
+      sessionCounts.set(
+        record.session_id,
+        (sessionCounts.get(record.session_id) || 0) + 1,
+      );
     }
     if (record.agent_id) {
-      agentCounts.set(record.agent_id, (agentCounts.get(record.agent_id) || 0) + 1);
+      agentCounts.set(
+        record.agent_id,
+        (agentCounts.get(record.agent_id) || 0) + 1,
+      );
     }
     if (record.project) {
-      projectCounts.set(record.project, (projectCounts.get(record.project) || 0) + 1);
+      projectCounts.set(
+        record.project,
+        (projectCounts.get(record.project) || 0) + 1,
+      );
     }
   }
 
   const sortCounts = (left, right) => right[1] - left[1];
   return {
-    tags: [...tagCounts.entries()].sort(sortCounts).slice(0, 12).map(([id, count]) => ({ id, label: id, count })),
-    sessions: [...sessionCounts.entries()].sort(sortCounts).slice(0, 12).map(([id, count]) => ({ id, label: id, count })),
-    agents: [...agentCounts.entries()].sort(sortCounts).slice(0, 8).map(([id, count]) => ({ id, label: id, count })),
-    projects: [...projectCounts.entries()].sort(sortCounts).slice(0, 8).map(([id, count]) => ({ id, label: id, count })),
-    sources: [...sourceCounts.values()].sort((left, right) => right.count - left.count)
+    tags: [...tagCounts.entries()]
+      .sort(sortCounts)
+      .slice(0, 12)
+      .map(([id, count]) => ({ id, label: id, count })),
+    sessions: [...sessionCounts.entries()]
+      .sort(sortCounts)
+      .slice(0, 12)
+      .map(([id, count]) => ({ id, label: id, count })),
+    agents: [...agentCounts.entries()]
+      .sort(sortCounts)
+      .slice(0, 8)
+      .map(([id, count]) => ({ id, label: id, count })),
+    projects: [...projectCounts.entries()]
+      .sort(sortCounts)
+      .slice(0, 8)
+      .map(([id, count]) => ({ id, label: id, count })),
+    sources: [...sourceCounts.values()].sort(
+      (left, right) => right.count - left.count,
+    ),
   };
 }
 
@@ -138,7 +190,8 @@ export function matchesDateRange(item, range) {
   if (!range || range === "all") {
     return true;
   }
-  const timestamp = item.updated_at || item.created_at || item.valid_from || item.observed_at;
+  const timestamp =
+    item.updated_at || item.created_at || item.valid_from || item.observed_at;
   if (!timestamp) {
     return range === "all";
   }
@@ -151,7 +204,7 @@ export function matchesDateRange(item, range) {
     "24h": 1,
     "7d": 7,
     "30d": 30,
-    "90d": 90
+    "90d": 90,
   }[range];
   return days ? now - updatedAt <= days * 24 * 60 * 60 * 1000 : true;
 }
@@ -169,14 +222,17 @@ export function filterGraph(graph, filters) {
       node.content,
       node.node_type,
       node.source.label,
-      ...(node.tags || [])
+      ...(node.tags || []),
     ]
       .join(" ")
       .toLowerCase();
     if (search && !haystack.includes(search)) {
       return false;
     }
-    if (activeTags.size && !(node.tags || []).some((tag) => activeTags.has(tag))) {
+    if (
+      activeTags.size &&
+      !(node.tags || []).some((tag) => activeTags.has(tag))
+    ) {
       return false;
     }
     if (activeSessions.size && !activeSessions.has(node.session_id || "")) {
@@ -195,9 +251,18 @@ export function filterGraph(graph, filters) {
   });
 
   const visibleIds = new Set(nodes.map((node) => node.id));
-  const edges = graph.edges.filter(
-    (edge) => visibleIds.has(edge.source_id) && visibleIds.has(edge.target_id)
-  );
+  const edges = graph.edges.filter((edge) => {
+    if (!visibleIds.has(edge.source_id) || !visibleIds.has(edge.target_id)) {
+      return false;
+    }
+    if (filters.hideWeakEdges) {
+      const confidence = edge.metadata?.edge_confidence ?? 1.0;
+      if (confidence < 0.7) {
+        return false;
+      }
+    }
+    return true;
+  });
   return { nodes, edges };
 }
 
@@ -228,27 +293,39 @@ export function buildTranscriptPairs(records, graphNodes) {
       observed_at: record.observed_at,
       pair_index: Math.floor((record.turn_index || 0) / 2),
       transcripts: [],
-      derivedNodeIds: []
+      derivedNodeIds: [],
     };
     current.transcripts.push(record);
-    current.label = current.label || `${record.role}: ${record.transcript_text.slice(0, 48)}`;
-    current.observed_at = current.observed_at < record.observed_at ? current.observed_at : record.observed_at;
+    current.label =
+      current.label || `${record.role}: ${record.transcript_text.slice(0, 48)}`;
+    current.observed_at =
+      current.observed_at < record.observed_at
+        ? current.observed_at
+        : record.observed_at;
     pairs.set(pairId, current);
   }
 
   const result = [...pairs.values()]
     .map((pair) => ({
       ...pair,
-      transcripts: [...pair.transcripts].sort((left, right) => left.turn_index - right.turn_index),
-      derivedNodeIds: [...new Set(nodesByPair.get(pair.id) || [])]
+      transcripts: [...pair.transcripts].sort(
+        (left, right) => left.turn_index - right.turn_index,
+      ),
+      derivedNodeIds: [...new Set(nodesByPair.get(pair.id) || [])],
     }))
-    .sort((left, right) => new Date(left.observed_at).getTime() - new Date(right.observed_at).getTime());
+    .sort(
+      (left, right) =>
+        new Date(left.observed_at).getTime() -
+        new Date(right.observed_at).getTime(),
+    );
 
   return result;
 }
 
 function conversationSummary(pair) {
-  return pair.transcripts.map((item) => `${item.role}: ${item.transcript_text}`).join("\n\n");
+  return pair.transcripts
+    .map((item) => `${item.role}: ${item.transcript_text}`)
+    .join("\n\n");
 }
 
 function presetPositionForPair(index) {
@@ -259,11 +336,17 @@ function orbitPosition(anchor, offsetIndex) {
   const angle = (Math.PI * 2 * offsetIndex) / 6;
   return {
     x: anchor.x + Math.cos(angle) * 140,
-    y: anchor.y + Math.sin(angle) * 100
+    y: anchor.y + Math.sin(angle) * 100,
   };
 }
 
-export function buildLayerGraph({ graph, transcriptPairs, layerMode, highlightedTurnPairId = "", focusedNodeId = "" }) {
+export function buildLayerGraph({
+  graph,
+  transcriptPairs,
+  layerMode,
+  highlightedTurnPairId = "",
+  focusedNodeId = "",
+}) {
   const transcriptElements = [];
   const transcriptEdges = [];
   const pairNodeIds = new Set();
@@ -282,9 +365,9 @@ export function buildLayerGraph({ graph, transcriptPairs, layerMode, highlighted
         source: "Transcript",
         turnPairId: pair.id,
         size: 44,
-        highlight: pair.id === highlightedTurnPairId
+        highlight: pair.id === highlightedTurnPairId,
       },
-      position
+      position,
     });
     if (index > 0) {
       transcriptEdges.push({
@@ -293,8 +376,8 @@ export function buildLayerGraph({ graph, transcriptPairs, layerMode, highlighted
           source: transcriptPairs[index - 1].id,
           target: pair.id,
           label: "next",
-          edgeKind: "conversation-chain"
-        }
+          edgeKind: "conversation-chain",
+        },
       });
     }
   });
@@ -302,7 +385,11 @@ export function buildLayerGraph({ graph, transcriptPairs, layerMode, highlighted
   if (layerMode === "conversation") {
     return {
       elements: [...transcriptElements, ...transcriptEdges],
-      layout: { name: "preset", fit: true, padding: GRAPH_TOKENS.spacing.canvasPadding }
+      layout: {
+        name: "preset",
+        fit: true,
+        padding: GRAPH_TOKENS.spacing.canvasPadding,
+      },
     };
   }
 
@@ -318,21 +405,25 @@ export function buildLayerGraph({ graph, transcriptPairs, layerMode, highlighted
       nodeKind: "graph",
       imported: node.imported,
       turnPairId: firstTurnPairId(node),
-      highlight: node.id === focusedNodeId
-    }
+      highlight: node.id === focusedNodeId,
+    },
   }));
 
   const semanticEdges = graph.edges
-    .filter((edge) => graphNodeIds.has(edge.source_id) && graphNodeIds.has(edge.target_id))
+    .filter(
+      (edge) =>
+        graphNodeIds.has(edge.source_id) && graphNodeIds.has(edge.target_id),
+    )
     .map((edge) => ({
       data: {
         id: edge.id,
         source: edge.source_id,
         target: edge.target_id,
         label: edge.relationship,
-        edgeKind: edge.relationship === "derived_from" ? "derived_from" : "semantic",
-        relationship: edge.relationship
-      }
+        edgeKind:
+          edge.relationship === "derived_from" ? "derived_from" : "semantic",
+        relationship: edge.relationship,
+      },
     }));
 
   if (layerMode === "graph") {
@@ -346,12 +437,14 @@ export function buildLayerGraph({ graph, transcriptPairs, layerMode, highlighted
         idealEdgeLength: 130,
         nodeRepulsion: 800000,
         gravity: 0.22,
-        tile: false
-      }
+        tile: false,
+      },
     };
   }
 
-  const positions = new Map(transcriptElements.map((item) => [item.data.id, item.position]));
+  const positions = new Map(
+    transcriptElements.map((item) => [item.data.id, item.position]),
+  );
   const bothNodes = [...transcriptElements];
   const derivedEdges = [];
   const pairDerivedCounts = new Map();
@@ -372,9 +465,10 @@ export function buildLayerGraph({ graph, transcriptPairs, layerMode, highlighted
         nodeKind: "graph",
         imported: node.imported,
         turnPairId,
-        highlight: node.id === focusedNodeId || turnPairId === highlightedTurnPairId
+        highlight:
+          node.id === focusedNodeId || turnPairId === highlightedTurnPairId,
       },
-      position: orbitPosition(anchor, nextOffset)
+      position: orbitPosition(anchor, nextOffset),
     });
     if (turnPairId && pairNodeIds.has(turnPairId)) {
       derivedEdges.push({
@@ -384,21 +478,31 @@ export function buildLayerGraph({ graph, transcriptPairs, layerMode, highlighted
           target: turnPairId,
           label: "derived_from",
           edgeKind: "derived_from",
-          relationship: "derived_from"
-        }
+          relationship: "derived_from",
+        },
       });
     }
   }
 
   const allNodes = [...bothNodes];
   const renderNodeIds = new Set(allNodes.map((item) => item.data.id));
-  const renderEdges = [...semanticEdges, ...transcriptEdges, ...derivedEdges].filter(
-    (edge) => renderNodeIds.has(edge.data.source) && renderNodeIds.has(edge.data.target)
+  const renderEdges = [
+    ...semanticEdges,
+    ...transcriptEdges,
+    ...derivedEdges,
+  ].filter(
+    (edge) =>
+      renderNodeIds.has(edge.data.source) &&
+      renderNodeIds.has(edge.data.target),
   );
 
   return {
     elements: [...allNodes, ...renderEdges],
-    layout: { name: "preset", fit: true, padding: GRAPH_TOKENS.spacing.canvasPadding }
+    layout: {
+      name: "preset",
+      fit: true,
+      padding: GRAPH_TOKENS.spacing.canvasPadding,
+    },
   };
 }
 
@@ -419,11 +523,10 @@ export function firstTurnPairId(node) {
 export function buildProvenanceTrail(node, graph) {
   const byId = new Map(graph.nodes.map((item) => [item.id, item]));
   const sourceEdges = graph.edges.filter(
-    (edge) => edge.relationship === "derived_from" && edge.source_id === node.id
+    (edge) =>
+      edge.relationship === "derived_from" && edge.source_id === node.id,
   );
-  return sourceEdges
-    .map((edge) => byId.get(edge.target_id))
-    .filter(Boolean);
+  return sourceEdges.map((edge) => byId.get(edge.target_id)).filter(Boolean);
 }
 
 export function buildNodeEdgeList(nodeId, graph) {
@@ -452,13 +555,15 @@ export function summarizeSourcePrompts(node) {
 
 export function buildExtractionHealth(transcriptPairs) {
   const total = transcriptPairs.length;
-  const zeroPairs = transcriptPairs.filter((pair) => !pair.derivedNodeIds.length);
+  const zeroPairs = transcriptPairs.filter(
+    (pair) => !pair.derivedNodeIds.length,
+  );
   const produced = total - zeroPairs.length;
   return {
     total,
     produced,
     percent: total ? Math.round((produced / total) * 100) : 0,
-    zeroPairs
+    zeroPairs,
   };
 }
 
@@ -469,6 +574,6 @@ export function buildRestorePayload(graph, scope) {
     session_id: scope.session_id,
     nodes: graph.nodes,
     edges: graph.edges,
-    ui: graph.ui || {}
+    ui: graph.ui || {},
   };
 }
