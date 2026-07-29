@@ -161,6 +161,8 @@ CREATE TABLE IF NOT EXISTS tenants (
     tenant_id TEXT PRIMARY KEY,
     name TEXT DEFAULT '',
     status TEXT NOT NULL DEFAULT 'active',
+    communities_stale INTEGER DEFAULT 1,
+    cached_communities TEXT DEFAULT NULL,
     created_at TEXT NOT NULL
 );
 
@@ -1260,6 +1262,8 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                     batch_limit=batch_limit,
                 )
                 run.deleted_exports = self._delete_old_export_files(cutoff=cutoff)
+                if run.deleted_nodes > 0 or run.deleted_edges > 0:
+                    self._mark_communities_stale(connection)
                 completed_at = utc_now()
                 run.completed_at = completed_at
                 run.duration_ms = max(0, int((completed_at - started_at).total_seconds() * 1000))
@@ -1347,6 +1351,12 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         )
 
     def _migrate_legacy_schema(self, connection: sqlite3.Connection) -> None:
+        tenant_columns = {row["name"] for row in connection.execute("PRAGMA table_info(tenants)").fetchall()}
+        if "communities_stale" not in tenant_columns:
+            connection.execute("ALTER TABLE tenants ADD COLUMN communities_stale INTEGER DEFAULT 1")
+        if "cached_communities" not in tenant_columns:
+            connection.execute("ALTER TABLE tenants ADD COLUMN cached_communities TEXT DEFAULT NULL")
+
         api_key_columns = {row["name"] for row in connection.execute("PRAGMA table_info(api_keys)").fetchall()}
         node_columns = {row["name"] for row in connection.execute("PRAGMA table_info(nodes)").fetchall()}
         edge_columns = {row["name"] for row in connection.execute("PRAGMA table_info(edges)").fetchall()}
@@ -2305,6 +2315,16 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             WHERE tenant_id = ? AND id = ?
             """,
             (utc_now().isoformat(), self.tenant_id, window_id),
+        )
+
+    def _mark_communities_stale(self, connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
+            UPDATE tenants
+            SET communities_stale = 1
+            WHERE tenant_id = ?
+            """,
+            (self.tenant_id,),
         )
 
     def get_context_window(self, window_id: str) -> ContextWindow:
