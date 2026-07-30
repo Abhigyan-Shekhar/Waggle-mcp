@@ -312,6 +312,37 @@ def test_query_rejects_out_of_range_min_confidence(tmp_path: Path) -> None:
         graph.query(query="anything", min_confidence=1.5)
 
 
+def test_query_min_confidence_excludes_traversal_through_weak_edge(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    project = graph.add_node(
+        label="FastAPI Project",
+        content="User is building a FastAPI backend service",
+        node_type=NodeType.ENTITY,
+        tags=["backend"],
+    ).node
+    unrelated = graph.add_node(
+        label="Unrelated Onboarding Note",
+        content="Team onboarding checklist for new hires",
+        node_type=NodeType.NOTE,
+    ).node
+    for i in range(5):
+        graph.add_node(
+            label=f"Filler Note {i}",
+            content=f"Completely unrelated filler content number {i} about gardening",
+            node_type=NodeType.NOTE,
+        )
+    graph.add_edge(
+        source_id=project.id,
+        target_id=unrelated.id,
+        relationship=RelationType.RELATES_TO,
+        metadata={"edge_confidence": 0.3},
+    )
+    result = graph.query(query="python backend", max_nodes=1, max_depth=2, min_confidence=0.7)
+    labels = {node.label for node in result.nodes}
+    assert "FastAPI Project" in labels
+    assert "Unrelated Onboarding Note" not in labels
+
+
 def test_update_delete_and_stats(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
     node = graph.add_node(

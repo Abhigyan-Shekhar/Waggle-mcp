@@ -282,6 +282,7 @@ class TraversalMixin(MemoryGraphBase):
                 session_id=session_id,
                 include_invalidated=include_invalidated,
                 as_of=as_of,
+                min_confidence=min_confidence,
             )
             if self.tiered_retrieval and project.strip()
             else self._query_graph_only(
@@ -294,6 +295,7 @@ class TraversalMixin(MemoryGraphBase):
                 session_id=session_id,
                 include_invalidated=include_invalidated,
                 as_of=as_of,
+                min_confidence=min_confidence,
             )
             if normalized_mode in {"graph", "fusion"}
             else None
@@ -392,6 +394,7 @@ class TraversalMixin(MemoryGraphBase):
         session_id: str = "",
         include_invalidated: bool = False,
         as_of: datetime | None = None,
+        min_confidence: float | None = None,
     ) -> SubgraphResult:
         query_text = query.strip()
         if not query_text:
@@ -754,6 +757,7 @@ class TraversalMixin(MemoryGraphBase):
         session_id: str,
         include_invalidated: bool = False,
         as_of: datetime | None = None,
+        min_confidence: float | None = None,
     ) -> SubgraphResult:
         with self._lock, self._pool.checkout() as connection:
             temporal_hints = infer_temporal_hints(query)
@@ -894,7 +898,7 @@ class TraversalMixin(MemoryGraphBase):
                     max_seeds=max_nodes,
                 )
 
-            graph = self._load_graph(connection, node_ids=nodes_by_id.keys())
+            graph = self._load_graph(connection, node_ids=nodes_by_id.keys(), min_confidence=min_confidence)
             expanded_depths, expansion_metadata = self._expand_node_depths_with_context(
                 graph, ranked_seed_ids, max_depth
             )
