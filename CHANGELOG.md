@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.17
 
 ### Added
 
