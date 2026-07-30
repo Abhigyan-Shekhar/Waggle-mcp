@@ -1,0 +1,64 @@
+{
+  "export_graph_backup": {
+    "canonical": "commit",
+    "default_args": {
+      "commit_format": "backup"
+    }
+  },
+  "export_abhi": {
+    "canonical": "commit",
+    "default_args": {
+      "commit_format": "abhi"
+    }
+  },
+  "export_context_bundle": {
+    "canonical": "commit",
+    "default_args": {
+      "commit_format": "bundle"
+    }
+  },
+  "import_graph_backup": {
+    "canonical": "pull",
+    "default_args": {
+      "pull_format": "backup"
+    }
+  },
+  "import_abhi": {
+    "canonical": "pull",
+    "default_args": {
+      "pull_format": "abhi"
+    }
+  },
+  "diff_abhi": {
+    "canonical": "diff",
+    "default_args": {}
+  },
+  "merge_abhi": {
+    "canonical": "merge",
+    "default_args": {}
+  },
+  "validate_abhi": {
+    "canonical": "fsck",
+    "default_args": {}
+  },
+  "inspect_abhi": {
+    "canonical": "show",
+    "default_args": {}
+  },
+  "query_abhi": {
+    "canonical": "grep",
+    "default_args": {}
+  },
+  "recursive_context": {
+    "canonical": "build_context",
+    "default_args": {}
+  },
+  "assemble_context": {
+    "canonical": "build_context",
+    "default_args": {}
+  },
+  "rlm_context": {
+    "canonical": "build_context",
+    "default_args": {}
+  }
+}

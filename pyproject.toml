@@ -23,7 +23,7 @@ dependencies = [
   "google-api-python-client>=2.170.0",
   "google-auth>=2.40.0",
   "google-genai>=1.56.0",
-  "mcp>=1.0.0",
+  "mcp>=1.0.0,<2.0.0",
   "networkx>=3.2.1",
   "numpy>=1.26.0",
   "openai>=2.14.0",
@@ -152,3 +152,8 @@ ignore_missing_imports = true
 warn_unused_ignores = true
 warn_return_any = false
 disallow_untyped_defs = false
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
