@@ -36,6 +36,12 @@ For more details on how these rules govern agent behavior, see the [Automatic Me
 
 ## Codex app plugin
 
+Waggle can be installed in Codex as a self-hosted local MCP plugin. The current
+release does not require a paid hosted backend, Apple Developer ID
+notarization, or Windows Authenticode certificate. Users download the
+marketplace bundle from GitHub Releases, add the extracted directory to Codex,
+and run the bundled MCP server locally on their own machine.
+
 ## First-run OS warnings (unsigned binary)
 
 The bundled Waggle runtime binary is intentionally unsigned for the current

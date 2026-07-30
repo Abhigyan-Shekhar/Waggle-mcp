@@ -73,6 +73,10 @@ notarization and Windows Authenticode signing require paid accounts or
 certificates, so they are not release blockers for this self-hosted marketplace
 bundle.
 
+This release is also self-hosted through GitHub Releases. Do not introduce a
+paid hosted backend for the default Codex plugin path; the bundled stdio MCP
+server runs locally with SQLite storage.
+
 Because the runtime is unsigned:
 
 - Keep checksum files attached to the release.
@@ -83,6 +87,10 @@ Because the runtime is unsigned:
 
 ## Announcement Checklist
 
+- Present Waggle as a self-hosted Codex MCP plugin, not as an OpenAI-curated
+  directory listing or signed native installer.
+- State that the default install path has no required hosting or certificate
+  cost.
 - Link users to the `v0.1.17` GitHub release.
 - Tell users to download the marketplace zip, extract it, and run:
 

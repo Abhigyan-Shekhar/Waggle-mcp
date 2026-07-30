@@ -53,6 +53,10 @@ layout is assembled and validated:
 
 The marketplace bundle is the primary install artifact because Codex can add it
 directly with `codex plugin marketplace add /path/to/extracted-bundle`.
+This is a self-hosted distribution path: GitHub Releases hosts the zip, and the
+bundled stdio MCP server runs locally on the user's machine with local SQLite
+storage by default. No separate Waggle cloud service is required for the Codex
+plugin install.
 
 Codex marketplace entries are treated as one fixed plugin source for this v1
 release. Do not generate a custom platform-to-artifact index unless Codex
