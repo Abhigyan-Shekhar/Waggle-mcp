@@ -33,6 +33,13 @@ def test_package_release_emits_marketplace_and_plugin_archives(tmp_path: Path) -
     assert "waggle-codex-plugin-v9.9.9/INSTALL.md" in plugin_entries
     assert all(not entry.endswith(".gitkeep") for entry in plugin_entries)
     assert _zip_mode(output_dir / "waggle-codex-plugin-v9.9.9.zip", "runtime/darwin-arm64/waggle-server") & 0o111
+    plugin_install = _zip_text(
+        output_dir / "waggle-codex-plugin-v9.9.9.zip",
+        "waggle-codex-plugin-v9.9.9/INSTALL.md",
+    )
+    assert "local stdio MCP server" in plugin_install
+    assert "paid Apple/Windows signing certificates" in plugin_install
+    assert "unsigned" in plugin_install
 
     marketplace_entries = _zip_entries(output_dir / "waggle-codex-marketplace-v9.9.9.zip")
     assert "waggle-codex-marketplace-v9.9.9/.agents/plugins/marketplace.json" in marketplace_entries
