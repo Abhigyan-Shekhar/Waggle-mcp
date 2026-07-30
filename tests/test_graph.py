@@ -337,7 +337,7 @@ def test_query_min_confidence_excludes_traversal_through_weak_edge(tmp_path: Pat
         relationship=RelationType.RELATES_TO,
         metadata={"edge_confidence": 0.3},
     )
-    result = graph.query(query="python backend", max_nodes=1, max_depth=2, min_confidence=0.7)
+    result = graph.query(query="python backend", max_nodes=2, max_depth=2, min_confidence=0.7)
     labels = {node.label for node in result.nodes}
     assert "FastAPI Project" in labels
     assert "Unrelated Onboarding Note" not in labels

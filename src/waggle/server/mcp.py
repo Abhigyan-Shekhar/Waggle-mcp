@@ -1513,7 +1513,9 @@ class WaggleServer:
                         retrieval_mode=arguments.get("retrieval_mode", "hybrid"),
                         include_invalidated=bool(arguments.get("include_invalidated", False)),
                         as_of=_as_of,
-                        min_confidence=arguments.get("min_confidence"),
+                        min_confidence=(
+                            float(arguments["min_confidence"]) if arguments.get("min_confidence") is not None else None
+                        ),
                     )
                     result = self._tool_result(
                         serialize_subgraph(subgraph),

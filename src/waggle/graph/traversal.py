@@ -275,6 +275,8 @@ class TraversalMixin(MemoryGraphBase):
             )
             return result
 
+        # Only "graph" mode reaches this point: "verbatim" and "hybrid" are
+        # handled by the hybrid_retriever early return above.
         graph_result = (
             self.tiered_query(
                 query=query_text,
@@ -289,62 +291,26 @@ class TraversalMixin(MemoryGraphBase):
                 min_confidence=min_confidence,
             )
             if self.tiered_retrieval and project.strip()
-            else (
-                self._query_graph_only(
-                    query=query_text,
-                    max_nodes=max_nodes,
-                    max_depth=max_depth,
-                    expand_depth=expand_depth,
-                    agent_id=agent_id,
-                    project=project,
-                    session_id=session_id,
-                    include_invalidated=include_invalidated,
-                    as_of=as_of,
-                    min_confidence=min_confidence,
-                )
-                if normalized_mode in {"graph", "fusion"}
-                else None
-            )
-        )
-        replay_hits = (
-            self._query_replay_hits(
+            else self._query_graph_only(
                 query=query_text,
-                max_hits=max_nodes,
+                max_nodes=max_nodes,
+                max_depth=max_depth,
+                expand_depth=expand_depth,
                 agent_id=agent_id,
                 project=project,
                 session_id=session_id,
-            )
-            if normalized_mode in {"verbatim", "hybrid"}
-            else []
-        )
-        if normalized_mode == "graph":
-            if graph_result.retrieval_mode not in {"tiered", "flat_fallback"}:
-                graph_result.retrieval_mode = "graph"
-            graph_result.edges = _filter_edges_by_confidence(
-                graph_result.edges,
+                include_invalidated=include_invalidated,
+                as_of=as_of,
                 min_confidence=min_confidence,
             )
-            return graph_result
-        if normalized_mode == "verbatim":
-            return SubgraphResult(
-                replay_hits=replay_hits,
-                retrieval_mode="verbatim",
-                query=query_text,
-                total_nodes_in_graph=(graph_result.total_nodes_in_graph if graph_result is not None else 0),
-            )
-        fusion_hits = self._build_fusion_hits(graph_result or SubgraphResult(query=query_text), replay_hits)
-        return SubgraphResult(
-            nodes=graph_result.nodes if graph_result is not None else [],
-            edges=_filter_edges_by_confidence(
-                graph_result.edges if graph_result is not None else [],
-                min_confidence=min_confidence,
-            ),
-            replay_hits=replay_hits,
-            fusion_hits=fusion_hits[:max_nodes],
-            retrieval_mode="hybrid",
-            query=query_text,
-            total_nodes_in_graph=(graph_result.total_nodes_in_graph if graph_result is not None else 0),
         )
+        if graph_result.retrieval_mode not in {"tiered", "flat_fallback"}:
+            graph_result.retrieval_mode = "graph"
+        graph_result.edges = _filter_edges_by_confidence(
+            graph_result.edges,
+            min_confidence=min_confidence,
+        )
+        return graph_result
 
     def _subgraph_from_hybrid_hits(
         self,
@@ -452,6 +418,7 @@ class TraversalMixin(MemoryGraphBase):
                 session_id=session_id,
                 include_invalidated=include_invalidated,
                 as_of=as_of,
+                min_confidence=min_confidence,
             )
             fallback.retrieval_mode = "flat_fallback"
             return fallback
@@ -492,6 +459,7 @@ class TraversalMixin(MemoryGraphBase):
                     session_id=session_id,
                     include_invalidated=include_invalidated,
                     as_of=as_of,
+                    min_confidence=min_confidence,
                 )
                 fallback.retrieval_mode = "flat_fallback"
                 return fallback
@@ -532,6 +500,7 @@ class TraversalMixin(MemoryGraphBase):
                     session_id=session_id,
                     include_invalidated=include_invalidated,
                     as_of=as_of,
+                    min_confidence=min_confidence,
                 )
                 fallback.retrieval_mode = "flat_fallback"
                 return fallback

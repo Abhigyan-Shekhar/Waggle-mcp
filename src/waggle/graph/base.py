@@ -429,6 +429,21 @@ def _filter_valid_nodes(
     return [node for node in nodes if node.valid_to is None or node.valid_to > now]
 
 
+def _edge_confidence(edge: Edge) -> float:
+    """Read an edge's confidence score, defaulting to 1.0 for missing or
+    malformed values (non-numeric, None, or non-finite like NaN/inf).
+    Matches the convention used in abhi export.
+    """
+    raw = edge.metadata.get("edge_confidence", 1.0) if isinstance(edge.metadata, dict) else 1.0
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return 1.0
+    if not math.isfinite(value):
+        return 1.0
+    return value
+
+
 def _filter_edges_by_confidence(
     edges: list[Edge],
     *,
@@ -440,7 +455,7 @@ def _filter_edges_by_confidence(
     """
     if min_confidence is None:
         return edges
-    return [edge for edge in edges if float(edge.metadata.get("edge_confidence", 1.0)) >= min_confidence]
+    return [edge for edge in edges if _edge_confidence(edge) >= min_confidence]
 
 
 def recency_weight(
