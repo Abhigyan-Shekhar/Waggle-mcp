@@ -49,6 +49,12 @@ from waggle.serializer import (
     serialize_topics,
 )
 
+# Protocol-independent dispatcher (PR 2: dispatcher extraction).
+# The v1 adapter delegates all logic here and translates WaggleToolResult
+# back to MCP v1 wire types (inputSchema, isError, structuredContent).
+from waggle.tools.context import WaggleRequestContext
+from waggle.tools.dispatcher import WaggleToolDispatcher
+
 from .utils import (
     _assert_export_safe,
     _build_backend,
@@ -118,7 +124,12 @@ _TOOL_ALIASES: dict[str, tuple[str, dict[str, object]]] = {
 
 
 class WaggleServer:
-    """MCP server wrapper with tenant-aware graph resolution."""
+    """MCP v1 adapter shell with tenant-aware graph resolution.
+
+    PR 2 (dispatcher extraction): All tool definitions and dispatch logic
+    now live in ``WaggleToolDispatcher``.  This class is a thin translation
+    layer from MCP v1 wire types to ``WaggleToolResult`` and back.
+    """
 
     def __init__(
         self,
@@ -131,6 +142,12 @@ class WaggleServer:
         self.metrics = metrics or MetricsRegistry()
         self._static_graph = graph
         self._root_graph = graph or _build_backend(self.config)
+        # Protocol-independent dispatcher — no MCP types inside.
+        self._dispatcher = WaggleToolDispatcher(
+            graph=self._root_graph,
+            config=self.config,
+            metrics=self.metrics,
+        )
         self.server = Server("waggle")
         self._register_handlers()
 
@@ -166,7 +183,24 @@ class WaggleServer:
         async def get_prompt(name: str, arguments: dict[str, str] | None) -> types.GetPromptResult:
             return self.get_prompt_result(name, arguments or {})
 
-    def build_tools(self) -> list[types.Tool]:
+    def build_tools(self) -> list[types.Tool]:  # type: ignore[override]
+        # Delegate to the protocol-independent dispatcher and translate to MCP v1 types.
+        # The key difference from v2: MCP v1 uses camelCase `inputSchema`.
+        return [
+            types.Tool(
+                name=d.name,
+                description=d.description,
+                inputSchema=d.input_schema,  # v1 wire field name: inputSchema
+            )
+            for d in self._dispatcher.list_tools()
+        ]
+
+    def _build_tools_legacy(self) -> list[types.Tool]:  # noqa: PLR0915
+        """Original inline tool list — kept for audit and diff purposes only.
+
+        Not called at runtime.  ``build_tools()`` now delegates to
+        ``WaggleToolDispatcher.list_tools()``.
+        """
         return [
             types.Tool(
                 name="store_node",
@@ -1325,7 +1359,51 @@ class WaggleServer:
             },
         )
 
-    def handle_tool_call(self, name: str, arguments: dict[str, Any]) -> types.CallToolResult:
+    def handle_tool_call(self, name: str, arguments: dict[str, Any]) -> types.CallToolResult:  # type: ignore[override]
+        """Translate a MCP v1 tool call to ``WaggleToolResult`` via the dispatcher.
+
+        This method is called from a thread via ``anyio.to_thread.run_sync``.
+        It constructs a ``WaggleRequestContext`` from the active Starlette
+        request (HTTP) or from ``request_ctx`` (stdio), dispatches to
+        ``WaggleToolDispatcher.call_tool()``, and translates the result back
+        to a ``types.CallToolResult`` (MCP v1 camelCase wire format).
+        """
+        request = self._get_request()
+        request_id = ""
+        api_key_id = ""
+        if request is not None:
+            request_id = getattr(request.state, "request_id", "")
+            api_key_id = getattr(request.state, "api_key_id", "")
+            transport = "http"
+        else:
+            try:
+                request_id = str(request_ctx.get().request_id)
+            except LookupError:
+                request_id = ""
+            transport = "stdio"
+
+        graph = self.current_graph()
+        ctx = WaggleRequestContext(
+            request_id=request_id,
+            tenant_id=getattr(graph, "tenant_id", self.config.default_tenant_id),
+            transport=transport,
+            api_key_id=api_key_id or None,
+        )
+
+        # Temporarily rebind the dispatcher's graph to the tenant-specific graph
+        # resolved by current_graph() (multi-tenant HTTP deployments).
+        self._dispatcher._graph = graph  # noqa: SLF001
+
+        result = self._dispatcher.call_tool(name, arguments, ctx)
+
+        # Translate WaggleToolResult → MCP v1 wire types.
+        return types.CallToolResult(
+            content=[types.TextContent(type="text", text=result.text)],
+            structuredContent=result.structured,  # v1 wire field name: structuredContent
+            isError=result.is_error,               # v1 wire field name: isError
+        )
+
+    def _handle_tool_call_legacy(self, name: str, arguments: dict[str, Any]) -> types.CallToolResult:
         graph = self.current_graph()
         request = self._get_request()
         request_id = ""
