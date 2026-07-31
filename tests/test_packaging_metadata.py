@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 from pathlib import Path
@@ -82,6 +83,35 @@ def test_bundled_server_info_is_versioned() -> None:
     assert WAGGLE_SERVER_INFO["runtime_scope"] == "mcp-server-stdio"
 
 
+def test_codex_plugin_versions_match_and_do_not_regress() -> None:
+    minimum_published_plugin_version = (0, 1, 0)
+    versions = []
+
+    for manifest_path in [
+        ROOT / ".codex-plugin" / "plugin.json",
+        ROOT / "plugins" / "waggle" / ".codex-plugin" / "plugin.json",
+    ]:
+        manifest = json.loads(manifest_path.read_text())
+        versions.append(manifest["version"])
+
+    assert len(set(versions)) == 1
+    assert _version_tuple(versions[0]) >= minimum_published_plugin_version
+
+
+def test_codex_release_docs_record_intentional_version_split_and_unsigned_policy() -> None:
+    codex_guide = (ROOT / "docs" / "install" / "codex.md").read_text()
+    runtime_guide = (ROOT / "docs" / "codex-plugin-runtime.md").read_text()
+    checklist = (ROOT / "docs" / "install" / "codex-marketplace-release-checklist.md").read_text()
+
+    for text in [codex_guide, runtime_guide, checklist]:
+        assert "0.1.1" in text
+        assert "v0.1.17" in text
+
+    assert "intentionally unsigned" in codex_guide
+    assert "intentionally unsigned" in runtime_guide
+    assert "not release blockers" in checklist
+
+
 def _extract_toml_fence(markdown: str, *, expected_table: str) -> str:
     for match in re.finditer(r"```toml\n(.*?)\n```", markdown, re.DOTALL):
         block = match.group(1)
@@ -89,6 +119,10 @@ def _extract_toml_fence(markdown: str, *, expected_table: str) -> str:
             return block
 
     raise AssertionError(f"Could not find a TOML code fence containing {expected_table!r}.")
+
+
+def _version_tuple(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))
 
 
 def test_codex_install_guide_matches_shipped_example_config() -> None:

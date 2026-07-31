@@ -36,9 +36,19 @@ For more details on how these rules govern agent behavior, see the [Automatic Me
 
 ## Codex app plugin
 
+Waggle can be installed in Codex as a self-hosted local MCP plugin. The current
+release does not require a paid hosted backend, Apple Developer ID
+notarization, or Windows Authenticode certificate. Users download the
+marketplace bundle from GitHub Releases, add the extracted directory to Codex,
+and run the bundled MCP server locally on their own machine.
+
 ## First-run OS warnings (unsigned binary)
 
-The bundled Waggle runtime binary is currently unsigned. This means macOS and Windows will show a security warning on first launch. This is expected — it does not mean the binary is malicious.
+The bundled Waggle runtime binary is intentionally unsigned for the current
+self-hosted Codex plugin release because Apple Developer ID notarization and
+Windows Authenticode signing require paid accounts or certificates. This means
+macOS and Windows can show a security warning on first launch. This is expected
+and does not mean the binary is malicious.
 
 ### macOS (Gatekeeper)
 
@@ -87,10 +97,16 @@ marketplace artifacts are published on the
 
 - `waggle-codex-marketplace-v0.1.17.zip`: a complete local marketplace root that
   can be added with `codex plugin marketplace add`
-- `waggle-codex-plugin-v0.1.17.zip`: the bare `plugins/waggle` plugin folder
+- `waggle-codex-plugin-<tag>.zip`: the bare `plugins/waggle` plugin folder
+- `waggle-codex-release-<tag>.json`: release metadata for audit and support
 
 > `v0.1.16` was a partial release and should not be used as a Codex
 > marketplace install source. Use `v0.1.17` instead.
+
+The Codex plugin version is intentionally separate from the GitHub release tag.
+The plugin manifest currently reports `0.1.1`; `v0.1.17` is the GitHub release
+tag for the public marketplace bundle after earlier private-repository trial
+releases.
 
 For the easiest install path, download and extract the marketplace bundle
 from the [`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17),
@@ -102,6 +118,30 @@ codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.17
 
 After that, refresh the plugin directory in Codex and install `Waggle` from the
 added marketplace.
+
+The v1 marketplace bundle intentionally contains all supported platform
+runtimes. Do not choose a platform-specific bundle unless a future Codex
+marketplace schema explicitly supports platform-specific artifact resolution.
+
+To verify a downloaded release manually:
+
+```bash
+shasum -a 256 -c waggle-codex-marketplace-<tag>.zip.sha256
+gh attestation verify waggle-codex-marketplace-<tag>.zip \
+  --repo Abhigyan-Shekhar/Waggle-mcp
+```
+
+The repo-hosted v1 release is distributed as an unsigned bundle. macOS
+Gatekeeper and Windows SmartScreen can show warnings. Verify the checksum and
+GitHub attestation before installing.
+
+Maintainer release checks are documented in
+[`codex-marketplace-release-checklist.md`](./codex-marketplace-release-checklist.md).
+
+To upgrade, install the newer marketplace bundle from the GitHub release and
+refresh the plugin directory in Codex. Waggle memory is stored outside the
+plugin bundle at `WAGGLE_DB_PATH`, so supported upgrades must preserve local
+memory data.
 
 ## Manual config
 

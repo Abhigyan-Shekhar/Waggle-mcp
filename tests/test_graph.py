@@ -59,15 +59,26 @@ def make_graph(tmp_path: Path) -> MemoryGraph:
     return MemoryGraph(tmp_path / "memory.db", FakeEmbeddingModel())
 
 
+def test_memory_graph_refuses_corrupted_database_before_mutating(tmp_path: Path) -> None:
+    db_path = tmp_path / "memory.db"
+    db_path.write_bytes(b"not a sqlite database")
+
+    with pytest.raises(ValidationFailure, match="failed SQLite integrity validation"):
+        MemoryGraph(db_path, FakeEmbeddingModel())
+
+    assert db_path.read_bytes() == b"not a sqlite database"
+
+
 def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def test_memory_graph_migrates_legacy_nodes_before_creating_indexes(tmp_path: Path) -> None:
+def test_memory_graph_migrates_legacy_nodes_before_creating_indexes(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "legacy-memory.db"
     connection = sqlite3.connect(db_path)
-    connection.executescript(
-        """
+    connection.executescript("""
         CREATE TABLE nodes (
             id TEXT PRIMARY KEY,
             tenant_id TEXT NOT NULL DEFAULT 'local-default',
@@ -111,8 +122,7 @@ def test_memory_graph_migrates_legacy_nodes_before_creating_indexes(tmp_path: Pa
             embedding BLOB,
             metadata TEXT DEFAULT '{}'
         );
-        """
-    )
+        """)
     connection.close()
 
     graph = MemoryGraph(db_path, FakeEmbeddingModel())
@@ -252,7 +262,9 @@ def test_clear_session_removes_only_session_scoped_data(tmp_path: Path) -> None:
     assert graph.query(query="postgres", project="alpha", session_id="sess-b", max_nodes=5).nodes
 
 
-def test_clear_project_removes_project_but_preserves_other_projects(tmp_path: Path) -> None:
+def test_clear_project_removes_project_but_preserves_other_projects(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
     graph.add_node(
         label="Alpha Cache",
@@ -738,7 +750,8 @@ def test_execute_abhi_query_matches_recent_and_filtered_nodes(tmp_path: Path) ->
     document = load_abhi_document(exported.output_path)
 
     filtered = execute_abhi_query(
-        document, query_text="FIND nodes WHERE type='decision' AND content CONTAINS 'database'"
+        document,
+        query_text="FIND nodes WHERE type='decision' AND content CONTAINS 'database'",
     )
     recent = execute_abhi_query(document, query_id="q1")
 
@@ -805,7 +818,9 @@ def test_query_abhi_file_updates_event_log_and_relevance_hits(tmp_path: Path) ->
     assert "queried_abhi" in result.executed_actions
 
 
-def test_export_abhi_builds_semantic_chunks_and_inspect_reports_them(tmp_path: Path) -> None:
+def test_export_abhi_builds_semantic_chunks_and_inspect_reports_them(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
     for index in range(70):
         graph.add_node(
@@ -1069,7 +1084,9 @@ def test_query_fusion_mode_includes_graph_and_replay_provenance(tmp_path: Path) 
     assert result.hybrid_hits[0].score >= 0.0
 
 
-def test_query_graph_mode_uses_transcript_session_signal_for_node_ranking(tmp_path: Path) -> None:
+def test_query_graph_mode_uses_transcript_session_signal_for_node_ranking(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
     timestamp = datetime(2024, 1, 1, tzinfo=UTC)
     node_a = graph.add_node(
@@ -1111,7 +1128,9 @@ def test_query_graph_mode_uses_transcript_session_signal_for_node_ranking(tmp_pa
     assert result.nodes[0].final_score is not None
 
 
-def test_prime_context_prefers_nodes_from_recent_transcript_sessions(tmp_path: Path) -> None:
+def test_prime_context_prefers_nodes_from_recent_transcript_sessions(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
     timestamp = datetime(2024, 1, 1, tzinfo=UTC)
     active = graph.add_node(
@@ -1410,7 +1429,9 @@ def test_observe_conversation_links_entity_mentions_within_turn(tmp_path: Path) 
     )
 
 
-def test_observe_conversation_extracts_favorite_preference_statement(tmp_path: Path) -> None:
+def test_observe_conversation_extracts_favorite_preference_statement(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
 
     result = graph.observe_conversation(
@@ -1425,7 +1446,9 @@ def test_observe_conversation_extracts_favorite_preference_statement(tmp_path: P
     assert any("speaker:user" in node.tags for node in preference_nodes)
 
 
-def test_observe_conversation_extracts_common_preference_and_decision_phrasings(tmp_path: Path) -> None:
+def test_observe_conversation_extracts_common_preference_and_decision_phrasings(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
 
     cases = [
@@ -1626,14 +1649,28 @@ def test_query_intersects_project_and_session_scope(tmp_path: Path) -> None:
         session_id="sess-2",
     )
 
-    sess_one = graph.query(query="alpha session note", project="alpha", session_id="sess-1", max_nodes=5, max_depth=0)
-    sess_two = graph.query(query="alpha session note", project="alpha", session_id="sess-2", max_nodes=5, max_depth=0)
+    sess_one = graph.query(
+        query="alpha session note",
+        project="alpha",
+        session_id="sess-1",
+        max_nodes=5,
+        max_depth=0,
+    )
+    sess_two = graph.query(
+        query="alpha session note",
+        project="alpha",
+        session_id="sess-2",
+        max_nodes=5,
+        max_depth=0,
+    )
 
     assert [node.label for node in sess_one.nodes] == ["Alpha session one"]
     assert [node.label for node in sess_two.nodes] == ["Alpha session two"]
 
 
-def test_observe_conversation_extracts_clean_database_and_auth_facts(tmp_path: Path) -> None:
+def test_observe_conversation_extracts_clean_database_and_auth_facts(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
 
     result = graph.observe_conversation(
@@ -1656,7 +1693,9 @@ def test_observe_conversation_extracts_clean_database_and_auth_facts(tmp_path: P
     assert "FastAPI" not in labels
 
 
-def test_observe_conversation_splits_multi_clause_turns_into_multiple_nodes(tmp_path: Path) -> None:
+def test_observe_conversation_splits_multi_clause_turns_into_multiple_nodes(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
 
     result = graph.observe_conversation(
@@ -1670,7 +1709,9 @@ def test_observe_conversation_splits_multi_clause_turns_into_multiple_nodes(tmp_
     assert "I'm using tmux now too." in decision_contents
 
 
-def test_observe_conversation_extracts_causal_fact_and_decision_with_dependency_edge(tmp_path: Path) -> None:
+def test_observe_conversation_extracts_causal_fact_and_decision_with_dependency_edge(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
 
     result = graph.observe_conversation(
@@ -1689,7 +1730,9 @@ def test_observe_conversation_extracts_causal_fact_and_decision_with_dependency_
     )
 
 
-def test_observe_conversation_stores_hedged_and_conditional_turns_as_notes(tmp_path: Path) -> None:
+def test_observe_conversation_stores_hedged_and_conditional_turns_as_notes(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
 
     hedged = graph.observe_conversation(
@@ -1731,7 +1774,9 @@ def test_observe_conversation_preserves_negated_tool_choices(tmp_path: Path) -> 
     assert "choice:mongodb" in decision_node.tags
 
 
-def test_observe_conversation_creates_database_contradiction_edges(tmp_path: Path) -> None:
+def test_observe_conversation_creates_database_contradiction_edges(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
     graph.observe_conversation(
         user_message="We chose PostgreSQL over MySQL because MySQL replication has been painful.",
@@ -1769,10 +1814,16 @@ def test_query_supports_temporal_latest_and_oldest_bias(tmp_path: Path) -> None:
     _set_node_timestamp(graph, node_v2.id, datetime(2024, 1, 2, tzinfo=UTC))
 
     latest = graph.query(
-        query="latest auth architecture", max_nodes=1, max_depth=0, retrieval_mode="graph"
+        query="latest auth architecture",
+        max_nodes=1,
+        max_depth=0,
+        retrieval_mode="graph",
     )  # Benchmark
     originally = graph.query(
-        query="originally auth architecture", max_nodes=1, max_depth=0, retrieval_mode="graph"
+        query="originally auth architecture",
+        max_nodes=1,
+        max_depth=0,
+        retrieval_mode="graph",
     )  # Benchmark
 
     assert latest.nodes[0].label == "Auth v2"
@@ -1839,7 +1890,9 @@ def test_negation_query_prefers_rejected_node(tmp_path: Path) -> None:
     assert result.nodes[0].label == "No model auto-promotion"
 
 
-def test_implicit_reference_security_review_emergency_access_prefers_break_glass(tmp_path: Path) -> None:
+def test_implicit_reference_security_review_emergency_access_prefers_break_glass(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
     graph.add_node(
         label="RBAC only",
@@ -1973,7 +2026,9 @@ def test_now_phrase_prefers_current_backend_choice(tmp_path: Path) -> None:
     assert result.nodes[0].label == "KeyDB session cache"
 
 
-def test_temporal_latest_privacy_export_policy_prefers_approval_fact(tmp_path: Path) -> None:
+def test_temporal_latest_privacy_export_policy_prefers_approval_fact(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
     graph.add_node(
         label="CSV and Parquet export",
@@ -1986,7 +2041,11 @@ def test_temporal_latest_privacy_export_policy_prefers_approval_fact(tmp_path: P
         node_type=NodeType.FACT,
     )
 
-    result = graph.query(query="what is the latest enterprise data export policy", max_nodes=1, max_depth=0)
+    result = graph.query(
+        query="what is the latest enterprise data export policy",
+        max_nodes=1,
+        max_depth=0,
+    )
 
     assert result.nodes[0].label == "Enterprise export approval"
 
@@ -2044,7 +2103,280 @@ def test_get_topics_returns_clusters(tmp_path: Path) -> None:
     assert topics.clusters[0].nodes
 
 
-def test_observe_conversation_round_trip_stamps_transcript_embeddings_and_turn_pairs(tmp_path: Path) -> None:
+def test_get_topics_caching_and_staleness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    graph = make_graph(tmp_path)
+    graph.add_node(
+        label="Auth REST",
+        content="User prefers REST APIs for auth",
+        node_type=NodeType.PREFERENCE,
+        tags=["auth", "api"],
+    )
+    graph.add_node(
+        label="Auth JWT",
+        content="Project uses JWT authentication",
+        node_type=NodeType.CONCEPT,
+        tags=["auth"],
+    )
+
+    # Initially communities should be stale. Verify the db column.
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale, cached_communities FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 1
+        assert row["cached_communities"] is None
+
+    # Track how many times _build_topic_partition is called
+    calls = 0
+    orig_build = graph._build_topic_partition
+
+    def mock_build(g, n):
+        nonlocal calls
+        calls += 1
+        return orig_build(g, n)
+
+    monkeypatch.setattr(graph, "_build_topic_partition", mock_build)
+
+    # First call: should compute and cache
+    topics1 = graph.get_topics()
+    assert calls == 1
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale, cached_communities FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 0
+        assert row["cached_communities"] is not None
+
+    # Second call: should skip _build_topic_partition (calls stays 1)
+    topics2 = graph.get_topics()
+    assert calls == 1
+    assert topics1.total_clusters == topics2.total_clusters
+
+    # Call with force_recompute=True: should recompute even if not stale (calls becomes 2)
+    graph.get_topics(force_recompute=True)
+    assert calls == 2
+
+    # Mutate the graph: add a node. This should mark communities stale.
+    graph.add_node(
+        label="Database Neo4j",
+        content="Project uses Neo4j for memory storage",
+        node_type=NodeType.ENTITY,
+        tags=["database"],
+    )
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 1
+
+    # Call after mutation: should compute again (calls becomes 3)
+    graph.get_topics()
+    assert calls == 3
+
+
+def test_add_edge_invalidates_communities_cache(tmp_path: Path) -> None:
+    """Test that adding an edge marks communities as stale."""
+    graph = make_graph(tmp_path)
+
+    # Create two nodes
+    node1 = graph.add_node(
+        label="Node 1",
+        content="First node",
+        node_type=NodeType.ENTITY,
+    ).node
+    node2 = graph.add_node(
+        label="Node 2",
+        content="Second node",
+        node_type=NodeType.ENTITY,
+    ).node
+
+    # Compute topics to populate cache
+    graph.get_topics()
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 0
+
+    # Add edge: should mark cache as stale
+    graph.add_edge(
+        source_id=node1.id,
+        target_id=node2.id,
+        relationship="relates_to",
+    )
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 1
+
+
+def test_delete_node_invalidates_communities_cache(tmp_path: Path) -> None:
+    """Test that deleting a node marks communities as stale."""
+    graph = make_graph(tmp_path)
+
+    # Create nodes
+    node1 = graph.add_node(
+        label="Node 1",
+        content="First node",
+        node_type=NodeType.ENTITY,
+    ).node
+    node2 = graph.add_node(
+        label="Node 2",
+        content="Second node",
+        node_type=NodeType.ENTITY,
+    ).node
+    graph.add_edge(
+        source_id=node1.id,
+        target_id=node2.id,
+        relationship="relates_to",
+    )
+
+    # Compute topics to populate cache
+    graph.get_topics()
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 0
+
+    # Delete node: should mark cache as stale
+    graph.delete_node(node_id=node1.id)
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 1
+
+
+def test_malformed_cached_communities_treats_as_miss(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that non-dict cached_communities payload is treated as cache miss."""
+    graph = make_graph(tmp_path)
+
+    # Create nodes and populate cache
+    graph.add_node(
+        label="Auth REST",
+        content="User prefers REST APIs for auth",
+        node_type=NodeType.PREFERENCE,
+    )
+    graph.add_node(
+        label="Auth JWT",
+        content="Project uses JWT authentication",
+        node_type=NodeType.CONCEPT,
+    )
+
+    # Compute topics to populate cache
+    graph.get_topics()
+
+    # Manually insert malformed (non-dict) JSON in cache
+    with graph._lock, graph._connect() as conn:
+        conn.execute(
+            "UPDATE tenants SET cached_communities = ? WHERE tenant_id = ?",
+            ('"not_a_dict"', graph.tenant_id),
+        )
+        conn.commit()
+
+    # Track calls to _build_topic_partition
+    calls = 0
+    orig_build = graph._build_topic_partition
+
+    def mock_build(g, n):
+        nonlocal calls
+        calls += 1
+        return orig_build(g, n)
+
+    monkeypatch.setattr(graph, "_build_topic_partition", mock_build)
+
+    # Reset call counter, then call get_topics
+    # Should detect malformed JSON and treat as cache miss
+    calls = 0
+    graph.get_topics()
+    # Should have recomputed despite communities_stale being 0
+    assert calls == 1
+
+
+def test_update_edge_invalidates_communities_cache(tmp_path: Path) -> None:
+    """Test that update_edge marks communities as stale."""
+    graph = make_graph(tmp_path)
+    n1 = graph.add_node(label="N1", content="Content 1", node_type=NodeType.ENTITY).node
+    n2 = graph.add_node(label="N2", content="Content 2", node_type=NodeType.ENTITY).node
+    edge = graph.add_edge(source_id=n1.id, target_id=n2.id, relationship="relates_to")
+
+    graph.get_topics()
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 0
+
+    graph.update_edge(edge_id=edge.id, weight=0.5)
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 1
+
+
+def test_delete_edge_invalidates_communities_cache(tmp_path: Path) -> None:
+    """Test that delete_edge marks communities as stale."""
+    graph = make_graph(tmp_path)
+    n1 = graph.add_node(label="N1", content="Content 1", node_type=NodeType.ENTITY).node
+    n2 = graph.add_node(label="N2", content="Content 2", node_type=NodeType.ENTITY).node
+    edge = graph.add_edge(source_id=n1.id, target_id=n2.id, relationship="relates_to")
+
+    graph.get_topics()
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 0
+
+    graph.delete_edge(edge_id=edge.id)
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 1
+
+
+def test_resolve_conflict_invalidates_communities_cache(tmp_path: Path) -> None:
+    """Test that resolve_conflict marks communities as stale."""
+    graph = make_graph(tmp_path)
+    n1 = graph.add_node(label="N1", content="Content 1", node_type=NodeType.ENTITY).node
+    n2 = graph.add_node(label="N2", content="Content 2", node_type=NodeType.ENTITY).node
+    edge = graph.add_edge(source_id=n1.id, target_id=n2.id, relationship="contradicts")
+
+    graph.get_topics()
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 0
+
+    graph.resolve_conflict(edge_id=edge.id, winner=n1.id)
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute(
+            "SELECT communities_stale FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+        assert row["communities_stale"] == 1
+
+
+def test_observe_conversation_round_trip_stamps_transcript_embeddings_and_turn_pairs(
+    tmp_path: Path,
+) -> None:
     graph = make_graph(tmp_path)
 
     for index in range(10):
@@ -2084,7 +2416,9 @@ def test_observe_conversation_round_trip_stamps_transcript_embeddings_and_turn_p
     assert all(row["source_turn_pair_id"] for row in node_rows)
 
 
-def test_observe_conversation_rolls_back_transcript_rows_on_extraction_failure(tmp_path: Path) -> None:
+def test_observe_conversation_rolls_back_transcript_rows_on_extraction_failure(
+    tmp_path: Path,
+) -> None:
     """Test that with verbatim-first architecture, extraction failures don't prevent verbatim storage.
 
     CHANGED: This test now verifies the new behavior where verbatim turns are stored even
@@ -2152,7 +2486,11 @@ def test_abhi_round_trip_200_turn_graph_preserves_query_results(tmp_path: Path) 
         )
 
     before = source.query(query="cobalt-137", project="roundtrip", max_nodes=3)
-    exported = source.export_abhi(output_path=tmp_path / "roundtrip.abhi", project="roundtrip", include_embeddings=True)
+    exported = source.export_abhi(
+        output_path=tmp_path / "roundtrip.abhi",
+        project="roundtrip",
+        include_embeddings=True,
+    )
 
     restored.import_abhi(input_path=exported.output_path)
     after = restored.query(query="cobalt-137", project="roundtrip", max_nodes=3)
@@ -2162,7 +2500,9 @@ def test_abhi_round_trip_200_turn_graph_preserves_query_results(tmp_path: Path) 
     assert before.nodes[0].content == after.nodes[0].content
 
     reexported = restored.export_abhi(
-        output_path=tmp_path / "roundtrip-reexport.abhi", project="roundtrip", include_embeddings=True
+        output_path=tmp_path / "roundtrip-reexport.abhi",
+        project="roundtrip",
+        include_embeddings=True,
     )
     first_doc = load_abhi_document(exported.output_path)
     second_doc = load_abhi_document(reexported.output_path)
@@ -2359,5 +2699,9 @@ def test_clear_scope_dry_run_and_audit_trail(tmp_path: Path) -> None:
 def test_read_to_write_lock_upgrade_raises_runtime_error() -> None:
     lock = _ReadWriteLock()
 
-    with lock.read(), pytest.raises(RuntimeError, match="Cannot upgrade a read lock to a write lock"), lock:
+    with (
+        lock.read(),
+        pytest.raises(RuntimeError, match="Cannot upgrade a read lock to a write lock"),
+        lock,
+    ):
         pass
