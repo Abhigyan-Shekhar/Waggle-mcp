@@ -22,7 +22,7 @@ export function GraphCanvas({
       {activeTab === "graph" ? (
         <>
           <div className="flex items-center gap-2 border-b border-white/8 px-4 py-3">
-            <button className="rounded-xl border border-white/10 px-3 py-2 text-sm" onClick={() => loadSnapshot(scope)} type="button" disabled={boot.sampleMode}>
+            <button className="rounded-xl border border-white/10 px-3 py-2 text-sm" onClick={() => loadSnapshot(scope).catch((error) => setToast(error.message))} type="button" disabled={boot.sampleMode}>
               Refresh
             </button>
             <button className="rounded-xl border border-white/10 px-3 py-2 text-sm" onClick={createNode} disabled={readOnly || boot.sampleMode} type="button">

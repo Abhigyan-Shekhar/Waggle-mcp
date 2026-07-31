@@ -112,8 +112,12 @@ export function App() {
   });
 
   const applyScope = async () => {
-    await loadSnapshot(scope);
-    setToast("Scope updated.");
+    try {
+      await loadSnapshot(scope);
+      setToast("Scope updated.");
+    } catch (error) {
+      setToast(error.message);
+    }
   };
 
   const saveNodeEdits = async (event) => {
