@@ -230,6 +230,8 @@ def _format_byte_limit(value: int) -> str:
 
 
 def _coerce_manifest_member_size(member_name: str, value: Any) -> int:
+    if isinstance(value, bool) or (isinstance(value, float) and not value.is_integer()):
+        raise ValidationFailure(f"{member_name} has an invalid manifest size.")
     try:
         size = int(value)
     except (TypeError, ValueError) as exc:
@@ -239,11 +241,11 @@ def _coerce_manifest_member_size(member_name: str, value: Any) -> int:
     return size
 
 
-def _read_archive_member_bounded(archive: zipfile.ZipFile, member_name: str, *, max_size: int) -> bytes:
+def _read_archive_member_bounded(archive: zipfile.ZipFile, member_name: str, *, max_size: int) -> bytes | None:
     try:
         member_info = archive.getinfo(member_name)
     except KeyError:
-        return b""
+        return None
 
     if member_info.file_size > max_size:
         raise ValidationFailure(
@@ -269,7 +271,9 @@ def _read_member(archive: zipfile.ZipFile, manifest: dict[str, Any], member_name
         member_name,
         max_size=ABHI_MAX_ENCRYPTED_MEMBER_BYTES if metadata.get("encrypted") else ABHI_MAX_MEMBER_PAYLOAD_BYTES,
     )
-    if raw == b"":
+    if raw is None:
+        if declared_size not in (None, 0):
+            raise ValidationFailure(f"{member_name} is missing but declares a non-empty payload.")
         return b""
     if metadata.get("encrypted"):
         payload = json.loads(raw.decode("utf-8"))
@@ -874,11 +878,10 @@ def load_abhi_document(input_path: str | Path, passphrase: str = "") -> dict[str
     with zipfile.ZipFile(zip_source, "r") as archive:
         if ABHI_MANIFEST_MEMBER not in archive.namelist():
             raise ValidationFailure(f"{source} is missing {ABHI_MANIFEST_MEMBER}.")
-        manifest = json.loads(
-            _read_archive_member_bounded(archive, ABHI_MANIFEST_MEMBER, max_size=ABHI_MAX_MANIFEST_BYTES).decode(
-                "utf-8"
-            )
-        )
+        manifest_bytes = _read_archive_member_bounded(archive, ABHI_MANIFEST_MEMBER, max_size=ABHI_MAX_MANIFEST_BYTES)
+        if manifest_bytes is None:
+            raise ValidationFailure(f"{source} is missing {ABHI_MANIFEST_MEMBER}.")
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
         _assert_supported_schema_version(str(manifest.get("schema_version", "")))
         document = {
             "manifest": manifest,
@@ -892,12 +895,16 @@ def load_abhi_document(input_path: str | Path, passphrase: str = "") -> dict[str
             ),
         }
         if manifest.get("signatures", {}).get("present"):
-            document["signature"] = _read_archive_member_bounded(
-                archive, ABHI_SIGNATURE_MEMBER, max_size=ABHI_MAX_SIGNATURE_BYTES
-            )
-            document["public_key_pem"] = _read_archive_member_bounded(
+            signature = _read_archive_member_bounded(archive, ABHI_SIGNATURE_MEMBER, max_size=ABHI_MAX_SIGNATURE_BYTES)
+            public_key_pem = _read_archive_member_bounded(
                 archive, ABHI_PUBLIC_KEY_MEMBER, max_size=ABHI_MAX_SIGNATURE_BYTES
             )
+            if signature is None:
+                raise ValidationFailure(f"{source} is missing {ABHI_SIGNATURE_MEMBER}.")
+            if public_key_pem is None:
+                raise ValidationFailure(f"{source} is missing {ABHI_PUBLIC_KEY_MEMBER}.")
+            document["signature"] = signature
+            document["public_key_pem"] = public_key_pem
         return _with_compat_views(document)
 
 
