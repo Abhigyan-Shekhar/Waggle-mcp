@@ -120,12 +120,39 @@ _TOOL_ALIASES: dict[str, tuple[str, dict[str, object]]] = {
     "rlm_context": ("build_context", {}),
 }
 
+_GRAPH_SIZE_TOOLS = {
+    "store_node",
+    "store_edge",
+    "canonicalize_node",
+    "resolve_conflict",
+    "clear_session",
+    "clear_project",
+    "clear_all",
+    "decompose_and_store",
+    "observe_conversation",
+    "pull",
+    "merge",
+    "import_markdown_vault",
+}
+
 
 def _recursive_context_enabled() -> bool:
     server_module = sys.modules.get("waggle.server")
     if server_module is not None and "RECURSIVE_CONTEXT_ENABLED" in getattr(server_module, "__dict__", {}):
         return bool(server_module.RECURSIVE_CONTEXT_ENABLED)
     return bool(RECURSIVE_CONTEXT_ENABLED)
+
+
+def _parse_as_of(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except ValueError as exc:
+        raise ValidationFailure("as_of must be a valid ISO-8601 datetime.") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 # ---------------------------------------------------------------------------
@@ -1114,6 +1141,10 @@ class WaggleToolDispatcher:
                                 "description": "Current user task or question to build context for.",
                             },
                             **_scope_properties(),
+                            "context_window_id": {
+                                "type": "string",
+                                "description": "Optional context window ID to focus retrieval within an existing window.",
+                            },
                             "token_budget": {
                                 "type": "integer",
                                 "default": 1200,
@@ -1200,6 +1231,9 @@ class WaggleToolDispatcher:
 
                 # JSON Schema structural validation (PR 3).
                 tool_def = self._tool_catalog.get(name)
+                if tool_def is None:
+                    self._tool_catalog = {t.name: t for t in self.list_tools()}
+                    tool_def = self._tool_catalog.get(name)
                 if tool_def is not None:
                     validate_against_schema(name, arguments, tool_def.input_schema)
 
@@ -1220,7 +1254,8 @@ class WaggleToolDispatcher:
                     tenant_id=tenant_id,
                 )
                 self.metrics.observe("waggle_tool_latency_seconds", elapsed, tool=name)
-                self._record_graph_size(graph)
+                if name in _GRAPH_SIZE_TOOLS:
+                    self._record_graph_size(graph)
                 LOGGER.info("tool_call_completed")
                 return result
 
@@ -1355,7 +1390,7 @@ class WaggleToolDispatcher:
 
         if name == "aggregate_graph":
             _as_of_raw = arguments.get("as_of")
-            _as_of = datetime.fromisoformat(_as_of_raw).astimezone(UTC) if _as_of_raw else None
+            _as_of = _parse_as_of(_as_of_raw)
             subgraph = graph.aggregate(
                 query=arguments.get("query", ""),
                 node_types=arguments.get("node_types"),
@@ -1372,7 +1407,7 @@ class WaggleToolDispatcher:
 
         if name == "query_graph":
             _as_of_raw = arguments.get("as_of")
-            _as_of = datetime.fromisoformat(_as_of_raw).astimezone(UTC) if _as_of_raw else None
+            _as_of = _parse_as_of(_as_of_raw)
             subgraph = graph.query(
                 query=arguments["query"],
                 max_nodes=int(arguments.get("max_nodes", 20)),
@@ -2194,7 +2229,10 @@ class WaggleToolDispatcher:
         }
 
     def _record_graph_size(self, graph: Any) -> None:
-        stats = graph.get_stats()
-        tenant_id = getattr(graph, "tenant_id", self.config.default_tenant_id)
-        self.metrics.set_gauge("waggle_graph_nodes", stats.total_nodes, tenant_id=tenant_id)
-        self.metrics.set_gauge("waggle_graph_edges", stats.total_edges, tenant_id=tenant_id)
+        try:
+            stats = graph.get_stats()
+            tenant_id = getattr(graph, "tenant_id", self.config.default_tenant_id)
+            self.metrics.set_gauge("waggle_graph_nodes", stats.total_nodes, tenant_id=tenant_id)
+            self.metrics.set_gauge("waggle_graph_edges", stats.total_edges, tenant_id=tenant_id)
+        except Exception:
+            LOGGER.debug("graph_size_metrics_failed", exc_info=True)

@@ -12,6 +12,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from jsonschema import Draft202012Validator
+from jsonschema import ValidationError as JsonSchemaError
+
 from waggle.errors import PayloadTooLargeError, ValidationFailure
 
 LOGGER = logging.getLogger(__name__)
@@ -31,15 +34,7 @@ def validate_against_schema(
     what MCP 2026-07-28 specifies for ``input_schema``.
 
     Raises ``waggle.errors.ValidationFailure`` if validation fails.
-    Does nothing if ``jsonschema`` is not installed (fails gracefully).
     """
-    try:
-        from jsonschema import Draft202012Validator
-        from jsonschema import ValidationError as JsonSchemaError
-    except ImportError:
-        LOGGER.debug("jsonschema not installed; skipping schema validation for %s", tool_name)
-        return
-
     try:
         Draft202012Validator(input_schema).validate(arguments)
     except JsonSchemaError as exc:
@@ -61,9 +56,9 @@ def assert_payload_size(value: Any, limit: int, field_name: str) -> None:
 def validate_tool_payload(name: str, arguments: dict[str, Any], max_payload_bytes: int) -> None:
     """Run tool-specific payload-size guards.
 
-    This validates *field sizes* only.  JSON Schema structural validation
-    (PR 3) is a separate concern handled by ``validate_against_schema()``
-    which is called by ``WaggleToolDispatcher.call_tool()`` before this.
+    This validates *field sizes* only. JSON Schema structural validation
+    is a separate concern handled by ``validate_against_schema()`` after
+    these payload-size guards in ``WaggleToolDispatcher.call_tool()``.
     """
     limit = max_payload_bytes
     if name == "store_node":
@@ -103,7 +98,7 @@ def validate_tool_payload(name: str, arguments: dict[str, Any], max_payload_byte
         assert_payload_size(arguments.get("project", ""), limit, "debug_retrieval.project")
         assert_payload_size(arguments.get("session_id", ""), limit, "debug_retrieval.session_id")
         return
-    if name in ("export_context_bundle", "commit"):
+    if name == "commit":
         assert_payload_size(arguments.get("query", ""), limit, "commit.query")
         assert_payload_size(arguments.get("project", ""), limit, "commit.project")
         assert_payload_size(arguments.get("agent_id", ""), limit, "commit.agent_id")
