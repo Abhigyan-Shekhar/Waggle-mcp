@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Generate MCP v1 surface fixtures.
+Generate MCP tool surface compatibility fixtures.
 
 Run from the repo root:
-    python scripts/generate_mcp_fixtures.py
+    uv run python scripts/generate_mcp_fixtures.py
 
-Writes files into tests/fixtures/mcp-v1/.
+Writes files into tests/fixtures/mcp-v1/ for historical compatibility.
 """
 from __future__ import annotations
 
@@ -25,7 +25,9 @@ def main() -> None:
     from waggle.config import AppConfig
     from waggle.embeddings import EmbeddingModel
     from waggle.graph import MemoryGraph
-    from waggle.server.mcp import WaggleServer
+    from waggle.metrics import MetricsRegistry
+    from waggle.protocol.mcp.surface import build_prompts, build_resources
+    from waggle.tools.dispatcher import _TOOL_ALIASES, WaggleToolDispatcher
 
     FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -46,17 +48,17 @@ def main() -> None:
         tenant_id="fixture-tenant",
     )
 
-    server = WaggleServer(graph=graph, config=config)
+    dispatcher = WaggleToolDispatcher(graph=graph, config=config, metrics=MetricsRegistry())
 
     # ── Tool list ─────────────────────────────────────────────────────────
-    tools = server.build_tools()
+    tools = dispatcher.list_tools()
     tool_list = []
     for tool in tools:
         tool_list.append(
             {
                 "name": tool.name,
                 "description": tool.description,
-                "inputSchema": tool.inputSchema,
+                "inputSchema": tool.input_schema,
             }
         )
 
@@ -65,7 +67,7 @@ def main() -> None:
     print(f"Wrote {len(tool_list)} tools → {tool_list_path}")
 
     # ── Resource list ─────────────────────────────────────────────────────
-    resources_result = server.build_resources()
+    resources_result = build_resources()
     resource_list = []
     for r in resources_result.resources:
         resource_list.append(
@@ -73,7 +75,7 @@ def main() -> None:
                 "uri": str(r.uri),
                 "name": r.name,
                 "description": r.description,
-                "mimeType": r.mimeType,
+                "mimeType": r.mime_type,
             }
         )
 
@@ -82,7 +84,7 @@ def main() -> None:
     print(f"Wrote {len(resource_list)} resources → {resource_list_path}")
 
     # ── Prompt list ───────────────────────────────────────────────────────
-    prompts = server.build_prompts()
+    prompts = build_prompts()
     prompt_list = []
     for p in prompts:
         prompt_list.append(
@@ -105,9 +107,10 @@ def main() -> None:
     print(f"Wrote {len(prompt_list)} prompts → {prompt_list_path}")
 
     # ── Tool aliases ──────────────────────────────────────────────────────
-    from waggle.server.mcp import _TOOL_ALIASES
-
-    alias_map = {alias: {"canonical": canonical, "default_args": defaults} for alias, (canonical, defaults) in _TOOL_ALIASES.items()}
+    alias_map = {
+        alias: {"canonical": canonical, "default_args": defaults}
+        for alias, (canonical, defaults) in _TOOL_ALIASES.items()
+    }
     alias_path = FIXTURE_DIR / "tool-aliases.json"
     alias_path.write_text(json.dumps(alias_map, indent=2))
     print(f"Wrote {len(alias_map)} aliases → {alias_path}")
