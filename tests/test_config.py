@@ -104,6 +104,31 @@ def test_zero_hybrid_weights_are_allowed() -> None:
     config.validate()
 
 
+def test_http_transport_allows_sqlite_for_self_hosted_single_user() -> None:
+    config = AppConfig(
+        backend="sqlite",
+        transport="http",
+        model_name="test",
+        db_path="test.db",
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    config.validate()
+
+
 def test_discover_db_path_missing_config(tmp_path):
     assert _discover_codex_waggle_db_path(home=tmp_path) is None
 

@@ -81,6 +81,8 @@ class _LegacyTool:
     name: str
     description: str
     inputSchema: dict[str, Any]
+    title: str | None = None
+    annotations: dict[str, Any] | None = None
 
     @property
     def input_schema(self) -> dict[str, Any]:
@@ -178,8 +180,10 @@ class WaggleServer:
         tools = [
             types.Tool(
                 name=tool.name,
+                title=getattr(tool, "title", None),
                 description=tool.description,
                 input_schema=tool.inputSchema,
+                annotations=types.ToolAnnotations(**(getattr(tool, "annotations", None) or {})),
             )
             for tool in self.build_tools()
         ]
@@ -237,8 +241,10 @@ class WaggleServer:
         return [
             _LegacyTool(
                 name=definition.name,
+                title=definition.title,
                 description=definition.description,
                 inputSchema=definition.input_schema,
+                annotations=definition.annotations or {},
             )
             for definition in self._dispatcher.list_tools()
         ]

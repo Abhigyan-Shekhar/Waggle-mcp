@@ -78,6 +78,25 @@ def _live_tools_fixture_shape(mcp_surface):
     ]
 
 
+def test_all_tools_have_claude_directory_annotations(mcp_surface):
+    """Claude directory review requires every tool to have a title and safety hint."""
+    for tool in mcp_surface._dispatcher.list_tools():
+        assert tool.title, f"Tool '{tool.name}' is missing a title."
+        annotations = tool.annotations or {}
+        assert annotations.get("title"), f"Tool '{tool.name}' is missing annotations.title."
+        assert annotations.get("read_only_hint") is not None, (
+            f"Tool '{tool.name}' is missing annotations.read_only_hint."
+        )
+        assert annotations.get("destructive_hint") is not None, (
+            f"Tool '{tool.name}' is missing annotations.destructive_hint."
+        )
+        assert len(tool.name) <= 64, f"Tool '{tool.name}' exceeds Claude's 64-character name limit."
+        if annotations["read_only_hint"]:
+            assert annotations["destructive_hint"] is False, (
+                f"Tool '{tool.name}' cannot be both read-only and destructive."
+            )
+
+
 # ── Tool list surface ──────────────────────────────────────────────────────────
 
 

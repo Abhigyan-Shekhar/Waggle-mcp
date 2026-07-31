@@ -65,6 +65,23 @@ def test_list_tools_uses_v2_snake_case_schema(tmp_path: Path) -> None:
     assert "inputSchema" not in dumped
 
 
+def test_list_tools_includes_claude_directory_annotations(tmp_path: Path) -> None:
+    adapter = make_adapter(tmp_path)
+
+    result = anyio.run(adapter.on_list_tools, SimpleNamespace(request_id="r1", request=None), None)
+
+    query_graph = next(tool for tool in result.tools if tool.name == "query_graph")
+    assert query_graph.title == "Query Graph"
+    assert query_graph.annotations is not None
+    assert query_graph.annotations.read_only_hint is True
+    assert query_graph.annotations.destructive_hint is False
+
+    clear_session = next(tool for tool in result.tools if tool.name == "clear_session")
+    assert clear_session.annotations is not None
+    assert clear_session.annotations.read_only_hint is False
+    assert clear_session.annotations.destructive_hint is True
+
+
 def test_call_tool_validation_failure_returns_is_error(tmp_path: Path) -> None:
     adapter = make_adapter(tmp_path)
 

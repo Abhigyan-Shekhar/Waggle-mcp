@@ -23,6 +23,7 @@ from waggle.server import (
     _default_graph,
     _hook_tools_from_args,
     _run_admin_command,
+    _run_claude_self_host_guide,
     _run_doctor,
     _run_graph_editor_command,
     _run_setup,
@@ -683,6 +684,60 @@ def test_create_and_list_api_keys_cli_redacts_hash(tmp_path: Path, capsys: pytes
     assert listed[0]["expires_at"] is not None
     assert listed[0]["scopes"] == ["graph:read", "graph:write", "admin:read", "admin:write"]
     assert "key_hash" not in listed[0]
+
+
+def test_claude_self_host_guide_prints_sqlite_setup(capsys: pytest.CaptureFixture[str]) -> None:
+    args = SimpleNamespace(
+        tenant_id="workspace-a",
+        db_path="/tmp/waggle.db",
+        host="127.0.0.1",
+        port=18080,
+        tunnel_url="https://waggle.example.test",
+        tunnel_provider="ngrok",
+    )
+
+    exit_code = _run_claude_self_host_guide(args)
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "WAGGLE_BACKEND=sqlite" in output
+    assert "WAGGLE_DB_PATH=/tmp/waggle.db" in output
+    assert "waggle-mcp create-api-key" in output
+    assert "waggle-mcp serve --transport http" in output
+    assert "ngrok http 18080" in output
+    assert "https://waggle.example.test/mcp" in output
+    assert "X-API-Key: <generated-key>" in output
+
+
+def test_claude_self_host_guide_can_create_api_key(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WAGGLE_STARTUP_MODE", "fast")
+    db_path = tmp_path / "self-host.db"
+    args = SimpleNamespace(
+        tenant_id="workspace-a",
+        db_path=str(db_path),
+        host="127.0.0.1",
+        port=18080,
+        tunnel_url="https://waggle.example.test",
+        tunnel_provider="generic",
+        create_key=True,
+        key_name="claude-test",
+        scopes="graph:read",
+    )
+
+    exit_code = _run_claude_self_host_guide(args)
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "Created API key." in output
+    assert "X-API-Key: sk_local_" in output
+    graph = MemoryGraph(db_path, FakeEmbeddingModel())
+    keys = graph.for_tenant("workspace-a").list_api_keys("workspace-a")
+    assert keys[0].name == "claude-test"
+    assert keys[0].scopes == ["graph:read"]
 
 
 def test_create_api_key_cli_uses_configured_live_prefix(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

@@ -276,7 +276,7 @@ Recommended upgrade flow:
 1. back up Neo4j
 2. record the current container tags and env config
 3. deploy the new Waggle version into staging
-4. run smoke checks against `/live`, `/ready`, and `/mcp`
+4. run smoke checks against `/health/live`, `/health/ready`, and `/mcp`
 5. promote to production during a defined window
 
 ## Monitoring
@@ -284,7 +284,7 @@ Recommended upgrade flow:
 At minimum, monitor:
 
 - reverse-proxy availability
-- Waggle `/live` and `/ready`
+- Waggle `/health/live` and `/health/ready`
 - Neo4j health
 - error logs
 - rate-limit spikes
@@ -295,8 +295,8 @@ At minimum, monitor:
 
 Common issues:
 
-- `HTTP transport requires WAGGLE_BACKEND=neo4j`
-  - set `WAGGLE_BACKEND=neo4j`
+- `Neo4j backend requires WAGGLE_NEO4J_URI, WAGGLE_NEO4J_USERNAME, and WAGGLE_NEO4J_PASSWORD`
+  - set the Neo4j environment variables, or use `WAGGLE_BACKEND=sqlite` for single-user self-hosting
 - `Missing X-API-Key header`
   - ensure the client sends `X-API-Key`
 - reverse proxy returns `502`

@@ -201,8 +201,6 @@ class AppConfig:
             raise ValidationFailure(f"Unsupported WAGGLE_TRANSPORT: {self.transport}")
         if self.backend not in {"sqlite", "neo4j"}:
             raise ValidationFailure(f"Unsupported WAGGLE_BACKEND: {self.backend}")
-        if self.transport == "http" and self.backend != "neo4j":
-            raise ValidationFailure("HTTP transport requires WAGGLE_BACKEND=neo4j.")
         if not self.default_tenant_id:
             raise ValidationFailure("WAGGLE_DEFAULT_TENANT_ID cannot be empty.")
         if self.backend == "sqlite":

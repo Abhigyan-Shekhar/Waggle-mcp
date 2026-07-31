@@ -480,17 +480,21 @@ The AI agent reads `~/.gemini/antigravity/mcp_config.json` (macOS/Linux) or `%US
 
 Run `waggle-mcp doctor` to see exactly which config files exist and which ones have a waggle entry.
 
+### Claude web/mobile self-hosting
+
+Claude web and mobile cannot launch a local stdio MCP process. To use Waggle there, run Waggle on your own machine in HTTP mode and expose `/mcp` through a user-owned HTTPS tunnel or reverse proxy.
+
+See [Claude self-hosted connector setup](./docs/claude-self-hosted-connector.md).
+
 ### ChatGPT
 
-ChatGPT custom MCP connectors require a remote HTTPS server. Deploy Waggle in HTTP mode with the Neo4j backend, expose `/mcp` over HTTPS, then add that URL as a custom connector in ChatGPT (`Settings → Connectors → Advanced → Developer mode`).
+ChatGPT custom MCP connectors require a remote HTTPS server. Run Waggle in HTTP mode, expose `/mcp` over HTTPS, then add that URL as a custom connector in ChatGPT (`Settings → Connectors → Advanced → Developer mode`). SQLite is the simplest single-user self-hosted backend; use Neo4j for team or production deployments.
 
 ```bash
 WAGGLE_TRANSPORT=http \
-WAGGLE_BACKEND=neo4j \
-WAGGLE_DEFAULT_TENANT_ID=workspace-default \
-WAGGLE_NEO4J_URI=bolt://localhost:7687 \
-WAGGLE_NEO4J_USERNAME=neo4j \
-WAGGLE_NEO4J_PASSWORD=change-me \
+WAGGLE_BACKEND=sqlite \
+WAGGLE_DEFAULT_TENANT_ID=local-default \
+WAGGLE_DB_PATH=~/.waggle/waggle.db \
 waggle-mcp serve
 ```
 

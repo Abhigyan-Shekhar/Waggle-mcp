@@ -25,7 +25,7 @@ from waggle.abhi import (
     build_abhi_document,
     load_abhi_document,
 )
-from waggle.config import DEFAULT_DB_PATH, AppConfig
+from waggle.config import DEFAULT_DB_PATH, AppConfig, resolve_default_db_path
 from waggle.embeddings import EmbeddingModel
 from waggle.errors import ValidationFailure, WaggleError
 from waggle.graph import MemoryGraph
@@ -285,6 +285,33 @@ def _build_parser() -> argparse.ArgumentParser:
     create_api_key.add_argument("--expires-in-days", type=int, default=0)
     create_api_key.add_argument("--created-by", default="")
     create_api_key.add_argument("--scopes", default="graph:read,graph:write,admin:read,admin:write")
+
+    claude_self_host = subparsers.add_parser(
+        "claude-self-host",
+        help="Print the self-hosted Claude web/mobile connector setup commands.",
+        description=(
+            "Print a guide for running Waggle locally over HTTP, creating an API key, "
+            "and connecting Claude web/mobile through a user-owned HTTPS tunnel."
+        ),
+    )
+    claude_self_host.add_argument("--tenant-id", default="local-default")
+    claude_self_host.add_argument("--db-path", default=resolve_default_db_path())
+    claude_self_host.add_argument("--host", default="127.0.0.1")
+    claude_self_host.add_argument("--port", type=int, default=8080)
+    claude_self_host.add_argument("--tunnel-url", default="https://<user-owned-tunnel-domain>")
+    claude_self_host.add_argument(
+        "--create-key",
+        action="store_true",
+        help="Create a local SQLite API key and print the generated X-API-Key value.",
+    )
+    claude_self_host.add_argument("--key-name", default="claude-self-hosted")
+    claude_self_host.add_argument("--scopes", default="graph:read,graph:write")
+    claude_self_host.add_argument(
+        "--tunnel-provider",
+        choices=["generic", "cloudflare", "ngrok", "tailscale"],
+        default="generic",
+        help="Include a tunnel command example for a common provider.",
+    )
 
     list_api_keys = subparsers.add_parser("list-api-keys", help="List API keys for a tenant.")
     list_api_keys.add_argument("--tenant-id", required=True)
@@ -822,6 +849,103 @@ def _run_graph_editor_command(config: AppConfig, args: argparse.Namespace) -> in
         timer.start()
 
     uvicorn.run(http_app, host=host, port=port, log_level=config.log_level.lower())
+    return 0
+
+
+def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
+    tenant_id = str(getattr(args, "tenant_id", "local-default") or "local-default").strip()
+    db_path = str(Path(str(getattr(args, "db_path", "") or resolve_default_db_path())).expanduser())
+    host = str(getattr(args, "host", "127.0.0.1") or "127.0.0.1").strip()
+    port = int(getattr(args, "port", 8080) or 8080)
+    tunnel_url = str(getattr(args, "tunnel_url", "") or "https://<user-owned-tunnel-domain>").rstrip("/")
+    tunnel_provider = str(getattr(args, "tunnel_provider", "generic") or "generic").strip().lower()
+    key_name = str(getattr(args, "key_name", "claude-self-hosted") or "claude-self-hosted").strip()
+    scopes = _parse_api_key_scopes(str(getattr(args, "scopes", "graph:read,graph:write") or "graph:read,graph:write"))
+    local_base_url = f"http://{host}:{port}"
+    remote_mcp_url = f"{tunnel_url}/mcp"
+    raw_api_key = ""
+
+    if bool(getattr(args, "create_key", False)):
+        key_config = AppConfig.from_env()
+        key_config.backend = "sqlite"
+        key_config.transport = "http"
+        key_config.db_path = db_path
+        key_config.default_tenant_id = tenant_id
+        key_config.api_key_environment = "local"
+        key_config.validate()
+        Path(key_config.db_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
+        backend = _build_backend(key_config)
+        created = backend.for_tenant(tenant_id).create_api_key(tenant_id, key_name, scopes=scopes or None)
+        raw_api_key = created.raw_api_key
+
+    print("Waggle Claude self-hosting")
+    print()
+    print("1. Create an API key")
+    print()
+    if raw_api_key:
+        print("Created API key.")
+        print()
+        print("```text")
+        print(f"X-API-Key: {raw_api_key}")
+        print("```")
+    else:
+        print("```bash")
+        print("WAGGLE_BACKEND=sqlite \\")
+        print(f"WAGGLE_DEFAULT_TENANT_ID={tenant_id} \\")
+        print(f"WAGGLE_DB_PATH={db_path} \\")
+        print("waggle-mcp create-api-key \\")
+        print(f"  --tenant-id {tenant_id} \\")
+        print(f"  --name {key_name} \\")
+        print(f"  --scopes {','.join(scopes) if scopes else 'graph:read,graph:write'}")
+        print("```")
+    print()
+    print("2. Start the local HTTP server")
+    print()
+    print("```bash")
+    print("WAGGLE_TRANSPORT=http \\")
+    print("WAGGLE_BACKEND=sqlite \\")
+    print(f"WAGGLE_DEFAULT_TENANT_ID={tenant_id} \\")
+    print(f"WAGGLE_DB_PATH={db_path} \\")
+    print(f"WAGGLE_HTTP_HOST={host} \\")
+    print(f"WAGGLE_HTTP_PORT={port} \\")
+    print("WAGGLE_API_KEY_ENVIRONMENT=local \\")
+    print("waggle-mcp serve --transport http")
+    print("```")
+    print()
+    print("3. Health checks")
+    print()
+    print("```bash")
+    print(f"curl {local_base_url}/health/live")
+    print(f"curl {local_base_url}/health/ready")
+    print("```")
+    print()
+    print("4. Tunnel routes")
+    print()
+    print("```text")
+    print(f"{remote_mcp_url} -> {local_base_url}/mcp")
+    print(f"{tunnel_url}/health/live -> {local_base_url}/health/live")
+    print(f"{tunnel_url}/health/ready -> {local_base_url}/health/ready")
+    print("```")
+    print()
+    print("5. Tunnel command example")
+    print()
+    print("```bash")
+    if tunnel_provider == "cloudflare":
+        print(f"cloudflared tunnel --url {local_base_url}")
+    elif tunnel_provider == "ngrok":
+        print(f"ngrok http {port}")
+    elif tunnel_provider == "tailscale":
+        print(f"tailscale funnel {port}")
+    else:
+        print(f"# Forward your HTTPS tunnel to {local_base_url}")
+    print("```")
+    print()
+    print("6. Claude custom connector")
+    print()
+    print(f"Server URL: {remote_mcp_url}")
+    print(f"Static header: X-API-Key: {raw_api_key or '<generated-key>'}")
+    print()
+    print("Docs: docs/claude-self-hosted-connector.md")
     return 0
 
 
@@ -2601,6 +2725,8 @@ def main() -> None:
     if command == "features":
         print(_FEATURES_GUIDE)
         return
+    if command == "claude-self-host":
+        sys.exit(_run_claude_self_host_guide(args))
     if command == "doctor":
         config = AppConfig.from_env()
         sys.exit(_run_admin_command(config, args))
@@ -2643,9 +2769,9 @@ def main() -> None:
             sys.exit(3)
         sys.exit(exit_code or 0)
         return
+    if config.backend == "sqlite":
+        Path(config.db_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
     if config.transport == "http":
         run_http(config)
         return
-    if config.backend == "sqlite":
-        Path(config.db_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
     asyncio.run(run_stdio(config))

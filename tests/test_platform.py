@@ -53,7 +53,7 @@ def make_graph(tmp_path: Path, tenant_id: str = "local-default") -> MemoryGraph:
 
 def make_http_config(tmp_path: Path, **overrides: object) -> AppConfig:
     config = AppConfig(
-        backend="neo4j",
+        backend="sqlite",
         transport="http",
         model_name="fake-model",
         db_path=str(tmp_path / "memory.db"),
@@ -67,10 +67,10 @@ def make_http_config(tmp_path: Path, **overrides: object) -> AppConfig:
         max_payload_bytes=1024 * 1024,
         request_timeout_seconds=30,
         export_dir=None,
-        neo4j_uri="bolt://localhost:7687",
-        neo4j_username="neo4j",
-        neo4j_password="secret",
-        neo4j_database="neo4j",
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
     )
     for key, value in overrides.items():
         setattr(config, key, value)
@@ -339,6 +339,8 @@ def test_http_app_health_auth_and_metrics(tmp_path: Path) -> None:
             headers={"X-API-Key": created.raw_api_key, "accept": "application/json, text/event-stream"},
         )
         assert valid.status_code == 200
+        assert app_server.config.backend == "sqlite"
+        assert "text/event-stream" in valid.headers["content-type"]
 
         metrics = client.get("/metrics")
         assert metrics.status_code == 200

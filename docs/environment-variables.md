@@ -9,7 +9,7 @@ Boolean values are enabled only when set to the lowercase string `true`. Integer
 | Variable | Default | Type | Applies when | Example |
 |----------|---------|------|--------------|---------|
 | `WAGGLE_BACKEND` | `sqlite` | string enum: `sqlite`, `neo4j` | Always. Selects the storage backend. | `neo4j` |
-| `WAGGLE_TRANSPORT` | `stdio` | string enum: `stdio`, `http` | Always. HTTP transport requires `WAGGLE_BACKEND=neo4j`. | `http` |
+| `WAGGLE_TRANSPORT` | `stdio` | string enum: `stdio`, `http` | Always. HTTP can use SQLite for single-user self-hosting or Neo4j for team/production deployments. | `http` |
 | `WAGGLE_MODEL` | `all-MiniLM-L6-v2` | string | Always. Names the sentence-transformers embedding model. | `BAAI/bge-small-en-v1.5` |
 | `WAGGLE_EMBEDDING_BACKEND` | `pytorch` | string enum: `pytorch`, `onnx` | Always. Controls which backend Sentence Transformers uses for embedding inference. | `onnx` |
 | `WAGGLE_DEFAULT_TENANT_ID` | `local-default` | string | Always. Used when a request does not provide a tenant. Must not be empty. | `workspace-default` |
