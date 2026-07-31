@@ -1,8 +1,9 @@
 """Protocol-independent tool definition used to build the tool catalogue.
 
 ``WaggleToolDefinition`` stores the tool metadata in Waggle-native form.
-MCP adapters translate ``input_schema`` to ``inputSchema`` (v1) or leave it
-as ``input_schema`` (v2 snake-case).  No MCP types appear here.
+MCP adapters leave ``input_schema`` in SDK v2 snake-case. The legacy
+compatibility shell translates it to ``inputSchema`` for older callers.
+No MCP types appear here.
 """
 from __future__ import annotations
 
@@ -19,7 +20,8 @@ class WaggleToolDefinition:
     input_schema: dict[str, Any]
     """JSON Schema for the tool's arguments.
 
-    Uses Waggle-native naming (``input_schema``).  The MCP v1 adapter emits
-    this as ``inputSchema``; the MCP v2 adapter emits it as ``input_schema``.
-    Waggle's own internal logic never reads these field names from the wire.
+    Uses Waggle-native naming (``input_schema``). The SDK v2 adapter emits it
+    as ``input_schema``; the legacy compatibility shell emits it as
+    ``inputSchema``. Waggle's own internal logic never reads these field names
+    from the wire.
     """

@@ -93,7 +93,7 @@ def test_alias_defaults_are_applied_before_schema_validation(tmp_path: Path) -> 
     assert "input_path" in result.content[0].text
 
 
-def test_build_waggle_server_does_not_import_legacy_v1_adapter(tmp_path: Path) -> None:
+def test_build_waggle_server_does_not_import_legacy_server_compat(tmp_path: Path) -> None:
     config = AppConfig.from_env()
     config.startup_mode = "normal"
     graph = MemoryGraph(tmp_path / "mcp-v2-server.db", FakeEmbeddingModel(), tenant_id="test-tenant")
