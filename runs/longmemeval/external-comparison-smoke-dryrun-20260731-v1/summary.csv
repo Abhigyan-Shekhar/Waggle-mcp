@@ -1,0 +1,4 @@
+condition,rows,qa_correct,avg_context_tokens,avg_tool_calls
+external_jsonl:graphiti_smoke,1,0,21.0,0.0
+external_jsonl:mem0_smoke,1,0,21.0,0.0
+waggle_production_context,1,0,278.0,2.0

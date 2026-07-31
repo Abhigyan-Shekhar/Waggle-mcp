@@ -1,0 +1,4 @@
+case_id,condition,context_budget,final_context_tokens,within_budget
+stress_v2_fixture_001,waggle_production_context,512,278,True
+stress_v2_fixture_001,external_jsonl:mem0_smoke,512,21,True
+stress_v2_fixture_001,external_jsonl:graphiti_smoke,512,21,True

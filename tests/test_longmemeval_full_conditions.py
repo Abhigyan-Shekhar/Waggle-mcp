@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import pytest
 
 from scripts.longmemeval_full.conditions import (
     AGENTIC_MCP,
+    EXTERNAL_JSONL_PREFIX,
     FLAT_TRANSCRIPT_VECTOR,
     GRAPH_GUIDED_CONTEXT,
     GRAPH_NODES_ONLY,
@@ -163,6 +165,66 @@ def test_flat_transcript_vector_never_queries_graph() -> None:
     assert graph.search_calls
     assert graph.query_calls == []
     assert result.retrieved_transcript_ids == ["tr-1"]
+
+
+def test_external_jsonl_context_uses_exported_context(tmp_path) -> None:
+    export_path = tmp_path / "external_contexts.jsonl"
+    export_path.write_text(
+        json.dumps(
+            {
+                "case_id": "case-1",
+                "system": "mem0",
+                "context": "Mem0 says the confirmed answer is two free nights.",
+                "retrieval_mode": "mem0_search",
+                "retrieved_transcript_ids": ["mem0-hit-1"],
+                "adapter_notes": ["exported by local adapter"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = run_condition(
+        f"{EXTERNAL_JSONL_PREFIX}mem0",
+        case(),
+        case_graph(),
+        config=ConditionConfig(reader_context_budget=128, external_context_path=export_path),
+    )
+
+    assert result.condition == "external_jsonl:mem0"
+    assert "two free nights" in result.context
+    assert result.retrieval_mode == "mem0_search"
+    assert result.retrieved_transcript_ids == ["mem0-hit-1"]
+    assert "exported by local adapter" in result.adapter_notes
+
+
+def test_external_jsonl_context_preserves_itemized_context(tmp_path) -> None:
+    export_path = tmp_path / "external_contexts.jsonl"
+    export_path.write_text(
+        json.dumps(
+            {
+                "case_id": "case-1",
+                "system": "graphiti",
+                "context_items": [
+                    {"item_id": "edge-1", "item_type": "graph_fact", "text": "Earlier value: one night."},
+                    {"item_id": "edge-2", "item_type": "graph_fact", "text": "Current value: two free nights."},
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = run_condition(
+        f"{EXTERNAL_JSONL_PREFIX}graphiti",
+        case(),
+        case_graph(),
+        config=ConditionConfig(reader_context_budget=128, external_context_path=export_path),
+    )
+
+    assert "Earlier value" in result.context
+    assert "Current value" in result.context
+    assert [item.item_id for item in result.context_items] == ["edge-1", "edge-2"]
 
 
 def test_graph_guided_condition_reproduces_old_context_path(monkeypatch: pytest.MonkeyPatch) -> None:

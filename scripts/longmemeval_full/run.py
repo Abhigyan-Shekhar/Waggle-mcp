@@ -112,6 +112,7 @@ def main(argv: list[str] | None = None) -> int:
         "allow_paid": args.allow_paid,
         "git_commit": git_commit(),
         "pricing_config": str(args.pricing_config or ""),
+        "external_context_path": str(args.external_context_path or ""),
         "graph_cache_dir": str(args.graph_cache_dir or ""),
         "force_rebuild_graph_cache": args.force_rebuild_graph_cache,
         "defer_window_edges": args.defer_window_edges,
@@ -148,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
         reader_context_budget=max(1, args.reader_context_budget - CONTEXT_ASSEMBLY_SAFETY_MARGIN_TOKENS),
         retrieval_limit=args.retrieval_limit,
         max_tool_calls=args.max_tool_calls,
+        external_context_path=args.external_context_path,
     )
     embedding_model = DeterministicEmbeddingModel() if args.dry_run else load_real_embedding_model()
 
@@ -269,6 +271,12 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--secondary-judge-model", default=DEFAULT_SECONDARY_JUDGE_MODEL)
     parser.add_argument("--secondary-judge-policy", default="all_disagreements", choices=["none", "all_disagreements", "all_rows"])
     parser.add_argument("--pricing-config", type=Path, default=None)
+    parser.add_argument(
+        "--external-context-path",
+        type=Path,
+        default=None,
+        help="JSONL context export used by external_jsonl:<system> conditions.",
+    )
     parser.add_argument("--graph-cache-dir", type=Path, default=None)
     parser.add_argument("--force-rebuild-graph-cache", action="store_true")
     parser.add_argument("--keep-graph-cache", action="store_true")

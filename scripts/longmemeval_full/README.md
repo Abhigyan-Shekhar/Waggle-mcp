@@ -63,3 +63,68 @@ Before paid evaluation, freeze and review:
 - validation-test results
 
 The current CLI intentionally blocks non-dry-run execution.
+
+## External Memory System QA Comparison
+
+Use `external_jsonl:<system>` conditions to compare Waggle against other memory systems end-to-end. External systems only provide retrieved/assembled memory context; this runner still controls:
+
+- dataset slice,
+- reader prompt,
+- reader model,
+- judge model,
+- final context budget,
+- result schema,
+- provenance artifacts.
+
+This keeps the metric as end-to-end QA, not retrieval-only recall.
+
+External context JSONL schema:
+
+```jsonl
+{"case_id":"abc123","system":"mem0","context":"Retrieved context text for the reader."}
+{"case_id":"abc123","system":"graphiti","context_items":[{"item_id":"edge-1","item_type":"graph_fact","text":"Current value: two free nights."}]}
+```
+
+Required fields:
+
+- `case_id`
+- `system`
+- either `context` or `context_items`
+
+Optional fields:
+
+- `retrieval_mode`
+- `retrieved_node_ids`
+- `retrieved_transcript_ids`
+- `retrieved_edge_ids`
+- `source_evidence_ids`
+- `adapter_notes`
+- `metadata`
+
+Example dry run:
+
+```bash
+.runtime-build-venv/bin/python -m scripts.longmemeval_full.run \
+  --dataset longmemeval_s_existing \
+  --dataset-path benchmarks/longmemeval/some_frozen_slice.json \
+  --conditions waggle_production_context,external_jsonl:mem0,external_jsonl:graphiti \
+  --external-context-path runs/longmemeval/external_contexts.jsonl \
+  --dry-run \
+  --output-dir runs/longmemeval/external-comparison-dryrun
+```
+
+Example paid QA run:
+
+```bash
+GROQ_API_KEY=... .runtime-build-venv/bin/python -m scripts.longmemeval_full.run \
+  --dataset longmemeval_s_existing \
+  --dataset-path benchmarks/longmemeval/some_frozen_slice.json \
+  --conditions waggle_production_context,external_jsonl:mem0,external_jsonl:graphiti \
+  --external-context-path runs/longmemeval/external_contexts.jsonl \
+  --reader-context-budget 3900 \
+  --retrieval-limit 10 \
+  --allow-paid \
+  --reader-model llama-3.3-70b-versatile \
+  --primary-judge-model llama-3.3-70b-versatile \
+  --output-dir runs/longmemeval/external-comparison-paid
+```

@@ -1,0 +1,4 @@
+condition,category,rows,qa_correct
+external_jsonl:graphiti_smoke,knowledge-update,1,0
+external_jsonl:mem0_smoke,knowledge-update,1,0
+waggle_production_context,knowledge-update,1,0

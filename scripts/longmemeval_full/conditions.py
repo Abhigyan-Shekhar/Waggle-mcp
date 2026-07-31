@@ -4,6 +4,7 @@ import time
 import sys
 import os
 import re
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -39,6 +40,7 @@ PRODUCTION_NO_PRIME = "waggle_production_context_no_prime"
 PRODUCTION_WITH_PRIME = "waggle_production_context_with_prime"
 ORACLE_SUPPORT_CONTEXT = "oracle_support_context"
 ORACLE_ANSWER_TURN_CONTEXT = "oracle_answer_turn_context"
+EXTERNAL_JSONL_PREFIX = "external_jsonl:"
 
 ALL_CONDITIONS = [
     FLAT_TRANSCRIPT_VECTOR,
@@ -65,6 +67,7 @@ class ConditionConfig:
     related_depth: int = 1
     prime_budget: int = 512
     controller_factory: Callable[..., Any] | None = None
+    external_context_path: Path | None = None
 
 
 def normalize_condition(name: str) -> str:
@@ -130,7 +133,124 @@ def run_condition(
         return oracle_support_context(case, case_graph, config=config)
     if condition == ORACLE_ANSWER_TURN_CONTEXT:
         return oracle_answer_turn_context(case, case_graph, config=config)
+    if condition.startswith(EXTERNAL_JSONL_PREFIX):
+        return external_jsonl_context(condition, case, config=config)
     raise ValueError(f"unknown condition: {condition}")
+
+
+_EXTERNAL_CONTEXT_CACHE: dict[str, dict[tuple[str, str], dict[str, Any]]] = {}
+
+
+def external_jsonl_context(condition: str, case: dict[str, Any], *, config: ConditionConfig) -> ConditionResult:
+    """Use an externally-produced memory context while preserving this runner's QA path.
+
+    JSONL rows must contain at least:
+      {"case_id": "...", "system": "mem0", "context": "..."}
+
+    Optional fields:
+      context_items, retrieved_node_ids, retrieved_transcript_ids, retrieved_edge_ids,
+      source_evidence_ids, retrieval_mode, adapter_notes, metadata
+    """
+    if config.external_context_path is None:
+        raise ValueError("--external-context-path is required for external_jsonl:<system> conditions")
+    system = condition[len(EXTERNAL_JSONL_PREFIX) :].strip()
+    if not system:
+        raise ValueError("external JSONL condition must be external_jsonl:<system>")
+    case_id = _external_case_id(case)
+    rows = _load_external_context_rows(config.external_context_path)
+    payload = rows.get((case_id, system))
+    if payload is None:
+        raise KeyError(f"external context not found for case_id={case_id!r}, system={system!r}")
+
+    start = time.perf_counter()
+    context = str(payload.get("context") or "")
+    raw_items = payload.get("context_items")
+    items: list[ContextItem]
+    if isinstance(raw_items, list) and raw_items:
+        items = [_external_context_item(raw_item, rank=index + 1, system=system) for index, raw_item in enumerate(raw_items)]
+    else:
+        items = [
+            ContextItem(
+                item_id=f"{system}:{case_id}:context",
+                item_type="external_context",
+                text=context,
+                inclusion_reason=f"external_jsonl:{system}",
+                token_count=token_estimate(context),
+                rank=1,
+                metadata=dict(payload.get("metadata") or {}),
+            )
+        ]
+    context, items = enforce_context_budget("", items, config.reader_context_budget)
+    return ConditionResult(
+        condition=condition,
+        context=context,
+        context_items=items,
+        retrieved_node_ids=[str(item) for item in payload.get("retrieved_node_ids") or []],
+        retrieved_transcript_ids=[str(item) for item in payload.get("retrieved_transcript_ids") or []],
+        retrieved_edge_ids=[str(item) for item in payload.get("retrieved_edge_ids") or []],
+        source_evidence_ids=[str(item) for item in payload.get("source_evidence_ids") or []],
+        retrieval_mode=str(payload.get("retrieval_mode") or f"external_jsonl:{system}"),
+        latency_ms={"external_context_load": (time.perf_counter() - start) * 1000},
+        adapter_notes=[
+            f"Uses externally generated context for {system}; reader and judge are still controlled by this runner.",
+            *[str(note) for note in payload.get("adapter_notes") or []],
+        ],
+    )
+
+
+def _load_external_context_rows(path: Path) -> dict[tuple[str, str], dict[str, Any]]:
+    cache_key = str(path.resolve())
+    if cache_key in _EXTERNAL_CONTEXT_CACHE:
+        return _EXTERNAL_CONTEXT_CACHE[cache_key]
+    rows: dict[tuple[str, str], dict[str, Any]] = {}
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            payload = json.loads(line)
+            case_id = str(payload.get("case_id") or "").strip()
+            system = str(payload.get("system") or "").strip()
+            if not case_id or not system:
+                raise ValueError(f"{path}:{line_number} must include case_id and system")
+            if "context" not in payload and "context_items" not in payload:
+                raise ValueError(f"{path}:{line_number} must include context or context_items")
+            rows[(case_id, system)] = payload
+    _EXTERNAL_CONTEXT_CACHE[cache_key] = rows
+    return rows
+
+
+def _external_case_id(case: dict[str, Any]) -> str:
+    for key in ("question_id", "case_id", "id"):
+        value = str(case.get(key) or "").strip()
+        if value:
+            return value
+    raise ValueError("case is missing question_id/case_id/id")
+
+
+def _external_context_item(raw_item: Any, *, rank: int, system: str) -> ContextItem:
+    if not isinstance(raw_item, dict):
+        text = str(raw_item)
+        return ContextItem(
+            item_id=f"{system}:item:{rank}",
+            item_type="external_context_item",
+            text=text,
+            inclusion_reason=f"external_jsonl:{system}",
+            token_count=token_estimate(text),
+            rank=rank,
+        )
+    text = str(raw_item.get("text") or raw_item.get("content") or "")
+    return ContextItem(
+        item_id=str(raw_item.get("item_id") or raw_item.get("id") or f"{system}:item:{rank}"),
+        item_type=str(raw_item.get("item_type") or "external_context_item"),
+        text=text,
+        inclusion_reason=str(raw_item.get("inclusion_reason") or f"external_jsonl:{system}"),
+        source_node_id=str(raw_item.get("source_node_id") or ""),
+        source_turn_id=str(raw_item.get("source_turn_id") or ""),
+        token_count=int(raw_item.get("token_count") or token_estimate(text)),
+        rank=int(raw_item.get("rank") or rank),
+        metadata=dict(raw_item.get("metadata") or {}),
+    )
 
 
 def flat_transcript_vector(case: dict[str, Any], case_graph: dict[str, Any], *, config: ConditionConfig) -> ConditionResult:
