@@ -1,4 +1,5 @@
 """HTTP transport service for Waggle's MCP SDK v2 server."""
+
 from __future__ import annotations
 
 import json
@@ -113,8 +114,7 @@ class MCPHttpApp:
                     raise PayloadTooLargeError()
                 receive_callable = self._replay_receive(body)
                 headers = {
-                    key.decode("latin-1").lower(): value.decode("latin-1")
-                    for key, value in scope.get("headers", [])
+                    key.decode("latin-1").lower(): value.decode("latin-1") for key, value in scope.get("headers", [])
                 }
 
             raw_api_key = headers.get("x-api-key", "")

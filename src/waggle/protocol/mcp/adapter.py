@@ -7,6 +7,7 @@ back to MCP v2 wire types.
 
 No graph access.  No config reading.  Just translation.
 """
+
 from __future__ import annotations
 
 import anyio
@@ -169,5 +170,5 @@ class WagglemcpAdapter:
         return types.CallToolResult(
             content=[types.TextContent(type="text", text=result.text)],
             structured_content=result.structured,  # v2 snake_case field
-            is_error=result.is_error,              # v2 snake_case field
+            is_error=result.is_error,  # v2 snake_case field
         )

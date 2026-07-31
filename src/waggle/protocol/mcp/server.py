@@ -17,6 +17,7 @@ Usage — HTTP (ASGI)::
 The factory returns ``(server, adapter)`` so callers can inspect the adapter
 (e.g. for re-pointing the graph in multi-tenant deployments) and for testing.
 """
+
 from __future__ import annotations
 
 import logging

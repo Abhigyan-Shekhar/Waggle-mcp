@@ -3,6 +3,7 @@
 The v2 server path owns this surface directly so it does not depend on the
 legacy server compatibility module.
 """
+
 from __future__ import annotations
 
 from typing import Any

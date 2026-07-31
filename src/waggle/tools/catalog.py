@@ -5,6 +5,7 @@ MCP adapters leave ``input_schema`` in SDK v2 snake-case. The legacy
 compatibility shell translates it to ``inputSchema`` for older callers.
 No MCP types appear here.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
