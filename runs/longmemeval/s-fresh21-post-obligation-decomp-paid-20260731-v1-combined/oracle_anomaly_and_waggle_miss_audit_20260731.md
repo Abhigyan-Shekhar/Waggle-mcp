@@ -272,4 +272,21 @@ Mechanical result:
 
 Remaining validation:
 
-- A paid reader/judge check for `58470ed2` is still needed once a current Groq key is available. No `GROQ_API_KEY` was present in the local environment when this audit section was written.
+- Completed with Groq/Llama reader+judge after a current key was provided.
+
+Paid validation artifact:
+
+- `runs/longmemeval/s-borges-ingestionfix-paid-20260731-v1`
+
+Paid result:
+
+- `58470ed2`, `waggle_production_context`: correct
+- Reader answer: Borges notes, “The Library is a sphere whose exact center is any one of its hexagons and whose circumference is inaccessible.”
+- Primary judge: `llama-3.3-70b-versatile`, label `yes`
+- Final context tokens: `2772`
+
+Conclusion:
+
+- The last known rebuilt-oracle-solvable Waggle miss from the spent fresh21 repair set is now fixed end-to-end.
+- Diagnostic repaired status on that spent set: 5/5 clean oracle-solvable Waggle misses fixed.
+- This still should not be reported as a fresh benchmark score because the cases were inspected and used to guide repairs.
