@@ -894,6 +894,76 @@
           "default": false,
           "description": "When true, include RELATES_TO edges with edge_confidence < 0.7 that are normally filtered from exports."
         },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "prime",
+            "query"
+          ],
+          "default": "prime",
+          "description": "Bundle mode: prime exports scoped memory, query exports query-focused context."
+        },
+        "query": {
+          "type": "string",
+          "default": "",
+          "description": "Optional query used when commit_format='bundle' and mode='query'."
+        },
+        "max_nodes": {
+          "type": "integer",
+          "default": 25,
+          "minimum": 1,
+          "description": "Maximum number of nodes to include in a context bundle."
+        },
+        "max_depth": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 0,
+          "description": "Relationship traversal depth for context bundle retrieval."
+        },
+        "retrieval_mode": {
+          "type": "string",
+          "enum": [
+            "graph",
+            "verbatim",
+            "hybrid"
+          ],
+          "default": "hybrid",
+          "description": "Retrieval strategy for query-mode context bundles."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "markdown",
+            "json",
+            "both"
+          ],
+          "default": "both",
+          "description": "Context bundle output format."
+        },
+        "include_edges": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether context bundles should include graph edges."
+        },
+        "include_timestamps": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether context bundles should include timestamps."
+        },
+        "include_source_prompt": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether context bundles should include stored source prompts."
+        },
+        "audience": {
+          "type": "string",
+          "enum": [
+            "llm",
+            "human"
+          ],
+          "default": "llm",
+          "description": "Target audience for bundle formatting."
+        },
         "agent_id": {
           "type": "string",
           "default": "",
