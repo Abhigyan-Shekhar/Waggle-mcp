@@ -42,15 +42,15 @@ This ensures every `:Memory` node has a unique `id` so edges can reference nodes
 
 ### 2. Node Creation (`CREATE`)
 
-One `CREATE` per node, labelled `:Memory:{NodeType}` (e.g. `:Memory:fact`, `:Memory:entity`, `:Memory:decision`). Properties include `id`, `label`, `content`, `node_type`, `project`, `agent_id`, `session_id`, `created_at`, and optionally `community_id`/`community_label`.
+One `CREATE` per node, labelled `:Memory:{NodeType}` (e.g. `:Memory:Fact`, `:Memory:Entity`, `:Memory:Decision`). Node types are sanitized to PascalCase (e.g. `fact` → `Fact`, `decision` → `Decision`). Properties include `id`, `label`, `content`, `node_type`, `project`, `agent_id`, `session_id`, `created_at`, and optionally `community_id`/`community_label`.
 
 ```cypher
-CREATE (:Memory:fact {id: 'abc123', label: 'Project deadline', content: 'Due next Friday', node_type: 'fact', project: 'my-project', agent_id: '', session_id: '', created_at: '2025-01-01T12:00:00'});
+CREATE (:Memory:Fact {id: 'abc123', label: 'Project deadline', content: 'Due next Friday', node_type: 'fact', project: 'my-project', agent_id: '', session_id: '', created_at: '2025-01-01T12:00:00'});
 ```
 
 ### 3. Edge Creation (`MATCH ... CREATE`)
 
-One `MATCH` + `CREATE` per edge. Nodes are matched by `id`, then an edge is created with the edge's `weight` value.
+One `MATCH` + `CREATE` per edge. Nodes are matched by `id`, then an edge is created with the edge's `weight` and `confidence` values.
 
 ```cypher
 MATCH (a:Memory {id: 'abc123'}), (b:Memory {id: 'def456'}) CREATE (a)-[:RELATES_TO {weight: 1.0, confidence: 1.0}]->(b);
