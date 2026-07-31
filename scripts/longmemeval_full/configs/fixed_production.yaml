@@ -1,0 +1,7 @@
+conditions:
+  - flat_transcript_vector
+  - waggle_graph_guided_transcript_context
+  - waggle_production_context
+reader_context_budget: 4096
+retrieval_limit: 10
+max_tool_calls: 6

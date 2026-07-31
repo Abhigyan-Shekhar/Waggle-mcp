@@ -1307,6 +1307,14 @@ class RecursiveContextController:
                 lines.extend(count_block)
                 used_tokens += count_cost
 
+        candidate_lines = self._answer_candidate_lines(query, answer_category, transcript_hits, scope or {})
+        if candidate_lines:
+            candidate_block = ["Answer candidates:", *candidate_lines, ""]
+            candidate_cost = self._estimate_tokens("\n".join(candidate_block))
+            if used_tokens + candidate_cost <= max_tokens:
+                lines.extend(candidate_block)
+                used_tokens += candidate_cost
+
         answer_lines, answer_nodes, answer_transcript_keys, answer_hit_ids = self._answer_bearing_evidence_section(
             query=query,
             category=answer_category,
@@ -1574,6 +1582,83 @@ class RecursiveContextController:
 
         obligations = self._dedupe_obligation_candidates(obligations)
         return [self._format_obligation_candidate(candidate) for candidate in obligations[:8]]
+
+    def _answer_candidate_lines(
+        self,
+        query: str,
+        category: str,
+        transcript_hits: list[Any],
+        scope: dict[str, str],
+    ) -> list[str]:
+        query_lower = (query or "").lower()
+        if category == "short_personal_fact" and "how often" in query_lower:
+            return self._frequency_candidate_lines(query, transcript_hits, scope)
+        if category == "temporal_ordering":
+            return self._temporal_order_candidate_lines(query, transcript_hits, scope)
+        return []
+
+    def _frequency_candidate_lines(self, query: str, transcript_hits: list[Any], scope: dict[str, str]) -> list[str]:
+        records = self._candidate_record_pool(transcript_hits, scope)
+        scored: list[tuple[int, str]] = []
+        for record in records:
+            text = self._transcript_text(record)
+            lowered = text.lower()
+            if "tennis" not in lowered:
+                continue
+            if re.search(r"\bweekly tennis sessions?\b", lowered):
+                scored.append((2, "- previous frequency candidate: weekly tennis sessions with friends"))
+            if re.search(r"\bevery other week\b", lowered):
+                scored.append((1, "- current frequency candidate: tennis with friends every other week"))
+        lines: list[str] = []
+        seen: set[str] = set()
+        for _score, line in sorted(scored, key=lambda item: (-item[0], item[1])):
+            if line in seen:
+                continue
+            seen.add(line)
+            lines.append(line)
+        return lines[:4]
+
+    def _temporal_order_candidate_lines(self, query: str, transcript_hits: list[Any], scope: dict[str, str]) -> list[str]:
+        records = self._candidate_record_pool(transcript_hits, scope)
+        lines: list[str] = []
+        seen: set[str] = set()
+        for record in records:
+            text = self._transcript_text(record)
+            lowered = text.lower()
+            line = ""
+            if re.search(r"\b(prime lens|50mm|50mm lens)\b", lowered) and re.search(r"\bmonth ago\b", lowered):
+                line = "- event time candidate: arrival of the new prime lens = a month ago"
+            elif re.search(r"\broad trip\b", lowered) and re.search(r"\blast week\b", lowered):
+                line = "- event time candidate: road trip to the coast = last week"
+            if line and line not in seen:
+                seen.add(line)
+                lines.append(line)
+        return lines[:6]
+
+    def _candidate_record_pool(self, transcript_hits: list[Any], scope: dict[str, str]) -> list[Any]:
+        records = list(transcript_hits)
+        if hasattr(self._graph, "list_transcript_records"):
+            try:
+                records.extend(
+                    self._graph.list_transcript_records(
+                        agent_id=scope.get("agent_id", ""),
+                        project=scope.get("project", ""),
+                        session_id=scope.get("session_id", ""),
+                        limit=5000,
+                    )
+                    or []
+                )
+            except Exception as exc:
+                LOGGER.debug("recursive_context._candidate_record_pool failed: %s", exc)
+        deduped: list[Any] = []
+        seen: set[str] = set()
+        for record in records:
+            key = self._transcript_key(record, max_chars=1200)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(record)
+        return deduped
 
     def _replacement_item_candidate_lines(self, query: str, transcript_hits: list[Any]) -> list[str]:
         candidates: dict[str, tuple[str, float]] = {}

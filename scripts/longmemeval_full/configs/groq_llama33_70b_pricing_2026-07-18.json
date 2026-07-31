@@ -1,0 +1,19 @@
+{
+  "pricing_date": "2026-07-18",
+  "pricing_source": "https://groq.com/pricing and https://console.groq.com/docs/model/llama-3.3-70b-versatile",
+  "reader": {
+    "model": "llama-3.3-70b-versatile",
+    "input_per_million_usd": 0.59,
+    "output_per_million_usd": 0.79
+  },
+  "primary_judge": {
+    "model": "llama-3.3-70b-versatile",
+    "input_per_million_usd": 0.59,
+    "output_per_million_usd": 0.79
+  },
+  "secondary_judge": {
+    "model": "llama-3.3-70b-versatile",
+    "input_per_million_usd": 0.59,
+    "output_per_million_usd": 0.79
+  }
+}

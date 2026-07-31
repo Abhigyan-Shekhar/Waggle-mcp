@@ -1,0 +1,26 @@
+{
+  "allow_paid": false,
+  "conditions": [
+    "waggle_production_context"
+  ],
+  "config_sha": "19394ced3ca5cfb2f897f3957e4eaf38818ca52614601a750311136dbbc1347b",
+  "context_assembly_safety_margin_tokens": 16,
+  "dataset": "longmemeval_s_existing",
+  "dataset_path": "benchmarks/longmemeval/longmemeval_s_borges_ingestion_probe_20260731.json",
+  "dataset_sha": "328ba2dd782e869c9b078c724e6512fcf7dd08e4ead7d2243d753aa153b19595",
+  "defer_window_edges": true,
+  "dry_run": true,
+  "force_rebuild_graph_cache": true,
+  "git_commit": "5fc562bb6c666bed7593d459e6d12458e39559aa",
+  "graph_cache_dir": "runs/longmemeval/.graph-cache-s-borges-ingestionfix",
+  "keep_graph_cache": true,
+  "max_tool_calls": 6,
+  "pricing_config": "",
+  "primary_judge_model": "dry-run-judge",
+  "prompt_version": "longmemeval-full-capability-v1",
+  "reader_context_budget": 3900,
+  "reader_model": "dry-run-reader",
+  "retrieval_limit": 10,
+  "secondary_judge_model": "dry-run-second-judge",
+  "secondary_judge_policy": "all_disagreements"
+}

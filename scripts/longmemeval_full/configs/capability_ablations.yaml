@@ -1,0 +1,9 @@
+conditions:
+  - waggle_graph_nodes_only
+  - waggle_hybrid_no_edges
+  - waggle_hybrid_with_edges
+  - waggle_context_without_temporal_resolution
+  - waggle_context_with_temporal_resolution
+  - oracle_support_context
+reader_context_budget: 4096
+retrieval_limit: 10
