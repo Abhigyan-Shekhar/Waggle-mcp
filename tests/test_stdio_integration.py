@@ -35,7 +35,7 @@ async def _run_stdio_initialize_and_basic_calls(tmp_path: Path) -> None:
         ClientSession(read_stream, write_stream) as session,
     ):
         init_result = await session.initialize()
-        assert init_result.serverInfo.name == "waggle"
+        assert init_result.server_info.name == "waggle"
 
         tools_result = await session.list_tools()
         assert len(tools_result.tools) == 41
