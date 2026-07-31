@@ -529,7 +529,10 @@ class TraversalMixin(MemoryGraphBase):
 
             candidates = final_candidates
             candidate_ids = [node.id for node in candidates]
-            edges = self._fetch_edges_for_nodes(connection, candidate_ids)
+            edges = _filter_edges_by_confidence(
+                self._fetch_edges_for_nodes(connection, candidate_ids),
+                min_confidence=min_confidence,
+            )
             scored_nodes = [
                 self._apply_node_score(
                     node,
@@ -917,7 +920,10 @@ class TraversalMixin(MemoryGraphBase):
             max_access = max((node.access_count for node in candidate_nodes), default=0)
             degree_by_id = dict(graph.degree(expanded_depths.keys()))
             max_degree = max(degree_by_id.values(), default=0)
-            candidate_edges = self._fetch_edges_for_nodes(connection, [node.id for node in candidate_nodes])
+            candidate_edges = _filter_edges_by_confidence(
+                self._fetch_edges_for_nodes(connection, [node.id for node in candidate_nodes]),
+                min_confidence=min_confidence,
+            )
             scored_nodes = self._sort_scored_nodes(
                 candidate_nodes,
                 max_nodes=max_nodes,

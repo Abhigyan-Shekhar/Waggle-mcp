@@ -343,6 +343,50 @@ def test_query_min_confidence_excludes_traversal_through_weak_edge(tmp_path: Pat
     assert "Unrelated Onboarding Note" not in labels
 
 
+def test_query_min_confidence_excludes_weak_edge_from_node_scoring(tmp_path: Path) -> None:
+    # enable_dedup=False: stable/boosted share enough vocabulary to get merged otherwise.
+    graph = MemoryGraph(tmp_path / "memory.db", FakeEmbeddingModel(), enable_dedup=False)
+    # stable contains every query term plus more, so it should rank first on similarity alone.
+    stable = graph.add_node(
+        label="Stable Candidate",
+        content="fastapi python backend service platform notes",
+        node_type=NodeType.NOTE,
+    ).node
+    boosted = graph.add_node(
+        label="Boosted Candidate",
+        content="fastapi backend service notes",
+        node_type=NodeType.NOTE,
+    ).node
+    weak_target = graph.add_node(
+        label="Weak Edge Target",
+        content="Completely unrelated filler content about gardening",
+        node_type=NodeType.NOTE,
+    ).node
+    for i in range(5):
+        graph.add_node(
+            label=f"Filler Note {i}",
+            content=f"Completely unrelated filler content number {i} about gardening",
+            node_type=NodeType.NOTE,
+        )
+    # High weight, low confidence: should be filtered out of scoring, not just traversal/output.
+    graph.add_edge(
+        source_id=boosted.id,
+        target_id=weak_target.id,
+        relationship=RelationType.RELATES_TO,
+        weight=1.0,
+        metadata={"edge_confidence": 0.2},
+    )
+
+    result = graph.query(
+        query="fastapi python backend service",
+        max_nodes=4,
+        max_depth=1,
+        min_confidence=0.9,
+    )
+
+    assert [node.id for node in result.nodes[:2]] == [stable.id, boosted.id]
+
+
 def test_update_delete_and_stats(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
     node = graph.add_node(
