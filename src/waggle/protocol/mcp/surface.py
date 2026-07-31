@@ -1,7 +1,7 @@
 """MCP v2 resource and prompt surface for Waggle.
 
 The v2 server path owns this surface directly so it does not depend on the
-legacy SDK v1 adapter module.
+legacy server compatibility module.
 """
 from __future__ import annotations
 

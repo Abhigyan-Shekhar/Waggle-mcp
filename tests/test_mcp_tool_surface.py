@@ -1,4 +1,4 @@
-"""Tests that the current MCP v1 tool surface matches the frozen fixture."""
+"""Tests that the current MCP tool surface matches the frozen compatibility fixture."""
 from __future__ import annotations
 
 import json
@@ -45,7 +45,7 @@ class FakeEmbeddingModel:
 
 
 @pytest.fixture(scope="module")
-def migrated_surface():
+def mcp_surface():
     """Instantiate the SDK v2 adapter against a throw-away SQLite db."""
     from waggle.config import AppConfig
     from waggle.graph import MemoryGraph
@@ -65,14 +65,15 @@ def migrated_surface():
     return WagglemcpAdapter(dispatcher=dispatcher)
 
 
-def _live_tools_v1_shape(migrated_surface):
+def _live_tools_fixture_shape(mcp_surface):
+    """Return tools normalized to the historical fixture's camelCase schema."""
     return [
         {
             "name": tool.name,
             "description": tool.description,
             "inputSchema": tool.input_schema,
         }
-        for tool in migrated_surface._dispatcher.list_tools()
+        for tool in mcp_surface._dispatcher.list_tools()
     ]
 
 
@@ -82,12 +83,12 @@ def _live_tools_v1_shape(migrated_surface):
     not (FIXTURE_DIR / "tool-list.json").exists(),
     reason="Fixture not yet generated. Run: python scripts/generate_mcp_fixtures.py",
 )
-def test_tool_names_unchanged(migrated_surface):
+def test_tool_names_unchanged(mcp_surface):
     """Every tool that existed at snapshot time must still exist with the same name."""
     fixture = json.loads((FIXTURE_DIR / "tool-list.json").read_text())
     fixture_names = {t["name"] for t in fixture}
 
-    live_tools = _live_tools_v1_shape(migrated_surface)
+    live_tools = _live_tools_fixture_shape(mcp_surface)
     live_names = {t["name"] for t in live_tools}
 
     missing = fixture_names - live_names
@@ -98,13 +99,13 @@ def test_tool_names_unchanged(migrated_surface):
     not (FIXTURE_DIR / "tool-list.json").exists(),
     reason="Fixture not yet generated.",
 )
-def test_tool_required_fields_unchanged(migrated_surface):
+def test_tool_required_fields_unchanged(mcp_surface):
     """Required fields for every tool must not shrink (adding new required fields is a
     breaking change; removing required fields is ok but we assert the snapshot set is preserved)."""
     fixture = json.loads((FIXTURE_DIR / "tool-list.json").read_text())
     fixture_map = {t["name"]: t for t in fixture}
 
-    live_tools = _live_tools_v1_shape(migrated_surface)
+    live_tools = _live_tools_fixture_shape(mcp_surface)
     live_map = {t["name"]: t for t in live_tools}
 
     for name, fixture_tool in fixture_map.items():
@@ -123,12 +124,12 @@ def test_tool_required_fields_unchanged(migrated_surface):
     not (FIXTURE_DIR / "tool-list.json").exists(),
     reason="Fixture not yet generated.",
 )
-def test_tool_property_names_unchanged(migrated_surface):
+def test_tool_property_names_unchanged(mcp_surface):
     """Argument names (properties) in every tool's inputSchema must not be removed."""
     fixture = json.loads((FIXTURE_DIR / "tool-list.json").read_text())
     fixture_map = {t["name"]: t for t in fixture}
 
-    live_tools = _live_tools_v1_shape(migrated_surface)
+    live_tools = _live_tools_fixture_shape(mcp_surface)
     live_map = {t["name"]: t for t in live_tools}
 
     for name, fixture_tool in fixture_map.items():
@@ -208,12 +209,12 @@ def test_tool_aliases_unchanged():
     not (FIXTURE_DIR / "summary.json").exists(),
     reason="Fixture not yet generated.",
 )
-def test_tool_count_not_reduced(migrated_surface):
+def test_tool_count_not_reduced(mcp_surface):
     """The number of registered tools must not decrease."""
     summary = json.loads((FIXTURE_DIR / "summary.json").read_text())
     expected_count = summary["tool_count"]
 
-    live_count = len(_live_tools_v1_shape(migrated_surface))
+    live_count = len(_live_tools_fixture_shape(mcp_surface))
     assert live_count >= expected_count, (
         f"Tool count dropped from {expected_count} to {live_count}. "
         "Check that no tools were accidentally removed."
