@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -45,7 +46,6 @@ from waggle.serializer import (
     serialize_node_history,
     serialize_observation_result,
     serialize_prime_context,
-    serialize_recent_nodes,
     serialize_stats,
     serialize_subgraph,
     serialize_timeline,
@@ -55,7 +55,7 @@ from waggle.serializer import (
 from .catalog import WaggleToolDefinition
 from .context import WaggleRequestContext
 from .results import WaggleToolResult
-from .validation import validate_tool_payload
+from .validation import validate_against_schema, validate_tool_payload
 
 LOGGER = logging.getLogger(__name__)
 
@@ -119,6 +119,13 @@ _TOOL_ALIASES: dict[str, tuple[str, dict[str, object]]] = {
 }
 
 
+def _recursive_context_enabled() -> bool:
+    server_module = sys.modules.get("waggle.server")
+    if server_module is not None and "RECURSIVE_CONTEXT_ENABLED" in getattr(server_module, "__dict__", {}):
+        return bool(server_module.RECURSIVE_CONTEXT_ENABLED)
+    return bool(RECURSIVE_CONTEXT_ENABLED)
+
+
 # ---------------------------------------------------------------------------
 # WaggleToolDispatcher
 # ---------------------------------------------------------------------------
@@ -141,10 +148,13 @@ class WaggleToolDispatcher:
         self._graph = graph
         self.config = config
         self.metrics = metrics
+        # Cache the tool catalog once so call_tool() can look up schemas without
+        # re-building the list on every request (list_tools() is pure but not free).
+        self._tool_catalog: dict[str, WaggleToolDefinition] = {t.name: t for t in self.list_tools()}
 
     # ── Tool catalogue ────────────────────────────────────────────────────
 
-    def list_tools(self) -> list[WaggleToolDefinition]:  # noqa: PLR0915
+    def list_tools(self) -> list[WaggleToolDefinition]:
         """Return the complete Waggle tool catalogue."""
         tools: list[WaggleToolDefinition] = [
             WaggleToolDefinition(
@@ -839,6 +849,62 @@ class WaggleToolDispatcher:
                             "default": False,
                             "description": "When true, include RELATES_TO edges with edge_confidence < 0.7 that are normally filtered from exports.",
                         },
+                        "mode": {
+                            "type": "string",
+                            "enum": ["prime", "query"],
+                            "default": "prime",
+                            "description": "Bundle mode: prime exports scoped memory, query exports query-focused context.",
+                        },
+                        "query": {
+                            "type": "string",
+                            "default": "",
+                            "description": "Optional query used when commit_format='bundle' and mode='query'.",
+                        },
+                        "max_nodes": {
+                            "type": "integer",
+                            "default": 25,
+                            "minimum": 1,
+                            "description": "Maximum number of nodes to include in a context bundle.",
+                        },
+                        "max_depth": {
+                            "type": "integer",
+                            "default": 2,
+                            "minimum": 0,
+                            "description": "Relationship traversal depth for context bundle retrieval.",
+                        },
+                        "retrieval_mode": {
+                            "type": "string",
+                            "enum": ["graph", "verbatim", "hybrid"],
+                            "default": "hybrid",
+                            "description": "Retrieval strategy for query-mode context bundles.",
+                        },
+                        "format": {
+                            "type": "string",
+                            "enum": ["markdown", "json", "both"],
+                            "default": "both",
+                            "description": "Context bundle output format.",
+                        },
+                        "include_edges": {
+                            "type": "boolean",
+                            "default": True,
+                            "description": "Whether context bundles should include graph edges.",
+                        },
+                        "include_timestamps": {
+                            "type": "boolean",
+                            "default": True,
+                            "description": "Whether context bundles should include timestamps.",
+                        },
+                        "include_source_prompt": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "Whether context bundles should include stored source prompts.",
+                        },
+                        "audience": {
+                            "type": "string",
+                            "enum": ["llm", "human"],
+                            "default": "llm",
+                            "description": "Target audience for bundle formatting.",
+                        },
                         **_scope_properties(),
                     }
                 ),
@@ -1026,7 +1092,7 @@ class WaggleToolDispatcher:
         ]
 
         # build_context: only included when the feature flag is on.
-        if RECURSIVE_CONTEXT_ENABLED:
+        if _recursive_context_enabled():
             tools.append(
                 WaggleToolDefinition(
                     name="build_context",
@@ -1088,7 +1154,7 @@ class WaggleToolDispatcher:
 
     # ── Main dispatch ─────────────────────────────────────────────────────
 
-    def call_tool(  # noqa: PLR0912, PLR0915
+    def call_tool(
         self,
         name: str,
         arguments: dict[str, Any],
@@ -1119,16 +1185,22 @@ class WaggleToolDispatcher:
             tool_name=name,
         ):
             try:
-                validate_tool_payload(name, arguments, self.config.max_payload_bytes)
-
-                # Resolve aliases before dispatch.
+                # Resolve aliases before validation so alias-provided defaults
+                # satisfy the canonical tool schema.
                 if name in _TOOL_ALIASES:
                     canonical_name, default_args = _TOOL_ALIASES[name]
                     arguments = {**default_args, **arguments}
                     name = canonical_name
 
+                validate_tool_payload(name, arguments, self.config.max_payload_bytes)
+
+                # JSON Schema structural validation (PR 3).
+                tool_def = self._tool_catalog.get(name)
+                if tool_def is not None:
+                    validate_against_schema(name, arguments, tool_def.input_schema)
+
                 # build_context feature-flag guard.
-                if name == "build_context" and not RECURSIVE_CONTEXT_ENABLED:
+                if name == "build_context" and not _recursive_context_enabled():
                     return self._error_result(
                         ValueError("build_context is disabled by WAGGLE_RECURSIVE_CONTEXT_ENABLED=false.")
                     )
@@ -1160,7 +1232,7 @@ class WaggleToolDispatcher:
                 LOGGER.exception("tool_call_failed")
                 return self._error_result(exc)
 
-    def _dispatch(self, name: str, arguments: dict[str, Any], graph: Any) -> WaggleToolResult:  # noqa: PLR0912, PLR0915
+    def _dispatch(self, name: str, arguments: dict[str, Any], graph: Any) -> WaggleToolResult:
         """Inner dispatch switch.  All cases return a ``WaggleToolResult``."""
         if name == "store_node":
             store_result = graph.add_node(

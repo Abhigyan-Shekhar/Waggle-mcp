@@ -5,28 +5,75 @@ import json
 import tempfile
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "mcp-v1"
 
 
+class FakeEmbeddingModel:
+    model_name = "fake-model"
+    model_id = "fake-model:deterministic-v1"
+    warmup_status = "disabled"
+    warmup_error = ""
+
+    def disable_warmup(self) -> None:
+        self.warmup_status = "disabled"
+
+    def embed(self, text: str) -> np.ndarray:
+        vector = np.zeros(8, dtype=np.float32)
+        for token in text.lower().split():
+            index = sum(ord(character) for character in token) % len(vector)
+            vector[index] += 1.0
+        norm = np.linalg.norm(vector)
+        if norm == 0.0:
+            return vector
+        return vector / norm
+
+    def to_bytes(self, embedding: np.ndarray) -> bytes:
+        return embedding.astype(np.float32).tobytes()
+
+    def from_bytes(self, data: bytes) -> np.ndarray:
+        return np.frombuffer(data, dtype=np.float32)
+
+    def cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
+        a_norm = np.linalg.norm(a)
+        b_norm = np.linalg.norm(b)
+        if a_norm == 0.0 or b_norm == 0.0:
+            return 0.0
+        return float(np.dot(a, b) / (a_norm * b_norm))
+
+
 @pytest.fixture(scope="module")
-def waggle_server():
-    """Instantiate WaggleServer against a throw-away SQLite db."""
+def migrated_surface():
+    """Instantiate the SDK v2 adapter against a throw-away SQLite db."""
     from waggle.config import AppConfig
-    from waggle.embeddings import EmbeddingModel
     from waggle.graph import MemoryGraph
-    from waggle.server.mcp import WaggleServer
+    from waggle.metrics import MetricsRegistry
+    from waggle.protocol.mcp.adapter import WagglemcpAdapter
+    from waggle.tools.dispatcher import WaggleToolDispatcher
 
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
 
     config = AppConfig.from_env()
     config.startup_mode = "fast"
-    em = EmbeddingModel("deterministic", embedding_backend="local")
+    em = FakeEmbeddingModel()
     em.disable_warmup()
     graph = MemoryGraph(db_path, em, tenant_id="test-tenant")
-    return WaggleServer(graph=graph, config=config)
+    dispatcher = WaggleToolDispatcher(graph=graph, config=config, metrics=MetricsRegistry())
+    return WagglemcpAdapter(dispatcher=dispatcher)
+
+
+def _live_tools_v1_shape(migrated_surface):
+    return [
+        {
+            "name": tool.name,
+            "description": tool.description,
+            "inputSchema": tool.input_schema,
+        }
+        for tool in migrated_surface._dispatcher.list_tools()
+    ]
 
 
 # ── Tool list surface ──────────────────────────────────────────────────────────
@@ -35,13 +82,13 @@ def waggle_server():
     not (FIXTURE_DIR / "tool-list.json").exists(),
     reason="Fixture not yet generated. Run: python scripts/generate_mcp_fixtures.py",
 )
-def test_tool_names_unchanged(waggle_server):
+def test_tool_names_unchanged(migrated_surface):
     """Every tool that existed at snapshot time must still exist with the same name."""
     fixture = json.loads((FIXTURE_DIR / "tool-list.json").read_text())
     fixture_names = {t["name"] for t in fixture}
 
-    live_tools = waggle_server.build_tools()
-    live_names = {t.name for t in live_tools}
+    live_tools = _live_tools_v1_shape(migrated_surface)
+    live_names = {t["name"] for t in live_tools}
 
     missing = fixture_names - live_names
     assert not missing, f"Tools removed since fixture was taken: {sorted(missing)}"
@@ -51,20 +98,20 @@ def test_tool_names_unchanged(waggle_server):
     not (FIXTURE_DIR / "tool-list.json").exists(),
     reason="Fixture not yet generated.",
 )
-def test_tool_required_fields_unchanged(waggle_server):
+def test_tool_required_fields_unchanged(migrated_surface):
     """Required fields for every tool must not shrink (adding new required fields is a
     breaking change; removing required fields is ok but we assert the snapshot set is preserved)."""
     fixture = json.loads((FIXTURE_DIR / "tool-list.json").read_text())
     fixture_map = {t["name"]: t for t in fixture}
 
-    live_tools = waggle_server.build_tools()
-    live_map = {t.name: t for t in live_tools}
+    live_tools = _live_tools_v1_shape(migrated_surface)
+    live_map = {t["name"]: t for t in live_tools}
 
     for name, fixture_tool in fixture_map.items():
         if name not in live_map:
             continue  # already caught by test_tool_names_unchanged
         fixture_required = set(fixture_tool.get("inputSchema", {}).get("required", []))
-        live_required = set((live_map[name].inputSchema or {}).get("required", []))
+        live_required = set((live_map[name]["inputSchema"] or {}).get("required", []))
         # New required fields are a breaking change.
         added = live_required - fixture_required
         assert not added, (
@@ -76,19 +123,19 @@ def test_tool_required_fields_unchanged(waggle_server):
     not (FIXTURE_DIR / "tool-list.json").exists(),
     reason="Fixture not yet generated.",
 )
-def test_tool_property_names_unchanged(waggle_server):
+def test_tool_property_names_unchanged(migrated_surface):
     """Argument names (properties) in every tool's inputSchema must not be removed."""
     fixture = json.loads((FIXTURE_DIR / "tool-list.json").read_text())
     fixture_map = {t["name"]: t for t in fixture}
 
-    live_tools = waggle_server.build_tools()
-    live_map = {t.name: t for t in live_tools}
+    live_tools = _live_tools_v1_shape(migrated_surface)
+    live_map = {t["name"]: t for t in live_tools}
 
     for name, fixture_tool in fixture_map.items():
         if name not in live_map:
             continue
         fixture_props = set(fixture_tool.get("inputSchema", {}).get("properties", {}).keys())
-        live_props = set((live_map[name].inputSchema or {}).get("properties", {}).keys())
+        live_props = set((live_map[name]["inputSchema"] or {}).get("properties", {}).keys())
         removed = fixture_props - live_props
         assert not removed, (
             f"Tool '{name}' lost argument properties since fixture was taken: {sorted(removed)}"
@@ -101,12 +148,14 @@ def test_tool_property_names_unchanged(waggle_server):
     not (FIXTURE_DIR / "resource-list.json").exists(),
     reason="Fixture not yet generated.",
 )
-def test_resource_uris_unchanged(waggle_server):
+def test_resource_uris_unchanged():
     """Every resource URI from the fixture must still exist."""
     fixture = json.loads((FIXTURE_DIR / "resource-list.json").read_text())
     fixture_uris = {r["uri"] for r in fixture}
 
-    live_resources = waggle_server.build_resources().resources
+    from waggle.protocol.mcp.surface import build_resources
+
+    live_resources = build_resources().resources
     live_uris = {str(r.uri) for r in live_resources}
 
     missing = fixture_uris - live_uris
@@ -119,12 +168,14 @@ def test_resource_uris_unchanged(waggle_server):
     not (FIXTURE_DIR / "prompt-list.json").exists(),
     reason="Fixture not yet generated.",
 )
-def test_prompt_names_unchanged(waggle_server):
+def test_prompt_names_unchanged():
     """Every prompt from the fixture must still exist."""
     fixture = json.loads((FIXTURE_DIR / "prompt-list.json").read_text())
     fixture_names = {p["name"] for p in fixture}
 
-    live_prompts = waggle_server.build_prompts()
+    from waggle.protocol.mcp.surface import build_prompts
+
+    live_prompts = build_prompts()
     live_names = {p.name for p in live_prompts}
 
     missing = fixture_names - live_names
@@ -139,7 +190,7 @@ def test_prompt_names_unchanged(waggle_server):
 )
 def test_tool_aliases_unchanged():
     """Every alias from the fixture must still be wired to the same canonical tool."""
-    from waggle.server.mcp import _TOOL_ALIASES
+    from waggle.tools.dispatcher import _TOOL_ALIASES
 
     fixture = json.loads((FIXTURE_DIR / "tool-aliases.json").read_text())
 
@@ -157,12 +208,12 @@ def test_tool_aliases_unchanged():
     not (FIXTURE_DIR / "summary.json").exists(),
     reason="Fixture not yet generated.",
 )
-def test_tool_count_not_reduced(waggle_server):
+def test_tool_count_not_reduced(migrated_surface):
     """The number of registered tools must not decrease."""
     summary = json.loads((FIXTURE_DIR / "summary.json").read_text())
     expected_count = summary["tool_count"]
 
-    live_count = len(waggle_server.build_tools())
+    live_count = len(_live_tools_v1_shape(migrated_surface))
     assert live_count >= expected_count, (
         f"Tool count dropped from {expected_count} to {live_count}. "
         "Check that no tools were accidentally removed."

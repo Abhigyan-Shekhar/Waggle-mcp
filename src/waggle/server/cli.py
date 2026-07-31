@@ -2535,29 +2535,9 @@ def get_app(config: AppConfig | None = None) -> WaggleServer:
 
 
 async def run_stdio(config: AppConfig) -> None:
-    app = get_app(config)
-    graph = app._root_graph
-    em = graph.embedding_model
-    is_bundled_runtime = os.environ.get("WAGGLE_BUNDLED_RUNTIME", "").strip() in {"1", "true", "yes"}
-    if (
-        not is_bundled_runtime
-        and not config.is_fast_mode
-        and hasattr(em, "start_background_warmup")
-        and not getattr(em, "_warmup_started", False)
-    ):
-        em.start_background_warmup()
-    if config.is_strict_mode:
-        LOGGER.info("stdio_strict_mode_waiting_for_embedding", extra={"model": em.model_name})
-        if hasattr(em, "_ready_event"):
-            em._ready_event.wait(timeout=120.0)
-        LOGGER.info(
-            "stdio_strict_mode_embedding_status",
-            extra={"status": getattr(em, "warmup_status", "unknown"), "error": getattr(em, "warmup_error", "")},
-        )
-    import mcp.server.stdio
+    from waggle.protocol.mcp.stdio import run_waggle_stdio
 
-    async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-        await app.server.run(read_stream, write_stream, app.initialization_options())
+    await run_waggle_stdio(config)
 
 
 def run_http(config: AppConfig) -> None:
