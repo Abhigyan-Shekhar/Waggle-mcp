@@ -3,14 +3,23 @@ from __future__ import annotations
 import json
 import logging
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 import anyio
 import mcp.types as types
 from mcp.server.lowlevel import NotificationOptions, Server
-from mcp.server.lowlevel.server import request_ctx
 from mcp.server.models import InitializationOptions
+
+try:
+    from mcp.server.lowlevel.server import request_ctx
+except ImportError:
+    class _MissingRequestContext:
+        def get(self) -> Any:
+            raise LookupError
+
+    request_ctx = _MissingRequestContext()
 
 from waggle import __version__
 from waggle.abhi import serialize_abhi_diff
@@ -63,6 +72,33 @@ from .utils import (
 )
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class _LegacyTool:
+    name: str
+    description: str
+    inputSchema: dict[str, Any]
+
+    @property
+    def input_schema(self) -> dict[str, Any]:
+        return self.inputSchema
+
+
+@dataclass(slots=True)
+class _LegacyCallToolResult:
+    content: list[types.TextContent]
+    structuredContent: dict[str, Any] | list[Any]
+    isError: bool = False
+
+    @property
+    def structured_content(self) -> dict[str, Any] | list[Any]:
+        return self.structuredContent
+
+    @property
+    def is_error(self) -> bool:
+        return self.isError
+
 
 MEMORY_AUTOMATION_POLICY = """Waggle automatic memory policy
 
@@ -156,6 +192,19 @@ class WaggleServer:
         return self.current_graph()
 
     def _register_handlers(self) -> None:
+        if not hasattr(self.server, "list_tools"):
+            self.server = Server(
+                "waggle",
+                version=__version__,
+                on_list_tools=self._on_list_tools_v2,
+                on_call_tool=self._on_call_tool_v2,
+                on_list_resources=self._on_list_resources_v2,
+                on_read_resource=self._on_read_resource_v2,
+                on_list_prompts=self._on_list_prompts_v2,
+                on_get_prompt=self._on_get_prompt_v2,
+            )
+            return
+
         @self.server.list_tools()
         async def list_tools() -> list[types.Tool]:
             return self.build_tools()
@@ -183,11 +232,75 @@ class WaggleServer:
         async def get_prompt(name: str, arguments: dict[str, str] | None) -> types.GetPromptResult:
             return self.get_prompt_result(name, arguments or {})
 
-    def build_tools(self) -> list[types.Tool]:  # type: ignore[override]
+    async def _on_list_tools_v2(
+        self,
+        ctx: object,
+        params: types.PaginatedRequestParams | None,
+    ) -> types.ListToolsResult:
+        del ctx, params
+        tools = [
+            types.Tool(
+                name=tool.name,
+                description=tool.description,
+                input_schema=tool.inputSchema,
+            )
+            for tool in self.build_tools()
+        ]
+        return types.ListToolsResult(tools=tools)
+
+    async def _on_call_tool_v2(
+        self,
+        ctx: object,
+        params: types.CallToolRequestParams,
+    ) -> types.CallToolResult:
+        del ctx
+        result = await anyio.to_thread.run_sync(self.handle_tool_call, params.name, params.arguments or {})
+        return types.CallToolResult(
+            content=result.content,
+            structured_content=result.structuredContent,
+            is_error=result.isError,
+        )
+
+    async def _on_list_resources_v2(
+        self,
+        ctx: object,
+        params: types.PaginatedRequestParams | None,
+    ) -> types.ListResourcesResult:
+        del ctx, params
+        return self.build_resources()
+
+    async def _on_read_resource_v2(
+        self,
+        ctx: object,
+        params: types.ReadResourceRequestParams,
+    ) -> types.ReadResourceResult:
+        del ctx
+        text = self.read_resource_text(str(params.uri))
+        return types.ReadResourceResult(
+            contents=[types.TextResourceContents(uri=params.uri, text=text, mime_type="text/plain")]
+        )
+
+    async def _on_list_prompts_v2(
+        self,
+        ctx: object,
+        params: types.PaginatedRequestParams | None,
+    ) -> types.ListPromptsResult:
+        del ctx, params
+        return types.ListPromptsResult(prompts=self.build_prompts())
+
+    async def _on_get_prompt_v2(
+        self,
+        ctx: object,
+        params: types.GetPromptRequestParams,
+    ) -> types.GetPromptResult:
+        del ctx
+        return self.get_prompt_result(params.name, dict(params.arguments or {}))
+
+    def build_tools(self) -> list[_LegacyTool]:  # type: ignore[override]
         # Delegate to the protocol-independent dispatcher and translate to MCP v1 types.
         # The key difference from v2: MCP v1 uses camelCase `inputSchema`.
         return [
-            types.Tool(
+            _LegacyTool(
                 name=d.name,
                 description=d.description,
                 inputSchema=d.input_schema,  # v1 wire field name: inputSchema
@@ -195,7 +308,7 @@ class WaggleServer:
             for d in self._dispatcher.list_tools()
         ]
 
-    def _build_tools_legacy(self) -> list[types.Tool]:  # noqa: PLR0915
+    def _build_tools_legacy(self) -> list[types.Tool]:
         """Original inline tool list — kept for audit and diff purposes only.
 
         Not called at runtime.  ``build_tools()`` now delegates to
@@ -1359,7 +1472,7 @@ class WaggleServer:
             },
         )
 
-    def handle_tool_call(self, name: str, arguments: dict[str, Any]) -> types.CallToolResult:  # type: ignore[override]
+    def handle_tool_call(self, name: str, arguments: dict[str, Any]) -> _LegacyCallToolResult:  # type: ignore[override]
         """Translate a MCP v1 tool call to ``WaggleToolResult`` via the dispatcher.
 
         This method is called from a thread via ``anyio.to_thread.run_sync``.
@@ -1392,12 +1505,12 @@ class WaggleServer:
 
         # Temporarily rebind the dispatcher's graph to the tenant-specific graph
         # resolved by current_graph() (multi-tenant HTTP deployments).
-        self._dispatcher._graph = graph  # noqa: SLF001
+        self._dispatcher._graph = graph
 
         result = self._dispatcher.call_tool(name, arguments, ctx)
 
         # Translate WaggleToolResult → MCP v1 wire types.
-        return types.CallToolResult(
+        return _LegacyCallToolResult(
             content=[types.TextContent(type="text", text=result.text)],
             structuredContent=result.structured,  # v1 wire field name: structuredContent
             isError=result.is_error,               # v1 wire field name: isError
