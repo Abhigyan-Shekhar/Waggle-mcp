@@ -372,6 +372,8 @@ def filter_snapshot_by_scope(
     project: str = "",
     agent_id: str = "",
     session_id: str = "",
+    strict_export: bool = False,
+    include_deps: bool = False,
 ) -> dict[str, Any]:
     if not any((project.strip(), agent_id.strip(), session_id.strip())):
         return deepcopy(snapshot)
@@ -383,12 +385,20 @@ def filter_snapshot_by_scope(
         if _scope_match(node, project=project, agent_id=agent_id, session_id=session_id)
     ]
     selected_node_ids = {str(node.get("id", "")).strip() for node in filtered["nodes"]}
-    filtered["edges"] = [
-        edge
-        for edge in snapshot.get("edges", [])
-        if str(edge.get("source_id", "")).strip() in selected_node_ids
-        and str(edge.get("target_id", "")).strip() in selected_node_ids
-    ]
+    if strict_export or include_deps:
+        filtered["edges"] = [
+            edge
+            for edge in snapshot.get("edges", [])
+            if str(edge.get("source_id", "")).strip() in selected_node_ids
+            or str(edge.get("target_id", "")).strip() in selected_node_ids
+        ]
+    else:
+        filtered["edges"] = [
+            edge
+            for edge in snapshot.get("edges", [])
+            if str(edge.get("source_id", "")).strip() in selected_node_ids
+            and str(edge.get("target_id", "")).strip() in selected_node_ids
+        ]
     filtered["transcripts"] = [
         transcript
         for transcript in snapshot.get("transcripts", [])
@@ -415,7 +425,15 @@ def filter_snapshot_by_scope(
 
 
 def _scope_filter(
-    snapshot: dict[str, Any], *, scope: str, project: str, agent_id: str, session_id: str, since_date: str
+    snapshot: dict[str, Any],
+    *,
+    scope: str,
+    project: str,
+    agent_id: str,
+    session_id: str,
+    since_date: str,
+    strict_export: bool = False,
+    include_deps: bool = False,
 ) -> dict[str, Any]:
     normalized = scope.strip().lower() or "all"
     filtered = deepcopy(snapshot)
@@ -425,6 +443,8 @@ def _scope_filter(
             project=project,
             agent_id=agent_id,
             session_id=session_id if normalized == "session" else "",
+            strict_export=strict_export,
+            include_deps=include_deps,
         )
     elif normalized == "since-date":
         cutoff = since_date.strip()
@@ -436,11 +456,20 @@ def _scope_filter(
             if str(node.get("updated_at") or node.get("created_at") or "") >= cutoff
         ]
         node_ids = {str(node.get("id", "")).strip() for node in filtered["nodes"]}
-        filtered["edges"] = [
-            edge
-            for edge in filtered.get("edges", [])
-            if str(edge.get("source_id", "")).strip() in node_ids and str(edge.get("target_id", "")).strip() in node_ids
-        ]
+        if strict_export or include_deps:
+            filtered["edges"] = [
+                edge
+                for edge in filtered.get("edges", [])
+                if str(edge.get("source_id", "")).strip() in node_ids
+                or str(edge.get("target_id", "")).strip() in node_ids
+            ]
+        else:
+            filtered["edges"] = [
+                edge
+                for edge in filtered.get("edges", [])
+                if str(edge.get("source_id", "")).strip() in node_ids
+                and str(edge.get("target_id", "")).strip() in node_ids
+            ]
         filtered["transcripts"] = [
             row for row in filtered.get("transcripts", []) if str(row.get("observed_at", "")).strip() >= cutoff
         ]
@@ -473,6 +502,8 @@ def build_abhi_document(
         agent_id=agent_id,
         session_id=session_id,
         since_date=since_date,
+        strict_export=strict_export,
+        include_deps=include_deps,
     )
     transcripts = _sorted_records(
         [_normalize_transcript(item, redact_patterns=redact_patterns) for item in filtered.get("transcripts", [])],
@@ -579,24 +610,96 @@ def build_abhi_document(
         "nodes": nodes,
         "edges": edges,
         "context_windows": context_windows,
+        "context_window_edges": context_window_edges,
     }
     manifest["content_hash"] = _hash_with_prefix(compute_abhi_hash(document))
     dangling_export = _find_dangling_edges(document)
     if dangling_export:
-        if strict_export:
-            raise DanglingEdgeError(
-                f"Export contains {len(dangling_export)} dangling edge(s). "
-                "Use --include-deps or remove --strict-export."
-            )
         if include_deps:
-            # TODO: Implement traversal of dangling edge targets to include referenced nodes.
-            pass
-        else:
-            logger.warning(
-                "Export contains %d dangling edge(s): %s",
-                len(dangling_export),
-                ", ".join(dangling_export[:5]) + ("..." if len(dangling_export) > 5 else ""),
-            )
+            included_ids = {str(n["id"]) for n in nodes if n.get("id")}
+            snapshot_nodes_by_id = {str(n["id"]): n for n in snapshot.get("nodes", []) if n.get("id")}
+
+            to_add = []
+            for edge in edges:
+                edge_id = str(edge.get("id", ""))
+                if edge_id in dangling_export:
+                    source = str(edge.get("source_id", ""))
+                    target = str(edge.get("target_id", ""))
+                    if source and source not in included_ids:
+                        if source in snapshot_nodes_by_id:
+                            to_add.append(snapshot_nodes_by_id[source])
+                            included_ids.add(source)
+                    if target and target not in included_ids:
+                        if target in snapshot_nodes_by_id:
+                            to_add.append(snapshot_nodes_by_id[target])
+                            included_ids.add(target)
+
+            if to_add:
+                normalized_to_add = [
+                    _normalize_node(item, redact_patterns=redact_patterns, include_embeddings=include_embeddings)
+                    for item in to_add
+                ]
+                nodes.extend(normalized_to_add)
+                nodes = _sorted_records(nodes, "id", "source_turn_pair_id", "updated_at")
+
+                document["nodes"] = nodes
+                manifest["counts"]["nodes"] = len(nodes)
+
+                final_window_ids = {
+                    str(node.get("context_window_id", "")).strip()
+                    for node in nodes
+                    if str(node.get("context_window_id", "")).strip()
+                }
+
+                context_windows = _sorted_records(
+                    [
+                        _normalize_window(item)
+                        for item in snapshot.get("context_windows", [])
+                        if str(item.get("id", "")).strip() in final_window_ids
+                    ],
+                    "id",
+                    "session_id",
+                )
+                document["context_windows"] = context_windows
+                manifest["counts"]["context_windows"] = len(context_windows)
+
+                context_window_edges = _sorted_records(
+                    [
+                        item
+                        for item in snapshot.get("context_window_edges", [])
+                        if str(item.get("source_window_id", "")).strip() in final_window_ids
+                        and str(item.get("target_window_id", "")).strip() in final_window_ids
+                    ],
+                    "id",
+                    "source_window_id",
+                    "target_window_id",
+                    "edge_type",
+                )
+                document["context_window_edges"] = context_window_edges
+                manifest["context_window_edges"] = context_window_edges
+
+                manifest["content_hash"] = _hash_with_prefix(compute_abhi_hash(document))
+
+            dangling_export = _find_dangling_edges(document)
+
+        if dangling_export:
+            if strict_export:
+                if include_deps:
+                    raise DanglingEdgeError(
+                        f"Export contains {len(dangling_export)} dangling edge(s) "
+                        "that could not be resolved even with --include-deps."
+                    )
+                else:
+                    raise DanglingEdgeError(
+                        f"Export contains {len(dangling_export)} dangling edge(s). "
+                        "Use --include-deps or remove --strict-export."
+                    )
+            else:
+                logger.warning(
+                    "Export contains %d dangling edge(s): %s",
+                    len(dangling_export),
+                    ", ".join(dangling_export[:5]) + ("..." if len(dangling_export) > 5 else ""),
+                )
     return _with_compat_views(document)
 
 
@@ -659,6 +762,8 @@ def write_abhi_document(
     signing_key_dir: str | Path | None = None,
     include_low_confidence_edges: bool = False,
     low_confidence_threshold: float = 0.7,
+    strict_export: bool = False,
+    include_deps: bool = False,
 ) -> AbhiExportResult:
     destination = Path(output_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -674,6 +779,8 @@ def write_abhi_document(
         encrypted=bool(passphrase),
         include_low_confidence_edges=include_low_confidence_edges,
         low_confidence_threshold=low_confidence_threshold,
+        strict_export=strict_export,
+        include_deps=include_deps,
     )
     manifest = document["manifest"]
     # Write the ZIP to a temp file first, then stream magic + ZIP to the final

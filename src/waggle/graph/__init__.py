@@ -5,6 +5,13 @@ import json
 import logging
 import sqlite3
 import threading
+
+try:
+    import sqlite_vec
+
+    _HAS_SQLITE_VEC = True
+except ImportError:
+    _HAS_SQLITE_VEC = False
 from collections.abc import Iterable
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
@@ -154,6 +161,8 @@ CREATE TABLE IF NOT EXISTS tenants (
     tenant_id TEXT PRIMARY KEY,
     name TEXT DEFAULT '',
     status TEXT NOT NULL DEFAULT 'active',
+    communities_stale INTEGER DEFAULT 1,
+    cached_communities TEXT DEFAULT NULL,
     created_at TEXT NOT NULL
 );
 
@@ -485,6 +494,14 @@ class _ReadWriteLock:
                 self._cond.notify_all()
 
 
+def _decode_trigger_blob(blob: bytes | None) -> bytes | None:
+    if not blob:
+        return None
+    if len(blob) >= 8 and blob.startswith(b"WEB1"):
+        return blob[4:-4]
+    return blob
+
+
 class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBase):
     """SQLite-backed graph memory with embedding-assisted retrieval."""
 
@@ -524,6 +541,20 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         # concurrent access without changing the external API.
         self._lock = _ReadWriteLock()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
+        self._sqlite_vec_loaded = True
+        if _HAS_SQLITE_VEC:
+            try:
+                with self._connect() as conn:
+                    conn.execute("SELECT vec_version()")
+            except Exception as e:
+                LOGGER.warning(
+                    "sqlite-vec is installed but failed to load or initialize: %s. Falling back to pure Python.", e
+                )
+                self._sqlite_vec_loaded = False
+        else:
+            self._sqlite_vec_loaded = False
+
         self._initialize_database()
         # Reuse a small pool of pre-configured connections instead of opening a
         # fresh one (and re-running every PRAGMA) on each operation. Created
@@ -537,6 +568,14 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         # Only the graph that created the pool closes it; for_tenant clones share
         # it (like they share the lock) and must not close it out from under us.
         self._owns_pool = True
+        self._lexical_cache = None
+
+    @property
+    def root_graph(self) -> MemoryGraph:
+        owner = getattr(self, "_pool_owner", None)
+        if owner is not None:
+            return owner.root_graph
+        return self
 
     def hybrid_retriever(self) -> HybridRetriever:
         return HybridRetriever(self, config=self.hybrid_retrieval_config)
@@ -578,6 +617,27 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         connection = sqlite3.connect(str(self.db_path), timeout=timeout, check_same_thread=check_same_thread)
         connection.row_factory = sqlite3.Row
 
+        # Resolve expected embedding dimension
+        dim = getattr(self, "_sqlite_vec_dim", None)
+        if dim is None and hasattr(self, "embedding_model"):
+            try:
+                dim = len(self.embedding_model.embed("dim_check"))
+                self._sqlite_vec_dim = dim
+            except Exception:
+                dim = 256
+
+        def _decode_trigger_blob(blob: bytes | None) -> bytes | None:
+            if not blob:
+                return None
+            if len(blob) == (dim * 4) + 8 and blob.startswith(b"WEB1"):
+                return blob[4:-4]
+            if len(blob) == dim * 4:
+                return blob
+            # Return zero vector fallback for corrupt payloads to avoid SQL errors
+            return b"\x00" * (dim * 4)
+
+        connection.create_function("vec_decode_embedding", 1, _decode_trigger_blob)
+
         # WAL mode: enables concurrent reads while maintaining single-writer safety
         connection.execute("PRAGMA journal_mode=WAL")
 
@@ -605,6 +665,17 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         # Allow SQLite to keep 32 MB of pages in its pager cache.
         # Negative value = number of KiB; -32000 = 32 MB.
         connection.execute("PRAGMA cache_size=-32000")
+
+        # Load sqlite-vec extension if available
+        if _HAS_SQLITE_VEC and getattr(self, "_sqlite_vec_loaded", True):
+            try:
+                connection.enable_load_extension(True)
+                try:
+                    sqlite_vec.load(connection)
+                finally:
+                    connection.enable_load_extension(False)
+            except Exception:
+                pass
 
         return connection
 
@@ -655,6 +726,74 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                     (self.tenant_id, created_at),
                 )
 
+                # Initialize sqlite-vec virtual table and triggers if loaded
+                if self._sqlite_vec_loaded:
+                    try:
+                        dummy_vector = self.embedding_model.embed("dim_check")
+                        dim = len(dummy_vector)
+
+                        # Recreate vec_nodes and reattach triggers on startup
+                        # to backfill any writes that occurred while sqlite-vec was disabled.
+                        connection.execute("DROP TRIGGER IF EXISTS t_nodes_insert")
+                        connection.execute("DROP TRIGGER IF EXISTS t_nodes_update")
+                        connection.execute("DROP TRIGGER IF EXISTS t_nodes_delete")
+                        connection.execute("DROP TABLE IF EXISTS vec_nodes")
+
+                        connection.execute(f"""
+                            CREATE VIRTUAL TABLE vec_nodes USING vec0(
+                                embedding float[{dim}] distance_metric=cosine,
+                                tenant_id TEXT,
+                                project TEXT,
+                                session_id TEXT,
+                                agent_id TEXT
+                            )
+                        """)
+                        connection.execute("""
+                            INSERT INTO vec_nodes(rowid, embedding, tenant_id, project, session_id, agent_id)
+                            SELECT rowid, vec_decode_embedding(embedding), tenant_id, project, session_id, agent_id
+                            FROM nodes
+                            WHERE embedding IS NOT NULL
+                        """)
+
+                        connection.execute("""
+                            CREATE TRIGGER t_nodes_insert AFTER INSERT ON nodes
+                            BEGIN
+                                INSERT INTO vec_nodes(rowid, embedding, tenant_id, project, session_id, agent_id)
+                                SELECT NEW.rowid, vec_decode_embedding(NEW.embedding), NEW.tenant_id, NEW.project, NEW.session_id, NEW.agent_id
+                                WHERE NEW.embedding IS NOT NULL;
+                            END;
+                        """)
+                        connection.execute("""
+                            CREATE TRIGGER t_nodes_update AFTER UPDATE OF embedding, tenant_id, project, session_id, agent_id ON nodes
+                            BEGIN
+                                DELETE FROM vec_nodes WHERE rowid = NEW.rowid;
+                                INSERT INTO vec_nodes(rowid, embedding, tenant_id, project, session_id, agent_id)
+                                SELECT NEW.rowid, vec_decode_embedding(NEW.embedding), NEW.tenant_id, NEW.project, NEW.session_id, NEW.agent_id
+                                WHERE NEW.embedding IS NOT NULL;
+                            END;
+                        """)
+                        connection.execute("""
+                            CREATE TRIGGER t_nodes_delete AFTER DELETE ON nodes
+                            BEGIN
+                                DELETE FROM vec_nodes WHERE rowid = OLD.rowid;
+                            END;
+                        """)
+                    except Exception as e:
+                        LOGGER.warning("Failed to initialize sqlite-vec: %s. Falling back to pure Python.", e)
+                        self._sqlite_vec_loaded = False
+
+                if not self._sqlite_vec_loaded:
+                    for stmt in [
+                        "DROP TRIGGER IF EXISTS t_nodes_insert",
+                        "DROP TRIGGER IF EXISTS t_nodes_update",
+                        "DROP TRIGGER IF EXISTS t_nodes_delete",
+                        "DROP TABLE IF EXISTS vec_nodes",
+                    ]:
+                        try:
+                            connection.execute(stmt)
+                        except Exception as e:
+                            LOGGER.warning("Failed to clean up sqlite-vec artifact '%s': %s", stmt, e)
+
     def _validate_existing_database_integrity(self) -> None:
         """Fail before mutating an existing database that SQLite cannot recover."""
         if not self.db_path.exists() or self.db_path.stat().st_size == 0:
@@ -695,6 +834,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         clone._lock = self._lock
         clone._pool = self._pool
         clone._owns_pool = False
+        clone._sqlite_vec_loaded = self._sqlite_vec_loaded
 
         clone._pool_owner = self
         clone.ensure_tenant(clone.tenant_id)
@@ -1122,6 +1262,8 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                     batch_limit=batch_limit,
                 )
                 run.deleted_exports = self._delete_old_export_files(cutoff=cutoff)
+                if run.deleted_nodes > 0 or run.deleted_edges > 0:
+                    self._mark_communities_stale(connection)
                 completed_at = utc_now()
                 run.completed_at = completed_at
                 run.duration_ms = max(0, int((completed_at - started_at).total_seconds() * 1000))
@@ -1209,6 +1351,12 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         )
 
     def _migrate_legacy_schema(self, connection: sqlite3.Connection) -> None:
+        tenant_columns = {row["name"] for row in connection.execute("PRAGMA table_info(tenants)").fetchall()}
+        if "communities_stale" not in tenant_columns:
+            connection.execute("ALTER TABLE tenants ADD COLUMN communities_stale INTEGER DEFAULT 1")
+        if "cached_communities" not in tenant_columns:
+            connection.execute("ALTER TABLE tenants ADD COLUMN cached_communities TEXT DEFAULT NULL")
+
         api_key_columns = {row["name"] for row in connection.execute("PRAGMA table_info(api_keys)").fetchall()}
         node_columns = {row["name"] for row in connection.execute("PRAGMA table_info(nodes)").fetchall()}
         edge_columns = {row["name"] for row in connection.execute("PRAGMA table_info(edges)").fetchall()}
@@ -2169,6 +2317,16 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             (utc_now().isoformat(), self.tenant_id, window_id),
         )
 
+    def _mark_communities_stale(self, connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
+            UPDATE tenants
+            SET communities_stale = 1
+            WHERE tenant_id = ?
+            """,
+            (self.tenant_id,),
+        )
+
     def get_context_window(self, window_id: str) -> ContextWindow:
         with self._lock, self._pool.checkout() as connection:
             row = connection.execute(
@@ -3121,6 +3279,8 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         signing_key_dir: str | Path | None = None,
         include_low_confidence_edges: bool = False,
         low_confidence_threshold: float = 0.7,
+        strict_export: bool = False,
+        include_deps: bool = False,
     ) -> AbhiExportResult:
         with self._lock, self._pool.checkout() as connection:
             snapshot = self._build_backup_snapshot(connection, include_embeddings=include_embeddings)
@@ -3146,6 +3306,8 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             signing_key_dir=signing_key_dir,
             include_low_confidence_edges=include_low_confidence_edges,
             low_confidence_threshold=low_confidence_threshold,
+            strict_export=strict_export,
+            include_deps=include_deps,
         )
         self.emit_audit_event(
             event_type="export.created",
