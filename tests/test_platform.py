@@ -4,6 +4,7 @@ import asyncio
 import base64
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -18,6 +19,7 @@ from waggle.errors import (
     ValidationFailure,
 )
 from waggle.graph import MemoryGraph
+from waggle.metrics import MetricsRegistry
 from waggle.models import NodeType
 from waggle.rate_limit import RateLimiter
 from waggle.server import WaggleServer, create_http_application
@@ -350,6 +352,38 @@ def test_http_app_health_auth_and_metrics(tmp_path: Path) -> None:
 
     audit_events = graph.for_tenant("tenant-http").list_audit_events(limit=10, event_type="api_key.used")
     assert audit_events[0].api_key_id == created.record.api_key_id
+
+
+def test_http_graph_snapshot_requires_api_key_before_route_handler(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    graph = make_graph(tmp_path)
+    config = make_http_config(tmp_path)
+
+    async def run_until_cancelled(*_args: object, **_kwargs: object) -> None:
+        await asyncio.Event().wait()
+
+    app_server = SimpleNamespace(
+        graph=graph,
+        _root_graph=graph,
+        config=config,
+        metrics=MetricsRegistry(),
+        server=SimpleNamespace(run=run_until_cancelled),
+        initialization_options=lambda: None,
+        validate_startup=lambda: None,
+    )
+    app = create_http_application(app_server, app_server.config)
+
+    def fail_if_called(**_kwargs: object) -> dict[str, object]:
+        raise AssertionError("protected graph route continued without authentication")
+
+    monkeypatch.setattr(graph, "get_graph_snapshot", fail_if_called)
+
+    with TestClient(app) as client:
+        response = client.get("/api/graph")
+
+    assert response.status_code == 401
+    assert response.json()["error"] == "authentication_failed"
 
 
 def test_http_app_rate_limit_and_payload_limit(tmp_path: Path) -> None:
