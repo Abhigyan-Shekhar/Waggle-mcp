@@ -85,6 +85,7 @@ Waggle is a local MCP server that gives coding agents persistent graph memory.
 Recommended:
 
 - VS Code: install the live `Waggle: Local Memory for AI Agents` extension from the Marketplace for one-click setup
+- Codex: install the self-hosted Codex MCP plugin from the GitHub Release marketplace bundle
 - MCP clients: use [docs/install](./docs/install/README.md) and Smithery metadata in `smithery.yaml`
 - Claude: use [docs/install/claude-code.md](./docs/install/claude-code.md) or [docs/install/claude-desktop.md](./docs/install/claude-desktop.md)
 - Developers: `pipx install waggle-mcp`
@@ -399,13 +400,41 @@ Claude Code also supports **automatic memory hooks** — see the [Hooks](#automa
 
 ### Codex
 
-The easiest install path is the Codex app plugin via the marketplace bundle
-published on the [`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17)
-— download `waggle-codex-marketplace-v0.1.17.zip`, extract it, then run
-`codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.17` and
-install `Waggle` from the added marketplace. `v0.1.16` was a partial release
-and is not a viable Codex marketplace install source. See
-[`docs/install/codex.md`](docs/install/codex.md) for full details.
+Waggle is available for Codex as a self-hosted local MCP plugin. No hosted
+backend, Apple Developer ID, or Windows Authenticode certificate is required:
+users download the marketplace zip from GitHub Releases, add it to Codex, and
+the bundled MCP runtime runs on their own machine.
+
+Install the Codex app plugin from the
+[`v0.1.18` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.18):
+
+```bash
+curl -L \
+  https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.18/waggle-codex-marketplace-v0.1.18.zip \
+  -o waggle-codex-marketplace-v0.1.18.zip
+
+curl -L \
+  https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.18/waggle-codex-marketplace-v0.1.18.zip.sha256 \
+  -o waggle-codex-marketplace-v0.1.18.zip.sha256
+
+shasum -a 256 -c waggle-codex-marketplace-v0.1.18.zip.sha256
+unzip waggle-codex-marketplace-v0.1.18.zip
+codex plugin marketplace add "$(pwd)/waggle-codex-marketplace-v0.1.18"
+```
+
+Then open Codex, go to **Plugins**, select the added Waggle marketplace, and
+install **Waggle**. Start a new Codex task after installing so the bundled MCP
+server and tools are loaded.
+
+Waggle is not currently listed in OpenAI's global plugin directory because that
+submission path requires a hosted public MCP endpoint. This bundle keeps Waggle
+fully local: the MCP runtime and SQLite memory store run on your machine. The
+runtime is intentionally unsigned, so macOS Gatekeeper or Windows SmartScreen
+may show a first-run warning; verify the checksum or GitHub attestation before
+approving it.
+
+`v0.1.16` was a partial release and is not a viable Codex marketplace install
+source. See [`docs/install/codex.md`](docs/install/codex.md) for full details.
 
 For direct Codex CLI usage instead, add Waggle to `~/.codex/config.toml`:
 
@@ -813,7 +842,7 @@ Run `waggle-mcp doctor` first — it usually identifies the actual failure mode.
 
 **`AuthenticationError: Invalid API key`**
 - Cause: HTTP transport requires a valid API key header.
-- Fix: send `X-API-Key: <your_key>` and generate one with `waggle-mcp keys create`; see `docs/reference.md`.
+- Fix: send `X-API-Key: <your_key>` and generate one with `waggle-mcp create-api-key`; see `docs/reference.md`.
 
 **Client cannot see tools**
 - Cause: the client is not connected to the correct MCP server.
