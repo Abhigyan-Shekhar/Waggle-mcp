@@ -104,8 +104,8 @@ def test_codex_release_docs_record_intentional_version_split_and_unsigned_policy
     checklist = (ROOT / "docs" / "install" / "codex-marketplace-release-checklist.md").read_text()
 
     for text in [codex_guide, runtime_guide, checklist]:
-        assert "0.1.1" in text
-        assert "v0.1.17" in text
+        assert "0.1.2" in text
+        assert "v0.1.18" in text
 
     assert "intentionally unsigned" in codex_guide
     assert "intentionally unsigned" in runtime_guide

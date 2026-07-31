@@ -6,8 +6,8 @@ users add with `codex plugin marketplace add`.
 
 ## Version Policy
 
-- Codex plugin version: `0.1.1`
-- GitHub release tag used for the current public Codex bundle: `v0.1.17`
+- Codex plugin version: `0.1.2`
+- GitHub release tag used for the current public Codex bundle: `v0.1.18`
 - These versions are intentionally separate. The GitHub tag follows the main
   repository release history, including earlier private-repository trial
   releases. The Codex plugin manifest version tracks the plugin surface itself.
@@ -36,7 +36,7 @@ Run these from the repository root:
 
 ```bash
 python3 scripts/build_codex_plugin_runtime.py --require-artifacts
-python3 scripts/package_codex_plugin.py --bundle-version v0.1.17 --output-dir dist/codex-plugin
+python3 scripts/package_codex_plugin.py --bundle-version v0.1.18 --output-dir dist/codex-plugin
 python3 -m pytest tests/test_package_codex_plugin.py tests/test_packaging_metadata.py -q
 ```
 
@@ -57,11 +57,11 @@ Also confirm a basic memory round trip:
 
 Expected files:
 
-- `waggle-codex-marketplace-v0.1.17.zip`
-- `waggle-codex-marketplace-v0.1.17.zip.sha256`
-- `waggle-codex-plugin-v0.1.17.zip`
-- `waggle-codex-plugin-v0.1.17.zip.sha256`
-- `waggle-codex-release-v0.1.17.json`
+- `waggle-codex-marketplace-v0.1.18.zip`
+- `waggle-codex-marketplace-v0.1.18.zip.sha256`
+- `waggle-codex-plugin-v0.1.18.zip`
+- `waggle-codex-plugin-v0.1.18.zip.sha256`
+- `waggle-codex-release-v0.1.18.json`
 
 The marketplace zip is the primary user-facing artifact. The bare plugin zip is
 for debugging, audits, and future installer compatibility.
@@ -91,14 +91,14 @@ Because the runtime is unsigned:
   directory listing or signed native installer.
 - State that the default install path has no required hosting or certificate
   cost.
-- Link users to the `v0.1.17` GitHub release.
+- Link users to the `v0.1.18` GitHub release.
 - Tell users to download the marketplace zip, extract it, and run:
 
 ```bash
-codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.17
+codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.18
 ```
 
 - State clearly that `v0.1.16` was a partial trial release and should not be
   used as a Codex marketplace install source.
-- State clearly that the plugin version shown in Codex is `0.1.1`, while the
-  GitHub release tag is `v0.1.17`.
+- State clearly that the plugin version shown in Codex is `0.1.2`, while the
+  GitHub release tag is `v0.1.18`.
