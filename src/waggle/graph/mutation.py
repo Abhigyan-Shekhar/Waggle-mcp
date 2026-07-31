@@ -144,6 +144,7 @@ class MutationMixin(MemoryGraphBase):
                             (merged_node.context_window_id, self.tenant_id, merged_node.id),
                         )
                         self._mark_window_embedding_stale(active_connection, merged_node.context_window_id)
+                    self._mark_communities_stale(active_connection)
                     self.emit_audit_event(
                         event_type="graph.node.updated",
                         resource_type="node",
@@ -201,6 +202,7 @@ class MutationMixin(MemoryGraphBase):
             )
             self._mark_window_embedding_stale(active_connection, resolved_context_window_id)
             self._update_window_node_count(active_connection, resolved_context_window_id)
+            self._mark_communities_stale(active_connection)
             conflicts = self._register_conflicts(active_connection, node) if self.enable_dedup else []
             self.emit_audit_event(
                 event_type="graph.node.created",
@@ -280,6 +282,7 @@ class MutationMixin(MemoryGraphBase):
                     edge.created_at.isoformat(),
                 ),
             )
+            self._mark_communities_stale(active_connection)
             if edge.relationship in {RelationType.UPDATES.value, RelationType.CONTRADICTS.value}:
                 self._mark_node_superseded(
                     active_connection, old_node=target_node, new_node=source_node, relationship=edge.relationship
@@ -401,6 +404,7 @@ class MutationMixin(MemoryGraphBase):
                     new_node=self.get_node(edge.source_id),
                     relationship=edge.relationship,
                 )
+            self._mark_communities_stale(connection)
 
             updated_edge = Edge(
                 id=edge.id,
@@ -547,6 +551,8 @@ class MutationMixin(MemoryGraphBase):
             elif content is not None and resolved_context_window_id:
                 self._mark_window_embedding_stale(connection, resolved_context_window_id)
 
+            self._mark_communities_stale(connection)
+
             self.emit_audit_event(
                 event_type="graph.node.updated",
                 resource_type="node",
@@ -613,6 +619,7 @@ class MutationMixin(MemoryGraphBase):
                 self._mark_node_superseded(
                     connection, old_node=target_node, new_node=source_node, relationship=updated_edge.relationship
                 )
+            self._mark_communities_stale(connection)
             self.emit_audit_event(
                 event_type="graph.relationship.updated",
                 resource_type="edge",
@@ -630,6 +637,7 @@ class MutationMixin(MemoryGraphBase):
                 raise ValueError(f"Edge not found: {edge_id}")
             edge = self._row_to_edge(row)
             connection.execute("DELETE FROM edges WHERE id = ? AND tenant_id = ?", (edge_id, self.tenant_id))
+            self._mark_communities_stale(connection)
             self.emit_audit_event(
                 event_type="graph.relationship.deleted",
                 resource_type="edge",
@@ -654,6 +662,7 @@ class MutationMixin(MemoryGraphBase):
             if node.context_window_id:
                 self._mark_window_embedding_stale(connection, node.context_window_id)
                 self._update_window_node_count(connection, node.context_window_id)
+            self._mark_communities_stale(connection)
             self.emit_audit_event(
                 event_type="graph.node.deleted",
                 resource_type="node",
@@ -911,6 +920,9 @@ class MutationMixin(MemoryGraphBase):
         elif scope == "all":
             result.deleted_repos = len(repo_ids)
 
+        if not dry_run and (result.deleted_nodes > 0 or result.deleted_edges > 0):
+            self._mark_communities_stale(connection)
+
         return result
 
     def _require_node(self, connection: sqlite3.Connection, node_id: str) -> None:
@@ -936,148 +948,205 @@ class MutationMixin(MemoryGraphBase):
             filters.append("agent_id = ?")
             params.append(node.agent_id)
 
-        rows = connection.execute(
-            f"""
-            SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt, metadata, evidence_records,
-                   valid_from, valid_to, created_at, updated_at, access_count, embedding, tenant_id
-            FROM nodes
-            WHERE {" AND ".join(filters)}
-            """,
-            tuple(params),
-        ).fetchall()
+        count = 0
+        if getattr(self, "_sqlite_vec_loaded", False):
+            # Get count of filtered nodes to set appropriate k limit for MATCH
+            count = connection.execute(
+                f"SELECT COUNT(*) FROM nodes WHERE {' AND '.join(filters)}",
+                tuple(params),
+            ).fetchone()[0]
+            if count == 0:
+                return None
 
-        normalized_label = normalize_text(node.label)
-        normalized_content = normalize_text(node.content)
-        # Type-aware cosine threshold — decisions merge at 0.82, facts at 0.92, etc.
-        type_threshold = type_aware_dedup_threshold(node.node_type, default=self.dedup_similarity_threshold)
-        best_match: tuple[Node, float] | None = None
+            vec_filters = ["v.tenant_id = ?"]
+            vec_params = [self.tenant_id]
+            if node.project:
+                vec_filters.append("v.project = ?")
+                vec_params.append(node.project)
+            if node.session_id:
+                vec_filters.append("v.session_id = ?")
+                vec_params.append(node.session_id)
+            elif node.agent_id:
+                vec_filters.append("v.agent_id = ?")
+                vec_params.append(node.agent_id)
 
-        # Pre-normalise the query embedding ONCE so the inner loop only needs a
-        # single np.dot() per candidate instead of two norm computations. Use a
-        # fresh local so we don't shadow the `embedding` parameter — keeps the
-        # invariant "normalisation happens here, not silently for callers" clear.
-        _emb_norm = float(np.linalg.norm(embedding))
-        query_unit = embedding / _emb_norm if _emb_norm > 0.0 else embedding
+            k = min(count, 1000)
+            rows = connection.execute(
+                f"""
+                SELECT n.id, n.agent_id, n.project, n.session_id, n.context_window_id, n.label, n.content, n.node_type, n.tags, n.source_prompt, n.metadata, n.evidence_records,
+                       n.valid_from, n.valid_to, n.created_at, n.updated_at, n.access_count, n.embedding, n.tenant_id
+                FROM vec_nodes v
+                JOIN nodes n ON v.rowid = n.rowid
+                WHERE v.embedding MATCH ?
+                  AND {" AND ".join(vec_filters)}
+                  AND k = ?
+                ORDER BY n.rowid ASC
+                """,
+                (embedding.astype(np.float32).tobytes(), *vec_params, k),
+            ).fetchall()
+        else:
+            rows = connection.execute(
+                f"""
+                SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt, metadata, evidence_records,
+                       valid_from, valid_to, created_at, updated_at, access_count, embedding, tenant_id
+                FROM nodes
+                WHERE {" AND ".join(filters)}
+                """,
+                tuple(params),
+            ).fetchall()
 
-        for row in rows:
-            existing_node = self._row_to_node(row)
-            if not _scope_matches(
-                existing_node,
-                agent_id=node.agent_id,
-                project=node.project,
-                session_id=node.session_id,
-            ):
-                continue
-            if not compatible_node_types(node.node_type, existing_node.node_type):
-                continue
-            existing_label = normalize_text(existing_node.label)
-            existing_content = normalize_text(existing_node.content)
+        def _check_rows(candidate_rows: list[Any]) -> tuple[Node, str, float | None] | None:
+            normalized_label = normalize_text(node.label)
+            normalized_content = normalize_text(node.content)
+            # Type-aware cosine threshold — decisions merge at 0.82, facts at 0.92, etc.
+            type_threshold = type_aware_dedup_threshold(node.node_type, default=self.dedup_similarity_threshold)
+            best_match: tuple[Node, float] | None = None
 
-            # ── Layer 0: entity-key hard block ────────────────────────
-            # If both nodes name a specific technology AND those technologies
-            # are different (but in the same category), block the merge.
-            # e.g. "use PostgreSQL" vs "use MySQL" — similar sentence, different choice.
-            node_entity = extract_choice_entity(node.content)
-            existing_entity = extract_choice_entity(existing_node.content)
-            if (
-                node_entity is not None
-                and existing_entity is not None
-                and node_entity[1] == existing_entity[1]  # same category
-                and node_entity[0] != existing_entity[0]  # different entity
-                and not describes_rejected_or_limited_option(node.content)
-                and not describes_rejected_or_limited_option(existing_node.content)
-            ):
-                continue  # never merge "postgres" node with "mysql" node
+            # Pre-normalise the query embedding ONCE so the inner loop only needs a
+            # single np.dot() per candidate instead of two norm computations. Use a
+            # fresh local so we don't shadow the `embedding` parameter — keeps the
+            # invariant "normalisation happens here, not silently for callers" clear.
+            _emb_norm = float(np.linalg.norm(embedding))
+            query_unit = embedding / _emb_norm if _emb_norm > 0.0 else embedding
 
-            # ── Layer 0b: numeric-conflict guard ───────────────────────
-            # Same entity BUT different critical number (e.g. JWT 15min vs 1hr).
-            # Conflicting numbers signal distinct facts, not duplicates.
-            # Also applies to non-entity facts that have conflicting numbers.
-            if contains_conflicting_numbers(node.content, existing_node.content) and (
-                node_entity is None or existing_entity is None or node_entity[0] == existing_entity[0]
-            ):
-                continue
-            if contains_conflicting_months(node.content, existing_node.content):
-                continue
+            for row in candidate_rows:
+                existing_node = self._row_to_node(row)
+                if not _scope_matches(
+                    existing_node,
+                    agent_id=node.agent_id,
+                    project=node.project,
+                    session_id=node.session_id,
+                ):
+                    continue
+                if not compatible_node_types(node.node_type, existing_node.node_type):
+                    continue
+                existing_label = normalize_text(existing_node.label)
+                existing_content = normalize_text(existing_node.content)
 
-            if normalized_content == existing_content:
-                return existing_node, "exact_content", 1.0
+                # ── Layer 0: entity-key hard block ────────────────────────
+                # If both nodes name a specific technology AND those technologies
+                # are different (but in the same category), block the merge.
+                # e.g. "use PostgreSQL" vs "use MySQL" — similar sentence, different choice.
+                node_entity = extract_choice_entity(node.content)
+                existing_entity = extract_choice_entity(existing_node.content)
+                if (
+                    node_entity is not None
+                    and existing_entity is not None
+                    and node_entity[1] == existing_entity[1]  # same category
+                    and node_entity[0] != existing_entity[0]  # different entity
+                    and not describes_rejected_or_limited_option(node.content)
+                    and not describes_rejected_or_limited_option(existing_node.content)
+                ):
+                    continue  # never merge "postgres" node with "mysql" node
 
-            # ── Layer 2: substring containment (cheap, catches rephrased subsets)
-            if len(normalized_content) >= 10 and len(existing_content) >= 10:
-                if normalized_content in existing_content or existing_content in normalized_content:
-                    return existing_node, "content_substring", 0.98
+                # ── Layer 0b: numeric-conflict guard ───────────────────────
+                # Same entity BUT different critical number (e.g. JWT 15min vs 1hr).
+                # Conflicting numbers signal distinct facts, not duplicates.
+                # Also applies to non-entity facts that have conflicting numbers.
+                if contains_conflicting_numbers(node.content, existing_node.content) and (
+                    node_entity is None or existing_entity is None or node_entity[0] == existing_entity[0]
+                ):
+                    continue
+                if contains_conflicting_months(node.content, existing_node.content):
+                    continue
 
-            # ── Layer 3: semantic similarity (expensive — compute embedding once) ─
-            existing_embedding = self._decode_embedding(row["embedding"])
-            if existing_embedding is None:
-                continue
-            # Fast dot() — both vectors are unit-norm here, so this equals cosine.
-            similarity = float(np.dot(query_unit, existing_embedding / (np.linalg.norm(existing_embedding) or 1.0)))
-            label_score = label_similarity(node.label, existing_node.label)
-            acronym_match = is_acronym_match(node.label, existing_node.label)
+                if normalized_content == existing_content:
+                    return existing_node, "exact_content", 1.0
 
-            if normalized_label == existing_label and similarity >= self.dedup_same_label_threshold:
-                return existing_node, "same_label_high_similarity", similarity
-            if acronym_match and similarity >= max(self.dedup_same_label_threshold - 0.25, 0.55):
-                return existing_node, "acronym_entity_match", similarity
-            if label_score >= 0.92 and similarity >= max(self.dedup_same_label_threshold - 0.2, 0.6):
-                return existing_node, "label_entity_match", similarity
+                # ── Layer 2: substring containment (cheap, catches rephrased subsets)
+                if len(normalized_content) >= 10 and len(existing_content) >= 10:
+                    if normalized_content in existing_content or existing_content in normalized_content:
+                        return existing_node, "content_substring", 0.98
 
-            # ── Layer 3b: same-entity aggressive merge ──────────────────
-            # If both nodes reference the SAME named entity, lower the cosine
-            # threshold significantly — "fastapi was chosen" and "we chose fastapi
-            # because async" should merge even at cosine ~0.65.
-            # The numeric-conflict guard (Layer 0b) already blocked cases where
-            # the same entity appears with different critical numbers.
-            if (
-                node_entity is not None
-                and existing_entity is not None
-                and node_entity[0] == existing_entity[0]  # identical entity token
-                and similarity >= 0.60
-            ):
-                return existing_node, "same_entity_merge", similarity
+                # ── Layer 3: semantic similarity (expensive — compute embedding once) ─
+                existing_embedding = self._decode_embedding(row["embedding"])
+                if existing_embedding is None:
+                    continue
+                # Fast dot() — both vectors are unit-norm here, so this equals cosine.
+                similarity = float(np.dot(query_unit, existing_embedding / (np.linalg.norm(existing_embedding) or 1.0)))
+                label_score = label_similarity(node.label, existing_node.label)
+                acronym_match = is_acronym_match(node.label, existing_node.label)
 
-            # ── Layer 3c: Jaccard-boosted merge (type-aware lower threshold) ──
-            # If content words overlap significantly AND cosine is high for the
-            # node type, treat as duplicate — catches paraphrase true-dups.
-            jaccard = content_token_jaccard(node.content, existing_node.content)
-            boosted_threshold = max(type_threshold - 0.05, 0.70)
-            if jaccard >= 0.35 and similarity >= boosted_threshold:
-                return existing_node, "jaccard_boosted_similarity", similarity
+                if normalized_label == existing_label and similarity >= self.dedup_same_label_threshold:
+                    return existing_node, "same_label_high_similarity", similarity
+                if acronym_match and similarity >= max(self.dedup_same_label_threshold - 0.25, 0.55):
+                    return existing_node, "acronym_entity_match", similarity
+                if label_score >= 0.92 and similarity >= max(self.dedup_same_label_threshold - 0.2, 0.6):
+                    return existing_node, "label_entity_match", similarity
 
-            # ── Layer 3d: entity-less paraphrase merge ─────────────────
-            # Some true duplicates share meaning but have no named entity anchor
-            # and too little word overlap for the Jaccard gate above.
-            if node_entity is None and existing_entity is None:
-                paraphrase_score = paraphrase_dedup_score(
-                    semantic_similarity=similarity,
-                    lexical_overlap=jaccard,
-                )
-                paraphrase_threshold = max(type_threshold - 0.10, 0.72)
-                if paraphrase_score >= paraphrase_threshold:
-                    return existing_node, "entityless_paraphrase", paraphrase_score
+                # ── Layer 3b: same-entity aggressive merge ──────────────────
+                # If both nodes reference the SAME named entity, lower the cosine
+                # threshold significantly — "fastapi was chosen" and "we chose fastapi
+                # because async" should merge even at cosine ~0.65.
+                # The numeric-conflict guard (Layer 0b) already blocked cases where
+                # the same entity appears with different critical numbers.
+                if (
+                    node_entity is not None
+                    and existing_entity is not None
+                    and node_entity[0] == existing_entity[0]  # identical entity token
+                    and similarity >= 0.60
+                ):
+                    return existing_node, "same_entity_merge", similarity
 
-            concept_overlap = canonical_concept_overlap(node.content, existing_node.content)
-            if (
-                node_entity is not None
-                and existing_entity is not None
-                and node_entity[0] == existing_entity[0]
-                and concept_overlap >= 0.30
-            ):
-                return existing_node, "same_entity_concept_overlap", concept_overlap
-            if concept_overlap >= 0.50 and similarity >= 0.35:
-                return existing_node, "canonical_concept_overlap", concept_overlap
+                # ── Layer 3c: Jaccard-boosted merge (type-aware lower threshold) ──
+                # If content words overlap significantly AND cosine is high for the
+                # node type, treat as duplicate — catches paraphrase true-dups.
+                jaccard = content_token_jaccard(node.content, existing_node.content)
+                boosted_threshold = max(type_threshold - 0.05, 0.70)
+                if jaccard >= 0.35 and similarity >= boosted_threshold:
+                    return existing_node, "jaccard_boosted_similarity", similarity
 
-            # ── Layer 3e: pure cosine fallback (conservative global threshold) ─
-            if similarity >= self.dedup_similarity_threshold:
-                if best_match is None or similarity > best_match[1]:
-                    best_match = (existing_node, similarity)
+                # ── Layer 3d: entity-less paraphrase merge ─────────────────
+                # Some true duplicates share meaning but have no named entity anchor
+                # and too little word overlap for the Jaccard gate above.
+                if node_entity is None and existing_entity is None:
+                    paraphrase_score = paraphrase_dedup_score(
+                        semantic_similarity=similarity,
+                        lexical_overlap=jaccard,
+                    )
+                    paraphrase_threshold = max(type_threshold - 0.10, 0.72)
+                    if paraphrase_score >= paraphrase_threshold:
+                        return existing_node, "entityless_paraphrase", paraphrase_score
 
-        if best_match is None:
-            return None
+                concept_overlap = canonical_concept_overlap(node.content, existing_node.content)
+                if (
+                    node_entity is not None
+                    and existing_entity is not None
+                    and node_entity[0] == existing_entity[0]
+                    and concept_overlap >= 0.30
+                ):
+                    return existing_node, "same_entity_concept_overlap", concept_overlap
+                if concept_overlap >= 0.50 and similarity >= 0.35:
+                    return existing_node, "canonical_concept_overlap", concept_overlap
 
-        return best_match[0], "high_similarity", best_match[1]
+                # ── Layer 3e: pure cosine fallback (conservative global threshold) ─
+                if similarity >= self.dedup_similarity_threshold:
+                    if best_match is None or similarity > best_match[1]:
+                        best_match = (existing_node, similarity)
+
+            if best_match is None:
+                return None
+
+            return best_match[0], "high_similarity", best_match[1]
+
+        res = _check_rows(rows)
+        if res is not None:
+            return res
+
+        # Fallback to full scoped scan if ANN finds no duplicate
+        if getattr(self, "_sqlite_vec_loaded", False):
+            fallback_rows = connection.execute(
+                f"""
+                SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt, metadata, evidence_records,
+                       valid_from, valid_to, created_at, updated_at, access_count, embedding, tenant_id
+                FROM nodes
+                WHERE {" AND ".join(filters)}
+                """,
+                tuple(params),
+            ).fetchall()
+            return _check_rows(fallback_rows)
+
+        return None
 
     def _merge_duplicate_node(
         self,
@@ -1280,6 +1349,8 @@ class MutationMixin(MemoryGraphBase):
                 (canonical_id, self.tenant_id),
             ).fetchone()
             updated_canonical = self._row_to_node(updated_row)
+            if merged_ids:
+                self._mark_communities_stale(connection)
 
         return CanonicalizeResult(
             canonical_node=updated_canonical,
@@ -1566,7 +1637,10 @@ class MutationMixin(MemoryGraphBase):
             """,
             (self.tenant_id, source_id, target_id, normalize_relationship(relationship)),
         )
-        return int(cursor.rowcount or 0) > 0
+        deleted = int(cursor.rowcount or 0) > 0
+        if deleted:
+            self._mark_communities_stale(connection)
+        return deleted
 
     def _find_existing_edge(
         self,

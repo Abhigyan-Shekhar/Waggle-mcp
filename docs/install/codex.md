@@ -36,32 +36,112 @@ For more details on how these rules govern agent behavior, see the [Automatic Me
 
 ## Codex app plugin
 
+Waggle can be installed in Codex as a self-hosted local MCP plugin. The current
+release does not require a paid hosted backend, Apple Developer ID
+notarization, or Windows Authenticode certificate. Users download the
+marketplace bundle from GitHub Releases, add the extracted directory to Codex,
+and run the bundled MCP server locally on their own machine.
+
+## First-run OS warnings (unsigned binary)
+
+The bundled Waggle runtime binary is intentionally unsigned for the current
+self-hosted Codex plugin release because Apple Developer ID notarization and
+Windows Authenticode signing require paid accounts or certificates. This means
+macOS and Windows can show a security warning on first launch. This is expected
+and does not mean the binary is malicious.
+
+### macOS (Gatekeeper)
+
+You may see: *"waggle-runtime cannot be opened because it is from an unidentified developer."*
+
+To approve:
+
+1. Open **System Settings → Privacy & Security**
+2. Scroll to the bottom — you'll see a message about the blocked binary
+3. Click **Allow Anyway**
+4. Re-launch Codex — macOS will ask once more; click **Open**
+
+Or via terminal:
+
+```bash
+xattr -dr com.apple.quarantine /path/to/waggle-runtime
+```
+
+### Windows (SmartScreen)
+
+You may see: *"Windows protected your PC"*
+
+To approve:
+
+1. Click **More info**
+2. Click **Run anyway**
+
+Then retry the Codex plugin install.
+
+> These warnings appear only on first run. Once approved, the binary launches without prompting.
+
 This repository also ships a Codex app plugin manifest at `.codex-plugin/plugin.json`
 with its MCP companion config in `.mcp.json`.
 
 For the Codex app plugin, Waggle bundles its own plugin-local MCP server runtime.
 Users do not need to install `waggle-mcp` from PyPI separately. The plugin
-launcher resolves a signed executable under `plugins/waggle/runtime/<target>/`
+launcher resolves a bundled executable under `plugins/waggle/runtime/<target>/`
 and starts it with `serve --transport stdio`.
 
 Bundled runtime updates are delivered only through plugin upgrades. If a bundled
 binary is stale or missing, reinstall or upgrade the Waggle Codex plugin.
 
-Tagged Waggle releases now publish two Codex plugin assets:
+Tagged Waggle releases publish two Codex plugin assets. The current Codex
+marketplace artifacts are published on the
+[`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17):
 
-- `waggle-codex-marketplace-<tag>.zip`: a complete local marketplace root that
+- `waggle-codex-marketplace-v0.1.17.zip`: a complete local marketplace root that
   can be added with `codex plugin marketplace add`
 - `waggle-codex-plugin-<tag>.zip`: the bare `plugins/waggle` plugin folder
+- `waggle-codex-release-<tag>.json`: release metadata for audit and support
 
-For the easiest install path, download and extract the marketplace bundle, then
-run:
+> `v0.1.16` was a partial release and should not be used as a Codex
+> marketplace install source. Use `v0.1.17` instead.
+
+The Codex plugin version is intentionally separate from the GitHub release tag.
+The plugin manifest currently reports `0.1.1`; `v0.1.17` is the GitHub release
+tag for the public marketplace bundle after earlier private-repository trial
+releases.
+
+For the easiest install path, download and extract the marketplace bundle
+from the [`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17),
+then run:
 
 ```bash
-codex plugin marketplace add /path/to/waggle-codex-marketplace-<tag>
+codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.17
 ```
 
 After that, refresh the plugin directory in Codex and install `Waggle` from the
 added marketplace.
+
+The v1 marketplace bundle intentionally contains all supported platform
+runtimes. Do not choose a platform-specific bundle unless a future Codex
+marketplace schema explicitly supports platform-specific artifact resolution.
+
+To verify a downloaded release manually:
+
+```bash
+shasum -a 256 -c waggle-codex-marketplace-<tag>.zip.sha256
+gh attestation verify waggle-codex-marketplace-<tag>.zip \
+  --repo Abhigyan-Shekhar/Waggle-mcp
+```
+
+The repo-hosted v1 release is distributed as an unsigned bundle. macOS
+Gatekeeper and Windows SmartScreen can show warnings. Verify the checksum and
+GitHub attestation before installing.
+
+Maintainer release checks are documented in
+[`codex-marketplace-release-checklist.md`](./codex-marketplace-release-checklist.md).
+
+To upgrade, install the newer marketplace bundle from the GitHub release and
+refresh the plugin directory in Codex. Waggle memory is stored outside the
+plugin bundle at `WAGGLE_DB_PATH`, so supported upgrades must preserve local
+memory data.
 
 ## Manual config
 

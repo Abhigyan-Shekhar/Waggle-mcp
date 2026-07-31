@@ -23,7 +23,7 @@ dependencies = [
   "google-api-python-client>=2.170.0",
   "google-auth>=2.40.0",
   "google-genai>=1.56.0",
-  "mcp>=1.0.0",
+  "mcp>=1.0.0,<2.0.0",
   "networkx>=3.2.1",
   "numpy>=1.26.0",
   "openai>=2.14.0",
@@ -54,8 +54,15 @@ dev = [
   "pytest-asyncio>=0.23.7",
   "ruff>=0.4.0",
 ]
+vec = [
+  "sqlite-vec>=0.1.9",
+]
 neo4j = [
   "neo4j>=5.20.0",
+]
+code-analysis = [
+  "tree-sitter>=0.21.0",
+  "tree-sitter-language-pack>=0.2.0",
 ]
 rlm-ipython = [
   "dill>=0.3.7",

@@ -229,6 +229,7 @@ class RecursiveContextController:
             rng = random.Random(ablation.random_seed)
             words = query.split()
             subqueries: list[RecursiveSubquery] = []
+            seen_substrings: set[str] = set()
             attempts = 0
             while len(subqueries) < max_subqueries and attempts < max_subqueries * 10:
                 attempts += 1
@@ -237,6 +238,9 @@ class RecursiveContextController:
                 slice_len = rng.randint(2, min(4, len(words)))
                 start = rng.randint(0, len(words) - slice_len)
                 substring = " ".join(words[start : start + slice_len])
+                if substring in seen_substrings:
+                    continue
+                seen_substrings.add(substring)
                 subqueries.append(
                     RecursiveSubquery(
                         query=substring,

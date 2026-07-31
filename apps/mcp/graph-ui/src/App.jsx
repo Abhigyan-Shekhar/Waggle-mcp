@@ -3,8 +3,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import Cytoscape from "cytoscape";
 import coseBilkent from "cytoscape-cose-bilkent";
 import { apiRequest, buildScopeQuery } from "./lib/api";
-import { getBootConfig } from "./lib/boot";
+import { readBootConfig } from "./lib/boot-config";
 import { readFileText, readFileBase64 } from "./lib/file-utils";
+import ScrollToTop from "./ScrollToTop";
 import {
   buildExtractionHealth,
   buildFilterBuckets,
@@ -29,7 +30,7 @@ import { useUndoRedo } from "./hooks/useUndoRedo";
 Cytoscape.use(coseBilkent);
 
 export function App() {
-  const boot = useMemo(getBootConfig, []);
+  const boot = useMemo(() => readBootConfig(), []);
   const mode = boot.mode;
   const readOnly = mode === "view";
   const hostRef = useRef(null);
@@ -485,23 +486,23 @@ export function App() {
   const visibleTranscriptRecords = transcriptSearch.trim()
     ? transcriptHits
     : transcriptRecords.filter((record) => {
-        const activeSessions = new Set(filters.sessions || []);
-        const activeAgents = new Set(filters.agents || []);
-        const activeProjects = new Set(filters.projects || []);
-        if (activeSessions.size && !activeSessions.has(record.session_id || "")) {
-          return false;
-        }
+      const activeSessions = new Set(filters.sessions || []);
+      const activeAgents = new Set(filters.agents || []);
+      const activeProjects = new Set(filters.projects || []);
+      if (activeSessions.size && !activeSessions.has(record.session_id || "")) {
+        return false;
+      }
 
-        if (activeAgents.size && !activeAgents.has(record.agent_id || "")) {
-          return false;
-        }
+      if (activeAgents.size && !activeAgents.has(record.agent_id || "")) {
+        return false;
+      }
 
-        if (activeProjects.size && !activeProjects.has(record.project || "")) {
-          return false;
-        }
+      if (activeProjects.size && !activeProjects.has(record.project || "")) {
+        return false;
+      }
 
-        return true;
-      });
+      return true;
+    });
 
   const selectedGraphNode = graph.nodes.find((node) => node.id === selectedNodeId) || null;
   const selectedPair = transcriptPairs.find((pair) => pair.id === selectedNodeId) || null;
@@ -512,8 +513,20 @@ export function App() {
   const diffPayload = abhiDiff?.payload?.diff || {};
   const nodeDiffRecords = diffPayload.node_records || diffPayload.nodes || [];
   const edgeDiffRecords = diffPayload.edge_records || diffPayload.edges || [];
+
+  const filteredNodeDiffRecords = useMemo(() => {
+    return nodeDiffRecords.filter((record) => record.classification !== "identical");
+  }, [nodeDiffRecords]);
+
+  const filteredEdgeDiffRecords = useMemo(() => {
+    return edgeDiffRecords.filter((record) => record.classification !== "identical");
+  }, [edgeDiffRecords]);
   const diffCount = (records, classification) => records.filter((record) => record.classification === classification).length;
-  const legacyDiffCount = (key) => (diffPayload[key] || []).length;
+  const legacyDiffCount = (key) => (diffPayload[key] ?? []).length;
+  const diffSummaryCount = (records, classification, legacyKey) => {
+    const modernCount = diffCount(records, classification);
+    return records.length > 0 ? modernCount : legacyDiffCount(legacyKey);
+  };
 
   return (
     <div className="min-h-screen p-4">
@@ -610,6 +623,7 @@ export function App() {
 
       <ContextMenu menu={menu} onClose={() => setMenu(null)} onAction={(actionId, nodeId) => handleMenuAction(actionId, nodeId).catch((error) => setToast(error.message))} />
       <EdgeDialog edge={edgeDialog} onCancel={() => setEdgeDialog(null)} onSave={(relationship) => saveEdgeDialog(relationship).catch((error) => setToast(error.message))} />
+      <ScrollToTop />
     </div>
   );
 }

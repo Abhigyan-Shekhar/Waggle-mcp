@@ -273,6 +273,22 @@ After Waggle is installed as an MCP server, the normal workflow is conversationa
   - `observe_conversation`
   - `decompose_and_store`
   - automatic contradiction/update detection in some cases
+
+#### Edge confidence
+
+Waggle stores edge confidence in edge metadata as one of three labels: `explicit`, `inferred`, or `weak`.
+
+| Creation path | Confidence | When this value is set |
+| --- | --- | --- |
+| Manual edge creation (`store_edge` and Graph Studio edge creation) | `explicit` | The edge is intentionally created by a user or operator action, so it is treated as explicit by default. |
+| Conversation extraction (`observe_conversation`) | `inferred` | The extractor infers a typed relationship from user/assistant content with normal evidence strength. |
+| Low-signal extraction (single shared token / low cosine similarity) | `weak` | The extractor links nodes with limited lexical/semantic evidence and marks the edge as low-confidence. |
+
+Graph Studio renders confidence visually so weak links are easier to spot:
+
+- `weak` edges are shown with de-emphasized styling (for example dashed/faded treatment).
+- The edge inspector shows the confidence badge so you can see whether a link is `explicit`, `inferred`, or `weak`.
+
 - The graph-aware retrieval tools are what return connected context to the model:
   - `query_graph`
   - `get_related`
@@ -451,6 +467,24 @@ When an API key is presented:
 - `/api/graph/*` write routes require `graph:write`
 - `/api/admin/*` read routes require `admin:read`
 - `/api/admin/*` write routes require `admin:write`
+
+## Headless Google Drive Authentication
+
+When running Waggle from a remote server, SSH session, container, or environment without a graphical browser, use the `--no-open-browser` option:
+
+```bash
+waggle-mcp push --no-open-browser
+```
+Instead of launching a browser automatically, Waggle prints the Google OAuth authorization URL to the terminal.
+
+Open the URL in a browser and complete authorization flow. The OAuth callback must still be able to reach the machine running Waggle. Waggle waits up to 300 seconds for authorization before timing out.
+
+The same option is available for:
+
+```bash
+waggle-mcp pull --no-open-browser
+waggle-mcp share --no-open-browser
+```
 
 ## Full tool surface
 

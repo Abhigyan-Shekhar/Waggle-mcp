@@ -19,7 +19,14 @@ def render_graph_editor_html(
         asset_version = 0
     config = json.dumps(
         {
+            "schemaVersion": 1,
             "mode": page_mode,
+            "sampleMode": False,
+            "scope": {
+                "project": project,
+                "agent_id": agent_id,
+                "session_id": session_id,
+            },
             "project": project,
             "agent_id": agent_id,
             "session_id": session_id,
