@@ -552,7 +552,10 @@ class TraversalMixin(MemoryGraphBase):
             )
             selected_nodes = scored_nodes[:max_nodes]
             selected_ids = [node.id for node in selected_nodes]
-            selected_edges = self._fetch_edges_for_nodes(connection, selected_ids)
+            selected_edges = _filter_edges_by_confidence(
+                self._fetch_edges_for_nodes(connection, selected_ids),
+                min_confidence=min_confidence,
+            )
             self._increment_access_counts(connection, selected_ids)
             for node in selected_nodes:
                 node.access_count += 1
@@ -957,7 +960,10 @@ class TraversalMixin(MemoryGraphBase):
             selected_nodes = self._ensure_support_coverage(selected_nodes, candidate_pool, graph, result_limit)
             selected_ids = [node.id for node in selected_nodes]
 
-            edges = self._fetch_edges_for_nodes(connection, selected_ids)
+            edges = _filter_edges_by_confidence(
+                self._fetch_edges_for_nodes(connection, selected_ids),
+                min_confidence=min_confidence,
+            )
             self._increment_access_counts(connection, selected_ids)
             for node in selected_nodes:
                 node.access_count += 1

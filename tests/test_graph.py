@@ -254,6 +254,40 @@ def test_query_excludes_edges_below_min_confidence(tmp_path: Path) -> None:
     assert (project.id, weak_pref.id) not in relationships
 
 
+def test_query_min_confidence_filters_edges_between_selected_nodes(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    project = graph.add_node(
+        label="FastAPI Project",
+        content="User is building a FastAPI backend service",
+        node_type=NodeType.ENTITY,
+        tags=["backend"],
+    ).node
+    weak_pref = graph.add_node(
+        label="Python Backend Preference",
+        content="User prefers Python for backend work",
+        node_type=NodeType.PREFERENCE,
+    ).node
+    graph.add_edge(
+        source_id=project.id,
+        target_id=weak_pref.id,
+        relationship=RelationType.RELATES_TO,
+        metadata={"edge_confidence": 0.2},
+    )
+
+    result = graph.query(
+        query="python backend",
+        max_nodes=5,
+        max_depth=1,
+        min_confidence=0.7,
+    )
+
+    assert {project.id, weak_pref.id}.issubset({node.id for node in result.nodes})
+    assert all(
+        (edge.source_id, edge.target_id) != (project.id, weak_pref.id)
+        for edge in result.edges
+    )
+
+
 def test_query_includes_all_edges_when_min_confidence_not_set(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
     project = graph.add_node(
