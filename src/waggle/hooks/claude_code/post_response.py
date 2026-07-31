@@ -78,8 +78,6 @@ def main() -> None:
 
         # Extract the last user/assistant turn from the transcript
         transcript: list[dict[str, Any]] = payload.get("transcript", []) or []
-        session_id: str = str(payload.get("session_id", "") or "")
-
         user_msg = ""
         assistant_msg = ""
 
@@ -142,7 +140,7 @@ def main() -> None:
             assistant_response=assistant_msg[:4000],
             project=scope.project,
             agent_id=scope.agent_id,
-            session_id=session_id,
+            session_id=scope.session_id,
         )
 
         print(json.dumps({}))

@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.1.18
+
+### Fixed
+
+- Fix LongMemEval personalization context assembly (multi-session source packing parity).
+- Fix LongMemEval validation runtime path and temporal reasoning context coverage.
+- Apply temporal reasoning budget parity to flat baseline.
+- Fix npm dependency vulnerabilities in Graph UI.
+
+### Added
+
+- Add LongMemEval targeted stress-test suite (176 cases).
+- Add TR source-session coverage to LongMemEval harness.
+- Freeze LongMemEval Waggle harness for reproducible benchmarking.
+- Refresh the Codex marketplace plugin page with the Waggle logo, Vercel
+  website, Magic Ball demo prompts, local-memory privacy copy, and `0.1.2`
+  plugin metadata.
+
+---
+
 ## v0.1.17
 
 ### Added

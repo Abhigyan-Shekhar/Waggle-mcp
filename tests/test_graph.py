@@ -1435,6 +1435,42 @@ def test_observe_conversation_extracts_favorite_preference_statement(tmp_path: P
     assert any("speaker:user" in node.tags for node in preference_nodes)
 
 
+def test_observe_conversation_extracts_personal_location_fact(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+
+    result = graph.observe_conversation(
+        user_message="Abhi lives in Bengaluru.",
+        assistant_response="Got it.",
+    )
+
+    fact_nodes = [node for node in result.stored_nodes if node.node_type == NodeType.FACT]
+
+    assert result.nodes_extracted >= 1
+    assert any(node.label == "Abhi location" for node in fact_nodes)
+    assert any(node.content == "Abhi lives in Bengaluru." for node in fact_nodes)
+    assert any({"personal-fact", "location", "speaker:user"}.issubset(set(node.tags)) for node in fact_nodes)
+
+
+def test_observe_conversation_extracts_common_location_fact_phrasings(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+
+    cases = [
+        ("Abhi is based in Bengaluru.", "Abhi location"),
+        ("Abhi is from Bengaluru.", "Abhi location"),
+        ("I live in Bengaluru.", "User location"),
+    ]
+
+    for user_message, expected_label in cases:
+        result = graph.observe_conversation(
+            user_message=user_message,
+            assistant_response="Got it.",
+        )
+
+        fact_nodes = [node for node in result.stored_nodes if node.node_type == NodeType.FACT]
+        assert any(node.label == expected_label for node in fact_nodes)
+        assert any({"personal-fact", "location", "speaker:user"}.issubset(set(node.tags)) for node in fact_nodes)
+
+
 def test_observe_conversation_extracts_common_preference_and_decision_phrasings(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
 

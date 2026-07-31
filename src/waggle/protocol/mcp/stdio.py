@@ -1,4 +1,5 @@
 """Stdio transport runner for Waggle's MCP SDK v2 server."""
+
 from __future__ import annotations
 
 import logging

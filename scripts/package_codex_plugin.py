@@ -111,6 +111,12 @@ def _build_marketplace_bundle(root: Path, tmp_root: Path, output_dir: Path, bund
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
 
+    for relative_path in _root_manifest_asset_paths(root):
+        source = root / relative_path
+        destination = bundle_root / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+
     _copy_tree(root / PLUGIN_DIR, bundle_root / PLUGIN_DIR)
     _write_install_notes(bundle_root / "INSTALL.md", marketplace_bundle=True, bundle_version=bundle_version)
     return _write_bundle(bundle_root, output_dir)
@@ -184,6 +190,31 @@ def _validate_version_consistency(root: Path) -> list[str]:
             )
 
     return failures
+
+
+def _root_manifest_asset_paths(root: Path) -> list[Path]:
+    manifest_path = root / ".codex-plugin" / "plugin.json"
+    if not manifest_path.exists():
+        return []
+
+    manifest = json.loads(manifest_path.read_text())
+    interface = manifest.get("interface", {})
+    asset_values: list[str] = []
+
+    for field in ["composerIcon", "logo", "logoDark"]:
+        value = interface.get(field)
+        if isinstance(value, str):
+            asset_values.append(value)
+
+    screenshots = interface.get("screenshots")
+    if isinstance(screenshots, list):
+        asset_values.extend(value for value in screenshots if isinstance(value, str))
+
+    paths: list[Path] = []
+    for value in asset_values:
+        if value.startswith("./"):
+            paths.append(Path(value.removeprefix("./")))
+    return sorted(set(paths))
 
 
 def _validate_bundle_version(root: Path, bundle_version: str) -> list[str]:
@@ -261,6 +292,14 @@ def _write_install_notes(path: Path, *, marketplace_bundle: bool, bundle_version
         contents = f"""# Waggle Codex marketplace bundle
 
 This archive contains a complete local Codex marketplace root for the `{bundle_version}` release.
+It is self-hosted through GitHub Releases: Codex runs the bundled Waggle stdio
+MCP server locally with SQLite storage by default. No paid hosted backend,
+Apple Developer ID notarization, or Windows Authenticode certificate is
+required for this install path.
+
+The bundled runtime is intentionally unsigned. macOS Gatekeeper or Windows
+SmartScreen may show a first-run warning; verify the release checksum or GitHub
+attestation before approving the binary.
 
 1. Extract the archive anywhere on disk.
 2. Add the extracted directory to Codex:
@@ -273,6 +312,9 @@ This archive contains a complete local Codex marketplace root for the `{bundle_v
         contents = f"""# Waggle Codex plugin bundle
 
 This archive contains the bare Waggle plugin folder for the `{bundle_version}` release.
+It runs a local stdio MCP server and does not require a hosted Waggle backend or
+paid Apple/Windows signing certificates. The current runtime is intentionally
+unsigned, so macOS Gatekeeper or Windows SmartScreen may warn on first launch.
 
 For the easiest installation flow, prefer the matching `waggle-codex-marketplace-{bundle_version}.zip`
 asset, which includes a ready-to-add local marketplace root for Codex.

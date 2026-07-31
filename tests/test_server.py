@@ -1657,9 +1657,36 @@ def test_observe_conversation_tool(tmp_path: Path) -> None:
     )
 
     assert result.isError is False
+    assert result.structuredContent["turn_id"]
+    assert result.structuredContent["verbatim_stored"] is True
+    assert result.structuredContent["nodes_extracted"] == result.structuredContent["created_count"]
+    assert result.structuredContent["edges_inferred"] >= 0
+    assert result.structuredContent["extraction_errors"] == []
     assert result.structuredContent["created_count"] >= 2
     assert any(node["evidence_records"] for node in result.structuredContent["stored_nodes"])
     assert "Conversation Observation" in result.content[0].text
+
+
+def test_observe_conversation_tool_reports_verbatim_storage_without_nodes(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+
+    result = app.handle_tool_call(
+        "observe_conversation",
+        {
+            "user_message": "Diagnostic verbatim-only write probe.",
+            "assistant_response": "OK.",
+            "project": "MCP",
+            "agent_id": "codex",
+            "session_id": "s1",
+        },
+    )
+
+    assert result.isError is False
+    assert result.structuredContent["turn_id"]
+    assert result.structuredContent["verbatim_stored"] is True
+    assert result.structuredContent["nodes_extracted"] == 0
+    assert result.structuredContent["stored_nodes"] == []
+    assert "Verbatim stored: True" in result.content[0].text
 
 
 def test_observe_conversation_tool_reports_database_conflicts(tmp_path: Path) -> None:

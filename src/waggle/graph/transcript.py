@@ -268,6 +268,7 @@ class TranscriptMixin(MemoryGraphBase):
         agent_id: str = "",
         project: str = "",
         session_id: str = "",
+        derive_window_edges: bool = True,
     ) -> ObservationResult:
         """Observe a completed user-assistant turn with verbatim-first persistence.
 
@@ -406,7 +407,7 @@ class TranscriptMixin(MemoryGraphBase):
                     window_id = ""
                     repo_id = ""
             # Derive edges outside the transaction lock
-            if window_id and repo_id:
+            if derive_window_edges and window_id and repo_id:
                 try:
                     self.derive_context_window_edges(window_id, repo_id)
                 except Exception as edge_err:

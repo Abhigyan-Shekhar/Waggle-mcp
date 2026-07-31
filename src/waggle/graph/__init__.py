@@ -1,6 +1,8 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import contextlib
+import importlib.metadata
 import json
 import logging
 import sqlite3
@@ -13,7 +15,23 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-import networkx as nx
+_entry_points = importlib.metadata.entry_points
+
+
+def _entry_points_without_networkx_backends(*args, **kwargs):
+    group = kwargs.get("group")
+    if group is None and args:
+        group = args[0]
+    if group in {"networkx.backends", "networkx.backend_info"}:
+        return []
+    return _entry_points(*args, **kwargs)
+
+
+importlib.metadata.entry_points = _entry_points_without_networkx_backends
+try:
+    import networkx as nx
+finally:
+    importlib.metadata.entry_points = _entry_points
 import numpy as np
 
 from waggle.abhi import (

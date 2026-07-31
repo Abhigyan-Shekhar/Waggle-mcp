@@ -62,6 +62,28 @@ def test_codex_repo_marketplace_and_plugin_entry_exist() -> None:
     for path in expected_paths:
         assert path.exists(), f"Missing Codex marketplace path: {path.relative_to(ROOT)}"
 
+    marketplace = json.loads((ROOT / ".agents" / "plugins" / "marketplace.json").read_text())
+    assert marketplace["name"] == "waggle"
+    assert marketplace["interface"]["displayName"] == "Waggle"
+
+    waggle_entry = next(plugin for plugin in marketplace["plugins"] if plugin["name"] == "waggle")
+    assert waggle_entry["source"] == {"source": "local", "path": "./plugins/waggle"}
+    assert waggle_entry["policy"] == {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}
+    assert waggle_entry["category"] == "Developer Tools"
+
+
+def test_codex_plugin_presentation_assets_exist() -> None:
+    manifest = json.loads((ROOT / "plugins" / "waggle" / ".codex-plugin" / "plugin.json").read_text())
+    interface = manifest["interface"]
+
+    for field in ["composerIcon", "logo", "logoDark"]:
+        asset_path = ROOT / "plugins" / "waggle" / interface[field].removeprefix("./")
+        assert asset_path.exists(), f"Missing Codex plugin asset: {asset_path.relative_to(ROOT)}"
+
+    for screenshot in interface["screenshots"]:
+        asset_path = ROOT / "plugins" / "waggle" / screenshot.removeprefix("./")
+        assert asset_path.exists(), f"Missing Codex plugin screenshot: {asset_path.relative_to(ROOT)}"
+
 
 def test_codex_plugin_uses_plugin_local_launcher() -> None:
     for manifest_path in [ROOT / ".mcp.json", ROOT / "plugins" / "waggle" / ".mcp.json"]:

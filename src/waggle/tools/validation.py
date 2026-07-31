@@ -6,6 +6,7 @@ Extracted verbatim from ``WaggleServer._validate_tool_payload`` and
 PR 3 adds ``validate_against_schema()`` — JSON Schema 2020-12 structural
 validation of tool arguments using ``jsonschema``.
 """
+
 from __future__ import annotations
 
 import logging
@@ -42,9 +43,7 @@ def validate_against_schema(
     try:
         Draft202012Validator(input_schema).validate(arguments)
     except JsonSchemaError as exc:
-        raise ValidationFailure(
-            f"Invalid arguments for tool '{tool_name}': {exc.message}"
-        ) from exc
+        raise ValidationFailure(f"Invalid arguments for tool '{tool_name}': {exc.message}") from exc
 
 
 # ── Field-level payload-size validation ────────────────────────────────────────

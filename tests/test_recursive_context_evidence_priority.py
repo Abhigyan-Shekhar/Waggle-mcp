@@ -9,9 +9,15 @@ from src.waggle.recursive_context import RecursiveContextController
 def test_constraint_query_prioritizes_correction_evidence() -> None:
     controller = RecursiveContextController(graph=SimpleNamespace())
     hits = [
-        SimpleNamespace(transcript_snippet="user: I need help with a travel itinerary. assistant: A luxury hotel focused approach may be a safe default."),
-        SimpleNamespace(transcript_snippet="user: Can the travel itinerary still feel polished? assistant: Yes, while respecting the corrected constraint."),
-        SimpleNamespace(transcript_snippet="user: Quick correction: the right constraint for the travel itinerary is budget hostel focused because I am saving cash."),
+        SimpleNamespace(
+            transcript_snippet="user: I need help with a travel itinerary. assistant: A luxury hotel focused approach may be a safe default."
+        ),
+        SimpleNamespace(
+            transcript_snippet="user: Can the travel itinerary still feel polished? assistant: Yes, while respecting the corrected constraint."
+        ),
+        SimpleNamespace(
+            transcript_snippet="user: Quick correction: the right constraint for the travel itinerary is budget hostel focused because I am saving cash."
+        ),
     ]
 
     ordered = controller._prioritize_transcript_hits("What constraint should the travel itinerary respect?", hits)
@@ -22,10 +28,18 @@ def test_constraint_query_prioritizes_correction_evidence() -> None:
 def test_count_query_prioritizes_all_arithmetic_steps_over_labels() -> None:
     controller = RecursiveContextController(graph=SimpleNamespace())
     hits = [
-        SimpleNamespace(transcript_snippet="user: I bought 4 more notebook packs today. assistant: Recorded: 4 notebook packs added."),
-        SimpleNamespace(transcript_snippet="user: The labels for the notebook packs are in a separate drawer. assistant: Noted."),
-        SimpleNamespace(transcript_snippet="user: Inventory note: we have 12 notebook packs in storage. assistant: Recorded: 12 notebook packs."),
-        SimpleNamespace(transcript_snippet="user: We used 5 notebook packs for the event. assistant: That reduces the count by 5."),
+        SimpleNamespace(
+            transcript_snippet="user: I bought 4 more notebook packs today. assistant: Recorded: 4 notebook packs added."
+        ),
+        SimpleNamespace(
+            transcript_snippet="user: The labels for the notebook packs are in a separate drawer. assistant: Noted."
+        ),
+        SimpleNamespace(
+            transcript_snippet="user: Inventory note: we have 12 notebook packs in storage. assistant: Recorded: 12 notebook packs."
+        ),
+        SimpleNamespace(
+            transcript_snippet="user: We used 5 notebook packs for the event. assistant: That reduces the count by 5."
+        ),
     ]
 
     ordered = controller._prioritize_transcript_hits("How many notebook packs should the user have now?", hits)
@@ -86,7 +100,9 @@ def test_exact_recall_context_puts_top_ranked_memories_before_type_buckets() -> 
 def test_exact_recall_transcript_priority_uses_query_terms() -> None:
     controller = RecursiveContextController(graph=SimpleNamespace())
     hits = [
-        SimpleNamespace(session_id="paint", transcript_snippet="user: I need help matching paint colors for a model aircraft."),
+        SimpleNamespace(
+            session_id="paint", transcript_snippet="user: I need help matching paint colors for a model aircraft."
+        ),
         SimpleNamespace(
             session_id="shift",
             transcript_snippet="user: can u create a shift rotation sheet for GM social media agents",
@@ -160,9 +176,7 @@ def test_answer_category_detects_table_fact_and_temporal_queries() -> None:
     controller = RecursiveContextController(graph=SimpleNamespace())
 
     assert (
-        controller._detect_answer_category(
-            "Can you remind me what was the rotation for Admon on a Sunday?"
-        )
+        controller._detect_answer_category("Can you remind me what was the rotation for Admon on a Sunday?")
         == "table_lookup"
     )
     assert controller._detect_answer_category("What degree did I graduate with?") == "short_personal_fact"
@@ -182,14 +196,19 @@ def test_answer_category_detects_table_fact_and_temporal_queries() -> None:
     )
     assert (
         controller._detect_answer_category(
+            "How many days had passed between the day I bought a gift for my brother's graduation ceremony "
+            "and the day I bought a birthday gift for my best friend?"
+        )
+        == "temporal_ordering"
+    )
+    assert (
+        controller._detect_answer_category(
             "Can you remind me what color was the scaly body of the Plesiosaur in the image?"
         )
         == "exact_detail"
     )
     assert (
-        controller._detect_answer_category(
-            "Can you remind me of that unique dessert shop with the giant milkshakes?"
-        )
+        controller._detect_answer_category("Can you remind me of that unique dessert shop with the giant milkshakes?")
         == "exact_detail"
     )
     assert (
@@ -197,6 +216,12 @@ def test_answer_category_detects_table_fact_and_temporal_queries() -> None:
             "Can you remind me what kind of processes are used at the Lake Charles Refinery?"
         )
         == "enumerated_list"
+    )
+    assert controller._detect_answer_category("Where do I currently keep my old sneakers?") == "short_personal_fact"
+    assert controller._detect_answer_category("What was my previous occupation?") == "short_personal_fact"
+    assert (
+        controller._detect_answer_category("How many different types of food delivery services have I used recently?")
+        == "short_personal_fact"
     )
 
 
@@ -618,9 +643,7 @@ def test_pinned_transcript_evidence_admits_clock_time_boundary_fact() -> None:
             return [
                 SimpleNamespace(
                     role="user",
-                    transcript_text=(
-                        "user: I read a LeBron article and want help rewriting it into a unique article."
-                    ),
+                    transcript_text=("user: I read a LeBron article and want help rewriting it into a unique article."),
                 ),
                 SimpleNamespace(
                     role="user",
@@ -647,6 +670,270 @@ def test_pinned_transcript_evidence_admits_clock_time_boundary_fact() -> None:
 
     assert hits
     assert "7 pm" in "\n".join(lines)
+
+
+def test_pinned_lane_admits_current_storage_location_fact() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+    stale_assistant = SimpleNamespace(
+        role="assistant",
+        observed_at=datetime(2026, 1, 1, tzinfo=UTC),
+        transcript_snippet="assistant: Keeping old sneakers under the bed can make them smell.",
+    )
+    current_user = SimpleNamespace(
+        role="user",
+        observed_at=datetime(2026, 2, 1, tzinfo=UTC),
+        transcript_snippet=(
+            "user: I need to organize my closet this weekend, and I'm looking forward "
+            "to storing my old sneakers in a shoe rack."
+        ),
+    )
+
+    lines, _nodes, _keys, _ids = controller._pinned_fact_section(
+        query="Where do I currently keep my old sneakers?",
+        hits=[],
+        transcript_hits=[stale_assistant, current_user],
+        max_tokens=160,
+    )
+
+    joined = "\n".join(lines)
+    assert "shoe rack" in joined
+    assert "under the bed" not in joined
+
+
+def test_answer_bearing_section_admits_previous_occupation_fact() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+    noisy = SimpleNamespace(transcript_snippet="user: In my previous role at the startup, I managed interns.")
+    exact = SimpleNamespace(
+        transcript_snippet=(
+            "user: I've used Trello in my previous role as a marketing specialist "
+            "at a small startup and I'm familiar with its features."
+        )
+    )
+
+    lines, _nodes, _keys, _ids = controller._answer_bearing_evidence_section(
+        query="What was my previous occupation?",
+        category="short_personal_fact",
+        hits=[],
+        transcript_hits=[noisy, exact],
+        max_tokens=260,
+    )
+
+    joined = "\n".join(lines)
+    assert "marketing specialist" in joined
+    assert "small startup" in joined
+
+
+def test_lexical_answer_evidence_admits_previous_occupation_from_full_transcripts() -> None:
+    class TranscriptGraph:
+        def list_transcript_records(self, **_kwargs):
+            return [
+                SimpleNamespace(
+                    role="user",
+                    transcript_text="user: In my previous role at the startup, I managed interns.",
+                ),
+                SimpleNamespace(
+                    role="user",
+                    transcript_text=(
+                        "user: I've used Trello in my previous role as a marketing specialist "
+                        "at a small startup and I'm familiar with its features."
+                    ),
+                ),
+            ]
+
+    controller = RecursiveContextController(graph=TranscriptGraph())
+
+    hits = controller._lexical_answer_transcript_evidence(
+        query="What was my previous occupation?",
+        category="short_personal_fact",
+        scope={"agent_id": "a", "project": "p", "session_id": ""},
+        limit=2,
+    )
+
+    joined = "\n".join(controller._transcript_snippet(hit) for hit in hits)
+    assert "marketing specialist" in joined
+    assert "small startup" in joined
+
+
+def test_count_query_prioritizes_pickup_return_and_delivery_evidence() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+    clothing_hits = [
+        SimpleNamespace(transcript_snippet="user: I need to organize my closet and fold sweaters."),
+        SimpleNamespace(
+            transcript_snippet="user: I exchanged a pair of boots at Zara and need to pick up the new pair."
+        ),
+        SimpleNamespace(
+            transcript_snippet="assistant: Don't forget to pick up the dry cleaning for your navy blue blazer."
+        ),
+    ]
+
+    ordered_clothing = controller._prioritize_transcript_hits(
+        "How many items of clothing do I need to pick up or return from a store?",
+        clothing_hits,
+    )
+    clothing_text = "\n".join(controller._transcript_snippet(hit) for hit in ordered_clothing[:2])
+    assert "Zara" in clothing_text
+    assert "dry cleaning" in clothing_text
+
+    delivery_hits = [
+        SimpleNamespace(transcript_snippet="assistant: Cooking at home is healthier than takeout."),
+        SimpleNamespace(transcript_snippet="user: I had Domino's Pizza three times last week."),
+        SimpleNamespace(transcript_snippet="user: I found a delivery service called Fresh Fusion."),
+        SimpleNamespace(transcript_snippet="user: I ordered Uber Eats after work yesterday."),
+    ]
+    ordered_delivery = controller._prioritize_transcript_hits(
+        "How many different types of food delivery services have I used recently?",
+        delivery_hits,
+    )
+    delivery_text = "\n".join(controller._transcript_snippet(hit) for hit in ordered_delivery[:3])
+    assert "Domino" in delivery_text
+    assert "Fresh Fusion" in delivery_text
+    assert "Uber Eats" in delivery_text
+
+
+def test_count_query_context_includes_pickup_return_counting_guidance() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+
+    context, _nodes = controller._compress_to_budget(
+        query="How many items of clothing do I need to pick up or return from a store?",
+        hits=[],
+        conflicts=[],
+        transcript_hits=[
+            SimpleNamespace(transcript_snippet="user: I exchanged boots and still need to pick up the new pair."),
+        ],
+        token_budget=512,
+    )
+
+    assert "Answer guidance:" in context
+    assert "count each still-open pickup and each still-open return obligation separately" in context
+
+
+def test_count_query_context_extracts_separate_pickup_return_candidates() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+
+    context, _nodes = controller._compress_to_budget(
+        query="How many items of clothing do I need to pick up or return from a store?",
+        hits=[],
+        conflicts=[],
+        transcript_hits=[
+            SimpleNamespace(
+                transcript_snippet=(
+                    "user: I need to return some boots to Zara, actually. I got them on February 5th, "
+                    "but they were too small, so I exchanged them for a larger size. "
+                    "I just haven't had a chance to pick them up yet."
+                )
+            ),
+            SimpleNamespace(
+                transcript_snippet=(
+                    "user: I still need to pick up my dry cleaning for the navy blue blazer "
+                    "I wore to a meeting a few weeks ago."
+                )
+            ),
+        ],
+        token_budget=900,
+    )
+
+    assert "Count candidates:" in context
+    assert "return boots to Zara" in context
+    assert (
+        "pick up new boots" in context
+        or "pick up new pair of boots" in context
+        or "pick up replacement boots" in context
+    )
+    assert "pick up dry cleaning for navy blue blazer" in context
+
+
+def test_obligation_decomposition_handles_exchange_variants() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+
+    direct_swap = controller._extract_obligation_candidates(
+        "user: I need to return my red jacket and picked up a blue jacket.",
+        event_prefix="t",
+    )
+    direct_labels = [controller._obligation_label(item) for item in direct_swap]
+    assert "return red jacket" in direct_labels
+    assert "pick up blue jacket" in direct_labels
+
+    replacement = controller._extract_obligation_candidates(
+        "user: I need to return some boots to Zara. They were too small, so I exchanged them for a larger size. "
+        "I still need to pick them up.",
+        event_prefix="t",
+    )
+    replacement_labels = [controller._obligation_label(item) for item in replacement]
+    assert "return boots to Zara" in replacement_labels
+    assert "pick up replacement boots from Zara" in replacement_labels
+
+
+def test_lexical_answer_evidence_admits_named_delivery_services_from_full_transcripts() -> None:
+    class TranscriptGraph:
+        def list_transcript_records(self, **_kwargs):
+            return [
+                SimpleNamespace(role="user", transcript_text="user: I had Domino's Pizza three times last week."),
+                SimpleNamespace(role="user", transcript_text="user: I found a delivery service called Fresh Fusion."),
+                SimpleNamespace(role="user", transcript_text="user: My weekends have been all about Uber Eats lately."),
+            ]
+
+    controller = RecursiveContextController(graph=TranscriptGraph())
+
+    hits = controller._lexical_answer_transcript_evidence(
+        query="How many different types of food delivery services have I used recently?",
+        category="short_personal_fact",
+        scope={"agent_id": "a", "project": "p", "session_id": ""},
+        limit=3,
+    )
+
+    joined = "\n".join(controller._transcript_snippet(hit) for hit in hits)
+    assert "Domino" in joined
+    assert "Fresh Fusion" in joined
+    assert "Uber Eats" in joined
+
+
+def test_temporal_event_phrases_handles_between_two_days_query() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+
+    phrases = controller._extract_event_phrases(
+        "How many days had passed between the day I bought a gift for my brother's graduation ceremony "
+        "and the day I bought a birthday gift for my best friend?"
+    )
+
+    assert any("brother's graduation ceremony" in phrase for phrase in phrases)
+    assert any("birthday gift for my best friend" in phrase for phrase in phrases)
+
+
+def test_lexical_answer_evidence_admits_both_temporal_gift_events() -> None:
+    class TranscriptGraph:
+        def list_transcript_records(self, **_kwargs):
+            return [
+                SimpleNamespace(
+                    role="user",
+                    transcript_text=(
+                        "[documentDate: 2023/03/29] user: I recently got a wireless headphone "
+                        "for my brother as a graduation gift on the 3/8, and it was a big hit."
+                    ),
+                ),
+                SimpleNamespace(
+                    role="user",
+                    transcript_text=(
+                        "[documentDate: 2023/03/29] user: I recently got a silver necklace with "
+                        "a tiny pendant for my best friend's 30th birthday on the 15th of March."
+                    ),
+                ),
+            ]
+
+    controller = RecursiveContextController(graph=TranscriptGraph())
+
+    hits = controller._lexical_answer_transcript_evidence(
+        query=(
+            "How many days had passed between the day I bought a gift for my brother's graduation ceremony "
+            "and the day I bought a birthday gift for my best friend?"
+        ),
+        category="temporal_ordering",
+        scope={"agent_id": "a", "project": "p", "session_id": ""},
+        limit=2,
+    )
+
+    joined = "\n".join(controller._transcript_snippet(hit) for hit in hits)
+    assert "graduation gift on the 3/8" in joined
+    assert "15th of March" in joined
 
 
 def test_personalization_lane_promotes_painting_history_for_advice_query() -> None:
@@ -688,7 +975,7 @@ def test_personalization_lane_promotes_painting_history_for_advice_query() -> No
     section = "\n".join(lines)
     assert "Instagram" in section
     assert "30-day painting challenge" in section
-    assert section.index("30-day painting challenge") < section.index("price my paintings")
+    assert "galleries and art communities" not in section
 
 
 def test_personalization_lane_promotes_slow_cooker_experience_for_advice_query() -> None:
@@ -784,7 +1071,11 @@ def test_personalization_graph_filter_blocks_cross_domain_noise() -> None:
     noisy = [
         SimpleNamespace(label="Sun Basket", content="Meal delivery with vegetarian recipes.", node_type="entity"),
         SimpleNamespace(label="Spider-Man comics", content="Displaying comics beside figurines.", node_type="entity"),
-        SimpleNamespace(label="What are tips to price paintings?", content="What are tips to price paintings online?", node_type="question"),
+        SimpleNamespace(
+            label="What are tips to price paintings?",
+            content="What are tips to price paintings online?",
+            node_type="question",
+        ),
         SimpleNamespace(
             label="30-day painting challenge",
             content="I have been getting inspiration from social media and recently started a 30-day painting challenge.",

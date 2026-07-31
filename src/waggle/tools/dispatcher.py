@@ -16,6 +16,7 @@ Usage
     # result.is_error  → bool
 
 """
+
 from __future__ import annotations
 
 import json
@@ -62,6 +63,7 @@ LOGGER = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Internal helpers (previously private methods of WaggleServer)
 # ---------------------------------------------------------------------------
+
 
 def _object_input_schema(
     properties: dict[str, Any] | None = None,
@@ -129,6 +131,7 @@ def _recursive_context_enabled() -> bool:
 # ---------------------------------------------------------------------------
 # WaggleToolDispatcher
 # ---------------------------------------------------------------------------
+
 
 class WaggleToolDispatcher:
     """Protocol-independent dispatcher for all Waggle memory tools.
@@ -1438,15 +1441,11 @@ class WaggleToolDispatcher:
             )
 
         if name == "get_related":
-            subgraph = graph.get_related(
-                node_id=arguments["node_id"], max_depth=int(arguments.get("max_depth", 2))
-            )
+            subgraph = graph.get_related(node_id=arguments["node_id"], max_depth=int(arguments.get("max_depth", 2)))
             return self._ok(serialize_subgraph(subgraph), self._subgraph_payload(subgraph))
 
         if name == "get_node_history":
-            history = graph.get_node_history(
-                node_id=arguments["node_id"], max_depth=int(arguments.get("max_depth", 2))
-            )
+            history = graph.get_node_history(node_id=arguments["node_id"], max_depth=int(arguments.get("max_depth", 2)))
             return self._ok(serialize_node_history(history), self._node_history_payload(history))
 
         if name == "timeline":
@@ -1530,9 +1529,7 @@ class WaggleToolDispatcher:
             )
 
         if name == "decompose_and_store":
-            subgraph = graph.decompose_and_store(
-                content=arguments["content"], context=arguments.get("context", "")
-            )
+            subgraph = graph.decompose_and_store(content=arguments["content"], context=arguments.get("context", ""))
             return self._ok(serialize_subgraph(subgraph), self._subgraph_payload(subgraph))
 
         if name == "observe_conversation":
@@ -1669,7 +1666,9 @@ class WaggleToolDispatcher:
                 filtered_count = edge_filter.get("edges_filtered", 0)
                 total_count = edge_filter.get("edges_total", 0)
                 if filtered_count:
-                    filter_summary = f" ({filtered_count} low-confidence RELATES_TO edges filtered from {total_count} total)"
+                    filter_summary = (
+                        f" ({filtered_count} low-confidence RELATES_TO edges filtered from {total_count} total)"
+                    )
             return self._ok(
                 f"Committed memory to {exported.output_path}.{filter_summary}",
                 {
@@ -1811,8 +1810,7 @@ class WaggleToolDispatcher:
                 "nodes_used": [self._node_payload(n) for n in ctx_result.nodes_used],
                 "edges_used": [self._edge_payload(e) for e in ctx_result.edges_used],
                 "transcript_evidence": [
-                    (t.model_dump() if hasattr(t, "model_dump") else str(t))
-                    for t in ctx_result.transcript_evidence
+                    (t.model_dump() if hasattr(t, "model_dump") else str(t)) for t in ctx_result.transcript_evidence
                 ],
                 "conflicts": ctx_result.conflicts,
                 "token_estimate": ctx_result.token_estimate,
@@ -1857,9 +1855,7 @@ class WaggleToolDispatcher:
 
     # ── Fast-mode guard ───────────────────────────────────────────────────
 
-    def _check_embedding_available(
-        self, name: str, graph: Any, arguments: dict[str, Any]
-    ) -> WaggleToolResult | None:
+    def _check_embedding_available(self, name: str, graph: Any, arguments: dict[str, Any]) -> WaggleToolResult | None:
         if not self.config.is_fast_mode:
             return None
         if name in EMBEDDING_FREE_TOOLS:

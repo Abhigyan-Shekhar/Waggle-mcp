@@ -1,4 +1,5 @@
 """Tests that the current MCP tool surface matches the frozen compatibility fixture."""
+
 from __future__ import annotations
 
 import json
@@ -79,6 +80,7 @@ def _live_tools_fixture_shape(mcp_surface):
 
 # ── Tool list surface ──────────────────────────────────────────────────────────
 
+
 @pytest.mark.skipif(
     not (FIXTURE_DIR / "tool-list.json").exists(),
     reason="Fixture not yet generated. Run: python scripts/generate_mcp_fixtures.py",
@@ -115,9 +117,7 @@ def test_tool_required_fields_unchanged(mcp_surface):
         live_required = set((live_map[name]["inputSchema"] or {}).get("required", []))
         # New required fields are a breaking change.
         added = live_required - fixture_required
-        assert not added, (
-            f"Tool '{name}' gained new required fields since fixture was taken: {sorted(added)}"
-        )
+        assert not added, f"Tool '{name}' gained new required fields since fixture was taken: {sorted(added)}"
 
 
 @pytest.mark.skipif(
@@ -138,12 +138,11 @@ def test_tool_property_names_unchanged(mcp_surface):
         fixture_props = set(fixture_tool.get("inputSchema", {}).get("properties", {}).keys())
         live_props = set((live_map[name]["inputSchema"] or {}).get("properties", {}).keys())
         removed = fixture_props - live_props
-        assert not removed, (
-            f"Tool '{name}' lost argument properties since fixture was taken: {sorted(removed)}"
-        )
+        assert not removed, f"Tool '{name}' lost argument properties since fixture was taken: {sorted(removed)}"
 
 
 # ── Resource list surface ──────────────────────────────────────────────────────
+
 
 @pytest.mark.skipif(
     not (FIXTURE_DIR / "resource-list.json").exists(),
@@ -165,6 +164,7 @@ def test_resource_uris_unchanged():
 
 # ── Prompt surface ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.skipif(
     not (FIXTURE_DIR / "prompt-list.json").exists(),
     reason="Fixture not yet generated.",
@@ -184,6 +184,7 @@ def test_prompt_names_unchanged():
 
 
 # ── Tool alias surface ─────────────────────────────────────────────────────────
+
 
 @pytest.mark.skipif(
     not (FIXTURE_DIR / "tool-aliases.json").exists(),
@@ -205,6 +206,7 @@ def test_tool_aliases_unchanged():
 
 # ── Tool count guard ───────────────────────────────────────────────────────────
 
+
 @pytest.mark.skipif(
     not (FIXTURE_DIR / "summary.json").exists(),
     reason="Fixture not yet generated.",
@@ -216,6 +218,5 @@ def test_tool_count_not_reduced(mcp_surface):
 
     live_count = len(_live_tools_fixture_shape(mcp_surface))
     assert live_count >= expected_count, (
-        f"Tool count dropped from {expected_count} to {live_count}. "
-        "Check that no tools were accidentally removed."
+        f"Tool count dropped from {expected_count} to {live_count}. Check that no tools were accidentally removed."
     )

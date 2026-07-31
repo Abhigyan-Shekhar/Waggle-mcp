@@ -259,6 +259,16 @@ _PERSONAL_NARRATIVE_RE = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+_LOCATION_FACT_RE = re.compile(
+    r"\b(?P<subject>i|[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})\s+"
+    r"(?:"
+    r"(?:currently\s+)?lives?\s+in"
+    r"|(?:am|is|are)\s+based\s+in"
+    r"|(?:am|is|are)\s+from"
+    r")\s+"
+    r"(?P<location>[A-Z][A-Za-z0-9.'-]*(?:\s+[A-Z][A-Za-z0-9.'-]*){0,4})\b",
+    re.IGNORECASE,
+)
 _BACKEND_RE = re.compile(
     r"\b(?:using|use|uses|built with|build with)\s+(?P<tech>[A-Za-z][A-Za-z0-9.+-]*)\s+for\s+(?:the\s+)?backend\b"
     r"|\b(?P<tech_is>[A-Za-z][A-Za-z0-9.+-]*)\s+is\s+(?:the\s+)?backend\b",
@@ -1213,6 +1223,19 @@ def _extract_structured_observation_candidates(sentence: str, *, speaker: str) -
                 }
             )
             return candidates
+
+    location_match = _LOCATION_FACT_RE.search(sentence)
+    if location_match:
+        subject = location_match.group("subject").strip()
+        normalized_subject = "User" if subject.lower() == "i" else subject
+        candidates.append(
+            {
+                "label": f"{normalized_subject} location",
+                "content": _normalize_statement(sentence),
+                "node_type": NodeType.FACT,
+                "tags": [*tags, "personal-fact", "location"],
+            }
+        )
 
     backend_match = _BACKEND_RE.search(sentence)
     if backend_match:

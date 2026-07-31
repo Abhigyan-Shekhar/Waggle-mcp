@@ -1,4 +1,4 @@
-# ruff: noqa: F401
+# ruff: noqa: E402,F401
 from __future__ import annotations
 
 import contextlib
@@ -22,6 +22,8 @@ from uuid import uuid4
 
 import networkx as nx
 import numpy as np
+
+LOGGER = logging.getLogger(__name__)
 
 from waggle.abhi import (
     ABHI_ENCRYPTION_ALGORITHM,
@@ -1254,7 +1256,19 @@ class TraversalMixin(MemoryGraphBase):
             edges = self._fetch_edges_for_nodes(connection, [node.id for node in ordered_nodes])
             now = time.time()
             for node in ordered_nodes:
-                distance = 0 if node.id == node_id else nx.shortest_path_length(graph, source=node_id, target=node.id)
+                if node.id == node_id:
+                    distance = 0
+                else:
+                    try:
+                        distance = nx.shortest_path_length(graph, source=node_id, target=node.id)
+                    except nx.NetworkXNoPath:
+                        try:
+                            distance = nx.shortest_path_length(
+                                graph.to_undirected(as_view=True), source=node_id, target=node.id
+                            )
+                        except nx.NetworkXNoPath:
+                            LOGGER.debug("get_related skipped unreachable node %s from seed %s", node.id, node_id)
+                            continue
                 edge_weight = self._strongest_edge_weight(node.id, edges)
                 similarity = max(0.0, 1.0 - (0.25 * distance))
                 self._apply_node_score(node, similarity=similarity, edge_weight=edge_weight, now=now)

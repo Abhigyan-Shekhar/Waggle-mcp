@@ -1,4 +1,5 @@
 """Protocol-independent tool result returned by WaggleToolDispatcher."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
