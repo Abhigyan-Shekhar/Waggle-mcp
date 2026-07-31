@@ -503,16 +503,29 @@ class Neo4jMemoryGraph:
         if not normalized_session:
             raise ValueError("session_id is required.")
         with self._lock, self._session() as session:
-            result = self._clear_scope_rows(session, scope="session", session_id=normalized_session, dry_run=dry_run)
-            if not dry_run:
+            if dry_run:
+                return self._clear_scope_rows(
+                    session,
+                    scope="session",
+                    session_id=normalized_session,
+                    dry_run=True,
+                )
+            tx = session.begin_transaction()
+            try:
+                result = self._clear_scope_rows(tx, scope="session", session_id=normalized_session, dry_run=False)
                 self.emit_audit_event(
                     event_type="graph.scope_cleared",
                     resource_type="session",
                     resource_id=normalized_session,
                     action="delete",
                     metadata=result.model_dump(mode="json"),
-                    session=session,
+                    session=tx,
                 )
+                tx.commit()
+            except Exception:
+                tx.rollback()
+                raise
+            self._invalidate_ui_state_cache(scope="session", session_id=normalized_session)
             return result
 
     def clear_project(self, *, project: str, dry_run: bool = False) -> ClearScopeResult:
@@ -520,30 +533,51 @@ class Neo4jMemoryGraph:
         if not normalized_project:
             raise ValueError("project is required.")
         with self._lock, self._session() as session:
-            result = self._clear_scope_rows(session, scope="project", project=normalized_project, dry_run=dry_run)
-            if not dry_run:
+            if dry_run:
+                return self._clear_scope_rows(
+                    session,
+                    scope="project",
+                    project=normalized_project,
+                    dry_run=True,
+                )
+            tx = session.begin_transaction()
+            try:
+                result = self._clear_scope_rows(tx, scope="project", project=normalized_project, dry_run=False)
                 self.emit_audit_event(
                     event_type="graph.scope_cleared",
                     resource_type="project",
                     resource_id=normalized_project,
                     action="delete",
                     metadata=result.model_dump(mode="json"),
-                    session=session,
+                    session=tx,
                 )
+                tx.commit()
+            except Exception:
+                tx.rollback()
+                raise
+            self._invalidate_ui_state_cache(scope="project", project=normalized_project)
             return result
 
     def clear_all(self, *, dry_run: bool = False) -> ClearScopeResult:
         with self._lock, self._session() as session:
-            result = self._clear_scope_rows(session, scope="all", dry_run=dry_run)
-            if not dry_run:
+            if dry_run:
+                return self._clear_scope_rows(session, scope="all", dry_run=True)
+            tx = session.begin_transaction()
+            try:
+                result = self._clear_scope_rows(tx, scope="all", dry_run=False)
                 self.emit_audit_event(
                     event_type="graph.scope_cleared",
                     resource_type="tenant",
                     resource_id=self.tenant_id,
                     action="delete",
                     metadata=result.model_dump(mode="json"),
-                    session=session,
+                    session=tx,
                 )
+                tx.commit()
+            except Exception:
+                tx.rollback()
+                raise
+            self._invalidate_ui_state_cache(scope="all")
             return result
 
     def _clear_scope_rows(
@@ -603,6 +637,17 @@ class Neo4jMemoryGraph:
             session.run(f"MATCH (n:MemoryNode) {match_clause} DETACH DELETE n", **params).consume()
 
         return result
+
+    def _invalidate_ui_state_cache(self, *, scope: str, project: str = "", session_id: str = "") -> None:
+        keys_to_delete: list[tuple[str, str, str, str]] = []
+        for key in _UI_STATE_CACHE:
+            tenant_id, cached_project, _agent_id, cached_session_id = key
+            if tenant_id != self.tenant_id:
+                continue
+            if scope == "all" or (scope == "project" and cached_project == project) or (scope == "session" and cached_session_id == session_id):
+                keys_to_delete.append(key)
+        for key in keys_to_delete:
+            _UI_STATE_CACHE.pop(key, None)
 
     def emit_audit_event(
         self,
@@ -671,7 +716,7 @@ class Neo4jMemoryGraph:
                 ip_address=event.ip_address,
                 user_agent=event.user_agent,
                 created_at=event.created_at.isoformat(),
-                metadata=event.metadata,
+                metadata=_encode_metadata(event.metadata),
             ).consume()
         finally:
             if owns_session:
@@ -729,7 +774,7 @@ class Neo4jMemoryGraph:
                 ip_address=props.get("ip_address") or "",
                 user_agent=props.get("user_agent") or "",
                 created_at=_parse_datetime(props["created_at"]),
-                metadata=props.get("metadata") or {},
+                metadata=_decode_metadata(props.get("metadata")),
             )
             for props in rows
         ]

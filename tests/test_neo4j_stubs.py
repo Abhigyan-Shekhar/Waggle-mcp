@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import inspect
+import json
 from types import MethodType
 from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 
 from waggle.models import (
+    ClearScopeResult,
     SubgraphResult,
 )
-from waggle.neo4j_graph import Neo4jMemoryGraph
+from waggle.neo4j_graph import _UI_STATE_CACHE, Neo4jMemoryGraph
 
 
 class FakeEmbeddingModel:
@@ -223,6 +226,131 @@ def test_neo4j_for_tenant_returns_new_instance() -> None:
     except (ImportError, RuntimeError) as e:
         if "neo4j" in str(e):
             pytest.skip("neo4j driver not available")
+
+
+class _FakeRunResult:
+    def consume(self) -> None:
+        return None
+
+
+class _FakeTransaction:
+    def __init__(self) -> None:
+        self.committed = False
+        self.rolled_back = False
+
+    def run(self, *_args: object, **_kwargs: object) -> _FakeRunResult:
+        return _FakeRunResult()
+
+    def commit(self) -> None:
+        self.committed = True
+
+    def rollback(self) -> None:
+        self.rolled_back = True
+
+
+class _FakeSession:
+    def __init__(self, tx: _FakeTransaction) -> None:
+        self.tx = tx
+
+    def __enter__(self) -> _FakeSession:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def begin_transaction(self) -> _FakeTransaction:
+        return self.tx
+
+
+def test_neo4j_clear_scope_uses_transaction_and_invalidates_ui_cache() -> None:
+    graph = make_stub_graph()
+    graph._lock = MagicMock()
+    graph._lock.__enter__ = MagicMock(return_value=None)
+    graph._lock.__exit__ = MagicMock(return_value=None)
+    tx = _FakeTransaction()
+    graph._session = MagicMock(return_value=_FakeSession(tx))
+    _UI_STATE_CACHE.clear()
+    _UI_STATE_CACHE[("local-default", "alpha", "agent", "sess-1")] = {"positions": {"n1": {"x": 1}}}
+    _UI_STATE_CACHE[("local-default", "beta", "agent", "sess-1")] = {"positions": {"n2": {"x": 2}}}
+    _UI_STATE_CACHE[("local-default", "alpha", "agent", "sess-2")] = {"positions": {"n3": {"x": 3}}}
+
+    seen: dict[str, object] = {}
+
+    def fake_clear(session: object, **kwargs: object) -> ClearScopeResult:
+        seen["clear_session"] = session
+        assert kwargs["dry_run"] is False
+        return ClearScopeResult(
+            scope="session",
+            session_id="sess-1",
+            deleted_nodes=1,
+            deleted_graph_ui_rows=2,
+            counts_by_node_type={"decision": 1},
+        )
+
+    def fake_audit(**kwargs: object) -> None:
+        seen["audit_session"] = kwargs["session"]
+        seen["audit_metadata"] = kwargs["metadata"]
+
+    graph._clear_scope_rows = fake_clear  # type: ignore[method-assign]
+    graph.emit_audit_event = fake_audit  # type: ignore[method-assign]
+
+    result = graph.clear_session(session_id="sess-1")
+
+    assert result.deleted_nodes == 1
+    assert seen["clear_session"] is tx
+    assert seen["audit_session"] is tx
+    assert seen["audit_metadata"]["counts_by_node_type"] == {"decision": 1}  # type: ignore[index]
+    assert tx.committed is True
+    assert tx.rolled_back is False
+    assert ("local-default", "alpha", "agent", "sess-1") not in _UI_STATE_CACHE
+    assert ("local-default", "beta", "agent", "sess-1") not in _UI_STATE_CACHE
+    assert ("local-default", "alpha", "agent", "sess-2") in _UI_STATE_CACHE
+
+
+def test_neo4j_clear_scope_rolls_back_and_preserves_cache_when_audit_fails() -> None:
+    graph = make_stub_graph()
+    graph._lock = MagicMock()
+    graph._lock.__enter__ = MagicMock(return_value=None)
+    graph._lock.__exit__ = MagicMock(return_value=None)
+    tx = _FakeTransaction()
+    graph._session = MagicMock(return_value=_FakeSession(tx))
+    _UI_STATE_CACHE.clear()
+    _UI_STATE_CACHE[("local-default", "alpha", "agent", "sess-1")] = {"positions": {"n1": {"x": 1}}}
+
+    def fake_clear(_session: object, **_kwargs: object) -> ClearScopeResult:
+        return ClearScopeResult(scope="project", project="alpha", deleted_nodes=1)
+
+    def fail_audit(**_kwargs: object) -> None:
+        raise RuntimeError("audit failed")
+
+    graph._clear_scope_rows = fake_clear  # type: ignore[method-assign]
+    graph.emit_audit_event = fail_audit  # type: ignore[method-assign]
+
+    with pytest.raises(RuntimeError, match="audit failed"):
+        graph.clear_project(project="alpha")
+
+    assert tx.committed is False
+    assert tx.rolled_back is True
+    assert ("local-default", "alpha", "agent", "sess-1") in _UI_STATE_CACHE
+
+
+def test_neo4j_audit_metadata_is_json_encoded() -> None:
+    graph = make_stub_graph()
+    captured: dict[str, object] = {}
+
+    class FakeAuditSession:
+        def run(self, *_args: object, **kwargs: object) -> _FakeRunResult:
+            captured.update(kwargs)
+            return _FakeRunResult()
+
+    graph.emit_audit_event(
+        event_type="graph.scope_cleared",
+        metadata={"counts_by_node_type": {"decision": 1}},
+        session=FakeAuditSession(),
+    )
+
+    assert isinstance(captured["metadata"], str)
+    assert json.loads(captured["metadata"]) == {"counts_by_node_type": {"decision": 1}}
 
 
 # ---------------------------------------------------------------------------
