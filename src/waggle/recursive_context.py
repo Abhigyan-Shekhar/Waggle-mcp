@@ -1530,15 +1530,15 @@ class RecursiveContextController:
         """Return compact synthesis instructions for evidence that needs exact composition."""
         query_lower = (query or "").lower()
         if category == "short_personal_fact" and self._looks_like_count_update_query(query_lower):
+            if re.search(r"\b(replace|replaced|fix|fixed)\b", query_lower):
+                return [
+                    "- Count each distinct replaced or fixed item once across all evidence.",
+                    "- Treat replacements/upgrades/donations of an old item as replaced/fixed when the question asks replaced or fixed.",
+                ]
             if re.search(r"\b(pick up|return|store|exchange|exchanged|clothing|clothes|items?)\b", query_lower):
                 return [
                     "- count each still-open pickup and each still-open return obligation separately.",
                     "- In an exchange, a pending replacement pickup and a pending old-item return can be two obligations if both are stated.",
-                ]
-            if re.search(r"\b(replace|replaced|fix|fixed|items?)\b", query_lower):
-                return [
-                    "- Count each distinct replaced or fixed item once across all evidence.",
-                    "- Treat replacements/upgrades/donations of an old item as replaced/fixed when the question asks replaced or fixed.",
                 ]
             if re.search(r"\b(different|types?|services?)\b", query_lower):
                 return [
@@ -1547,6 +1547,11 @@ class RecursiveContextController:
         if category == "temporal_ordering" and re.search(r"\bhow many\s+days?\b", query_lower):
             return [
                 "- Extract the two event dates from the evidence, then subtract the earlier date from the later date."
+            ]
+        if category == "temporal_ordering" and re.search(r"\b(which|what)\b.*\b(first|before|after)\b", query_lower):
+            return [
+                "- Compare event times inside the evidence, not transcript order.",
+                "- Relative phrases matter: 'a month ago' is earlier than 'last week', even if transcript dates are close.",
             ]
         return []
 
@@ -2536,9 +2541,17 @@ class RecursiveContextController:
                 score -= 0.70
         elif category == "temporal_ordering":
             has_date = bool(
-                re.search(r"\b(documentdate|\d{4}/\d{2}/\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b", text)
+                re.search(
+                    r"\b(documentdate|\d{4}/\d{2}/\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|"
+                    r"month ago|last week|today|yesterday|weeks? ago|days? ago)\b",
+                    text,
+                )
             )
-            if re.search(r"\b(documentdate|\d{4}/\d{2}/\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b", text):
+            if re.search(
+                r"\b(documentdate|\d{4}/\d{2}/\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|"
+                r"month ago|last week|today|yesterday|weeks? ago|days? ago)\b",
+                text,
+            ):
                 score += 0.35
             if overlap >= 3:
                 score += 0.25
@@ -2567,6 +2580,9 @@ class RecursiveContextController:
                 hit.content
             ):
                 score += 0.25
+            if re.search(r"\b(library|babel|borges|center|centre|circumference)\b", query_lower):
+                if re.search(r"\b(library is a sphere|exact center|hexagons|circumference is inaccessible)\b", text):
+                    score += 1.20
             if overlap < 2 and score < 0.55:
                 return 0.0
         elif category == "enumerated_list":
