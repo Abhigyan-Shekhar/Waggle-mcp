@@ -96,11 +96,7 @@ def format_iteration(iteration: RLMIteration, max_character_length: int = 20000)
     return messages
 
 
-################
-# TODO: Remove and refactor these soon
-################
-
-
+# REPL formatting helpers
 def format_execution_result(result: REPLResult) -> str:
     """
     Format the execution result as a string for display.
@@ -117,16 +113,15 @@ def format_execution_result(result: REPLResult) -> str:
         result_parts.append(f"\n{result.stderr}")
 
     # Show some key variables (excluding internal ones)
+    excluded_keys = {"__builtins__", "__name__", "__doc__"}
     important_vars = {}
+
     for key, value in result.locals.items():
-        if not key.startswith("_") and key not in [
-            "__builtins__",
-            "__name__",
-            "__doc__",
-        ]:
-            # Only show simple types or short representations
-            if isinstance(value, (str, int, float, bool, list, dict, tuple)):
-                important_vars[key] = ""
+        if key.startswith("_") or key in excluded_keys:
+            continue
+
+        if isinstance(value, (str, int, float, bool, list, dict, tuple)):
+            important_vars[key] = ""
 
     if important_vars:
         result_parts.append(f"REPL variables: {list(important_vars.keys())}\n")
@@ -142,26 +137,19 @@ def check_for_final_answer(response: str, repl_env, logger) -> str | None:
 
 def convert_context_for_repl(context):
     """
-    Convert REPL context to either some
+    Convert REPL context into structured data and string form.
     """
     if isinstance(context, dict):
-        context_data = context
-        context_str = None
-    elif isinstance(context, str):
-        context_data = None
-        context_str = context
-    elif isinstance(context, list):
-        if len(context) > 0 and isinstance(context[0], dict):
-            if "content" in context[0]:
-                context_data = [msg.get("content", "") for msg in context]
-            else:
-                context_data = context
-            context_str = None
-        else:
-            context_data = context
-            context_str = None
-    else:
-        context_data = context
-        context_str = None
+        return context, None
 
-    return context_data, context_str
+    if isinstance(context, str):
+        return None, context
+
+    if isinstance(context, list):
+        if context and isinstance(context[0], dict):
+            if "content" in context[0]:
+                return [msg.get("content", "") for msg in context], None
+            return context, None
+        return context, None
+
+    return context, None

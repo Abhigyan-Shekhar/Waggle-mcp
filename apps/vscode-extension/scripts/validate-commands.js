@@ -90,19 +90,24 @@ function stripComments(source) {
 function main() {
   const extensionDir = path.resolve(__dirname, "..");
   const packageJsonPath = path.join(extensionDir, "package.json");
-  const extensionTsPath = path.join(extensionDir, "src", "extension.ts");
+  const commandSourceFiles = [
+    path.join(extensionDir, "src", "extension.ts"),
+    path.join(extensionDir, "src", "commands.ts")
+  ];
 
   console.log("Validating VS Code command contributions vs implementation...");
   console.log(`package.json: ${packageJsonPath}`);
-  console.log(`extension.ts: ${extensionTsPath}`);
+  commandSourceFiles.forEach((filePath) => console.log(`source: ${filePath}`));
 
   if (!fs.existsSync(packageJsonPath)) {
     console.error(`Error: package.json not found at ${packageJsonPath}`);
     process.exit(1);
   }
-  if (!fs.existsSync(extensionTsPath)) {
-    console.error(`Error: extension.ts not found at ${extensionTsPath}`);
-    process.exit(1);
+  for (const filePath of commandSourceFiles) {
+    if (!fs.existsSync(filePath)) {
+      console.error(`Error: source file not found at ${filePath}`);
+      process.exit(1);
+    }
   }
 
   // 1. Extract commands from package.json
@@ -113,22 +118,21 @@ function main() {
   console.log(`Found ${contributedCommands.length} command(s) in package.json:`);
   contributedCommands.forEach((cmd) => console.log(`  - ${cmd}`));
 
-  // 2. Strip comments from extension.ts before scanning for registerCommand calls.
-  //    This prevents false positives from commented-out code, e.g.:
-  //      // vscode.commands.registerCommand("waggle.oldCommand", ...)
-  const rawSource = fs.readFileSync(extensionTsPath, "utf8");
-  const strippedSource = stripComments(rawSource);
+  // 2. Strip comments from command source files before scanning for registerCommand calls.
+  const strippedSources = commandSourceFiles
+    .map((filePath) => stripComments(fs.readFileSync(filePath, "utf8")))
+    .join("\n");
 
   const registeredCommands = [];
   const registerCommandRegex =
     /vscode\.commands\.registerCommand\s*\(\s*['"]([^'"]+)['"]/g;
   let match;
-  while ((match = registerCommandRegex.exec(strippedSource)) !== null) {
+  while ((match = registerCommandRegex.exec(strippedSources)) !== null) {
     registeredCommands.push(match[1]);
   }
 
   console.log(
-    `Found ${registeredCommands.length} registered command(s) in src/extension.ts:`
+    `Found ${registeredCommands.length} registered command(s) in extension sources:`
   );
   registeredCommands.forEach((cmd) => console.log(`  - ${cmd}`));
 
@@ -141,7 +145,7 @@ function main() {
   );
   if (missingInCode.length > 0) {
     console.error(
-      "\n[ERROR] The following command(s) are declared in package.json but not registered in src/extension.ts:"
+      "\n[ERROR] The following command(s) are declared in package.json but not registered in extension sources:"
     );
     missingInCode.forEach((cmd) => console.error(`  - ${cmd}`));
     hasErrors = true;
@@ -154,7 +158,7 @@ function main() {
   });
   if (unregisteredInPackage.length > 0) {
     console.error(
-      "\n[ERROR] The following command(s) are registered in src/extension.ts but not declared in package.json:"
+      "\n[ERROR] The following command(s) are registered in extension sources but not declared in package.json:"
     );
     unregisteredInPackage.forEach((cmd) => console.error(`  - ${cmd}`));
     hasErrors = true;
