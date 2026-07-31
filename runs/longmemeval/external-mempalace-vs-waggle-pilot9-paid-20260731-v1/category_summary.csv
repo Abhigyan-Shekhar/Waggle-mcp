@@ -1,0 +1,7 @@
+condition,category,rows,qa_correct
+external_jsonl:mempalace,single-session-preference,1,1
+external_jsonl:mempalace,single-session-user,4,2
+external_jsonl:mempalace,temporal-reasoning,4,2
+waggle_production_context,single-session-preference,1,1
+waggle_production_context,single-session-user,4,4
+waggle_production_context,temporal-reasoning,4,4
