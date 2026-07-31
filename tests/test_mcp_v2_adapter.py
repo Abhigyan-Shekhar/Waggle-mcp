@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from threading import Barrier
 from types import SimpleNamespace
+from typing import Any
 
 import anyio
 import mcp.types as types
@@ -13,6 +15,7 @@ from waggle.metrics import MetricsRegistry
 from waggle.protocol.mcp.adapter import WagglemcpAdapter
 from waggle.protocol.mcp.server import build_waggle_server
 from waggle.tools.dispatcher import WaggleToolDispatcher
+from waggle.tools.results import WaggleToolResult
 
 
 class FakeEmbeddingModel:
@@ -91,6 +94,56 @@ def test_alias_defaults_are_applied_before_schema_validation(tmp_path: Path) -> 
     assert result.is_error is True
     assert result.structured_content["error_code"] == "validation_failed"
     assert "input_path" in result.content[0].text
+
+
+def test_concurrent_http_calls_keep_tenant_graph_request_local(tmp_path: Path) -> None:
+    config = AppConfig.from_env()
+    config.startup_mode = "normal"
+    root_graph = MemoryGraph(tmp_path / "mcp-v2-tenants.db", FakeEmbeddingModel(), tenant_id="root")
+    dispatcher = WaggleToolDispatcher(graph=root_graph, config=config, metrics=MetricsRegistry())
+    adapter = WagglemcpAdapter(dispatcher=dispatcher)
+    barrier = Barrier(2)
+
+    def fake_call_tool(
+        name: str,
+        arguments: dict[str, Any],
+        context: Any,
+        graph_override: Any | None = None,
+    ) -> WaggleToolResult:
+        del name, arguments, context
+        barrier.wait(timeout=5)
+        graph = graph_override or dispatcher._graph
+        tenant_id = getattr(graph, "tenant_id", "")
+        return WaggleToolResult(text=tenant_id, structured={"tenant_id": tenant_id}, is_error=False)
+
+    dispatcher.call_tool = fake_call_tool  # type: ignore[method-assign]
+
+    def make_ctx(tenant_id: str) -> SimpleNamespace:
+        state = SimpleNamespace(tenant_id=tenant_id, request_id=f"req-{tenant_id}", api_key_id=f"key-{tenant_id}")
+        return SimpleNamespace(request=SimpleNamespace(state=state))
+
+    async def call_for_tenant(tenant_id: str) -> str:
+        result = await adapter.on_call_tool(
+            make_ctx(tenant_id),
+            types.CallToolRequestParams(name="query_graph", arguments={"query": "hello"}),
+        )
+        return str(result.structured_content["tenant_id"])
+
+    async def run_concurrently() -> tuple[str, str]:
+        results: dict[str, str] = {}
+
+        async with anyio.create_task_group() as task_group:
+
+            async def worker(tenant_id: str) -> None:
+                results[tenant_id] = await call_for_tenant(tenant_id)
+
+            task_group.start_soon(worker, "tenant-a")
+            task_group.start_soon(worker, "tenant-b")
+
+        return results["tenant-a"], results["tenant-b"]
+
+    assert anyio.run(run_concurrently) == ("tenant-a", "tenant-b")
+    assert dispatcher._graph is root_graph
 
 
 def test_build_waggle_server_does_not_import_legacy_server_compat(tmp_path: Path) -> None:

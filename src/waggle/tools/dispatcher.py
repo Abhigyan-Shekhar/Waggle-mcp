@@ -1162,6 +1162,7 @@ class WaggleToolDispatcher:
         name: str,
         arguments: dict[str, Any],
         context: WaggleRequestContext,
+        graph_override: Any | None = None,
     ) -> WaggleToolResult:
         """Execute a tool by name and return a ``WaggleToolResult``.
 
@@ -1169,7 +1170,7 @@ class WaggleToolDispatcher:
         by both the v1 MCP adapter and the v2 MCP adapter.  It is completely
         synchronous and has no awareness of the MCP protocol version.
         """
-        graph = self._graph
+        graph = graph_override or self._graph
 
         # Fast-mode guard: return early if embedding not ready.
         fast_mode_result = self._check_embedding_available(name, graph, arguments)

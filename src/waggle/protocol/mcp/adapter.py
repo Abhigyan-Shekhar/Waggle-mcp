@@ -65,7 +65,6 @@ class WagglemcpAdapter:
         """Dispatch a tool call via ``WaggleToolDispatcher`` and return a v2 result."""
         waggle_ctx = self._build_waggle_context(ctx)
         graph = self._graph_for_context(ctx)
-        self._dispatcher._graph = graph
 
         # Run the synchronous dispatcher in a worker thread (same pattern as WaggleServer).
         waggle_result: WaggleToolResult = await anyio.to_thread.run_sync(
@@ -73,6 +72,7 @@ class WagglemcpAdapter:
             params.name,
             params.arguments or {},
             waggle_ctx,
+            graph,
         )
 
         return self._to_mcp_result(waggle_result)
