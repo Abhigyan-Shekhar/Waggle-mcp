@@ -1356,6 +1356,7 @@ def _collect_memory_stats(config: AppConfig) -> dict[str, Any]:
     db_path = Path(config.db_path).expanduser()
     stats: dict[str, Any] = {
         "status": "ok",
+        "available": True,
         "backend": config.backend,
         "embedding_model": config.model_name,
         "db_path": str(db_path),
@@ -1367,7 +1368,19 @@ def _collect_memory_stats(config: AppConfig) -> dict[str, Any]:
         "context_windows": 0,
     }
     if config.backend != "sqlite":
-        stats["reason"] = "SQLite file statistics are only available for the sqlite backend."
+        stats.update(
+            {
+                "status": "warn",
+                "available": False,
+                "db_size_bytes": None,
+                "nodes": None,
+                "edges": None,
+                "transcript_records": None,
+                "conversation_sessions": None,
+                "context_windows": None,
+                "reason": f"Memory statistics are unavailable for backend {config.backend!r}.",
+            }
+        )
         return stats
     if not db_path.exists():
         return stats
@@ -1390,7 +1403,11 @@ def _collect_memory_stats(config: AppConfig) -> dict[str, Any]:
                         """
                         SELECT COUNT(*)
                         FROM (
-                            SELECT DISTINCT COALESCE(NULLIF(session_id, ''), 'default') AS session_key
+                            SELECT DISTINCT
+                                COALESCE(NULLIF(tenant_id, ''), 'default') AS tenant_key,
+                                COALESCE(NULLIF(project, ''), 'default') AS project_key,
+                                COALESCE(NULLIF(agent_id, ''), 'default') AS agent_key,
+                                COALESCE(NULLIF(session_id, ''), 'default') AS session_key
                             FROM transcript_records
                         )
                         """
@@ -1502,15 +1519,24 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     # ── 3. Memory statistics ────────────────────────────────────────────────
     emit(_c(_BOLD, "\n[3] Memory statistics"))
     memory_stats = _collect_memory_stats(config)
-    db_size_mb = memory_stats["db_size_bytes"] / (1024 * 1024)
     emit(f"  Backend: {memory_stats['backend']}")
     emit(f"  Embedding model: {memory_stats['embedding_model']}")
-    emit(f"  Database size: {db_size_mb:.1f} MB")
-    emit(f"  Nodes: {memory_stats['nodes']}")
-    emit(f"  Edges: {memory_stats['edges']}")
-    emit(f"  Transcript records: {memory_stats['transcript_records']}")
-    emit(f"  Conversation sessions: {memory_stats['conversation_sessions']}")
-    emit(f"  Context windows: {memory_stats['context_windows']}")
+    if memory_stats["available"]:
+        db_size_mb = memory_stats["db_size_bytes"] / (1024 * 1024)
+        emit(f"  Database size: {db_size_mb:.1f} MB")
+        emit(f"  Nodes: {memory_stats['nodes']}")
+        emit(f"  Edges: {memory_stats['edges']}")
+        emit(f"  Transcript records: {memory_stats['transcript_records']}")
+        emit(f"  Conversation sessions: {memory_stats['conversation_sessions']}")
+        emit(f"  Context windows: {memory_stats['context_windows']}")
+    else:
+        emit("  Database size: unavailable")
+        emit("  Nodes: unavailable")
+        emit("  Edges: unavailable")
+        emit("  Transcript records: unavailable")
+        emit("  Conversation sessions: unavailable")
+        emit("  Context windows: unavailable")
+        emit(f"  Reason: {memory_stats['reason']}")
     if memory_stats["status"] == "warn":
         warnings.append(str(memory_stats["reason"]))
     checks["memory_stats"] = memory_stats

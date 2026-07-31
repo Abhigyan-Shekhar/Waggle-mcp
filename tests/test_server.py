@@ -20,6 +20,7 @@ from waggle.server import (
     WaggleServer,
     _assert_runtime_feature_parity,
     _build_parser,
+    _collect_memory_stats,
     _default_graph,
     _hook_tools_from_args,
     _run_admin_command,
@@ -427,6 +428,13 @@ def test_doctor_reports_memory_stats_from_configured_sqlite_db(
         session_id="doctor-stats",
         project="audit",
     )
+    graph.observe_conversation(
+        user_message="Use the same session id in another project.",
+        assistant_response="Recorded separately.",
+        session_id="doctor-stats",
+        project="separate-project",
+        agent_id="codex",
+    )
 
     config = AppConfig(
         backend="sqlite",
@@ -457,8 +465,40 @@ def test_doctor_reports_memory_stats_from_configured_sqlite_db(
     assert "Backend: sqlite" in stdout
     assert "Embedding model: fake-model" in stdout
     assert "Nodes: 1" in stdout
-    assert "Transcript records: 2" in stdout
-    assert "Conversation sessions: 1" in stdout
+    assert "Transcript records: 4" in stdout
+    assert "Conversation sessions: 2" in stdout
+
+
+def test_doctor_memory_stats_marks_non_sqlite_unavailable(tmp_path: Path) -> None:
+    stats = _collect_memory_stats(
+        AppConfig(
+            backend="neo4j",
+            transport="stdio",
+            model_name="fake-model",
+            db_path=str(tmp_path / "server-memory.db"),
+            default_tenant_id="local-default",
+            http_host="127.0.0.1",
+            http_port=8080,
+            log_level="INFO",
+            rate_limit_rpm=120,
+            write_rate_limit_rpm=60,
+            max_concurrent_requests=8,
+            max_payload_bytes=1024 * 1024,
+            request_timeout_seconds=30,
+            export_dir=None,
+            neo4j_uri="bolt://localhost:7687",
+            neo4j_username="neo4j",
+            neo4j_password="secret",
+            neo4j_database="neo4j",
+        )
+    )
+
+    assert stats["status"] == "warn"
+    assert stats["available"] is False
+    assert stats["backend"] == "neo4j"
+    assert stats["nodes"] is None
+    assert stats["conversation_sessions"] is None
+    assert "unavailable" in stats["reason"]
 
 
 def test_doctor_json_output_reports_status(
