@@ -4,8 +4,11 @@ import ast
 import inspect
 import json
 from pathlib import Path
+from threading import Barrier, local
 from types import SimpleNamespace
+from typing import Any
 
+import anyio
 import numpy as np
 import pytest
 
@@ -33,6 +36,7 @@ from waggle.server import (
     _write_gemini,
     _write_other,
 )
+from waggle.tools.results import WaggleToolResult
 
 ABHI_FIXTURES = Path(__file__).parent / "fixtures" / "abhi"
 
@@ -152,6 +156,77 @@ def test_tool_schemas_are_glama_friendly(tmp_path: Path) -> None:
         assert isinstance(tool.inputSchema["properties"], dict)
         for field_name, field_schema in tool.inputSchema["properties"].items():
             assert field_schema.get("description"), f"{tool.name}.{field_name} is missing a description"
+
+
+def test_build_context_schema_declares_context_window_id(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+    tools = {tool.name: tool for tool in app.build_tools()}
+
+    if "build_context" not in tools:
+        pytest.skip("build_context feature flag disabled")
+
+    properties = tools["build_context"].inputSchema["properties"]
+    assert "context_window_id" in properties
+
+
+def test_query_graph_bad_as_of_returns_validation_failure(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+
+    result = app.handle_tool_call("query_graph", {"query": "hello", "as_of": "not-a-datetime"})
+
+    assert result.isError is True
+    assert result.structuredContent["error_code"] == "validation_failed"
+    assert "as_of" in result.content[0].text
+
+
+def test_handle_tool_call_keeps_tenant_graph_request_local(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+    root_graph = app.graph
+    dispatcher_graph = app._dispatcher._graph
+    tenant_graphs = {
+        "tenant-a": root_graph.for_tenant("tenant-a"),
+        "tenant-b": root_graph.for_tenant("tenant-b"),
+    }
+    thread_state = local()
+    barrier = Barrier(2)
+
+    def current_graph() -> Any:
+        return tenant_graphs[thread_state.tenant_id]
+
+    def fake_call_tool(
+        name: str,
+        arguments: dict[str, Any],
+        context: Any,
+        graph_override: Any | None = None,
+    ) -> WaggleToolResult:
+        del name, arguments, context
+        barrier.wait(timeout=5)
+        graph = graph_override or app._dispatcher._graph
+        tenant_id = getattr(graph, "tenant_id", "")
+        return WaggleToolResult(text=tenant_id, structured={"tenant_id": tenant_id}, is_error=False)
+
+    app.current_graph = current_graph  # type: ignore[method-assign]
+    app._dispatcher.call_tool = fake_call_tool  # type: ignore[method-assign]
+
+    async def run_concurrently() -> tuple[str, str]:
+        results: dict[str, str] = {}
+
+        async def worker(tenant_id: str) -> None:
+            def call() -> None:
+                thread_state.tenant_id = tenant_id
+                result = app.handle_tool_call("query_graph", {"query": "hello"})
+                results[tenant_id] = str(result.structuredContent["tenant_id"])
+
+            await anyio.to_thread.run_sync(call)
+
+        async with anyio.create_task_group() as task_group:
+            task_group.start_soon(worker, "tenant-a")
+            task_group.start_soon(worker, "tenant-b")
+
+        return results["tenant-a"], results["tenant-b"]
+
+    assert anyio.run(run_concurrently) == ("tenant-a", "tenant-b")
+    assert app._dispatcher._graph is dispatcher_graph
 
 
 def test_parser_accepts_graph_editor_commands() -> None:

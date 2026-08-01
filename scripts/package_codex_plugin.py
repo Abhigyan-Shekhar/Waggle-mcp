@@ -261,6 +261,14 @@ def _write_install_notes(path: Path, *, marketplace_bundle: bool, bundle_version
         contents = f"""# Waggle Codex marketplace bundle
 
 This archive contains a complete local Codex marketplace root for the `{bundle_version}` release.
+It is self-hosted through GitHub Releases: Codex runs the bundled Waggle stdio
+MCP server locally with SQLite storage by default. No paid hosted backend,
+Apple Developer ID notarization, or Windows Authenticode certificate is
+required for this install path.
+
+The bundled runtime is intentionally unsigned. macOS Gatekeeper or Windows
+SmartScreen may show a first-run warning; verify the release checksum or GitHub
+attestation before approving the binary.
 
 1. Extract the archive anywhere on disk.
 2. Add the extracted directory to Codex:
@@ -273,6 +281,9 @@ This archive contains a complete local Codex marketplace root for the `{bundle_v
         contents = f"""# Waggle Codex plugin bundle
 
 This archive contains the bare Waggle plugin folder for the `{bundle_version}` release.
+It runs a local stdio MCP server and does not require a hosted Waggle backend or
+paid Apple/Windows signing certificates. The current runtime is intentionally
+unsigned, so macOS Gatekeeper or Windows SmartScreen may warn on first launch.
 
 For the easiest installation flow, prefer the matching `waggle-codex-marketplace-{bundle_version}.zip`
 asset, which includes a ready-to-add local marketplace root for Codex.

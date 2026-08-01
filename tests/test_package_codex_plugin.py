@@ -33,6 +33,13 @@ def test_package_release_emits_marketplace_and_plugin_archives(tmp_path: Path) -
     assert "waggle-codex-plugin-v9.9.9/INSTALL.md" in plugin_entries
     assert all(not entry.endswith(".gitkeep") for entry in plugin_entries)
     assert _zip_mode(output_dir / "waggle-codex-plugin-v9.9.9.zip", "runtime/darwin-arm64/waggle-server") & 0o111
+    plugin_install = _zip_text(
+        output_dir / "waggle-codex-plugin-v9.9.9.zip",
+        "waggle-codex-plugin-v9.9.9/INSTALL.md",
+    )
+    assert "local stdio MCP server" in plugin_install
+    assert "paid Apple/Windows signing certificates" in plugin_install
+    assert "unsigned" in plugin_install
 
     marketplace_entries = _zip_entries(output_dir / "waggle-codex-marketplace-v9.9.9.zip")
     assert "waggle-codex-marketplace-v9.9.9/.agents/plugins/marketplace.json" in marketplace_entries
@@ -51,6 +58,13 @@ def test_package_release_emits_marketplace_and_plugin_archives(tmp_path: Path) -
         )
         & 0o111
     )
+    marketplace_install = _zip_text(
+        output_dir / "waggle-codex-marketplace-v9.9.9.zip",
+        "waggle-codex-marketplace-v9.9.9/INSTALL.md",
+    )
+    assert "self-hosted through GitHub Releases" in marketplace_install
+    assert "intentionally unsigned" in marketplace_install
+    assert "No paid hosted backend" in marketplace_install
 
     release_manifest = json.loads((output_dir / "waggle-codex-release-v9.9.9.json").read_text())
     assert release_manifest["distribution"] == "single-bundle"
@@ -147,6 +161,11 @@ def _make_fake_codex_plugin_tree(root: Path) -> Path:
 def _zip_entries(path: Path) -> set[str]:
     with ZipFile(path) as archive:
         return set(archive.namelist())
+
+
+def _zip_text(path: Path, name: str) -> str:
+    with ZipFile(path) as archive:
+        return archive.read(name).decode()
 
 
 def _zip_mode(path: Path, suffix: str) -> int:
