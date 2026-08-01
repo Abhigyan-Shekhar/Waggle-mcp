@@ -863,7 +863,6 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     db_path = str(Path(str(getattr(args, "db_path", "") or resolve_default_db_path())).expanduser())
     host = str(getattr(args, "host", "127.0.0.1") or "127.0.0.1").strip()
     port = int(getattr(args, "port", 8080) or 8080)
-    tunnel_provider = str(getattr(args, "tunnel_provider", "generic") or "generic").strip().lower()
     key_name = str(getattr(args, "key_name", "claude-self-hosted") or "claude-self-hosted").strip()
     _parse_api_key_scopes(str(getattr(args, "scopes", "graph:read,graph:write") or "graph:read,graph:write"))
     local_base_url = "http://<local-host>:<port>"
@@ -917,14 +916,9 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print("5. Tunnel command example")
     print()
     print("```bash")
-    if tunnel_provider == "cloudflare":
-        print(f"cloudflared tunnel --url {local_base_url}")
-    elif tunnel_provider == "ngrok":
-        print("ngrok http <port>")
-    elif tunnel_provider == "tailscale":
-        print("tailscale funnel <port>")
-    else:
-        print(f"# Forward your HTTPS tunnel to {local_base_url}")
+    print("cloudflared tunnel --url http://<local-host>:<port>")
+    print("# or: ngrok http <port>")
+    print("# or: tailscale funnel <port>")
     print("```")
     print()
     print("6. Claude custom connector")
@@ -951,13 +945,13 @@ def _normalize_pull_strategy_args(
         if explicit_import_strategy is None:
             args.import_strategy = raw_merge_strategy
             warning_message = (
-                f"`--merge-strategy {raw_merge_strategy}` is deprecated for "
+                "`--merge-strategy` is deprecated for "
                 "selecting the graph import strategy. Use "
-                f"`--import-strategy {raw_merge_strategy}` instead."
+                "`--import-strategy` instead."
             )
         else:
             warning_message = (
-                f"Legacy `--merge-strategy {raw_merge_strategy}` is deprecated "
+                "Legacy `--merge-strategy` is deprecated "
                 "and has been ignored because `--import-strategy` was also "
                 "supplied."
             )
