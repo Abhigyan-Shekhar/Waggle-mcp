@@ -978,21 +978,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
                 "scopes": created.record.scopes,
             },
         )
-        print(
-            json.dumps(
-                {
-                    "api_key_id": created.record.api_key_id,
-                    "tenant_id": created.record.tenant_id,
-                    "prefix": created.record.prefix,
-                    "name": created.record.name,
-                    "status": created.record.status,
-                    "expires_at": created.record.expires_at.isoformat() if created.record.expires_at else None,
-                    "created_by": created.record.created_by,
-                    "scopes": created.record.scopes,
-                },
-                indent=2,
-            )
-        )
+        print(json.dumps({"created": True}, indent=2))
         return 0
     if args.command == "list-api-keys":
         print(
@@ -1012,7 +998,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             resource_id=args.api_key_id,
             action="revoke",
         )
-        print(json.dumps({"revoked": args.api_key_id}))
+        print(json.dumps({"revoked": True}))
         return 0
     if args.command in {
         "retention-status",

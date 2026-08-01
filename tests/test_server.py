@@ -743,9 +743,7 @@ def test_create_and_list_api_keys_cli_redacts_hash(tmp_path: Path, capsys: pytes
     create_payload = json.loads(capsys.readouterr().out)
 
     assert exit_code == 0
-    assert create_payload["prefix"].startswith("sk_test_")
-    assert create_payload["created_by"] == "ops@example.com"
-    assert create_payload["scopes"] == ["graph:read", "graph:write", "admin:read", "admin:write"]
+    assert create_payload == {"created": True}
     assert "raw_api_key" not in create_payload
     assert "key_hash" not in create_payload
 
@@ -754,7 +752,7 @@ def test_create_and_list_api_keys_cli_redacts_hash(tmp_path: Path, capsys: pytes
     listed = json.loads(capsys.readouterr().out)
 
     assert exit_code == 0
-    assert listed[0]["prefix"] == create_payload["prefix"]
+    assert listed[0]["prefix"].startswith("sk_test_")
     assert listed[0]["created_by"] == "ops@example.com"
     assert listed[0]["expires_at"] is not None
     assert listed[0]["scopes"] == ["graph:read", "graph:write", "admin:read", "admin:write"]
@@ -831,7 +829,9 @@ def test_create_api_key_cli_uses_configured_live_prefix(tmp_path: Path, capsys: 
     create_payload = json.loads(capsys.readouterr().out)
 
     assert exit_code == 0
-    assert create_payload["prefix"].startswith("sk_live_")
+    assert create_payload == {"created": True}
+    listed = app.graph.for_tenant("workspace-a").list_api_keys("workspace-a")
+    assert listed[0].prefix.startswith("sk_live_")
     assert "raw_api_key" not in create_payload
 
 
@@ -891,7 +891,8 @@ def test_audit_events_are_queryable_from_admin_cli(tmp_path: Path, capsys: pytes
     )
     exit_code = _run_admin_command(app.config, create_args)
     assert exit_code == 0
-    create_payload = json.loads(capsys.readouterr().out)
+    assert json.loads(capsys.readouterr().out) == {"created": True}
+    created_key = app.graph.for_tenant("workspace-a").list_api_keys("workspace-a")[0]
 
     audit_args = SimpleNamespace(
         command="list-audit-events",
@@ -899,7 +900,7 @@ def test_audit_events_are_queryable_from_admin_cli(tmp_path: Path, capsys: pytes
         limit=20,
         event_type="api_key.created",
         actor_id="",
-        resource_id=create_payload["api_key_id"],
+        resource_id=created_key.api_key_id,
         resource_type="api_key",
         status="",
     )
@@ -908,8 +909,8 @@ def test_audit_events_are_queryable_from_admin_cli(tmp_path: Path, capsys: pytes
 
     assert exit_code == 0
     assert events[0]["event_type"] == "api_key.created"
-    assert events[0]["resource_id"] == create_payload["api_key_id"]
-    assert events[0]["metadata"]["prefix"] == create_payload["prefix"]
+    assert events[0]["resource_id"] == created_key.api_key_id
+    assert events[0]["metadata"]["prefix"] == created_key.prefix
 
 
 def test_run_graph_editor_command_opens_browser_and_starts_uvicorn(
