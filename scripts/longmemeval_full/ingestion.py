@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-import sys
+# ruff: noqa: E402, I001
+
+import contextlib
 import json
 import os
 import re
+import sys
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -174,7 +177,9 @@ def _ingest_session_messages(
         if not text:
             index += 1
             continue
-        text, prefixed_date = _maybe_prefix_document_date(text, document_date=document_date, already_prefixed=prefixed_date)
+        text, prefixed_date = _maybe_prefix_document_date(
+            text, document_date=document_date, already_prefixed=prefixed_date
+        )
 
         next_index = _next_nonempty_message_index(messages, index + 1)
         if role == "user" and next_index is not None and legacy._message_role(messages[next_index]) == "assistant":
@@ -246,7 +251,7 @@ def _store_transcript_only_message(
     agent_id: str,
     session_id: str,
 ) -> None:
-    with graph._lock, graph._connect() as connection:
+    with graph._lock, contextlib.closing(graph._connect()) as connection:
         turn_index = graph._next_transcript_turn_index(
             connection,
             session_id=session_id,
@@ -277,7 +282,11 @@ def _derive_case_window_edges(graph: Any, *, project: str, progress: bool, case_
         windows = graph.list_context_windows(project=project, limit=10_000)
     except Exception as exc:
         if progress:
-            print(f"window edge derivation skipped for {case_id}: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            print(
+                f"window edge derivation skipped for {case_id}: {type(exc).__name__}: {exc}",
+                file=sys.stderr,
+                flush=True,
+            )
         return
     entity_cache: dict[str, dict[str, dict[str, str]]] = {}
     for index, window in enumerate(windows, start=1):
