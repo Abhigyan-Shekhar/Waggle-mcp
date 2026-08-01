@@ -865,8 +865,6 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     port = int(getattr(args, "port", 8080) or 8080)
     key_name = str(getattr(args, "key_name", "claude-self-hosted") or "claude-self-hosted").strip()
     _parse_api_key_scopes(str(getattr(args, "scopes", "graph:read,graph:write") or "graph:read,graph:write"))
-    local_base_url = "http://<local-host>:<port>"
-    remote_mcp_url = "https://<user-owned-tunnel-domain>/mcp"
     if bool(getattr(args, "create_key", False)):
         print("`--create-key` is deprecated for this guide; use the create-api-key command below.")
         print()
@@ -901,14 +899,14 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print("3. Health checks")
     print()
     print("```bash")
-    print(f"curl {local_base_url}/health/live")
-    print(f"curl {local_base_url}/health/ready")
+    print("curl http://<local-host>:<port>/health/live")
+    print("curl http://<local-host>:<port>/health/ready")
     print("```")
     print()
     print("4. Tunnel routes")
     print()
     print("```text")
-    print(f"{remote_mcp_url} -> {local_base_url}/mcp")
+    print("https://<user-owned-tunnel-domain>/mcp -> http://<local-host>:<port>/mcp")
     print("https://<user-owned-tunnel-domain>/health/live -> http://<local-host>:<port>/health/live")
     print("https://<user-owned-tunnel-domain>/health/ready -> http://<local-host>:<port>/health/ready")
     print("```")
@@ -923,9 +921,8 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print()
     print("6. Claude custom connector")
     print()
-    print(f"Server URL: {remote_mcp_url}")
-    print("Static header: X-API-Key: <generated-key>")
-    print("Bearer token: Authorization: Bearer <generated-key>")
+    print("Server URL: https://<user-owned-tunnel-domain>/mcp")
+    print("Use the generated API key from step 1 for connector authentication.")
     print()
     print("Docs: docs/claude-self-hosted-connector.md")
     return 0
@@ -944,17 +941,9 @@ def _normalize_pull_strategy_args(
     if raw_merge_strategy in _ABHI_IMPORT_STRATEGIES:
         if explicit_import_strategy is None:
             args.import_strategy = raw_merge_strategy
-            warning_message = (
-                "`--merge-strategy` is deprecated for "
-                "selecting the graph import strategy. Use "
-                "`--import-strategy` instead."
-            )
+            warning_message = "`--merge-strategy` is deprecated; use `--import-strategy` instead."
         else:
-            warning_message = (
-                "Legacy `--merge-strategy` is deprecated "
-                "and has been ignored because `--import-strategy` was also "
-                "supplied."
-            )
+            warning_message = "Legacy `--merge-strategy` was ignored because `--import-strategy` was supplied."
 
         args.merge_strategy = DEFAULT_ABHI_MERGE_STRATEGY
         warnings.warn(

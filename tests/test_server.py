@@ -781,8 +781,7 @@ def test_claude_self_host_guide_prints_sqlite_setup(capsys: pytest.CaptureFixtur
     assert "waggle-mcp serve --transport http" in output
     assert "ngrok http <port>" in output
     assert "https://<user-owned-tunnel-domain>/mcp" in output
-    assert "X-API-Key: <generated-key>" in output
-    assert "Authorization: Bearer <generated-key>" in output
+    assert "Use the generated API key from step 1" in output
 
 
 def test_claude_self_host_guide_can_create_api_key(
@@ -812,8 +811,7 @@ def test_claude_self_host_guide_can_create_api_key(
     assert "waggle-mcp create-api-key" in output
     assert "X-API-Key: sk_local_" not in output
     assert "Authorization: Bearer sk_local_" not in output
-    assert "X-API-Key: <generated-key>" in output
-    assert "Authorization: Bearer <generated-key>" in output
+    assert "Use the generated API key from step 1" in output
     graph = MemoryGraph(db_path, FakeEmbeddingModel())
     keys = graph.for_tenant("workspace-a").list_api_keys("workspace-a")
     assert keys == []
