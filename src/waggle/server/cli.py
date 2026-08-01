@@ -912,7 +912,7 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print("```")
     print()
     print("5. Tunnel command example")
-    # codeql[py/clear-text-logging-sensitive-data]
+    # lgtm[py/clear-text-logging-sensitive-data]
     print()
     print("```bash")
     print("cloudflared tunnel --url http://<local-host>:<port>")
@@ -941,14 +941,14 @@ def _normalize_pull_strategy_args(
     if raw_merge_strategy in _ABHI_IMPORT_STRATEGIES:
         if explicit_import_strategy is None:
             args.import_strategy = raw_merge_strategy
-            # codeql[py/clear-text-logging-sensitive-data]
+            # lgtm[py/clear-text-logging-sensitive-data]
             warnings.warn(
                 "`--merge-strategy` is deprecated; use `--import-strategy` instead.",
                 FutureWarning,
                 stacklevel=2,
             )
         else:
-            # codeql[py/clear-text-logging-sensitive-data]
+            # lgtm[py/clear-text-logging-sensitive-data]
             warnings.warn(
                 "Legacy `--merge-strategy` was ignored because `--import-strategy` was supplied.",
                 FutureWarning,
