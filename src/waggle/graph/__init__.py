@@ -563,7 +563,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         self._sqlite_vec_loaded = True
         if _HAS_SQLITE_VEC:
             try:
-                with self._connect() as conn:
+                with contextlib.closing(self._connect()) as conn:
                     conn.execute("SELECT vec_version()")
             except Exception as e:
                 LOGGER.warning(
@@ -714,7 +714,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         with ProcessLock(lock_path), self._lock:
             self._validate_existing_database_integrity()
 
-            with self._connect() as connection:
+            with contextlib.closing(self._connect()) as connection, connection:
                 # Bootstrap WAL: if db file exists but is in rollback mode, migrate it
                 try:
                     journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
