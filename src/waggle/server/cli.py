@@ -989,7 +989,6 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
                     "expires_at": created.record.expires_at.isoformat() if created.record.expires_at else None,
                     "created_by": created.record.created_by,
                     "scopes": created.record.scopes,
-                    "raw_api_key": created.raw_api_key,
                 },
                 indent=2,
             )

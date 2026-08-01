@@ -746,7 +746,7 @@ def test_create_and_list_api_keys_cli_redacts_hash(tmp_path: Path, capsys: pytes
     assert create_payload["prefix"].startswith("sk_test_")
     assert create_payload["created_by"] == "ops@example.com"
     assert create_payload["scopes"] == ["graph:read", "graph:write", "admin:read", "admin:write"]
-    assert "raw_api_key" in create_payload
+    assert "raw_api_key" not in create_payload
     assert "key_hash" not in create_payload
 
     list_args = SimpleNamespace(command="list-api-keys", tenant_id="workspace-a")
@@ -832,7 +832,7 @@ def test_create_api_key_cli_uses_configured_live_prefix(tmp_path: Path, capsys: 
 
     assert exit_code == 0
     assert create_payload["prefix"].startswith("sk_live_")
-    assert create_payload["raw_api_key"].startswith(create_payload["prefix"])
+    assert "raw_api_key" not in create_payload
 
 
 def test_retention_admin_commands_update_and_prune(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
