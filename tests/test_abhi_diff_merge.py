@@ -568,8 +568,7 @@ def test_pull_parser_maps_legacy_merge_strategy_to_import_strategy():
         ]
     )
 
-    with pytest.warns(FutureWarning, match="deprecated"):
-        args = _normalize_pull_strategy_args(parsed_args)
+    args = _normalize_pull_strategy_args(parsed_args)
 
     assert args.merge_strategy == "last_write_wins"
     assert args.import_strategy == "overwrite"
@@ -592,8 +591,7 @@ def test_explicit_import_strategy_overrides_legacy_merge_value():
         ]
     )
 
-    with pytest.warns(FutureWarning, match="ignored"):
-        args = _normalize_pull_strategy_args(parsed_args)
+    args = _normalize_pull_strategy_args(parsed_args)
 
     assert args.merge_strategy == "last_write_wins"
     assert args.import_strategy == "branch"

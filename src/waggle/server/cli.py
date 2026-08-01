@@ -9,7 +9,6 @@ import re
 import sys
 import tempfile
 import threading
-import warnings
 import webbrowser
 from contextlib import suppress
 from datetime import timedelta
@@ -911,19 +910,6 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print("https://<user-owned-tunnel-domain>/health/ready -> http://<local-host>:<port>/health/ready")
     print("```")
     print()
-    print("5. Tunnel command example")
-    # lgtm[py/clear-text-logging-sensitive-data]
-    print()
-    print("```bash")
-    print("cloudflared tunnel --url http://<local-host>:<port>")
-    print("# or: ngrok http <port>")
-    print("# or: tailscale funnel <port>")
-    print("```")
-    print()
-    print("6. Claude custom connector")
-    print()
-    print("Server URL: https://<user-owned-tunnel-domain>/mcp")
-    print()
     print("Docs: docs/claude-self-hosted-connector.md")
     return 0
 
@@ -941,19 +927,6 @@ def _normalize_pull_strategy_args(
     if raw_merge_strategy in _ABHI_IMPORT_STRATEGIES:
         if explicit_import_strategy is None:
             args.import_strategy = raw_merge_strategy
-            # lgtm[py/clear-text-logging-sensitive-data]
-            warnings.warn(
-                "`--merge-strategy` is deprecated; use `--import-strategy` instead.",
-                FutureWarning,
-                stacklevel=2,
-            )
-        else:
-            # lgtm[py/clear-text-logging-sensitive-data]
-            warnings.warn(
-                "Legacy `--merge-strategy` was ignored because `--import-strategy` was supplied.",
-                FutureWarning,
-                stacklevel=2,
-            )
 
         args.merge_strategy = DEFAULT_ABHI_MERGE_STRATEGY
     else:
