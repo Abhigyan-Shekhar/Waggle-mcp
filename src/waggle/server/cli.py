@@ -370,6 +370,8 @@ def _build_parser() -> argparse.ArgumentParser:
     export_abhi.add_argument("--signing-key-dir", default="~/.waggle/keys")
     export_abhi.add_argument("--redact", dest="redact_patterns", action="append", default=[])
     export_abhi.add_argument("--passphrase-env", default="")
+    export_abhi.add_argument("--strict-export", action="store_true")
+    export_abhi.add_argument("--include-deps", action="store_true")
     export_abhi.add_argument(
         "--force", action="store_true", help="Export even if transcript secret scan finds likely credentials or tokens."
     )
@@ -394,6 +396,8 @@ def _build_parser() -> argparse.ArgumentParser:
     commit_abhi.add_argument("--signing-key-dir", default="~/.waggle/keys")
     commit_abhi.add_argument("--redact", dest="redact_patterns", action="append", default=[])
     commit_abhi.add_argument("--passphrase-env", default="")
+    commit_abhi.add_argument("--strict-export", action="store_true")
+    commit_abhi.add_argument("--include-deps", action="store_true")
     commit_abhi.add_argument(
         "--force", action="store_true", help="Commit even if transcript secret scan finds likely credentials or tokens."
     )
@@ -419,6 +423,8 @@ def _build_parser() -> argparse.ArgumentParser:
     checkpoint_context.add_argument("--signing-key-dir", default="~/.waggle/keys")
     checkpoint_context.add_argument("--redact", dest="redact_patterns", action="append", default=[])
     checkpoint_context.add_argument("--passphrase-env", default="")
+    checkpoint_context.add_argument("--strict-export", action="store_true")
+    checkpoint_context.add_argument("--include-deps", action="store_true")
     checkpoint_context.add_argument(
         "--force",
         action="store_true",
@@ -1184,6 +1190,8 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             redact_patterns=list(getattr(args, "redact_patterns", []) or []),
             sign=bool(getattr(args, "sign", False)),
             signing_key_dir=getattr(args, "signing_key_dir", "~/.waggle/keys"),
+            strict_export=bool(getattr(args, "strict_export", False)),
+            include_deps=bool(getattr(args, "include_deps", False)),
         )
         print(json.dumps(exported.model_dump(mode="json"), indent=2))
         return 0
@@ -1219,6 +1227,8 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             redact_patterns=list(getattr(args, "redact_patterns", []) or []),
             sign=bool(getattr(args, "sign", False)),
             signing_key_dir=getattr(args, "signing_key_dir", "~/.waggle/keys"),
+            strict_export=bool(getattr(args, "strict_export", False)),
+            include_deps=bool(getattr(args, "include_deps", False)),
         )
         payload = exported.model_dump(mode="json")
         payload["checkpoint_scope"] = scope

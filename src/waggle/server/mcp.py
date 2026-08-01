@@ -180,10 +180,10 @@ class WaggleServer:
         tools = [
             types.Tool(
                 name=tool.name,
-                title=getattr(tool, "title", None),
+                title=tool.title,
                 description=tool.description,
                 input_schema=tool.inputSchema,
-                annotations=types.ToolAnnotations(**(getattr(tool, "annotations", None) or {})),
+                annotations=types.ToolAnnotations(**(tool.annotations or {})),
             )
             for tool in self.build_tools()
         ]
@@ -350,8 +350,7 @@ class WaggleServer:
             api_key_id=api_key_id or None,
         )
 
-        self._dispatcher._graph = graph
-        result = self._dispatcher.call_tool(name, arguments, ctx)
+        result = self._dispatcher.call_tool(name, arguments, ctx, graph)
         self._record_graph_size(name, graph)
 
         return _LegacyCallToolResult(
@@ -367,13 +366,13 @@ class WaggleServer:
             stats = graph.get_stats()
             self.metrics.set_gauge(
                 "waggle_graph_nodes",
-                int(stats.get("nodes", 0)),
-                backend=self.config.backend,
+                stats.total_nodes,
+                tenant_id=getattr(graph, "tenant_id", self.config.default_tenant_id),
             )
             self.metrics.set_gauge(
                 "waggle_graph_edges",
-                int(stats.get("edges", 0)),
-                backend=self.config.backend,
+                stats.total_edges,
+                tenant_id=getattr(graph, "tenant_id", self.config.default_tenant_id),
             )
         except Exception:
             LOGGER.debug("graph_size_metrics_failed", exc_info=True)

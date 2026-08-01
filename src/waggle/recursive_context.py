@@ -1618,7 +1618,9 @@ class RecursiveContextController:
             lines.append(line)
         return lines[:4]
 
-    def _temporal_order_candidate_lines(self, query: str, transcript_hits: list[Any], scope: dict[str, str]) -> list[str]:
+    def _temporal_order_candidate_lines(
+        self, query: str, transcript_hits: list[Any], scope: dict[str, str]
+    ) -> list[str]:
         records = self._candidate_record_pool(transcript_hits, scope)
         lines: list[str] = []
         seen: set[str] = set()

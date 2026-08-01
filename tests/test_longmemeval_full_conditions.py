@@ -428,6 +428,7 @@ def test_real_hybrid_debug_trace_exposes_transcript_and_node_layers() -> None:
             temporal_resolution=True,
         )
     finally:
+        graph_payload["graph"].close()
         graph_payload["tmpdir"].cleanup()
 
     debug_trace = next(entry for entry in result.tool_trace if entry["tool"] == "debug_retrieval")
@@ -464,6 +465,7 @@ def test_real_build_context_return_enters_final_context(monkeypatch: pytest.Monk
             temporal_resolution=True,
         )
     finally:
+        graph_payload["graph"].close()
         graph_payload["tmpdir"].cleanup()
 
     assert calls
@@ -578,6 +580,7 @@ def test_build_case_graph_preserves_leading_assistant_transcript_turn() -> None:
             limit=10,
         )
     finally:
+        built["graph"].close()
         built["tmpdir"].cleanup()
 
     assert [record.role for record in records] == ["assistant", "user", "assistant"]

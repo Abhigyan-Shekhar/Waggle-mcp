@@ -47,9 +47,17 @@ class MCPHttpApp:
         self.ready = False
         self.draining = False
         self.server, self.adapter = build_waggle_server(graph=root_graph, config=config, metrics=metrics)
-        allowed_hosts = [config.http_host, f"{config.http_host}:*", "localhost", "localhost:*", "testserver"]
+        allowed_hosts = [config.http_host, f"{config.http_host}:*", "localhost", "localhost:*"]
+        allowed_origins = [
+            f"http://{config.http_host}:*",
+            "http://localhost:*",
+            "http://127.0.0.1:*",
+        ]
         if config.http_host == "0.0.0.0":
             allowed_hosts.extend(["127.0.0.1", "127.0.0.1:*"])
+        if config.api_key_environment in {"test", "local"}:
+            allowed_hosts.append("testserver")
+            allowed_origins.append("http://testserver")
         self._mcp_app: ASGIApp = self.server.streamable_http_app(
             streamable_http_path="/",
             json_response=False,
@@ -58,12 +66,7 @@ class MCPHttpApp:
             transport_security=TransportSecuritySettings(
                 enable_dns_rebinding_protection=True,
                 allowed_hosts=allowed_hosts,
-                allowed_origins=[
-                    f"http://{config.http_host}:*",
-                    "http://localhost:*",
-                    "http://127.0.0.1:*",
-                    "http://testserver",
-                ],
+                allowed_origins=allowed_origins,
             ),
             host=config.http_host,
         )
@@ -96,9 +99,12 @@ class MCPHttpApp:
         headers = {key.decode("latin-1").lower(): value.decode("latin-1") for key, value in scope.get("headers", [])}
         request_id = headers.get("x-request-id", str(uuid.uuid4()))
         status_holder = {"status": 500}
+        response_started = False
 
         async def send_wrapper(message: dict[str, Any]) -> None:
+            nonlocal response_started
             if message["type"] == "http.response.start":
+                response_started = True
                 status_holder["status"] = int(message["status"])
             await send(message)
 
@@ -158,20 +164,22 @@ class MCPHttpApp:
         except TimeoutError:
             LOGGER.warning("http_request_timeout", extra={"timeout": self.config.request_timeout_seconds})
             self.metrics.increment("waggle_http_timeouts_total")
-            await JSONResponse({"error": "gateway_timeout", "message": "Request timed out."}, status_code=504)(
-                scope, receive, send
-            )
-            status_holder["status"] = 504
+            if not response_started:
+                status_holder["status"] = 504
+                await JSONResponse({"error": "gateway_timeout", "message": "Request timed out."}, status_code=504)(
+                    scope, receive, send
+                )
         except WaggleError as exc:
             LOGGER.warning("http_request_failed", extra={"error_code": exc.code, "status_code": exc.status_code})
             if isinstance(exc, AuthenticationError):
                 self.metrics.increment("waggle_auth_failures_total")
             if exc.code == "rate_limited":
                 self.metrics.increment("waggle_rate_limit_rejections_total")
-            await JSONResponse({"error": exc.code, "message": str(exc)}, status_code=exc.status_code)(
-                scope, receive, send
-            )
-            status_holder["status"] = exc.status_code
+            if not response_started:
+                status_holder["status"] = exc.status_code
+                await JSONResponse({"error": exc.code, "message": str(exc)}, status_code=exc.status_code)(
+                    scope, receive, send
+                )
         finally:
             elapsed = time.perf_counter() - started
             self.metrics.increment(

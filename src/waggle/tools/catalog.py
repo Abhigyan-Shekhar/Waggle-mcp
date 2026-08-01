@@ -11,7 +11,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-
 READ_ONLY_TOOLS = frozenset(
     {
         "aggregate_graph",

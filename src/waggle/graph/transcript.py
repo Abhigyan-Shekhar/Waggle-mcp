@@ -517,6 +517,9 @@ class TranscriptMixin(MemoryGraphBase):
 
         Algorithm (block-windowing):
         1. Persist every message to transcript_records with dedup via message_identity.
+        A per-source manifest of already-known identities is loaded first so
+        unchanged turns skip embedding and the insert attempt entirely, rather
+        than paying for an embedding call only to be discarded by the dedup index.
         2. Build an extractive stream keeping only user/assistant messages.
         3. Collapse consecutive same-role extractive messages into one block.
         4. Scan collapsed blocks left to right:
@@ -556,8 +559,12 @@ class TranscriptMixin(MemoryGraphBase):
                     project=payload.project,
                     agent_id=payload.agent_id,
                 )
+                manifest = self._load_message_identity_manifest(connection, session_id=payload.session_id)
                 for raw_pos, msg in enumerate(payload.messages):
                     identity = self._message_fingerprint(msg, raw_pos)
+                    if identity in manifest:
+                        result.transcript_records_skipped += 1
+                        continue
                     written = self._store_transcript_record(
                         connection,
                         agent_id=payload.agent_id,
@@ -572,6 +579,7 @@ class TranscriptMixin(MemoryGraphBase):
                     if written:
                         result.transcript_records_written += 1
                         newly_written_identities.add(identity)
+                        manifest.add(identity)
                     else:
                         result.transcript_records_skipped += 1
 
@@ -960,6 +968,29 @@ class TranscriptMixin(MemoryGraphBase):
         ).fetchone()
         max_turn_index = row["max_turn_index"]
         return int(-1 if max_turn_index is None else max_turn_index) + 1
+
+    def _load_message_identity_manifest(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        session_id: str,
+    ) -> set[str]:
+        """Return message_identity fingerprints already stored for this source (session).
+
+        Mirrors the (tenant_id, session_id, message_identity) dedup index, so a
+        hit here reliably predicts that _store_transcript_record would no-op.
+        Callers can use this to skip the embedding call and insert attempt for
+        unchanged turns instead of paying for the embedding only to have it
+        discarded by the dedup index afterwards.
+        """
+        rows = connection.execute(
+            """
+            SELECT message_identity FROM transcript_records
+            WHERE tenant_id = ? AND session_id = ? AND message_identity IS NOT NULL
+            """,
+            (self.tenant_id, session_id),
+        ).fetchall()
+        return {row["message_identity"] for row in rows}
 
     def _store_transcript_record(
         self,
