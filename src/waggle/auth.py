@@ -10,9 +10,8 @@ from datetime import UTC, datetime
 from waggle.errors import AuthenticationError, AuthorizationError
 from waggle.models import ApiKeyRecord
 
-_API_KEY_HASH_ALGORITHM = "hmac_sha256"
-_API_KEY_HASH_KEY = b"waggle-api-key-verifier-v2"
-_LEGACY_DIGEST_NAME = "sha" + "256"
+_API_KEY_HASH_ALGORITHM = "pbkdf2_sha256"
+_API_KEY_HASH_ITERATIONS = 600_000
 
 
 def api_key_from_headers(headers: object) -> str:
@@ -39,18 +38,30 @@ def api_key_from_headers(headers: object) -> str:
 
 
 def hash_api_key(raw_api_key: str) -> str:
-    digest = hmac.new(_API_KEY_HASH_KEY, raw_api_key.encode("utf-8"), hashlib.sha256).digest()
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        raw_api_key.encode("utf-8"),
+        salt,
+        _API_KEY_HASH_ITERATIONS,
+    )
+    encoded_salt = base64.urlsafe_b64encode(salt).decode("ascii")
     encoded = base64.urlsafe_b64encode(digest).decode("ascii")
-    return f"{_API_KEY_HASH_ALGORITHM}${encoded}"
+    return f"{_API_KEY_HASH_ALGORITHM}${_API_KEY_HASH_ITERATIONS}${encoded_salt}${encoded}"
 
 
 def verify_api_key(raw_api_key: str, expected_hash: str) -> bool:
-    if expected_hash.startswith(f"{_API_KEY_HASH_ALGORITHM}$"):
-        candidate = hash_api_key(raw_api_key)
-    else:
-        legacy_digest = hashlib.new(_LEGACY_DIGEST_NAME, raw_api_key.encode("utf-8")).digest()
-        candidate = base64.urlsafe_b64encode(legacy_digest).decode("ascii")
-    return hmac.compare_digest(candidate, expected_hash)
+    try:
+        algorithm, iterations_raw, encoded_salt, expected_digest = expected_hash.split("$", 3)
+        if algorithm != _API_KEY_HASH_ALGORITHM:
+            return False
+        salt = base64.urlsafe_b64decode(encoded_salt.encode("ascii"))
+        iterations = int(iterations_raw)
+    except (TypeError, ValueError):
+        return False
+    digest = hashlib.pbkdf2_hmac("sha256", raw_api_key.encode("utf-8"), salt, iterations)
+    candidate = base64.urlsafe_b64encode(digest).decode("ascii")
+    return hmac.compare_digest(candidate, expected_digest)
 
 
 VALID_API_KEY_ENVIRONMENTS = {"live", "test", "local"}

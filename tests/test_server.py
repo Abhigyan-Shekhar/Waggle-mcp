@@ -808,16 +808,15 @@ def test_claude_self_host_guide_can_create_api_key(
     output = capsys.readouterr().out
 
     assert exit_code == 0
-    assert "Created API key." in output
-    assert "Key prefix: sk_local_" in output
+    assert "`--create-key` is deprecated for this guide" in output
+    assert "waggle-mcp create-api-key" in output
     assert "X-API-Key: sk_local_" not in output
     assert "Authorization: Bearer sk_local_" not in output
     assert "X-API-Key: <generated-key>" in output
     assert "Authorization: Bearer <generated-key>" in output
     graph = MemoryGraph(db_path, FakeEmbeddingModel())
     keys = graph.for_tenant("workspace-a").list_api_keys("workspace-a")
-    assert keys[0].name == "claude-test"
-    assert keys[0].scopes == ["graph:read"]
+    assert keys == []
 
 
 def test_create_api_key_cli_uses_configured_live_prefix(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

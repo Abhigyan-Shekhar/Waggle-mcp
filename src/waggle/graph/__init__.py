@@ -1331,16 +1331,15 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         return run
 
     def authenticate_api_key(self, raw_api_key: str) -> ApiKeyRecord:
-        key_hash = hash_api_key(raw_api_key)
         prefix = api_key_prefix(raw_api_key)
         with self._lock, self._pool.checkout() as connection:
             rows = connection.execute(
                 """
                 SELECT api_key_id, tenant_id, key_hash, prefix, name, status, created_at, expires_at, revoked_at, last_used_at, created_by, scopes
                 FROM api_keys
-                WHERE key_hash = ? OR prefix = ?
+                WHERE prefix = ?
                 """,
-                (key_hash, prefix),
+                (prefix,),
             ).fetchall()
             row = next((candidate for candidate in rows if verify_api_key(raw_api_key, candidate["key_hash"])), None)
             if row is None:

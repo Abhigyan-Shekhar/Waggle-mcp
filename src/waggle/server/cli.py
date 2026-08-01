@@ -25,7 +25,6 @@ from waggle.abhi import (
     build_abhi_document,
     load_abhi_document,
 )
-from waggle.auth import api_key_prefix
 from waggle.config import DEFAULT_DB_PATH, AppConfig, resolve_default_db_path
 from waggle.embeddings import EmbeddingModel
 from waggle.errors import ValidationFailure, WaggleError
@@ -303,7 +302,7 @@ def _build_parser() -> argparse.ArgumentParser:
     claude_self_host.add_argument(
         "--create-key",
         action="store_true",
-        help="Create a local SQLite API key and print the generated X-API-Key value.",
+        help="Deprecated compatibility flag; the guide prints the create-api-key command instead.",
     )
     claude_self_host.add_argument("--key-name", default="claude-self-hosted")
     claude_self_host.add_argument("--scopes", default="graph:read,graph:write")
@@ -870,40 +869,23 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     scopes = _parse_api_key_scopes(str(getattr(args, "scopes", "graph:read,graph:write") or "graph:read,graph:write"))
     local_base_url = f"http://{host}:{port}"
     remote_mcp_url = f"{tunnel_url}/mcp"
-    raw_api_key = ""
-
     if bool(getattr(args, "create_key", False)):
-        key_config = AppConfig.from_env()
-        key_config.backend = "sqlite"
-        key_config.transport = "http"
-        key_config.db_path = db_path
-        key_config.default_tenant_id = tenant_id
-        key_config.api_key_environment = "local"
-        key_config.validate()
-        Path(key_config.db_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
-        backend = _build_backend(key_config)
-        created = backend.for_tenant(tenant_id).create_api_key(tenant_id, key_name, scopes=scopes or None)
-        raw_api_key = created.raw_api_key
+        print("`--create-key` is deprecated for this guide; use the create-api-key command below.")
+        print()
 
     print("Waggle Claude self-hosting")
     print()
     print("1. Create an API key")
     print()
-    if raw_api_key:
-        print("Created API key.")
-        print()
-        print(f"Key prefix: {api_key_prefix(raw_api_key)}")
-        print("Use `waggle-mcp create-api-key` when you need a copyable raw key value.")
-    else:
-        print("```bash")
-        print("WAGGLE_BACKEND=sqlite \\")
-        print(f"WAGGLE_DEFAULT_TENANT_ID={tenant_id} \\")
-        print(f"WAGGLE_DB_PATH={db_path} \\")
-        print("waggle-mcp create-api-key \\")
-        print(f"  --tenant-id {tenant_id} \\")
-        print(f"  --name {key_name} \\")
-        print(f"  --scopes {','.join(scopes) if scopes else 'graph:read,graph:write'}")
-        print("```")
+    print("```bash")
+    print("WAGGLE_BACKEND=sqlite \\")
+    print(f"WAGGLE_DEFAULT_TENANT_ID={tenant_id} \\")
+    print(f"WAGGLE_DB_PATH={db_path} \\")
+    print("waggle-mcp create-api-key \\")
+    print(f"  --tenant-id {tenant_id} \\")
+    print(f"  --name {key_name} \\")
+    print(f"  --scopes {','.join(scopes) if scopes else 'graph:read,graph:write'}")
+    print("```")
     print()
     print("2. Start the local HTTP server")
     print()

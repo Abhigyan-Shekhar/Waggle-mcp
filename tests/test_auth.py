@@ -79,8 +79,8 @@ def make_record():
     return raw_key, record
 
 
-def test_hash_api_key_same_input_same_hash():
-    assert hash_api_key("abc") == hash_api_key("abc")
+def test_hash_api_key_same_input_uses_unique_salt():
+    assert hash_api_key("abc") != hash_api_key("abc")
 
 
 def test_hash_api_key_different_inputs_different_hashes():
