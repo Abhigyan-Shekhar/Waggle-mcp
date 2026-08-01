@@ -26,6 +26,7 @@ from waggle.abhi import (
     load_abhi_document,
     validate_abhi_document,
 )
+from waggle.auth import api_key_from_headers
 from waggle.config import AppConfig
 from waggle.errors import (
     AuthenticationError,
@@ -129,7 +130,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         }
 
     def _graph_from_request(request: Request, *, tenant_override: str = "") -> tuple[Any, Any | None]:
-        raw_api_key = request.headers.get("x-api-key", "").strip()
+        raw_api_key = api_key_from_headers(request.headers)
         if raw_api_key:
             principal = app_server._root_graph.authenticate_api_key(raw_api_key)
             return app_server._root_graph.for_tenant(principal.tenant_id), principal

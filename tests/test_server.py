@@ -707,6 +707,7 @@ def test_claude_self_host_guide_prints_sqlite_setup(capsys: pytest.CaptureFixtur
     assert "ngrok http 18080" in output
     assert "https://waggle.example.test/mcp" in output
     assert "X-API-Key: <generated-key>" in output
+    assert "Authorization: Bearer <generated-key>" in output
 
 
 def test_claude_self_host_guide_can_create_api_key(
@@ -734,6 +735,7 @@ def test_claude_self_host_guide_can_create_api_key(
     assert exit_code == 0
     assert "Created API key." in output
     assert "X-API-Key: sk_local_" in output
+    assert "Authorization: Bearer sk_local_" in output
     graph = MemoryGraph(db_path, FakeEmbeddingModel())
     keys = graph.for_tenant("workspace-a").list_api_keys("workspace-a")
     assert keys[0].name == "claude-test"

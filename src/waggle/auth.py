@@ -11,6 +11,29 @@ from waggle.errors import AuthenticationError, AuthorizationError
 from waggle.models import ApiKeyRecord
 
 
+def api_key_from_headers(headers: object) -> str:
+    """Extract a Waggle API key from HTTP headers.
+
+    Supports Waggle's native ``X-API-Key`` header and standard bearer tokens
+    for clients such as Claude's Messages API MCP connector.
+    """
+
+    def _get(name: str) -> str:
+        getter = getattr(headers, "get", None)
+        if callable(getter):
+            return str(getter(name, "") or "").strip()
+        return ""
+
+    raw_api_key = _get("x-api-key") or _get("X-API-Key")
+    if raw_api_key:
+        return raw_api_key
+    authorization = _get("authorization") or _get("Authorization")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() == "bearer" and token.strip():
+        return token.strip()
+    return ""
+
+
 def hash_api_key(raw_api_key: str) -> str:
     digest = hashlib.sha256(raw_api_key.encode("utf-8")).digest()
     return base64.urlsafe_b64encode(digest).decode("ascii")

@@ -81,11 +81,11 @@ Runtime shape:
 
 Preferred self-hosted path:
 
-Static header authentication with `X-API-Key`, when supported by the user's Claude plan or organization.
+API-key authentication using either `Authorization: Bearer <generated-key>` or `X-API-Key: <generated-key>`.
 
 Why:
 
-Waggle is local-first and already authenticates remote HTTP MCP requests with API keys. For self-hosting, static headers keep the deployment simple: the user owns the runtime, database, tunnel, and credential.
+Waggle is local-first and authenticates remote HTTP MCP requests with API keys. Bearer auth matches Claude's Messages API MCP connector `authorization_token` field. `X-API-Key` remains available for clients that support custom static headers.
 
 OAuth:
 
@@ -104,8 +104,8 @@ For Claude web/mobile:
 - Local Waggle installation.
 - Local Waggle HTTP server.
 - User-owned HTTPS tunnel or reverse proxy.
-- Generated Waggle API key configured as `X-API-Key`.
-- Claude account/org support for custom remote MCP connectors and static headers.
+- Generated Waggle API key configured as `Authorization: Bearer` or `X-API-Key`.
+- Claude account/org support for custom remote MCP connectors and a compatible auth mode.
 
 ## Data Handling
 
@@ -152,7 +152,7 @@ Reviewer self-hosted setup:
 3. Expose `/mcp` through a user-owned HTTPS tunnel.
 4. Create a Waggle API key.
 5. Add the tunnel URL as a Claude custom remote MCP connector.
-6. Configure `X-API-Key` as a static header if the Claude UI supports static headers.
+6. Configure auth using bearer token or static header support available in that Claude surface.
 
 Test prompts:
 
@@ -177,7 +177,7 @@ Expected behavior:
 - [x] Add MCP tool annotations: `title`, `readOnlyHint`, `destructiveHint`.
 - [x] Verify all tool names are 64 characters or fewer in tests.
 - [x] Draft self-hosting documentation.
-- [x] Use self-hosted auth mode: `X-API-Key` static header.
+- [x] Use self-hosted auth mode: Waggle API key via `Authorization: Bearer` or `X-API-Key`.
 - [ ] Confirm Claude directory accepts per-user remote MCP URLs for a listed connector.
 - [ ] Confirm static-header custom connector availability for target Claude plans/orgs.
 - [ ] Publish self-hosting documentation at a public URL.
@@ -188,5 +188,5 @@ Expected behavior:
 ## Current Blockers
 
 1. Anthropic may not accept a public directory listing that requires each user to provide their own HTTPS MCP URL.
-2. Claude custom connector/static-header availability depends on the user's plan or organization.
+2. Claude web/mobile custom connector auth mode availability depends on the user's plan or organization; Claude's Messages API MCP connector supports bearer tokens through `authorization_token`.
 3. Reviewer endpoint/API key or reproducible self-hosting test instructions still need to be prepared.

@@ -118,7 +118,14 @@ waggle-mcp create-api-key \
   --scopes graph:read,graph:write
 ```
 
-Use the generated key as the `X-API-Key` static header when adding the remote connector.
+Waggle accepts the generated key in either form:
+
+```text
+X-API-Key: <generated-key>
+Authorization: Bearer <generated-key>
+```
+
+Use `Authorization: Bearer` for Claude's Messages API MCP connector, which exposes an `authorization_token` field. Use `X-API-Key` only with clients or Claude surfaces that support custom static headers.
 
 ## Tunnel Rules
 
@@ -144,11 +151,11 @@ If the Claude plan/org supports custom remote MCP connectors:
 
 1. Add a custom connector.
 2. Set the server URL to `https://<user-owned-tunnel-domain>/mcp`.
-3. Configure the static header `X-API-Key: <generated-key>` if the UI supports static headers.
+3. Configure auth. Use `Authorization: Bearer <generated-key>` where bearer tokens are supported, or `X-API-Key: <generated-key>` where custom static headers are supported.
 4. Connect and let Claude sync the tool list.
 5. Test with: "Ask Waggle what context is remembered for this project."
 
-If the Claude UI does not support custom remote connectors or static headers for the user's account, use Claude Code or Claude Desktop instead.
+If the Claude UI does not support bearer/static-header auth for the user's account, use Claude Code/Desktop locally or add an OAuth proxy in front of Waggle.
 
 ## Cost Model
 

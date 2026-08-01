@@ -887,6 +887,7 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
         print()
         print("```text")
         print(f"X-API-Key: {raw_api_key}")
+        print(f"Authorization: Bearer {raw_api_key}")
         print("```")
     else:
         print("```bash")
@@ -944,6 +945,7 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print()
     print(f"Server URL: {remote_mcp_url}")
     print(f"Static header: X-API-Key: {raw_api_key or '<generated-key>'}")
+    print(f"Bearer token: Authorization: Bearer {raw_api_key or '<generated-key>'}")
     print()
     print("Docs: docs/claude-self-hosted-connector.md")
     return 0

@@ -15,6 +15,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from waggle.auth import api_key_from_headers
 from waggle.config import AppConfig
 from waggle.errors import (
     AuthenticationError,
@@ -117,9 +118,9 @@ class MCPHttpApp:
                     key.decode("latin-1").lower(): value.decode("latin-1") for key, value in scope.get("headers", [])
                 }
 
-            raw_api_key = headers.get("x-api-key", "")
+            raw_api_key = api_key_from_headers(headers)
             if not raw_api_key:
-                raise AuthenticationError("Missing X-API-Key header.")
+                raise AuthenticationError("Missing X-API-Key or Authorization Bearer token.")
             principal = self._root_graph.authenticate_api_key(raw_api_key)
             scope.setdefault("state", {})
             scope["state"]["tenant_id"] = principal.tenant_id

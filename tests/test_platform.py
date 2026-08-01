@@ -10,7 +10,7 @@ import pytest
 from starlette.testclient import TestClient
 
 import waggle
-from waggle.auth import hash_api_key, verify_api_key
+from waggle.auth import api_key_from_headers, hash_api_key, verify_api_key
 from waggle.config import AppConfig
 from waggle.errors import (
     AuthenticationError,
@@ -75,6 +75,12 @@ def make_http_config(tmp_path: Path, **overrides: object) -> AppConfig:
     for key, value in overrides.items():
         setattr(config, key, value)
     return config
+
+
+def test_api_key_from_headers_accepts_x_api_key_and_bearer() -> None:
+    assert api_key_from_headers({"x-api-key": "sk_local_test.secret"}) == "sk_local_test.secret"
+    assert api_key_from_headers({"authorization": "Bearer sk_local_test.secret"}) == "sk_local_test.secret"
+    assert api_key_from_headers({"authorization": "Basic abc"}) == ""
 
 
 def insert_transcript_record(
@@ -341,6 +347,12 @@ def test_http_app_health_auth_and_metrics(tmp_path: Path) -> None:
         assert valid.status_code == 200
         assert app_server.config.backend == "sqlite"
         assert "text/event-stream" in valid.headers["content-type"]
+        bearer = client.post(
+            "/mcp",
+            json={"jsonrpc": "2.0", "id": "2", "method": "tools/list", "params": {}},
+            headers={"Authorization": f"Bearer {created.raw_api_key}", "accept": "application/json, text/event-stream"},
+        )
+        assert bearer.status_code == 200
 
         metrics = client.get("/metrics")
         assert metrics.status_code == 200
@@ -394,6 +406,21 @@ def test_http_admin_endpoints_require_admin_scope_when_key_present(tmp_path: Pat
             headers={"X-API-Key": scoped_key.raw_api_key},
         )
         assert denied.status_code == 403
+
+
+def test_http_admin_endpoints_accept_bearer_api_key(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    admin_key = graph.create_api_key("tenant-http", "admin", scopes=["admin:read"])
+    app = create_http_application(app_server, app_server.config)
+
+    with TestClient(app) as client:
+        allowed = client.get(
+            "/api/admin/audit-events",
+            params={"tenant_id": "tenant-http"},
+            headers={"Authorization": f"Bearer {admin_key.raw_api_key}"},
+        )
+        assert allowed.status_code == 200
 
 
 def test_mcp_write_requires_graph_write_scope(tmp_path: Path) -> None:
