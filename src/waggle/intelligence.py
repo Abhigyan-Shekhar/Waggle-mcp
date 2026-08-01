@@ -203,7 +203,7 @@ _QUESTION_PREFIX_RE = re.compile(r"^(why|what|how|when|where|who|which|can|could
 _FILE_PATH_RE = re.compile(
     r"\b(?:[\w.-]+/)+[\w.-]+\.[A-Za-z0-9]+\b|\b[\w.-]+\.(?:py|ts|tsx|js|jsx|rs|go|java|kt|rb|php|md|json|yaml|yml|toml|sql)\b"
 )
-_ENTITY_RE = re.compile(r"\b(?:[A-Z]{2,}[A-Z0-9]*|[A-Z][a-z]+(?:[A-Z][A-Za-z0-9]+)+|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b")
+_ENTITY_RE = re.compile(r"\b(?:[A-Z]{2,}[A-Z0-9]*|[A-Z][a-z]+[A-Z][A-Za-z0-9]*|[A-Z][a-z]+(?:\s[A-Z][a-z]+)+)\b")
 _PREFERENCE_RE = re.compile(
     r"\b(?:"
     r"(?:i\s+)?(?:prefer|like|love|want|favo(?:u)?r|avoid)"

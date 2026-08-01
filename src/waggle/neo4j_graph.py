@@ -969,19 +969,22 @@ class Neo4jMemoryGraph:
 
     def authenticate_api_key(self, raw_api_key: str) -> ApiKeyRecord:
         key_hash = hash_api_key(raw_api_key)
+        prefix = api_key_prefix(raw_api_key)
         with self._lock, self._session() as session:
-            row = session.run(
+            rows = session.run(
                 """
-                MATCH (a:GraphApiKey {key_hash: $key_hash})
+                MATCH (a:GraphApiKey)
+                WHERE a.key_hash = $key_hash OR a.prefix = $prefix
                 RETURN a.api_key_id AS api_key_id, a.tenant_id AS tenant_id, a.key_hash AS key_hash,
                        a.prefix AS prefix, a.name AS name, a.status AS status, a.created_at AS created_at,
                        a.expires_at AS expires_at, a.revoked_at AS revoked_at, a.last_used_at AS last_used_at,
                        a.created_by AS created_by, a.scopes AS scopes
-                LIMIT 1
                 """,
                 key_hash=key_hash,
-            ).single()
-            if row is None or not verify_api_key(raw_api_key, row["key_hash"]):
+                prefix=prefix,
+            )
+            row = next((candidate for candidate in rows if verify_api_key(raw_api_key, candidate["key_hash"])), None)
+            if row is None:
                 raise AuthenticationError("Invalid API key.")
             if row["status"] != "active":
                 raise AuthenticationError("Invalid API key.")

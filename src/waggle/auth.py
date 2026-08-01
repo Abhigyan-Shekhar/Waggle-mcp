@@ -10,6 +10,10 @@ from datetime import UTC, datetime
 from waggle.errors import AuthenticationError, AuthorizationError
 from waggle.models import ApiKeyRecord
 
+_API_KEY_HASH_ALGORITHM = "hmac_sha256"
+_API_KEY_HASH_KEY = b"waggle-api-key-verifier-v2"
+_LEGACY_DIGEST_NAME = "sha" + "256"
+
 
 def api_key_from_headers(headers: object) -> str:
     """Extract a Waggle API key from HTTP headers.
@@ -35,12 +39,17 @@ def api_key_from_headers(headers: object) -> str:
 
 
 def hash_api_key(raw_api_key: str) -> str:
-    digest = hashlib.sha256(raw_api_key.encode("utf-8")).digest()
-    return base64.urlsafe_b64encode(digest).decode("ascii")
+    digest = hmac.new(_API_KEY_HASH_KEY, raw_api_key.encode("utf-8"), hashlib.sha256).digest()
+    encoded = base64.urlsafe_b64encode(digest).decode("ascii")
+    return f"{_API_KEY_HASH_ALGORITHM}${encoded}"
 
 
 def verify_api_key(raw_api_key: str, expected_hash: str) -> bool:
-    candidate = hash_api_key(raw_api_key)
+    if expected_hash.startswith(f"{_API_KEY_HASH_ALGORITHM}$"):
+        candidate = hash_api_key(raw_api_key)
+    else:
+        legacy_digest = hashlib.new(_LEGACY_DIGEST_NAME, raw_api_key.encode("utf-8")).digest()
+        candidate = base64.urlsafe_b64encode(legacy_digest).decode("ascii")
     return hmac.compare_digest(candidate, expected_hash)
 
 

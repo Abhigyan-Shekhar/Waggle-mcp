@@ -25,6 +25,7 @@ from waggle.abhi import (
     build_abhi_document,
     load_abhi_document,
 )
+from waggle.auth import api_key_prefix
 from waggle.config import DEFAULT_DB_PATH, AppConfig, resolve_default_db_path
 from waggle.embeddings import EmbeddingModel
 from waggle.errors import ValidationFailure, WaggleError
@@ -891,10 +892,8 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     if raw_api_key:
         print("Created API key.")
         print()
-        print("```text")
-        print(f"X-API-Key: {raw_api_key}")
-        print(f"Authorization: Bearer {raw_api_key}")
-        print("```")
+        print(f"Key prefix: {api_key_prefix(raw_api_key)}")
+        print("Use `waggle-mcp create-api-key` when you need a copyable raw key value.")
     else:
         print("```bash")
         print("WAGGLE_BACKEND=sqlite \\")
@@ -950,8 +949,8 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print("6. Claude custom connector")
     print()
     print(f"Server URL: {remote_mcp_url}")
-    print(f"Static header: X-API-Key: {raw_api_key or '<generated-key>'}")
-    print(f"Bearer token: Authorization: Bearer {raw_api_key or '<generated-key>'}")
+    print("Static header: X-API-Key: <generated-key>")
+    print("Bearer token: Authorization: Bearer <generated-key>")
     print()
     print("Docs: docs/claude-self-hosted-connector.md")
     return 0

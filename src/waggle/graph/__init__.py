@@ -1332,17 +1332,18 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
 
     def authenticate_api_key(self, raw_api_key: str) -> ApiKeyRecord:
         key_hash = hash_api_key(raw_api_key)
+        prefix = api_key_prefix(raw_api_key)
         with self._lock, self._pool.checkout() as connection:
-            row = connection.execute(
+            rows = connection.execute(
                 """
                 SELECT api_key_id, tenant_id, key_hash, prefix, name, status, created_at, expires_at, revoked_at, last_used_at, created_by, scopes
                 FROM api_keys
-                WHERE key_hash = ?
-                LIMIT 1
+                WHERE key_hash = ? OR prefix = ?
                 """,
-                (key_hash,),
-            ).fetchone()
-            if row is None or not verify_api_key(raw_api_key, row["key_hash"]):
+                (key_hash, prefix),
+            ).fetchall()
+            row = next((candidate for candidate in rows if verify_api_key(raw_api_key, candidate["key_hash"])), None)
+            if row is None:
                 raise AuthenticationError("Invalid API key.")
             if row["status"] != "active":
                 raise AuthenticationError("Invalid API key.")
