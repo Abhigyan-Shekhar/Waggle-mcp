@@ -922,7 +922,6 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print("6. Claude custom connector")
     print()
     print("Server URL: https://<user-owned-tunnel-domain>/mcp")
-    print("Use the generated API key from step 1 for connector authentication.")
     print()
     print("Docs: docs/claude-self-hosted-connector.md")
     return 0
@@ -941,16 +940,19 @@ def _normalize_pull_strategy_args(
     if raw_merge_strategy in _ABHI_IMPORT_STRATEGIES:
         if explicit_import_strategy is None:
             args.import_strategy = raw_merge_strategy
-            warning_message = "`--merge-strategy` is deprecated; use `--import-strategy` instead."
+            warnings.warn(
+                "`--merge-strategy` is deprecated; use `--import-strategy` instead.",
+                FutureWarning,
+                stacklevel=2,
+            )
         else:
-            warning_message = "Legacy `--merge-strategy` was ignored because `--import-strategy` was supplied."
+            warnings.warn(
+                "Legacy `--merge-strategy` was ignored because `--import-strategy` was supplied.",
+                FutureWarning,
+                stacklevel=2,
+            )
 
         args.merge_strategy = DEFAULT_ABHI_MERGE_STRATEGY
-        warnings.warn(
-            warning_message,
-            FutureWarning,
-            stacklevel=2,
-        )
     else:
         args.merge_strategy = raw_merge_strategy or DEFAULT_ABHI_MERGE_STRATEGY
         if explicit_import_strategy is None:
