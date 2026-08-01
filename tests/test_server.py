@@ -779,8 +779,8 @@ def test_claude_self_host_guide_prints_sqlite_setup(capsys: pytest.CaptureFixtur
     assert f"WAGGLE_DB_PATH={Path('/tmp/waggle.db')}" in output
     assert "waggle-mcp create-api-key" in output
     assert "waggle-mcp serve --transport http" in output
-    assert "ngrok http 18080" in output
-    assert "https://waggle.example.test/mcp" in output
+    assert "ngrok http <port>" in output
+    assert "https://<user-owned-tunnel-domain>/mcp" in output
     assert "X-API-Key: <generated-key>" in output
     assert "Authorization: Bearer <generated-key>" in output
 

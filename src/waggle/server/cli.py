@@ -863,12 +863,11 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     db_path = str(Path(str(getattr(args, "db_path", "") or resolve_default_db_path())).expanduser())
     host = str(getattr(args, "host", "127.0.0.1") or "127.0.0.1").strip()
     port = int(getattr(args, "port", 8080) or 8080)
-    tunnel_url = str(getattr(args, "tunnel_url", "") or "https://<user-owned-tunnel-domain>").rstrip("/")
     tunnel_provider = str(getattr(args, "tunnel_provider", "generic") or "generic").strip().lower()
     key_name = str(getattr(args, "key_name", "claude-self-hosted") or "claude-self-hosted").strip()
-    scopes = _parse_api_key_scopes(str(getattr(args, "scopes", "graph:read,graph:write") or "graph:read,graph:write"))
-    local_base_url = f"http://{host}:{port}"
-    remote_mcp_url = f"{tunnel_url}/mcp"
+    _parse_api_key_scopes(str(getattr(args, "scopes", "graph:read,graph:write") or "graph:read,graph:write"))
+    local_base_url = "http://<local-host>:<port>"
+    remote_mcp_url = "https://<user-owned-tunnel-domain>/mcp"
     if bool(getattr(args, "create_key", False)):
         print("`--create-key` is deprecated for this guide; use the create-api-key command below.")
         print()
@@ -884,7 +883,7 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print("waggle-mcp create-api-key \\")
     print(f"  --tenant-id {tenant_id} \\")
     print(f"  --name {key_name} \\")
-    print(f"  --scopes {','.join(scopes) if scopes else 'graph:read,graph:write'}")
+    print("  --scopes graph:read,graph:write")
     print("```")
     print()
     print("2. Start the local HTTP server")
@@ -911,8 +910,8 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print()
     print("```text")
     print(f"{remote_mcp_url} -> {local_base_url}/mcp")
-    print(f"{tunnel_url}/health/live -> {local_base_url}/health/live")
-    print(f"{tunnel_url}/health/ready -> {local_base_url}/health/ready")
+    print("https://<user-owned-tunnel-domain>/health/live -> http://<local-host>:<port>/health/live")
+    print("https://<user-owned-tunnel-domain>/health/ready -> http://<local-host>:<port>/health/ready")
     print("```")
     print()
     print("5. Tunnel command example")
@@ -921,9 +920,9 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     if tunnel_provider == "cloudflare":
         print(f"cloudflared tunnel --url {local_base_url}")
     elif tunnel_provider == "ngrok":
-        print(f"ngrok http {port}")
+        print("ngrok http <port>")
     elif tunnel_provider == "tailscale":
-        print(f"tailscale funnel {port}")
+        print("tailscale funnel <port>")
     else:
         print(f"# Forward your HTTPS tunnel to {local_base_url}")
     print("```")
