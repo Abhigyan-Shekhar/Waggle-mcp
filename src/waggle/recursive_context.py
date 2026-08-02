@@ -2540,7 +2540,7 @@ class RecursiveContextController:
         cache = getattr(self, "_longmemeval_session_date_cache", None)
         if cache is None:
             cache = {}
-            setattr(self, "_longmemeval_session_date_cache", cache)
+            self._longmemeval_session_date_cache = cache
         if session_id in cache:
             return cache[session_id]
         agent_id = self._source_string_attr(source, "agent_id")
