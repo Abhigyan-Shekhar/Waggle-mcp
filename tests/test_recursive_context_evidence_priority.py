@@ -401,6 +401,253 @@ def test_pinned_lane_current_scope_prefers_current_user_fact() -> None:
     assert "Riverside Wellness Studio" not in joined
 
 
+def test_pinned_lane_unspecified_frequency_prefers_newer_user_fact() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+    old = SimpleNamespace(
+        role="user",
+        observed_at=datetime(2023, 4, 3, tzinfo=UTC),
+        transcript_snippet="user: I have a therapy session with Dr. Smith coming up soon - it's every two weeks.",
+    )
+    current = SimpleNamespace(
+        role="user",
+        observed_at=datetime(2023, 11, 3, tzinfo=UTC),
+        transcript_snippet="user: I see Dr. Smith every week, and she's been helping me work on boundaries.",
+    )
+
+    lines, _nodes, _keys, _ids = controller._pinned_fact_section(
+        query="How often do I see my therapist, Dr. Smith?",
+        hits=[],
+        transcript_hits=[old, current],
+        max_tokens=140,
+    )
+
+    joined = "\n".join(lines)
+    assert "every week" in joined
+    assert "every two weeks" not in joined
+
+
+def test_pinned_lane_uses_longmemeval_document_date_over_ingest_time() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+    ingest_time = datetime(2026, 8, 2, tzinfo=UTC)
+    old = SimpleNamespace(
+        role="user",
+        observed_at=ingest_time,
+        transcript_snippet=(
+            "[documentDate: 2023/04/03]\n"
+            "user: I have a therapy session with Dr. Smith coming up soon - it's every two weeks."
+        ),
+    )
+    current = SimpleNamespace(
+        role="user",
+        observed_at=ingest_time,
+        transcript_snippet=(
+            "[documentDate: 2023/11/03]\n"
+            "user: I see Dr. Smith every week, and she's been helping me work on boundaries."
+        ),
+    )
+
+    lines, _nodes, _keys, _ids = controller._pinned_fact_section(
+        query="How often do I see my therapist, Dr. Smith?",
+        hits=[],
+        transcript_hits=[old, current],
+        max_tokens=140,
+    )
+
+    joined = "\n".join(lines)
+    assert "every week" in joined
+    assert "every two weeks" not in joined
+
+
+def test_pinned_lane_unspecified_current_record_prefers_newer_count() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+    old = SimpleNamespace(
+        role="user",
+        observed_at=datetime(2023, 6, 16, tzinfo=UTC),
+        transcript_snippet="user: I've been doing pretty well in the volleyball league, we're 3-2 so far!",
+    )
+    current = SimpleNamespace(
+        role="user",
+        observed_at=datetime(2023, 6, 30, tzinfo=UTC),
+        transcript_snippet=(
+            "user: Our volleyball team, the Net Ninjas, is doing well with a 5-2 record."
+        ),
+    )
+
+    lines, _nodes, _keys, _ids = controller._pinned_fact_section(
+        query="What is my current record in the recreational volleyball league?",
+        hits=[],
+        transcript_hits=[old, current],
+        max_tokens=140,
+    )
+
+    joined = "\n".join(lines)
+    assert "5-2" in joined
+    assert "3-2" not in joined
+
+
+def test_pinned_lane_record_query_rejects_unrelated_date_ranges() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+    noisy = SimpleNamespace(
+        role="user",
+        observed_at=datetime(2023, 7, 15, tzinfo=UTC),
+        transcript_snippet=(
+            "user: My friend is living in Paris and I'd like to visit her within the next 3-4 months."
+        ),
+    )
+    relevant = SimpleNamespace(
+        role="user",
+        observed_at=datetime(2023, 7, 21, tzinfo=UTC),
+        transcript_snippet="user: Our volleyball team, the Net Ninjas, is doing well with a 5-2 record.",
+    )
+
+    lines, _nodes, _keys, _ids = controller._pinned_fact_section(
+        query="What is my current record in the recreational volleyball league?",
+        hits=[],
+        transcript_hits=[noisy, relevant],
+        max_tokens=140,
+    )
+
+    joined = "\n".join(lines)
+    assert "5-2" in joined
+    assert "3-4 months" not in joined
+
+
+def test_pinned_lane_count_query_rejects_unrelated_durations() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+    noisy_later = SimpleNamespace(
+        role="user",
+        observed_at=datetime(2023, 8, 1, tzinfo=UTC),
+        transcript_snippet="user: I have been using the meditation app for 2 months and like the sleep stories.",
+    )
+    relevant = SimpleNamespace(
+        role="user",
+        observed_at=datetime(2023, 7, 1, tzinfo=UTC),
+        transcript_snippet=(
+            "user: With the new road bike from my brother, I'll actually have four bikes now."
+        ),
+    )
+
+    lines, _nodes, _keys, _ids = controller._pinned_fact_section(
+        query="How many bikes do I currently own?",
+        hits=[],
+        transcript_hits=[noisy_later, relevant],
+        max_tokens=140,
+    )
+
+    joined = "\n".join(lines)
+    assert "four bikes" in joined
+    assert "2 months" not in joined
+
+
+def test_pinned_lane_ignores_document_date_numbers_for_numeric_fact() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+    stale = SimpleNamespace(
+        role="user",
+        observed_at=datetime(2026, 8, 2, tzinfo=UTC),
+        transcript_snippet=(
+            "[documentDate: 2023/05/25 (Thu) 05:26] "
+            "user: I've got 1250 followers on Instagram now."
+        ),
+    )
+    current = SimpleNamespace(
+        role="user",
+        observed_at=datetime(2026, 8, 2, tzinfo=UTC),
+        transcript_snippet=(
+            "[documentDate: 2023/05/25 (Thu) 09:28] "
+            "user: I've been meaning to check my current follower count - I think I'm close to 1300 now."
+        ),
+    )
+
+    lines, _nodes, _keys, _ids = controller._pinned_fact_section(
+        query="How many followers do I have on Instagram now?",
+        hits=[],
+        transcript_hits=[stale, current],
+        max_tokens=160,
+    )
+
+    joined = "\n".join(lines)
+    assert "1300" in joined
+    assert "1250" not in joined
+
+
+def test_pinned_lane_uses_session_document_date_for_unprefixed_turns() -> None:
+    class SessionDateGraph:
+        def list_transcript_records(self, **kwargs):
+            if kwargs.get("session_id") == "old-session":
+                return [
+                    SimpleNamespace(
+                        transcript_text="[documentDate: 2023/05/25 (Thu) 05:26] user: Session date marker.",
+                    )
+                ]
+            if kwargs.get("session_id") == "current-session":
+                return [
+                    SimpleNamespace(
+                        transcript_text="[documentDate: 2023/05/25 (Thu) 09:28] user: Session date marker.",
+                    )
+                ]
+            return []
+
+    controller = RecursiveContextController(graph=SessionDateGraph())
+    stale = SimpleNamespace(
+        role="user",
+        agent_id="agent",
+        project="project",
+        session_id="old-session",
+        observed_at=datetime(2026, 8, 2, tzinfo=UTC),
+        transcript_snippet="user: I've got 1250 followers on Instagram now.",
+    )
+    current = SimpleNamespace(
+        role="user",
+        agent_id="agent",
+        project="project",
+        session_id="current-session",
+        observed_at=datetime(2026, 8, 2, tzinfo=UTC),
+        transcript_snippet="user: I think I'm close to 1300 followers on Instagram now.",
+    )
+
+    lines, _nodes, _keys, _ids = controller._pinned_fact_section(
+        query="How many followers do I have on Instagram now?",
+        hits=[],
+        transcript_hits=[stale, current],
+        max_tokens=160,
+    )
+
+    joined = "\n".join(lines)
+    assert "1300" in joined
+    assert "1250" not in joined
+
+
+def test_pinned_lane_team_count_uses_latest_relevant_numeric_fact() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+    stale = SimpleNamespace(
+        role="user",
+        observed_at=datetime(2026, 8, 2, tzinfo=UTC),
+        transcript_snippet=(
+            "[documentDate: 2023/07/11 (Tue) 13:05] "
+            "user: My former manager Rachel is leading a team of 10 people, and half of them are women."
+        ),
+    )
+    current = SimpleNamespace(
+        role="user",
+        observed_at=datetime(2026, 8, 2, tzinfo=UTC),
+        transcript_snippet=(
+            "[documentDate: 2023/08/03 (Thu) 05:53] "
+            "user: Rachel's team is a great example of a diverse team, with 6 women out of 10 people."
+        ),
+    )
+
+    lines, _nodes, _keys, _ids = controller._pinned_fact_section(
+        query="How many women are on the team led by my former manager Rachel?",
+        hits=[],
+        transcript_hits=[stale, current],
+        max_tokens=160,
+    )
+
+    joined = "\n".join(lines)
+    assert "6 women" in joined
+    assert "half" not in joined
+
+
 def test_pinned_lane_three_state_history_respects_final_revert() -> None:
     controller = RecursiveContextController(graph=SimpleNamespace())
     first = SimpleNamespace(
@@ -840,6 +1087,37 @@ def test_count_query_context_extracts_separate_pickup_return_candidates() -> Non
         or "pick up replacement boots" in context
     )
     assert "pick up dry cleaning for navy blue blazer" in context
+
+
+def test_count_query_context_extracts_base_count_plus_addition() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+
+    context, _nodes = controller._compress_to_budget(
+        query="How many pre-1920 American coins do I have in my collection?",
+        hits=[],
+        conflicts=[],
+        transcript_hits=[
+            SimpleNamespace(
+                transcript_snippet=(
+                    "user: I have a total of 37 coins in my pre-1920 American coin collection."
+                )
+            ),
+            SimpleNamespace(
+                transcript_snippet=(
+                    "user: I just added a new coin to my collection of pre-1920 American coins - "
+                    "a 1915-S Barber quarter."
+                )
+            ),
+        ],
+        token_budget=900,
+    )
+
+    assert "Answer guidance:" in context
+    assert "combine the base count with later additions/removals" in context
+    assert "Count candidates:" in context
+    assert "base count: 37 coins" in context
+    assert "addition: 1 coin" in context
+    assert "1915-S Barber quarter" in context
 
 
 def test_obligation_decomposition_handles_exchange_variants() -> None:
