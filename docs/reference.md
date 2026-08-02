@@ -302,6 +302,18 @@ For a built-in CLI explainer, run:
 waggle-mcp features
 ```
 
+For terminal-first project memory commands, see
+[Project Memory CLI](project-memory-cli.md). The core flow is:
+
+```bash
+waggle-mcp bootstrap --dry-run
+waggle-mcp bootstrap
+waggle-mcp stats
+waggle-mcp search "database decision"
+waggle-mcp timeline --events created
+waggle-mcp inspect-node <node-id>
+```
+
 To check a local installation, run:
 
 ```bash
