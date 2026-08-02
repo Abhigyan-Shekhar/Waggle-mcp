@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from difflib import SequenceMatcher
 
-from waggle.models import Node, NodeType, RelationType, utc_now
+from waggle.models import FactKind, Node, NodeType, RelationType, utc_now
 
 # Hardcoded English stopword list (~150 words).
 # Chosen over NLTK to avoid a runtime dependency; covers the same high-frequency
@@ -289,6 +289,16 @@ _SO_SPLIT_RE = re.compile(r",?\s+so\s+", re.IGNORECASE)
 _CLAUSE_BREAK_RE = re.compile(
     r"\s*[;—]\s*"
     r"|,\s+(?:and\s+)?(?=(?:i(?:'m| am)?|im|we(?:'re| are)?|were|they(?:'re| are)?|the team)\b)",
+    re.IGNORECASE,
+)
+_STATE_COUNT_RE = re.compile(
+    r"\b(?:i|user)\s+(?:now\s+)?(?:have|has|own|owns|watched|seen|collected)\s+"
+    r"(?:now\s+)?(?P<value>\d+)\s+(?P<object>[A-Za-z][A-Za-z0-9' -]{1,80})",
+    re.IGNORECASE,
+)
+_EVENT_RE = re.compile(
+    r"\b(?P<verb>bought|purchased|ordered|received|added|attended|started|finished|returned|exchanged|swapped)\b"
+    r"(?P<object>[^.?!]{1,120})",
     re.IGNORECASE,
 )
 
@@ -1343,14 +1353,148 @@ def _append_candidate(
     if key in seen:
         return
     seen.add(key)
-    candidates.append(
-        {
-            "label": label,
-            "content": content,
-            "node_type": node_type,
-            "tags": tags,
-        }
-    )
+    candidate: dict[str, object] = {
+        "label": label,
+        "content": content,
+        "node_type": node_type,
+        "tags": tags,
+    }
+    candidate.update(_infer_normalized_claim_fields(label=label, content=content, node_type=node_type, tags=tags))
+    candidates.append(candidate)
+
+
+def _infer_normalized_claim_fields(
+    *,
+    label: str,
+    content: str,
+    node_type: NodeType,
+    tags: list[str],
+) -> dict[str, object]:
+    """Conservatively assign storage semantics to an extracted candidate.
+
+    Only explicit user-authored state patterns receive confidence high enough
+    for deterministic supersession. Uncertain and assistant-authored claims are
+    retained as open-world evidence.
+    """
+
+    normalized_tags = {normalize_text(tag) for tag in tags}
+    speaker = next(
+        (tag.split(":", 1)[1] for tag in tags if str(tag).lower().startswith("speaker:")),
+        "",
+    ).lower()
+    source_is_user = speaker == "user"
+
+    def key(value: str) -> str:
+        return "_".join(_TOKEN_RE.findall(normalize_text(value)))
+
+    base: dict[str, object] = {
+        "subject_key": "user" if source_is_user else speaker or "unknown",
+        "relation_key": key(label),
+        "value_normalized": content.strip(),
+        "fact_kind": FactKind.OPEN_WORLD,
+        "scope_key": "",
+        "claim_confidence": 0.5 if source_is_user else 0.35,
+    }
+
+    if node_type == NodeType.PREFERENCE:
+        base.update(
+            fact_kind=FactKind.PREFERENCE,
+            relation_key=key(label or "preference"),
+            claim_confidence=0.9 if source_is_user else 0.55,
+        )
+        return base
+
+    event_match = _EVENT_RE.search(content)
+    if event_match:
+        event_object = event_match.group("object").strip(" ,")
+        base.update(
+            fact_kind=FactKind.EVENT,
+            relation_key=key(f"{event_match.group('verb')} {event_object}"),
+            value_normalized=event_object,
+            claim_confidence=0.95 if source_is_user else 0.55,
+        )
+        return base
+
+    if "location" in normalized_tags and source_is_user:
+        match = _LOCATION_FACT_RE.search(content)
+        location = match.group("location").strip() if match else content.strip()
+        base.update(
+            relation_key="residence",
+            value_normalized=location,
+            fact_kind=FactKind.STATE_SINGLE,
+            scope_key="personal",
+            claim_confidence=0.95,
+        )
+        return base
+
+    count_match = _STATE_COUNT_RE.search(content)
+    if count_match and source_is_user:
+        object_text = count_match.group("object").strip(" ,")
+        base.update(
+            relation_key=key(f"{object_text} count"),
+            value_normalized=count_match.group("value"),
+            fact_kind=FactKind.STATE_SNAPSHOT,
+            scope_key="personal",
+            claim_confidence=0.9,
+        )
+        return base
+
+    choice_tag = next((tag for tag in normalized_tags if tag.startswith("choice:")), "")
+    if choice_tag and source_is_user:
+        category = next(
+            (
+                tag
+                for tag in normalized_tags
+                if tag in {"database", "backend-framework", "frontend-framework", "auth-mechanism", "api-style"}
+            ),
+            "decision",
+        )
+        base.update(
+            relation_key=key(f"{category} choice"),
+            value_normalized=choice_tag.split(":", 1)[1],
+            fact_kind=FactKind.STATE_SINGLE,
+            scope_key="project",
+            claim_confidence=0.9,
+        )
+        return base
+
+    if "backend-framework" in normalized_tags and source_is_user:
+        match = _BACKEND_RE.search(content)
+        value = (match.group("tech") or match.group("tech_is")) if match else content
+        base.update(
+            subject_key="project",
+            relation_key="backend_framework",
+            value_normalized=str(value),
+            fact_kind=FactKind.STATE_SINGLE,
+            scope_key="project",
+            claim_confidence=0.95,
+        )
+        return base
+
+    if "auth" in normalized_tags and "jwt" in normalize_text(content) and source_is_user:
+        match = _JWT_EXPIRY_RE.search(content)
+        base.update(
+            subject_key="project",
+            relation_key="jwt_expiry",
+            value_normalized=match.group("duration") if match else content,
+            fact_kind=FactKind.STATE_SNAPSHOT,
+            scope_key="auth",
+            claim_confidence=0.95,
+        )
+        return base
+
+    if "rate-limit" in normalized_tags and source_is_user:
+        match = _RATE_LIMIT_RE.search(content)
+        value = f"{match.group('count')} {match.group('unit')}" if match else content
+        base.update(
+            subject_key="project",
+            relation_key="api_rate_limit",
+            value_normalized=value,
+            fact_kind=FactKind.STATE_SNAPSHOT,
+            scope_key="api",
+            claim_confidence=0.95,
+        )
+    return base
 
 
 def _dedupe_preserve_order(values: list[str]) -> list[str]:

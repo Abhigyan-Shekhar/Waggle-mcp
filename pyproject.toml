@@ -58,6 +58,11 @@ dev = [
 vec = [
   "sqlite-vec>=0.1.9",
 ]
+mem0 = [
+  "mem0ai>=2.0.0",
+  "ollama>=0.6.0",
+  "qdrant-client>=1.13.0",
+]
 neo4j = [
   "neo4j>=5.20.0",
 ]

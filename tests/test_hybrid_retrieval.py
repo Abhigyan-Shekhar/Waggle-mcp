@@ -232,6 +232,33 @@ def test_fusion_fallback_works_when_rerank_disabled(tmp_path: Path) -> None:
     assert all(not hit.reasoning_from_reranker for hit in result.hybrid_hits)
 
 
+def test_disabled_reranker_does_not_cap_requested_top_k(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path, rerank_enabled=False)
+    with graph._lock, graph._connect() as connection:
+        for index in range(8):
+            graph._store_transcript_record(
+                connection,
+                agent_id="codex",
+                project="alpha",
+                session_id=f"sess-{index}",
+                observed_at=datetime(2026, 1, index + 1, tzinfo=UTC),
+                turn_index=0,
+                role="user",
+                transcript_text=f"shared retrieval subject detail {index}",
+                turn_pair_id=f"tp-{index}",
+            )
+
+    debug = graph.hybrid_retriever().retrieve_debug(
+        query="shared retrieval subject detail",
+        project="alpha",
+        agent_id="codex",
+        session_id="",
+        top_k=8,
+    )
+
+    assert len(debug["hits"]) == 8
+
+
 def test_query_graph_tool_defaults_to_hybrid(tmp_path: Path) -> None:
     app = make_app(tmp_path)
     captured: dict[str, str] = {}

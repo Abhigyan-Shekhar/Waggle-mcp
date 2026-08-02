@@ -109,6 +109,10 @@ def _gold_answer(case: dict[str, Any]) -> str:
         value = case.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
+        if value is not None and not isinstance(value, (dict, list, tuple, set)):
+            return str(value).strip()
+        if isinstance(value, (list, tuple)):
+            return ", ".join(str(item).strip() for item in value if str(item).strip())
     return ""
 
 

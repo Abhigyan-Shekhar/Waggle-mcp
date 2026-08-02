@@ -14,6 +14,7 @@ import numpy as np
 
 from waggle.intelligence import tokenize_text
 from waggle.models import HybridHit, RelationType
+from waggle.graph.base import _filter_valid_nodes
 from waggle.rlm import run_gemini_one_shot, run_groq_one_shot, run_ollama_one_shot
 
 RRF_K = 60.0
@@ -295,7 +296,8 @@ class HybridRetriever:
         )
         fused_top = sorted(unified.values(), key=lambda item: item.score, reverse=True)[: self.config.rerank_top_k_in]
 
-        reranked = self._rerank(query=query, candidates=fused_top, top_k_out=min(top_k, self.config.rerank_top_k_out))
+        top_k_out = min(top_k, self.config.rerank_top_k_out) if self.config.rerank_enabled else top_k
+        reranked = self._rerank(query=query, candidates=fused_top, top_k_out=top_k_out)
 
         hits = [
             HybridHit(
@@ -476,9 +478,14 @@ class HybridRetriever:
                     """,
                     tuple(params),
                 ).fetchall()
+        valid_ids = {
+            node.id for node in _filter_valid_nodes([self.graph._row_to_node(row) for row in rows])
+        }
         ranked: list[CandidateMemory] = []
         for row in rows:
             node = self.graph._row_to_node(row)
+            if node.id not in valid_ids:
+                continue
             embedding = self.graph._decode_embedding(row["embedding"])
             if embedding is None:
                 continue
@@ -490,7 +497,7 @@ class HybridRetriever:
                     source="node",
                     turn_pair_id=node.source_turn_pair_id,
                     node_ids=[node.id],
-                    observed_at=node.updated_at,
+                    observed_at=node.observed_at or node.valid_from or node.updated_at,
                     layer_scores={"vector_node": semantic},
                 )
             )
@@ -645,8 +652,13 @@ class HybridRetriever:
                         """,
                         tuple(params),
                     ).fetchall()
+                    valid_ids = {
+                        node.id for node in _filter_valid_nodes([self.graph._row_to_node(row) for row in rows])
+                    }
                     for row in rows:
                         node = self.graph._row_to_node(row)
+                        if node.id not in valid_ids:
+                            continue
                         doc_id = f"node:{node.id}"
                         documents[doc_id] = list(tokenize_text(f"{node.label} {node.content}"))
                         payloads[doc_id] = CandidateMemory(
@@ -655,7 +667,7 @@ class HybridRetriever:
                             source="node",
                             turn_pair_id=node.source_turn_pair_id,
                             node_ids=[node.id],
-                            observed_at=node.updated_at,
+                            observed_at=node.observed_at or node.valid_from or node.updated_at,
                         )
                 bm25 = SimpleBM25(documents)
                 self.graph.root_graph._lexical_cache = (sig, bm25, payloads)
@@ -694,9 +706,17 @@ class HybridRetriever:
                 """
                 SELECT id, tenant_id, source_id, target_id, relationship, weight, metadata, created_at
                 FROM edges
-                WHERE tenant_id = ? AND relationship = ?
+                WHERE tenant_id = ? AND relationship IN (?, ?, ?, ?, ?, ?)
                 """,
-                (self.graph.tenant_id, RelationType.DERIVED_FROM.value),
+                (
+                    self.graph.tenant_id,
+                    RelationType.UPDATES.value,
+                    RelationType.CONTRADICTS.value,
+                    RelationType.DEPENDS_ON.value,
+                    RelationType.PART_OF.value,
+                    RelationType.DERIVED_FROM.value,
+                    RelationType.RELATES_TO.value,
+                ),
             ).fetchall()
         adjacency: dict[str, set[str]] = defaultdict(set)
         for row in edge_rows:
@@ -734,10 +754,13 @@ class HybridRetriever:
                     """,
                     (self.graph.tenant_id, *visited),
                 ).fetchall()
-            nodes_by_id = {row["id"]: self.graph._row_to_node(row) for row in node_rows}
+            loaded_nodes = [self.graph._row_to_node(row) for row in node_rows]
+            nodes_by_id = {node.id: node for node in _filter_valid_nodes(loaded_nodes)}
             visited_nodes = [nodes_by_id[node_id] for node_id in visited if node_id in nodes_by_id]
             turn_pair_id = next((node.source_turn_pair_id for node in visited_nodes if node.source_turn_pair_id), "")
-            transcript_text = turn_pairs_by_id[turn_pair_id].transcript_text if turn_pair_id in turn_pairs_by_id else ""
+            transcript_pair = turn_pairs_by_id.get(turn_pair_id)
+            transcript_text = transcript_pair.transcript_text if transcript_pair is not None else ""
+            seed_node = next((node for node in visited_nodes if node.id == seed_id), None)
             content_parts = [f"{node.label}: {node.content}" for node in visited_nodes]
             if transcript_text:
                 content_parts.insert(0, transcript_text)
@@ -749,7 +772,15 @@ class HybridRetriever:
                     turn_pair_id=turn_pair_id,
                     node_ids=sorted(node.id for node in visited_nodes),
                     transcript_text=transcript_text,
-                    observed_at=max((node.updated_at for node in visited_nodes), default=None),
+                    observed_at=(
+                        transcript_pair.observed_at
+                        if transcript_pair is not None
+                        else (
+                            seed_node.observed_at or seed_node.valid_from or seed_node.updated_at
+                            if seed_node is not None
+                            else None
+                        )
+                    ),
                     layer_scores={"graph_expansion": _rrf(seed_rank_map.get(seed_id, len(seed_rank_map) + 1))},
                 )
             )

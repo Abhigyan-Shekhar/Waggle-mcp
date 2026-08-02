@@ -4,7 +4,7 @@ import hashlib
 import json
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -22,6 +22,7 @@ from waggle.locks import ProcessLock
 from waggle.models import (
     Node,
     NodeType,
+    FactKind,
     ObservationResult,
     RelationType,
     ReplayHit,
@@ -126,6 +127,13 @@ class TranscriptMixin(MemoryGraphBase):
                 session_id=session_id,
                 evidence_records=[evidence],
                 valid_from=observed_at,
+                subject_key=str(candidate.get("subject_key", "")),
+                relation_key=str(candidate.get("relation_key", "")),
+                value_normalized=str(candidate.get("value_normalized", "")),
+                fact_kind=FactKind(str(candidate.get("fact_kind", FactKind.OPEN_WORLD.value))),
+                scope_key=str(candidate.get("scope_key", "")),
+                observed_at=observed_at,
+                claim_confidence=float(candidate.get("claim_confidence", 0.0)),
                 embedding=_precomputed,
                 connection=connection,
             )
@@ -269,6 +277,7 @@ class TranscriptMixin(MemoryGraphBase):
         project: str = "",
         session_id: str = "",
         derive_window_edges: bool = True,
+        observed_at: datetime | None = None,
     ) -> ObservationResult:
         """Observe a completed user-assistant turn with verbatim-first persistence.
 
@@ -281,7 +290,11 @@ class TranscriptMixin(MemoryGraphBase):
         """
         logger = logging.getLogger(__name__)
         transcript = f"user: {user_message.strip()}\nassistant: {assistant_response.strip()}".strip()
-        observed_at = utc_now()
+        observed_at = observed_at or utc_now()
+        if observed_at.tzinfo is None:
+            observed_at = observed_at.replace(tzinfo=UTC)
+        else:
+            observed_at = observed_at.astimezone(UTC)
         turn_pair_id = str(uuid4())
 
         result = ObservationResult(

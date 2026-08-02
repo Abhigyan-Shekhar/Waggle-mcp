@@ -95,7 +95,14 @@ def test_query_graph_prefers_newer_nodes_when_similarity_matches(tmp_path: Path)
     _set_updated_at(graph, old_node.id, now - (120.0 * 86400.0))
     _set_updated_at(graph, new_node.id, now - 3600.0)
 
-    result = graph.query(query="freshness ranking probe", max_nodes=2, max_depth=1)
+    # Historical ranking tests opt into invalidated versions. Default retrieval
+    # excludes the predecessor of an UPDATES edge by design.
+    result = graph.query(
+        query="freshness ranking probe",
+        max_nodes=2,
+        max_depth=1,
+        include_invalidated=True,
+    )
 
     assert [node.label for node in result.nodes[:2]] == ["Beta memory", "Alpha memory"]
     assert result.nodes[0].final_score is not None

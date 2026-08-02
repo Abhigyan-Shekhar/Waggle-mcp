@@ -23,6 +23,7 @@ from .context_builder import (
     node_to_context_item,
     token_estimate,
     transcript_hit_to_context_item,
+    trim_text_to_budget,
 )
 from .provenance import ConditionResult, ContextItem
 
@@ -30,6 +31,7 @@ from .provenance import ConditionResult, ContextItem
 FLAT_TRANSCRIPT_VECTOR = "flat_transcript_vector"
 GRAPH_GUIDED_CONTEXT = "waggle_graph_guided_transcript_context"
 PRODUCTION_CONTEXT = "waggle_production_context"
+TEMPORAL_SLOT_CONTEXT = "waggle_temporal_slot_context"
 AGENTIC_MCP = "waggle_agentic_mcp"
 GRAPH_NODES_ONLY = "waggle_graph_nodes_only"
 HYBRID_NO_EDGES = "waggle_hybrid_no_edges"
@@ -40,12 +42,14 @@ PRODUCTION_NO_PRIME = "waggle_production_context_no_prime"
 PRODUCTION_WITH_PRIME = "waggle_production_context_with_prime"
 ORACLE_SUPPORT_CONTEXT = "oracle_support_context"
 ORACLE_ANSWER_TURN_CONTEXT = "oracle_answer_turn_context"
+MEM0_CONTEXT = "mem0_context"
 EXTERNAL_JSONL_PREFIX = "external_jsonl:"
 
 ALL_CONDITIONS = [
     FLAT_TRANSCRIPT_VECTOR,
     GRAPH_GUIDED_CONTEXT,
     PRODUCTION_CONTEXT,
+    TEMPORAL_SLOT_CONTEXT,
     AGENTIC_MCP,
     GRAPH_NODES_ONLY,
     HYBRID_NO_EDGES,
@@ -56,6 +60,7 @@ ALL_CONDITIONS = [
     PRODUCTION_WITH_PRIME,
     ORACLE_SUPPORT_CONTEXT,
     ORACLE_ANSWER_TURN_CONTEXT,
+    MEM0_CONTEXT,
 ]
 
 
@@ -68,6 +73,7 @@ class ConditionConfig:
     prime_budget: int = 512
     controller_factory: Callable[..., Any] | None = None
     external_context_path: Path | None = None
+    mem0_context_path: Path | None = None
 
 
 def normalize_condition(name: str) -> str:
@@ -95,6 +101,8 @@ def run_condition(
         return production_context(
             case, case_graph, config=config, use_prime=False, temporal_resolution=True, condition_name=PRODUCTION_CONTEXT
         )
+    if condition == TEMPORAL_SLOT_CONTEXT:
+        return temporal_slot_context(case, case_graph, config=config)
     if condition == PRODUCTION_NO_PRIME:
         return production_context(
             case, case_graph, config=config, use_prime=False, temporal_resolution=True, condition_name=PRODUCTION_NO_PRIME
@@ -133,6 +141,8 @@ def run_condition(
         return oracle_support_context(case, case_graph, config=config)
     if condition == ORACLE_ANSWER_TURN_CONTEXT:
         return oracle_answer_turn_context(case, case_graph, config=config)
+    if condition == MEM0_CONTEXT:
+        return mem0_context(case, config=config)
     if condition.startswith(EXTERNAL_JSONL_PREFIX):
         return external_jsonl_context(condition, case, config=config)
     raise ValueError(f"unknown condition: {condition}")
@@ -161,7 +171,34 @@ def external_jsonl_context(condition: str, case: dict[str, Any], *, config: Cond
     payload = rows.get((case_id, system))
     if payload is None:
         raise KeyError(f"external context not found for case_id={case_id!r}, system={system!r}")
+    return _context_from_external_payload(condition, system, case_id, payload, config=config)
 
+
+def mem0_context(case: dict[str, Any], *, config: ConditionConfig) -> ConditionResult:
+    """Use Mem0 OSS retrieval context as a first-class comparison condition."""
+    if config.mem0_context_path is None:
+        raise ValueError(
+            "mem0_context requires a Mem0 context cache. Pass --mem0-context-cache-path, "
+            "or let scripts.longmemeval_full.run create one for the current output dir."
+        )
+    case_id = _external_case_id(case)
+    rows = _load_external_context_rows(config.mem0_context_path)
+    payload = None
+    for system in (MEM0_CONTEXT, "mem0", "mem0_oss_raw"):
+        payload = rows.get((case_id, system))
+        if payload is not None:
+            return _context_from_external_payload(MEM0_CONTEXT, system, case_id, payload, config=config)
+    raise KeyError(f"mem0 context not found for case_id={case_id!r} in {config.mem0_context_path}")
+
+
+def _context_from_external_payload(
+    condition: str,
+    system: str,
+    case_id: str,
+    payload: dict[str, Any],
+    *,
+    config: ConditionConfig,
+) -> ConditionResult:
     start = time.perf_counter()
     context = str(payload.get("context") or "")
     raw_items = payload.get("context_items")
@@ -366,6 +403,7 @@ def production_context(
         }
     )
 
+
     subgraph = graph.query(
         query=question,
         project=project,
@@ -431,6 +469,141 @@ def production_context(
             "Records graph.debug_retrieval layers so transcript, node, lexical, graph-expansion, and fused candidates can be audited.",
             "Uses RecursiveContextController.build_context as final context path.",
             "No large harness-selected session transcript append is added after build_context.",
+        ],
+    )
+
+
+def temporal_slot_context(
+    case: dict[str, Any],
+    case_graph: dict[str, Any],
+    *,
+    config: ConditionConfig,
+) -> ConditionResult:
+    graph = case_graph["graph"]
+    question = legacy._question(case)
+    start = time.perf_counter()
+    result = graph.temporal_slot_retriever().retrieve(
+        query=question,
+        project=case_graph["project"],
+        agent_id=case_graph["agent_id"],
+        max_context_tokens=config.reader_context_budget,
+        reference_date=str(case.get("question_date") or case.get("questionDate") or ""),
+    )
+    evidence_items = [
+        evidence
+        for slot in result.plan.slots
+        for evidence in result.assembled.per_slot.get(slot.name, [])
+    ]
+    compiled_text = trim_text_to_budget(result.context.text, config.reader_context_budget)
+    context_items = [
+        ContextItem(
+            item_id=evidence.evidence_id,
+            item_type="temporal_slot_evidence",
+            text=evidence.content,
+            inclusion_reason=f"required_slot:{evidence.slot}",
+            source_node_id=evidence.node_ids[0] if evidence.node_ids else "",
+            source_turn_id=evidence.turn_pair_id,
+            token_count=token_estimate(evidence.content),
+            rank=index + 1,
+            metadata={
+                "slot": evidence.slot,
+                "score": evidence.score,
+                "source": evidence.source,
+                "node_ids": list(evidence.node_ids),
+                "observed_at": evidence.observed_at.isoformat() if evidence.observed_at else "",
+                "evidence_type": getattr(getattr(evidence, "evidence_type", None), "value", "fact"),
+                "source_role": str(getattr(evidence, "source_role", "")),
+                "structure": dict(getattr(evidence, "structure", {}) or {}),
+            },
+        )
+        for index, evidence in enumerate(evidence_items)
+    ]
+    compiled_item = ContextItem(
+        item_id="temporal_slot_compiled_context",
+        item_type="compiled_evidence_context",
+        text=compiled_text,
+        inclusion_reason="compact_evidence_compiler",
+        token_count=token_estimate(compiled_text),
+        rank=1,
+        metadata={
+            "query_type": result.plan.query_type.value,
+            "operation": result.plan.operation.value if result.plan.operation else "",
+            "required_slots": [slot.name for slot in result.plan.slots if slot.required],
+            "missing_slots": list(result.context.missing_slots),
+            "calculation": (
+                {
+                    "operation": result.assembled.calculation.operation.value,
+                    "operands": list(result.assembled.calculation.operands),
+                    "result": result.assembled.calculation.result,
+                    "unit": result.assembled.calculation.unit,
+                    "expression": result.assembled.calculation.expression,
+                }
+                if result.assembled.calculation
+                else {}
+            ),
+        },
+    )
+    node_ids = list(
+        dict.fromkeys(node_id for evidence in evidence_items for node_id in evidence.node_ids)
+    )
+    turn_ids = list(
+        dict.fromkeys(evidence.turn_pair_id for evidence in evidence_items if evidence.turn_pair_id)
+    )
+    return ConditionResult(
+        condition=TEMPORAL_SLOT_CONTEXT,
+        context=compiled_text,
+        context_items=[compiled_item, *context_items],
+        retrieved_node_ids=node_ids,
+        retrieved_transcript_ids=turn_ids,
+        tool_trace=[
+            {
+                "tool": "temporal_slot_retriever",
+                "arguments": {
+                    "query": question,
+                    "project": case_graph["project"],
+                    "max_context_tokens": config.reader_context_budget,
+                    "reference_date": str(case.get("question_date") or case.get("questionDate") or ""),
+                },
+                "query_plan": {
+                    "query_type": result.plan.query_type.value,
+                    "operation": result.plan.operation.value if result.plan.operation else "",
+                    "temporal_scope": result.plan.temporal_scope,
+                    "confidence": result.plan.confidence,
+                    "slots": [
+                        {
+                            "name": slot.name,
+                            "query": slot.query,
+                            "required": slot.required,
+                            "collect_all": slot.collect_all,
+                            "max_items": slot.max_items,
+                            "min_items": getattr(slot, "min_items", 1),
+                            "evidence_type": getattr(getattr(slot, "evidence_type", None), "value", "fact"),
+                            "required_role": getattr(slot, "required_role", ""),
+                            "target_index": getattr(slot, "target_index", None),
+                            "target_key": getattr(slot, "target_key", ""),
+                            "row_key": getattr(slot, "row_key", ""),
+                        }
+                        for slot in result.plan.slots
+                    ],
+                },
+                "retrieval_per_slot": result.retrieval_trace,
+                "selected_per_slot": {
+                    slot: [item.evidence_id for item in items]
+                    for slot, items in result.assembled.per_slot.items()
+                },
+                "missing_slots": list(result.assembled.missing_slots),
+                "dropped_duplicates": list(result.assembled.dropped_duplicates),
+                "fallback_used": bool(getattr(result, "fallback_used", False)),
+                "validation_issues": list(getattr(result, "validation_issues", ())),
+                "active_set_members": list(getattr(result.assembled, "active_set_members", ())),
+            }
+        ],
+        retrieval_mode="temporal_slot_hybrid_compact",
+        latency_ms={"retrieval_and_context": (time.perf_counter() - start) * 1000},
+        adapter_notes=[
+            "Uses deterministic query planning and independent retrieval capacity per evidence slot.",
+            "Uses local calculations only when all operands are complete and unambiguous.",
+            "Legacy production context assembly is not appended after the compact compiler.",
         ],
     )
 

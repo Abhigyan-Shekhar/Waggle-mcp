@@ -142,8 +142,6 @@ from waggle.models import (
     normalize_relationship,
     utc_now,
 )
-from waggle.retrieval.hybrid import HybridRetrievalConfig, HybridRetriever
-
 from .base import (
     MUST_PAIR_RELATIONS,
     NEGATION_NODE_TERMS,

@@ -1120,6 +1120,154 @@ def test_count_query_context_extracts_base_count_plus_addition() -> None:
     assert "1915-S Barber quarter" in context
 
 
+def test_count_query_dedupes_partial_duplicate_coin_addition() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+
+    context, _nodes = controller._compress_to_budget(
+        query="How many pre-1920 American coins do I have in my collection?",
+        hits=[],
+        conflicts=[],
+        transcript_hits=[
+            SimpleNamespace(
+                transcript_snippet=(
+                    "user: I have a total of 37 coins in that collection, "
+                    "and I think it would be cool to see them all displayed together."
+                )
+            ),
+            SimpleNamespace(
+                transcript_snippet=(
+                    "user: By the way, I just added a new coin to my collection "
+                    "of pre-1920 American coins - a 1915-S Barber quarter."
+                )
+            ),
+            SimpleNamespace(
+                transcript_snippet=(
+                    "user: By the way, I just added a new coin to my collection "
+                    "of pre-1920 American coins -"
+                )
+            ),
+        ],
+        token_budget=900,
+    )
+
+    assert "Count candidates:" in context
+    assert "base count: 37 coins" in context
+    assert "addition: 1 coin (1915-S Barber quarter)" in context
+    assert context.count("- addition: 1 coin") == 1
+
+
+def test_set_aggregation_context_collects_tomato_and_cucumber_counts() -> None:
+    class PlantGraph:
+        def list_transcript_records(self, **_kwargs):
+            return [
+                SimpleNamespace(
+                    transcript_text=(
+                        "user: I've been enjoying the harvest immensely! "
+                        "I planted 5 tomato plants initially, and they've been producing like crazy."
+                    )
+                ),
+                SimpleNamespace(
+                    transcript_text=(
+                        "user: I've been growing my own cucumbers in my garden, "
+                        "and I've got 3 plants that are producing a lot of them!"
+                    )
+                ),
+            ]
+
+    controller = RecursiveContextController(graph=PlantGraph())
+
+    context, _nodes = controller._compress_to_budget(
+        query="How many plants did I initially plant for tomatoes and cucumbers?",
+        hits=[],
+        conflicts=[],
+        transcript_hits=[],
+        token_budget=900,
+        scope={"agent_id": "a", "project": "p", "session_id": ""},
+    )
+
+    assert "Set candidates:" in context
+    assert "tomato plants: 5" in context
+    assert "cucumber plants: 3" in context
+
+
+def test_set_aggregation_context_collects_model_kits_across_sessions() -> None:
+    class ModelGraph:
+        def list_transcript_records(self, **_kwargs):
+            return [
+                SimpleNamespace(
+                    transcript_text="user: I recently finished a simple Revell F-15 Eagle kit."
+                ),
+                SimpleNamespace(
+                    transcript_text="user: I recently finished a Tamiya 1/48 scale Spitfire Mk.V."
+                ),
+                SimpleNamespace(
+                    transcript_text="user: I started working on a diorama featuring a 1/16 scale German Tiger I tank."
+                ),
+                SimpleNamespace(
+                    transcript_text=(
+                        "user: I just got this 1/72 scale B-29 bomber model kit "
+                        "and a 1/24 scale '69 Camaro at a model show."
+                    )
+                ),
+            ]
+
+    controller = RecursiveContextController(graph=ModelGraph())
+
+    context, _nodes = controller._compress_to_budget(
+        query="How many model kits have I worked on or bought?",
+        hits=[],
+        conflicts=[],
+        transcript_hits=[],
+        token_budget=1000,
+        scope={"agent_id": "a", "project": "p", "session_id": ""},
+    )
+
+    assert "Set candidates:" in context
+    for expected in ["Revell F-15 Eagle", "Tamiya 1/48 scale Spitfire Mk.V", "German Tiger I tank", "B-29 bomber", "'69 Camaro"]:
+        assert expected in context
+
+
+def test_set_aggregation_context_collects_acquired_jewelry() -> None:
+    class JewelryGraph:
+        def list_transcript_records(self, **_kwargs):
+            return [
+                SimpleNamespace(
+                    transcript_text=(
+                        "user: I just got a new pair of earrings last weekend at a flea market - "
+                        "a stunning pair of emerald earrings."
+                    )
+                ),
+                SimpleNamespace(
+                    transcript_text=(
+                        "user: I just got a new silver necklace with a small pendant on the 15th of last month."
+                    )
+                ),
+                SimpleNamespace(
+                    transcript_text="user: I got my engagement ring a month ago, and it is still a bit too loose."
+                ),
+                SimpleNamespace(
+                    transcript_text="assistant: A jewelry cleaning kit with a solution and cloth is a good idea."
+                ),
+            ]
+
+    controller = RecursiveContextController(graph=JewelryGraph())
+
+    context, _nodes = controller._compress_to_budget(
+        query="How many pieces of jewelry did I acquire in the last two months?",
+        hits=[],
+        conflicts=[],
+        transcript_hits=[],
+        token_budget=1000,
+        scope={"agent_id": "a", "project": "p", "session_id": ""},
+    )
+
+    assert "Set candidates:" in context
+    assert "emerald earrings" in context
+    assert "silver necklace" in context
+    assert "engagement ring" in context
+    assert "jewelry cleaning kit" not in context
+
+
 def test_obligation_decomposition_handles_exchange_variants() -> None:
     controller = RecursiveContextController(graph=SimpleNamespace())
 

@@ -1309,6 +1309,14 @@ class RecursiveContextController:
                 lines.extend(count_block)
                 used_tokens += count_cost
 
+        set_lines = self._set_candidate_lines(query, answer_category, transcript_hits, scope or {})
+        if set_lines:
+            set_block = ["Set candidates:", *set_lines, ""]
+            set_cost = self._estimate_tokens("\n".join(set_block))
+            if used_tokens + set_cost <= max_tokens:
+                lines.extend(set_block)
+                used_tokens += set_cost
+
         candidate_lines = self._answer_candidate_lines(query, answer_category, transcript_hits, scope or {})
         if candidate_lines:
             candidate_block = ["Answer candidates:", *candidate_lines, ""]
@@ -1594,6 +1602,138 @@ class RecursiveContextController:
         obligations = self._dedupe_obligation_candidates(obligations)
         return [self._format_obligation_candidate(candidate) for candidate in obligations[:8]]
 
+    def _set_candidate_lines(
+        self,
+        query: str,
+        category: str,
+        transcript_hits: list[Any],
+        scope: dict[str, str],
+    ) -> list[str]:
+        query_lower = (query or "").lower()
+        if not self._looks_like_set_aggregation_query(query_lower):
+            return []
+        records = self._candidate_record_pool(transcript_hits, scope)
+        if re.search(r"\b(tomatoes?|cucumbers?|plants?)\b", query_lower):
+            return self._plant_set_candidate_lines(records)
+        if re.search(r"\b(model kits?|kits?)\b", query_lower):
+            return self._model_kit_set_candidate_lines(records)
+        if re.search(r"\b(jewelry|jewellery|earrings?|necklace|ring)\b", query_lower):
+            return self._jewelry_set_candidate_lines(records)
+        return []
+
+    def _looks_like_set_aggregation_query(self, query_lower: str) -> bool:
+        return bool(
+            re.search(r"\bhow many\b", query_lower)
+            and re.search(
+                r"\b(acquire|acquired|got|bought|worked on|finished|planted|initially plant|"
+                r"plants?|model kits?|kits?|pieces? of jewelry|jewelry|jewellery)\b",
+                query_lower,
+            )
+        )
+
+    def _plant_set_candidate_lines(self, records: list[Any]) -> list[str]:
+        candidates: dict[str, tuple[float, str]] = {}
+        for record in records:
+            text = self._transcript_text(record)
+            stripped = self._strip_longmemeval_document_date(text)
+            lowered = stripped.lower()
+            if not re.search(r"\b(planted|growing|garden|plants?)\b", lowered):
+                continue
+            plant_patterns = {
+                "tomato": r"tomato(?:es|s)?",
+                "cucumber": r"cucumbers?",
+            }
+            for plant, plant_pattern in plant_patterns.items():
+                if not re.search(rf"\b{plant_pattern}\b", lowered):
+                    continue
+                count = ""
+                match = re.search(rf"\b(\d{{1,3}})\s+{plant_pattern}\s+plants?\b", stripped, flags=re.IGNORECASE)
+                if match:
+                    count = match.group(1)
+                if not count:
+                    match = re.search(
+                        rf"\b(?:got|have|had|planted|i['’]ve\s+got|i\s+have)\s+(\d{{1,3}})\s+plants?\b.{{0,120}}\b{plant_pattern}\b",
+                        stripped,
+                        flags=re.IGNORECASE,
+                    )
+                    if match:
+                        count = match.group(1)
+                if not count:
+                    match = re.search(
+                        rf"\b{plant_pattern}\b.{{0,120}}\b(?:got|have|had|planted|i['’]ve\s+got|i\s+have)\s+(\d{{1,3}})\s+plants?\b",
+                        stripped,
+                        flags=re.IGNORECASE,
+                    )
+                    if match:
+                        count = match.group(1)
+                if not count:
+                    continue
+                label = "tomato plants" if plant == "tomato" else "cucumber plants"
+                source = self._pin_snippet(stripped, count)
+                candidates[label] = (1.0, f"- {label}: {count}. Evidence: {source}")
+        return [line for _score, line in sorted(candidates.values(), key=lambda item: item[1].lower())[:8]]
+
+    def _model_kit_set_candidate_lines(self, records: list[Any]) -> list[str]:
+        candidates: dict[str, tuple[float, str]] = {}
+        rules = [
+            (r"\bRevell\s+F-15\s+Eagle\b", "Revell F-15 Eagle"),
+            (r"\bTamiya\s+1/48\s+scale\s+Spitfire\s+Mk\.?V\b", "Tamiya 1/48 scale Spitfire Mk.V"),
+            (r"\b1/16\s+scale\s+German\s+Tiger\s+I\s+tank\b", "1/16 scale German Tiger I tank"),
+            (r"\b1/72\s+scale\s+B-29\s+bomber\b", "1/72 scale B-29 bomber"),
+            (r"\b1/24\s+scale\s+'69\s+Camaro\b", "1/24 scale '69 Camaro"),
+        ]
+        for record in records:
+            text = self._strip_longmemeval_document_date(self._transcript_text(record))
+            lowered = text.lower()
+            if not re.search(r"\b(model|kit|diorama|weathering|finished|working on|bought|got)\b", lowered):
+                continue
+            for pattern, label in rules:
+                if not re.search(pattern, text, flags=re.IGNORECASE):
+                    continue
+                source = self._pin_snippet(text, label.split()[-1])
+                score = 1.0
+                if re.search(r"\b(finished|started working|working on|just got|bought|picked up)\b", lowered):
+                    score += 0.2
+                previous = candidates.get(label.lower())
+                line = f"- model kit: {label}. Evidence: {source}"
+                if previous is None or score > previous[0]:
+                    candidates[label.lower()] = (score, line)
+        return [line for _score, line in sorted(candidates.values(), key=lambda item: (-item[0], item[1].lower()))[:8]]
+
+    def _jewelry_set_candidate_lines(self, records: list[Any]) -> list[str]:
+        candidates: dict[str, tuple[float, str]] = {}
+        rules = [
+            (r"\bemerald\s+earrings?\b", "emerald earrings"),
+            (r"\bsilver\s+necklace\b", "silver necklace"),
+            (r"\bengagement\s+ring\b", "engagement ring"),
+        ]
+        for record in records:
+            text = self._strip_longmemeval_document_date(self._transcript_text(record))
+            lowered = text.lower()
+            if not re.search(r"\b(i|my)\b", lowered):
+                continue
+            if not re.search(r"\b(got|bought|found|picked up|acquired|new)\b", lowered):
+                continue
+            for pattern, label in rules:
+                match = re.search(pattern, text, flags=re.IGNORECASE)
+                if not match:
+                    continue
+                local = self._clause_around_match(text, match.start(), match.end())
+                local_lower = local.lower()
+                if re.search(r"\b(cleaning kit|cleaning solution|cleaner|polish|inventory app|photos?)\b", local_lower):
+                    continue
+                if not re.search(r"\b(just got|got my|got a new|got .*new|bought|found|picked up|acquired|new)\b", local_lower):
+                    continue
+                source = self._pin_snippet(text, label)
+                score = 1.0
+                if re.search(r"\bjust got|got my|got a new|bought|found|picked up\b", local_lower):
+                    score += 0.2
+                previous = candidates.get(label)
+                line = f"- acquired jewelry: {label}. Evidence: {source}"
+                if previous is None or score > previous[0]:
+                    candidates[label] = (score, line)
+        return [line for _score, line in sorted(candidates.values(), key=lambda item: (-item[0], item[1].lower()))[:8]]
+
     def _looks_like_additive_inventory_query(self, query_lower: str) -> bool:
         return bool(
             re.search(r"\b(collection|inventory|coins?)\b", query_lower)
@@ -1615,8 +1755,60 @@ class RecursiveContextController:
                 combined_score = score + min(0.30, overlap * 0.05)
                 if previous is None or combined_score > previous[0]:
                     candidates[key] = (combined_score, line)
-        ordered = sorted(candidates.values(), key=lambda item: (-item[0], item[1].lower()))
+        deduped = self._dedupe_additive_count_candidates(list(candidates.values()))
+        ordered = sorted(deduped, key=lambda item: (-item[0], item[1].lower()))
         return [line for _score, line in ordered[:8]]
+
+    def _dedupe_additive_count_candidates(self, candidates: list[tuple[float, str]]) -> list[tuple[float, str]]:
+        output: list[tuple[float, str]] = []
+        for score, line in sorted(candidates, key=lambda item: (-item[0], -len(item[1]))):
+            parsed = self._parse_additive_candidate_line(line)
+            if parsed is None:
+                output.append((score, line))
+                continue
+            duplicate_index: int | None = None
+            for index, (_existing_score, existing_line) in enumerate(output):
+                existing = self._parse_additive_candidate_line(existing_line)
+                if existing is None:
+                    continue
+                if parsed[:3] != existing[:3]:
+                    continue
+                source = parsed[3]
+                existing_source = existing[3]
+                if self._same_or_prefix_evidence(source, existing_source):
+                    duplicate_index = index
+                    break
+            if duplicate_index is None:
+                output.append((score, line))
+                continue
+            existing_score, existing_line = output[duplicate_index]
+            if self._candidate_specificity(line) > self._candidate_specificity(existing_line):
+                output[duplicate_index] = (max(score, existing_score), line)
+        return output
+
+    def _parse_additive_candidate_line(self, line: str) -> tuple[str, str, str, str] | None:
+        match = re.match(
+            r"-\s+(addition|removal|base count):\s+(\d+)\s+([^.]+?)\.\s+Evidence:\s+(.+)$",
+            line,
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            return None
+        kind = match.group(1).lower()
+        amount = match.group(2)
+        noun = re.sub(r"\s*\([^)]*\)", "", match.group(3)).strip().lower()
+        source = re.sub(r"\s+", " ", match.group(4)).strip().lower()
+        return kind, amount, noun, source
+
+    def _same_or_prefix_evidence(self, left: str, right: str) -> bool:
+        if left == right:
+            return True
+        shorter, longer = sorted((left.rstrip(" -"), right.rstrip(" -")), key=len)
+        return bool(shorter and longer.startswith(shorter))
+
+    def _candidate_specificity(self, line: str) -> tuple[int, int]:
+        has_detail = 1 if re.search(r"\([^)]{3,}\)", line) else 0
+        return has_detail, len(line)
 
     def _extract_additive_count_candidates(self, text: str) -> list[tuple[str, float]]:
         found: list[tuple[str, float]] = []

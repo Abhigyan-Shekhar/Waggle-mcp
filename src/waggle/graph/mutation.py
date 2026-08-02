@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -38,7 +38,9 @@ from waggle.models import (
     DedupCandidatesResult,
     Edge,
     EvidenceRecord,
+    FactKind,
     Node,
+    NormalizedClaim,
     NodeStoreResult,
     NodeType,
     RelationType,
@@ -83,6 +85,14 @@ class MutationMixin(MemoryGraphBase):
         evidence_records: list[EvidenceRecord] | None = None,
         valid_from: datetime | None = None,
         valid_to: datetime | None = None,
+        subject_key: str = "",
+        relation_key: str = "",
+        value_normalized: str = "",
+        fact_kind: FactKind = FactKind.OPEN_WORLD,
+        scope_key: str = "",
+        slot_key: str = "",
+        observed_at: datetime | None = None,
+        claim_confidence: float = 0.0,
         context_window_id: str | None = None,
         embedding: np.ndarray | None = None,
         metadata: dict[str, Any] | None = None,
@@ -103,6 +113,16 @@ class MutationMixin(MemoryGraphBase):
         )
         if embedding_dim <= 0:
             raise ValueError("Node writes require embedding_dim metadata.")
+        normalized_subject = self._normalize_claim_key(subject_key)
+        normalized_relation = self._normalize_claim_key(relation_key)
+        normalized_scope = self._normalize_claim_key(scope_key or project)
+        resolved_slot_key = slot_key.strip()
+        if not resolved_slot_key and normalized_subject and normalized_relation:
+            resolved_slot_key = self._claim_slot_key(
+                subject_key=normalized_subject,
+                relation_key=normalized_relation,
+                scope_key=normalized_scope,
+            )
         node = Node(
             **node_kwargs,
             tenant_id=self.tenant_id,
@@ -122,6 +142,14 @@ class MutationMixin(MemoryGraphBase):
             evidence_records=evidence_records or [],
             valid_from=valid_from,
             valid_to=valid_to,
+            subject_key=normalized_subject,
+            relation_key=normalized_relation,
+            value_normalized=str(value_normalized).strip(),
+            fact_kind=fact_kind,
+            scope_key=normalized_scope,
+            slot_key=resolved_slot_key,
+            observed_at=observed_at,
+            claim_confidence=claim_confidence,
         )
 
         def _insert(active_connection: sqlite3.Connection) -> NodeStoreResult:
@@ -134,6 +162,7 @@ class MutationMixin(MemoryGraphBase):
                         existing_node=existing_node,
                         incoming_node=node,
                     )
+                    self._project_normalized_claim(active_connection, node=merged_node)
                     if merged_node.context_window_id:
                         active_connection.execute(
                             """
@@ -170,9 +199,10 @@ class MutationMixin(MemoryGraphBase):
                     id, tenant_id, agent_id, project, session_id, context_window_id,
                     label, content, node_type, tags, aliases, metadata, embedding, embedding_model_id, embedding_dim,
                     source_prompt, source_turn_pair_id, evidence_records, valid_from, valid_to,
-                    created_at, updated_at, access_count
+                    subject_key, relation_key, value_normalized, fact_kind, scope_key, slot_key,
+                    observed_at, claim_confidence, created_at, updated_at, access_count
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     node.id,
@@ -195,11 +225,20 @@ class MutationMixin(MemoryGraphBase):
                     _encode_evidence_records(node.evidence_records),
                     node.valid_from.isoformat() if node.valid_from is not None else None,
                     node.valid_to.isoformat() if node.valid_to is not None else None,
+                    node.subject_key,
+                    node.relation_key,
+                    node.value_normalized,
+                    node.fact_kind.value,
+                    node.scope_key,
+                    node.slot_key,
+                    node.observed_at.isoformat() if node.observed_at is not None else None,
+                    node.claim_confidence,
                     node.created_at.isoformat(),
                     node.updated_at.isoformat(),
                     node.access_count,
                 ),
             )
+            self._project_normalized_claim(active_connection, node=node)
             self._mark_window_embedding_stale(active_connection, resolved_context_window_id)
             self._update_window_node_count(active_connection, resolved_context_window_id)
             self._mark_communities_stale(active_connection)
@@ -283,7 +322,7 @@ class MutationMixin(MemoryGraphBase):
                 ),
             )
             self._mark_communities_stale(active_connection)
-            if edge.relationship in {RelationType.UPDATES.value, RelationType.CONTRADICTS.value}:
+            if edge.relationship == RelationType.UPDATES.value:
                 self._mark_node_superseded(
                     active_connection, old_node=target_node, new_node=source_node, relationship=edge.relationship
                 )
@@ -375,8 +414,12 @@ class MutationMixin(MemoryGraphBase):
             if winner is not None:
                 losing_id = edge.target_id if winner == edge.source_id else edge.source_id
                 winning_id = winner
-                losing_node = self.get_node(losing_id)
-                winning_node = self.get_node(winning_id)
+                losing_row = self._fetch_node_row(connection, losing_id)
+                winning_row = self._fetch_node_row(connection, winning_id)
+                if losing_row is None or winning_row is None:
+                    raise ValueError("Conflict endpoint disappeared during resolution.")
+                losing_node = self._row_to_node(losing_row)
+                winning_node = self._row_to_node(winning_row)
                 now = utc_now()
                 LOGGER.info(
                     "resolve_conflict: superseding node %s (loser) in favour of %s (winner) via edge %s (%s) at %s",
@@ -386,23 +429,12 @@ class MutationMixin(MemoryGraphBase):
                     edge.relationship,
                     now.isoformat(),
                 )
-                # Set valid_to on the losing node
-                connection.execute(
-                    "UPDATE nodes SET valid_to = ?, updated_at = ? WHERE id = ? AND tenant_id = ?",
-                    (now.isoformat(), now.isoformat(), losing_id, self.tenant_id),
-                )
                 self._mark_node_superseded(
                     connection,
                     old_node=losing_node,
                     new_node=winning_node,
                     relationship=edge.relationship,
-                )
-            else:
-                self._mark_node_superseded(
-                    connection,
-                    old_node=self.get_node(edge.target_id),
-                    new_node=self.get_node(edge.source_id),
-                    relationship=edge.relationship,
+                    effective_at=now,
                 )
             self._mark_communities_stale(connection)
 
@@ -925,6 +957,236 @@ class MutationMixin(MemoryGraphBase):
 
         return result
 
+    def resolve_claim(
+        self,
+        *,
+        claim: NormalizedClaim,
+        label: str,
+        content: str,
+        node_type: NodeType = NodeType.FACT,
+        **kwargs: Any,
+    ) -> NodeStoreResult:
+        """Store a normalized claim and update its deterministic state head.
+
+        The original node remains in the immutable version ledger. Only
+        high-confidence state claims participate in head projection; all other
+        fact kinds are append-only.
+        """
+
+        effective_at = claim.effective_at or claim.observed_at or utc_now()
+        return self.add_node(
+            label=label,
+            content=content,
+            node_type=node_type,
+            subject_key=claim.subject_key,
+            relation_key=claim.relation_key,
+            value_normalized=claim.value_normalized,
+            fact_kind=claim.fact_kind,
+            scope_key=claim.scope_key,
+            valid_from=effective_at,
+            observed_at=claim.observed_at or effective_at,
+            claim_confidence=claim.confidence,
+            **kwargs,
+        )
+
+    def get_state_fact(
+        self,
+        *,
+        subject_key: str,
+        relation_key: str,
+        scope_key: str = "",
+        as_of: datetime | None = None,
+    ) -> Node | None:
+        """Return the active state head, or the version active at ``as_of``."""
+
+        subject = self._normalize_claim_key(subject_key)
+        relation = self._normalize_claim_key(relation_key)
+        scope = self._normalize_claim_key(scope_key)
+        with self._lock, self._pool.checkout() as connection:
+            if as_of is None:
+                row = connection.execute(
+                    """
+                    SELECT n.*
+                    FROM fact_heads fh
+                    JOIN nodes n ON n.id = fh.current_node_id AND n.tenant_id = fh.tenant_id
+                    WHERE fh.tenant_id = ? AND fh.subject_key = ?
+                      AND fh.relation_key = ? AND fh.scope_key = ?
+                    LIMIT 1
+                    """,
+                    (self.tenant_id, subject, relation, scope),
+                ).fetchone()
+            else:
+                at = as_of if as_of.tzinfo is not None else as_of.replace(tzinfo=UTC)
+                slot_key = self._claim_slot_key(
+                    subject_key=subject,
+                    relation_key=relation,
+                    scope_key=scope,
+                )
+                row = connection.execute(
+                    """
+                    SELECT * FROM nodes
+                    WHERE tenant_id = ? AND slot_key = ?
+                      AND (valid_from IS NULL OR valid_from <= ?)
+                      AND (valid_to IS NULL OR valid_to > ?)
+                    ORDER BY valid_from DESC, created_at DESC
+                    LIMIT 1
+                    """,
+                    (self.tenant_id, slot_key, at.isoformat(), at.isoformat()),
+                ).fetchone()
+        return self._row_to_node(row) if row is not None else None
+
+    @staticmethod
+    def _normalize_claim_key(value: str) -> str:
+        return "_".join(part for part in normalize_text(value).replace("-", " ").split() if part)
+
+    def _claim_slot_key(self, *, subject_key: str, relation_key: str, scope_key: str) -> str:
+        return "|".join((self.tenant_id, subject_key, relation_key, scope_key))
+
+    def _project_normalized_claim(self, connection: sqlite3.Connection, *, node: Node) -> None:
+        if node.fact_kind not in {FactKind.STATE_SINGLE, FactKind.STATE_SNAPSHOT}:
+            return
+        if node.claim_confidence < 0.85 or not node.slot_key:
+            return
+
+        effective_at = node.valid_from or node.observed_at or node.created_at
+        if effective_at.tzinfo is None:
+            effective_at = effective_at.replace(tzinfo=UTC)
+        head = connection.execute(
+            """
+            SELECT fh.current_node_id, fh.effective_at, n.value_normalized
+            FROM fact_heads fh
+            JOIN nodes n ON n.id = fh.current_node_id AND n.tenant_id = fh.tenant_id
+            WHERE fh.tenant_id = ? AND fh.subject_key = ? AND fh.relation_key = ? AND fh.scope_key = ?
+            """,
+            (self.tenant_id, node.subject_key, node.relation_key, node.scope_key),
+        ).fetchone()
+        now = utc_now()
+        if head is None:
+            connection.execute(
+                """
+                INSERT INTO fact_heads (
+                    tenant_id, subject_key, relation_key, scope_key,
+                    current_node_id, effective_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    self.tenant_id,
+                    node.subject_key,
+                    node.relation_key,
+                    node.scope_key,
+                    node.id,
+                    effective_at.isoformat(),
+                    now.isoformat(),
+                ),
+            )
+            return
+
+        current_id = str(head["current_node_id"])
+        if current_id == node.id:
+            return
+        current_effective = _parse_datetime(head["effective_at"])
+        same_value = normalize_text(str(head["value_normalized"] or "")) == normalize_text(node.value_normalized)
+        if same_value:
+            metadata = dict(node.metadata)
+            metadata["duplicate_state_of"] = current_id
+            connection.execute(
+                """
+                UPDATE nodes
+                SET valid_to = ?, metadata = ?, updated_at = ?
+                WHERE tenant_id = ? AND id = ?
+                """,
+                (
+                    effective_at.isoformat(),
+                    _encode_metadata(metadata),
+                    now.isoformat(),
+                    self.tenant_id,
+                    node.id,
+                ),
+            )
+            node.valid_to = effective_at
+            node.metadata = metadata
+            return
+
+        if effective_at > current_effective:
+            old_row = self._fetch_node_row(connection, current_id)
+            if old_row is None:
+                raise ValueError(f"Fact head references missing node: {current_id}")
+            old_node = self._row_to_node(old_row)
+            self._mark_node_superseded(
+                connection,
+                old_node=old_node,
+                new_node=node,
+                relationship=RelationType.UPDATES.value,
+                effective_at=effective_at,
+            )
+            if self._find_existing_edge(
+                connection,
+                source_id=node.id,
+                target_id=current_id,
+                relationship=RelationType.UPDATES,
+            ) is None:
+                edge = Edge(
+                    tenant_id=self.tenant_id,
+                    source_id=node.id,
+                    target_id=current_id,
+                    relationship=RelationType.UPDATES.value,
+                    metadata={"origin": "deterministic-state-projection", "slot_key": node.slot_key},
+                )
+                connection.execute(
+                    """
+                    INSERT INTO edges (
+                        id, tenant_id, source_id, target_id, relationship,
+                        weight, metadata, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        edge.id,
+                        edge.tenant_id,
+                        edge.source_id,
+                        edge.target_id,
+                        edge.relationship,
+                        edge.weight,
+                        json.dumps(edge.metadata, sort_keys=True),
+                        edge.created_at.isoformat(),
+                    ),
+                )
+            connection.execute(
+                """
+                UPDATE fact_heads
+                SET current_node_id = ?, effective_at = ?, updated_at = ?
+                WHERE tenant_id = ? AND subject_key = ? AND relation_key = ? AND scope_key = ?
+                """,
+                (
+                    node.id,
+                    effective_at.isoformat(),
+                    now.isoformat(),
+                    self.tenant_id,
+                    node.subject_key,
+                    node.relation_key,
+                    node.scope_key,
+                ),
+            )
+            return
+
+        metadata = dict(node.metadata)
+        metadata["historical_backfill"] = True
+        connection.execute(
+            """
+            UPDATE nodes
+            SET valid_to = ?, metadata = ?, updated_at = ?
+            WHERE tenant_id = ? AND id = ?
+            """,
+            (
+                current_effective.isoformat(),
+                _encode_metadata(metadata),
+                now.isoformat(),
+                self.tenant_id,
+                node.id,
+            ),
+        )
+        node.valid_to = current_effective
+        node.metadata = metadata
+
     def _require_node(self, connection: sqlite3.Connection, node_id: str) -> None:
         if self._fetch_node_row(connection, node_id) is None:
             raise ValueError(f"Node not found: {node_id}")
@@ -974,7 +1236,9 @@ class MutationMixin(MemoryGraphBase):
             rows = connection.execute(
                 f"""
                 SELECT n.id, n.agent_id, n.project, n.session_id, n.context_window_id, n.label, n.content, n.node_type, n.tags, n.source_prompt, n.metadata, n.evidence_records,
-                       n.valid_from, n.valid_to, n.created_at, n.updated_at, n.access_count, n.embedding, n.tenant_id
+                       n.valid_from, n.valid_to, n.subject_key, n.relation_key, n.value_normalized, n.fact_kind,
+                       n.scope_key, n.slot_key, n.observed_at, n.claim_confidence,
+                       n.created_at, n.updated_at, n.access_count, n.embedding, n.tenant_id
                 FROM vec_nodes v
                 JOIN nodes n ON v.rowid = n.rowid
                 WHERE v.embedding MATCH ?
@@ -988,7 +1252,8 @@ class MutationMixin(MemoryGraphBase):
             rows = connection.execute(
                 f"""
                 SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, source_prompt, metadata, evidence_records,
-                       valid_from, valid_to, created_at, updated_at, access_count, embedding, tenant_id
+                       valid_from, valid_to, subject_key, relation_key, value_normalized, fact_kind, scope_key, slot_key,
+                       observed_at, claim_confidence, created_at, updated_at, access_count, embedding, tenant_id
                 FROM nodes
                 WHERE {" AND ".join(filters)}
                 """,
@@ -1190,7 +1455,9 @@ class MutationMixin(MemoryGraphBase):
             """
             UPDATE nodes
             SET agent_id = ?, project = ?, session_id = ?, context_window_id = COALESCE(context_window_id, ?),
-                tags = ?, aliases = ?, metadata = ?, source_prompt = ?, embedding_model_id = ?, embedding_dim = ?, source_turn_pair_id = ?, evidence_records = ?, valid_from = ?, valid_to = ?, updated_at = ?
+                tags = ?, aliases = ?, metadata = ?, source_prompt = ?, embedding_model_id = ?, embedding_dim = ?, source_turn_pair_id = ?, evidence_records = ?, valid_from = ?, valid_to = ?,
+                subject_key = ?, relation_key = ?, value_normalized = ?, fact_kind = ?, scope_key = ?, slot_key = ?,
+                observed_at = ?, claim_confidence = ?, updated_at = ?
             WHERE id = ? AND tenant_id = ?
             """,
             (
@@ -1208,6 +1475,20 @@ class MutationMixin(MemoryGraphBase):
                 _encode_evidence_records(merged_evidence),
                 merged_valid_from.isoformat() if merged_valid_from is not None else None,
                 merged_valid_to.isoformat() if merged_valid_to is not None else None,
+                existing_node.subject_key or incoming_node.subject_key,
+                existing_node.relation_key or incoming_node.relation_key,
+                existing_node.value_normalized or incoming_node.value_normalized,
+                (
+                    incoming_node.fact_kind
+                    if existing_node.fact_kind == FactKind.OPEN_WORLD
+                    else existing_node.fact_kind
+                ).value,
+                existing_node.scope_key or incoming_node.scope_key,
+                existing_node.slot_key or incoming_node.slot_key,
+                (existing_node.observed_at or incoming_node.observed_at).isoformat()
+                if (existing_node.observed_at or incoming_node.observed_at) is not None
+                else None,
+                max(existing_node.claim_confidence, incoming_node.claim_confidence),
                 updated_at.isoformat(),
                 existing_node.id,
                 self.tenant_id,
@@ -1233,6 +1514,18 @@ class MutationMixin(MemoryGraphBase):
             evidence_records=merged_evidence,
             valid_from=merged_valid_from,
             valid_to=merged_valid_to,
+            subject_key=existing_node.subject_key or incoming_node.subject_key,
+            relation_key=existing_node.relation_key or incoming_node.relation_key,
+            value_normalized=existing_node.value_normalized or incoming_node.value_normalized,
+            fact_kind=(
+                incoming_node.fact_kind
+                if existing_node.fact_kind == FactKind.OPEN_WORLD
+                else existing_node.fact_kind
+            ),
+            scope_key=existing_node.scope_key or incoming_node.scope_key,
+            slot_key=existing_node.slot_key or incoming_node.slot_key,
+            observed_at=existing_node.observed_at or incoming_node.observed_at,
+            claim_confidence=max(existing_node.claim_confidence, incoming_node.claim_confidence),
             created_at=existing_node.created_at,
             updated_at=updated_at,
             access_count=existing_node.access_count,
@@ -1505,9 +1798,6 @@ class MutationMixin(MemoryGraphBase):
                         edge.created_at.isoformat(),
                     ),
                 )
-                self._mark_node_superseded(
-                    connection, old_node=existing_node, new_node=node, relationship=edge.relationship
-                )
             conflicts.append(
                 ConflictRecord(
                     other_node_id=existing_node.id,
@@ -1524,14 +1814,23 @@ class MutationMixin(MemoryGraphBase):
         old_node: Node,
         new_node: Node,
         relationship: str,
+        effective_at: datetime | None = None,
     ) -> None:
+        boundary = effective_at or new_node.valid_from or new_node.observed_at or utc_now()
+        if boundary.tzinfo is None:
+            boundary = boundary.replace(tzinfo=UTC)
         metadata = dict(old_node.metadata)
         metadata["superseded_by"] = new_node.id
-        metadata["superseded_at"] = utc_now().isoformat()
+        metadata["superseded_at"] = boundary.isoformat()
         metadata["superseded_relationship"] = relationship
         connection.execute(
-            "UPDATE nodes SET metadata = ?, updated_at = ? WHERE id = ? AND tenant_id = ?",
+            """
+            UPDATE nodes
+            SET valid_to = ?, metadata = ?, updated_at = ?
+            WHERE id = ? AND tenant_id = ?
+            """,
             (
+                boundary.isoformat(),
                 _encode_metadata(metadata),
                 metadata["superseded_at"],
                 old_node.id,

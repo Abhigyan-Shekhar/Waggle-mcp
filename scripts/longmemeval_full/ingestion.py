@@ -168,6 +168,7 @@ def _ingest_session_messages(
     if they were a normal live conversation pair.
     """
     observe_results: list[dict[str, Any]] = []
+    observed_at = _parse_document_date(document_date)
     prefixed_date = False
     index = 0
     while index < len(messages):
@@ -191,6 +192,7 @@ def _ingest_session_messages(
                 agent_id=agent_id,
                 session_id=session_id,
                 derive_window_edges=derive_window_edges,
+                observed_at=observed_at,
             )
             observe_results.append(_observe_result_summary(result))
             index = next_index + 1
@@ -203,6 +205,7 @@ def _ingest_session_messages(
             project=project,
             agent_id=agent_id,
             session_id=session_id,
+            observed_at=observed_at,
         )
         observe_results.append(
             {
@@ -250,6 +253,7 @@ def _store_transcript_only_message(
     project: str,
     agent_id: str,
     session_id: str,
+    observed_at: datetime | None = None,
 ) -> None:
     with graph._lock, contextlib.closing(graph._connect()) as connection:
         turn_index = graph._next_transcript_turn_index(
@@ -264,7 +268,7 @@ def _store_transcript_only_message(
                 agent_id=agent_id,
                 project=project,
                 session_id=session_id,
-                observed_at=datetime.now(UTC),
+                observed_at=observed_at or datetime.now(UTC),
                 turn_index=turn_index,
                 role=role,
                 transcript_text=text,
@@ -274,6 +278,24 @@ def _store_transcript_only_message(
         except Exception:
             connection.rollback()
             raise
+
+
+def _parse_document_date(value: str) -> datetime | None:
+    match = re.search(
+        r"(?P<year>\d{4})/(?P<month>\d{1,2})/(?P<day>\d{1,2})"
+        r"(?:\s+\([^)]+\))?(?:\s+(?P<hour>\d{1,2}):(?P<minute>\d{2}))?",
+        value or "",
+    )
+    if not match:
+        return None
+    return datetime(
+        int(match.group("year")),
+        int(match.group("month")),
+        int(match.group("day")),
+        int(match.group("hour") or 0),
+        int(match.group("minute") or 0),
+        tzinfo=UTC,
+    )
 
 
 def _derive_case_window_edges(graph: Any, *, project: str, progress: bool, case_id: str) -> None:

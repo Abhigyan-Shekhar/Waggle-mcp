@@ -19,7 +19,7 @@ from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 _entry_points = importlib.metadata.entry_points
@@ -101,6 +101,7 @@ from waggle.models import (
     ContextWindowEdge,
     Edge,
     EvidenceRecord,
+    FactKind,
     GraphDiffResult,
     ImportResult,
     MarkdownVaultExportResult,
@@ -117,7 +118,8 @@ from waggle.models import (
     TenantRecord,
     utc_now,
 )
-from waggle.retrieval.hybrid import HybridRetrievalConfig, HybridRetriever
+if TYPE_CHECKING:
+    from waggle.retrieval.hybrid import HybridRetrievalConfig, HybridRetriever
 
 from .base import (
     EMBEDDING_BLOB_MAGIC as EMBEDDING_BLOB_MAGIC,
@@ -222,9 +224,29 @@ CREATE TABLE IF NOT EXISTS nodes (
     evidence_records TEXT DEFAULT '[]',
     valid_from TEXT DEFAULT NULL,
     valid_to TEXT DEFAULT NULL,
+    subject_key TEXT DEFAULT '',
+    relation_key TEXT DEFAULT '',
+    value_normalized TEXT DEFAULT '',
+    fact_kind TEXT DEFAULT 'open_world',
+    scope_key TEXT DEFAULT '',
+    slot_key TEXT DEFAULT '',
+    observed_at TEXT DEFAULT NULL,
+    claim_confidence REAL DEFAULT 0.0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     access_count INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS fact_heads (
+    tenant_id TEXT NOT NULL,
+    subject_key TEXT NOT NULL,
+    relation_key TEXT NOT NULL,
+    scope_key TEXT NOT NULL DEFAULT '',
+    current_node_id TEXT NOT NULL,
+    effective_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, subject_key, relation_key, scope_key),
+    FOREIGN KEY (current_node_id) REFERENCES nodes(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS repos (
@@ -387,6 +409,9 @@ CREATE INDEX IF NOT EXISTS idx_transcripts_tenant_turn_pair ON transcript_record
 CREATE INDEX IF NOT EXISTS idx_transcripts_tenant_project ON transcript_records(tenant_id, project);
 CREATE INDEX IF NOT EXISTS idx_transcripts_tenant_agent ON transcript_records(tenant_id, agent_id);
 CREATE INDEX IF NOT EXISTS idx_nodes_source_turn_pair ON nodes(tenant_id, source_turn_pair_id);
+CREATE INDEX IF NOT EXISTS idx_nodes_slot_validity ON nodes(tenant_id, slot_key, valid_from, valid_to);
+CREATE INDEX IF NOT EXISTS idx_nodes_fact_kind ON nodes(tenant_id, fact_kind);
+CREATE INDEX IF NOT EXISTS idx_fact_heads_current ON fact_heads(tenant_id, current_node_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_tenant ON api_keys(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
 CREATE INDEX IF NOT EXISTS idx_repos_tenant_name ON repos(tenant_id, name);
@@ -539,6 +564,8 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         export_dir: str | Path | None = None,
         api_key_environment: str = "test",
     ) -> None:
+        from waggle.retrieval.hybrid import HybridRetrievalConfig
+
         self.db_path = Path(db_path).expanduser()
         self.embedding_model = embedding_model
         self.tenant_id = tenant_id.strip() or "local-default"
@@ -596,7 +623,14 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         return self
 
     def hybrid_retriever(self) -> HybridRetriever:
+        from waggle.retrieval.hybrid import HybridRetriever
+
         return HybridRetriever(self, config=self.hybrid_retrieval_config)
+
+    def temporal_slot_retriever(self):
+        from waggle.retrieval.temporal_slots import TemporalSlotRetriever
+
+        return TemporalSlotRetriever(self)
 
     def close(self) -> None:
         """Close pooled SQLite connections owned by this graph.
@@ -1402,6 +1436,22 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             connection.execute("ALTER TABLE nodes ADD COLUMN valid_from TEXT DEFAULT NULL")
         if "valid_to" not in node_columns:
             connection.execute("ALTER TABLE nodes ADD COLUMN valid_to TEXT DEFAULT NULL")
+        if "subject_key" not in node_columns:
+            connection.execute("ALTER TABLE nodes ADD COLUMN subject_key TEXT DEFAULT ''")
+        if "relation_key" not in node_columns:
+            connection.execute("ALTER TABLE nodes ADD COLUMN relation_key TEXT DEFAULT ''")
+        if "value_normalized" not in node_columns:
+            connection.execute("ALTER TABLE nodes ADD COLUMN value_normalized TEXT DEFAULT ''")
+        if "fact_kind" not in node_columns:
+            connection.execute("ALTER TABLE nodes ADD COLUMN fact_kind TEXT DEFAULT 'open_world'")
+        if "scope_key" not in node_columns:
+            connection.execute("ALTER TABLE nodes ADD COLUMN scope_key TEXT DEFAULT ''")
+        if "slot_key" not in node_columns:
+            connection.execute("ALTER TABLE nodes ADD COLUMN slot_key TEXT DEFAULT ''")
+        if "observed_at" not in node_columns:
+            connection.execute("ALTER TABLE nodes ADD COLUMN observed_at TEXT DEFAULT NULL")
+        if "claim_confidence" not in node_columns:
+            connection.execute("ALTER TABLE nodes ADD COLUMN claim_confidence REAL DEFAULT 0.0")
         if "agent_id" not in node_columns:
             connection.execute("ALTER TABLE nodes ADD COLUMN agent_id TEXT DEFAULT ''")
         if "project" not in node_columns:
@@ -1422,6 +1472,21 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         if "tenant_id" not in edge_columns:
             connection.execute(f"ALTER TABLE edges ADD COLUMN tenant_id TEXT NOT NULL DEFAULT '{self.tenant_id}'")
             connection.execute("UPDATE edges SET tenant_id = ? WHERE tenant_id = ''", (self.tenant_id,))
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS fact_heads (
+                tenant_id TEXT NOT NULL,
+                subject_key TEXT NOT NULL,
+                relation_key TEXT NOT NULL,
+                scope_key TEXT NOT NULL DEFAULT '',
+                current_node_id TEXT NOT NULL,
+                effective_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (tenant_id, subject_key, relation_key, scope_key),
+                FOREIGN KEY (current_node_id) REFERENCES nodes(id) ON DELETE CASCADE
+            )
+            """
+        )
         transcript_columns = {
             row["name"] for row in connection.execute("PRAGMA table_info(transcript_records)").fetchall()
         }
@@ -1471,6 +1536,13 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         )
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_nodes_source_turn_pair ON nodes(tenant_id, source_turn_pair_id)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_nodes_slot_validity ON nodes(tenant_id, slot_key, valid_from, valid_to)"
+        )
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_nodes_fact_kind ON nodes(tenant_id, fact_kind)")
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_fact_heads_current ON fact_heads(tenant_id, current_node_id)"
         )
 
         self._backfill_transcript_storage(connection, batch_size=100)
@@ -4200,6 +4272,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         return connection.execute(
             """
             SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, aliases, source_prompt, embedding_model_id, embedding_dim, source_turn_pair_id, metadata, evidence_records, valid_from, valid_to,
+                   subject_key, relation_key, value_normalized, fact_kind, scope_key, slot_key, observed_at, claim_confidence,
                    created_at, updated_at, access_count, embedding, tenant_id
             FROM nodes
             WHERE id = ? AND tenant_id = ?
@@ -4218,6 +4291,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         rows = connection.execute(
             f"""
             SELECT id, agent_id, project, session_id, context_window_id, label, content, node_type, tags, aliases, source_prompt, embedding_model_id, embedding_dim, source_turn_pair_id, metadata, evidence_records, valid_from, valid_to,
+                   subject_key, relation_key, value_normalized, fact_kind, scope_key, slot_key, observed_at, claim_confidence,
                    created_at, updated_at, access_count, tenant_id
             FROM nodes
             WHERE tenant_id = ? AND id IN ({placeholders})
@@ -4251,6 +4325,18 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             else [],
             valid_from=_parse_datetime(row["valid_from"]) if "valid_from" in row_keys and row["valid_from"] else None,
             valid_to=_parse_datetime(row["valid_to"]) if "valid_to" in row_keys and row["valid_to"] else None,
+            subject_key=row["subject_key"] if "subject_key" in row_keys else "",
+            relation_key=row["relation_key"] if "relation_key" in row_keys else "",
+            value_normalized=row["value_normalized"] if "value_normalized" in row_keys else "",
+            fact_kind=FactKind(row["fact_kind"] or FactKind.OPEN_WORLD.value)
+            if "fact_kind" in row_keys
+            else FactKind.OPEN_WORLD,
+            scope_key=row["scope_key"] if "scope_key" in row_keys else "",
+            slot_key=row["slot_key"] if "slot_key" in row_keys else "",
+            observed_at=_parse_datetime(row["observed_at"])
+            if "observed_at" in row_keys and row["observed_at"]
+            else None,
+            claim_confidence=float(row["claim_confidence"] or 0.0) if "claim_confidence" in row_keys else 0.0,
             created_at=_parse_datetime(row["created_at"]),
             updated_at=_parse_datetime(row["updated_at"]),
             access_count=int(row["access_count"] or 0),

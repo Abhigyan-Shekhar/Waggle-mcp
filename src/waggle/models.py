@@ -41,6 +41,23 @@ class RelationType(StrEnum):
     SIMILAR_TO = "similar_to"
 
 
+class FactKind(StrEnum):
+    """Storage semantics for a normalized memory claim.
+
+    State claims participate in deterministic version projection. Events,
+    preferences, sets, derived values, and uncertain open-world claims remain
+    append-only so repeated mentions cannot destroy aggregation evidence.
+    """
+
+    STATE_SINGLE = "state_single"
+    STATE_SNAPSHOT = "state_snapshot"
+    STATE_SET = "state_set"
+    EVENT = "event"
+    PREFERENCE = "preference"
+    DERIVED = "derived"
+    OPEN_WORLD = "open_world"
+
+
 def normalize_relationship(value: Any) -> str:
     if isinstance(value, RelationType):
         return value.value
@@ -72,6 +89,14 @@ class Node(BaseModel):
     evidence_records: list[EvidenceRecord] = Field(default_factory=list)
     valid_from: datetime | None = None
     valid_to: datetime | None = None
+    subject_key: str = ""
+    relation_key: str = ""
+    value_normalized: str = ""
+    fact_kind: FactKind = FactKind.OPEN_WORLD
+    scope_key: str = ""
+    slot_key: str = ""
+    observed_at: datetime | None = None
+    claim_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
     access_count: int = 0
@@ -112,6 +137,20 @@ class Node(BaseModel):
         text = str(value).strip()
         return text or None
 
+    @field_validator(
+        "subject_key",
+        "relation_key",
+        "value_normalized",
+        "scope_key",
+        "slot_key",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_claim_text(cls, value: Any) -> str:
+        if value is None:
+            return ""
+        return str(value).strip()
+
     @field_validator("tags", mode="before")
     @classmethod
     def _normalize_tags(cls, value: Any) -> list[str]:
@@ -150,6 +189,36 @@ class EvidenceRecord(BaseModel):
 
 
 Node.model_rebuild()
+
+
+class NormalizedClaim(BaseModel):
+    """Atomic claim extracted from an immutable source episode."""
+
+    subject_key: str
+    relation_key: str
+    value_normalized: str
+    fact_kind: FactKind = FactKind.OPEN_WORLD
+    scope_key: str = ""
+    effective_at: datetime | None = None
+    observed_at: datetime | None = None
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    source_episode_id: str = ""
+    source_span: str = ""
+
+    @field_validator(
+        "subject_key",
+        "relation_key",
+        "value_normalized",
+        "scope_key",
+        "source_episode_id",
+        "source_span",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_text(cls, value: Any) -> str:
+        if value is None:
+            return ""
+        return str(value).strip()
 
 
 class Edge(BaseModel):

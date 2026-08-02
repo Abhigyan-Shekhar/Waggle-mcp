@@ -11,8 +11,10 @@ from scripts.longmemeval_full.conditions import (
     FLAT_TRANSCRIPT_VECTOR,
     GRAPH_GUIDED_CONTEXT,
     GRAPH_NODES_ONLY,
+    MEM0_CONTEXT,
     ORACLE_ANSWER_TURN_CONTEXT,
     PRODUCTION_CONTEXT,
+    TEMPORAL_SLOT_CONTEXT,
     ConditionConfig,
     flat_transcript_vector,
     graph_guided_transcript_context,
@@ -24,7 +26,9 @@ from scripts.longmemeval_full.conditions import (
 )
 from scripts.longmemeval_full.fixtures import capability_fixtures
 from scripts.longmemeval_full.ingestion import build_case_graph
-from scripts.longmemeval_full.run import DeterministicEmbeddingModel, build_result_row
+from scripts.longmemeval_full.run import DeterministicEmbeddingModel, build_reader_prompt, build_result_row
+from scripts.longmemeval_external.export_mem0_contexts import mem0_config
+from scripts import run_longmemeval_waggle_phase as legacy
 
 
 class FakeTranscriptHit:
@@ -63,6 +67,10 @@ class FakeGraph:
         self.search_calls.append(kwargs)
         return [FakeTranscriptHit()]
 
+    def prime_context(self, **_kwargs):
+        self.prime_calls += 1
+        return SimpleNamespace(nodes=[FakeNode("prime-node")], edges=[])
+
     def query(self, **kwargs):
         self.query_calls.append(kwargs)
         return SimpleNamespace(nodes=[FakeNode()], edges=[FakeEdge()], hybrid_hits=[], fusion_hits=[])
@@ -79,13 +87,78 @@ class FakeGraph:
             "fused_top20": [],
         }
 
-    def prime_context(self, **kwargs):
-        self.prime_calls += 1
-        return SimpleNamespace(nodes=[FakeNode("prime-node", "primed project fact")])
-
     def get_related(self, *args, **kwargs):
         self.related_calls += 1
         return SimpleNamespace(nodes=[FakeNode("related-node", "related evidence")], edges=[FakeEdge()])
+
+    def temporal_slot_retriever(self):
+        evidence = SimpleNamespace(
+            evidence_id="slot-evidence-1",
+            content="The current value is two free nights.",
+            slot="current_value",
+            node_ids=("node-current",),
+            turn_pair_id="turn-current",
+            score=0.91,
+            source="node",
+            observed_at=None,
+        )
+        slot = SimpleNamespace(
+            name="current_value",
+            query="current free nights",
+            required=True,
+            collect_all=False,
+            max_items=3,
+        )
+        result = SimpleNamespace(
+            plan=SimpleNamespace(
+                query_type=SimpleNamespace(value="current_state"),
+                operation=None,
+                temporal_scope="current",
+                confidence=0.94,
+                slots=[slot],
+            ),
+            assembled=SimpleNamespace(
+                per_slot={"current_value": [evidence]},
+                calculation=None,
+                missing_slots=(),
+                dropped_duplicates=(),
+            ),
+            context=SimpleNamespace(
+                text="Current value: two free nights.",
+                estimated_tokens=8,
+                missing_slots=(),
+            ),
+            retrieval_trace={"current_value": {"candidate_count": 1}},
+        )
+        return SimpleNamespace(retrieve=lambda **_kwargs: result)
+
+
+def test_reader_prompt_includes_explicit_question_date() -> None:
+    prompt = build_reader_prompt(
+        {
+            "question": "How many days ago did I attend the Maundy Thursday service?",
+            "question_date": "2023/04/10 (Mon) 10:28",
+        },
+        "Evidence says the Maundy Thursday service was on 2023/04/06.",
+    )
+
+    assert "Question date: 2023/04/10 (Mon) 10:28" in prompt
+    assert prompt.index("Question date:") < prompt.index("Memory Evidence:")
+
+
+def test_judge_prompt_preserves_numeric_gold_answer() -> None:
+    prompt = legacy._judge_prompt(
+        {
+            "question_id": "numeric_gold",
+            "question_type": "knowledge-update",
+            "question": "How many followers do I have on Instagram now?",
+            "answer": 1300,
+        },
+        "You have 1300 followers on Instagram now.",
+    )
+
+    assert "Correct Answer: 1300" in prompt
+    assert "Correct Answer: \n\nModel Response:" not in prompt
 
 
 class FakeController:
@@ -227,6 +300,78 @@ def test_external_jsonl_context_preserves_itemized_context(tmp_path) -> None:
     assert [item.item_id for item in result.context_items] == ["edge-1", "edge-2"]
 
 
+def test_mem0_context_uses_first_class_cache(tmp_path) -> None:
+    cache_path = tmp_path / "mem0_contexts.jsonl"
+    cache_path.write_text(
+        json.dumps(
+            {
+                "case_id": "case-1",
+                "system": "mem0_context",
+                "context_items": [
+                    {
+                        "item_id": "mem0-hit-1",
+                        "item_type": "mem0_memory",
+                        "text": "Mem0 retrieved the current value: two free nights.",
+                        "metadata": {"session_id": "s2", "score": 0.72},
+                    }
+                ],
+                "retrieval_mode": "mem0_context:mem0_oss_raw_huggingface_all-MiniLM-L6-v2_qdrant",
+                "adapter_notes": ["Mem0 OSS cache"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = run_condition(
+        MEM0_CONTEXT,
+        case(),
+        case_graph(),
+        config=ConditionConfig(reader_context_budget=128, mem0_context_path=cache_path),
+    )
+
+    assert result.condition == MEM0_CONTEXT
+    assert "two free nights" in result.context
+    assert result.retrieved_transcript_ids == []
+    assert result.retrieval_mode.endswith("all-MiniLM-L6-v2_qdrant")
+    assert "Mem0 OSS cache" in result.adapter_notes
+
+
+def test_mem0_context_accepts_existing_mem0_export_system_name(tmp_path) -> None:
+    cache_path = tmp_path / "legacy_mem0_contexts.jsonl"
+    cache_path.write_text(
+        json.dumps(
+            {
+                "case_id": "case-1",
+                "system": "mem0_oss_raw",
+                "context": "Legacy mem0 export still works.",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = run_condition(
+        MEM0_CONTEXT,
+        case(),
+        case_graph(),
+        config=ConditionConfig(reader_context_budget=128, mem0_context_path=cache_path),
+    )
+
+    assert result.condition == MEM0_CONTEXT
+    assert "Legacy mem0 export" in result.context
+
+
+def test_mem0_oss_config_defaults_to_minilm_huggingface_qdrant(tmp_path) -> None:
+    config = mem0_config("case-1", tmp_path, infer=False)
+
+    assert config["embedder"]["provider"] == "huggingface"
+    assert config["embedder"]["config"]["model"] == "all-MiniLM-L6-v2"
+    assert config["embedder"]["config"]["embedding_dims"] == 384
+    assert config["vector_store"]["provider"] == "qdrant"
+    assert config["vector_store"]["config"]["embedding_model_dims"] == 384
+
+
 def test_graph_guided_condition_reproduces_old_context_path(monkeypatch: pytest.MonkeyPatch) -> None:
     called = {}
 
@@ -263,6 +408,28 @@ def test_production_context_calls_hybrid_query_and_build_context() -> None:
     assert FakeController.calls[0]["token_budget"] == 128
     assert result.retrieved_node_ids == ["node-1"]
     assert result.retrieved_edge_ids == ["edge-1"]
+
+
+def test_temporal_slot_context_uses_compiled_context_and_preserves_provenance() -> None:
+    graph = FakeGraph()
+    result = run_condition(
+        TEMPORAL_SLOT_CONTEXT,
+        case(),
+        case_graph(graph),
+        config=ConditionConfig(reader_context_budget=128),
+    )
+
+    assert result.condition == TEMPORAL_SLOT_CONTEXT
+    assert result.context == "Current value: two free nights."
+    assert result.retrieval_mode == "temporal_slot_hybrid_compact"
+    assert result.retrieved_node_ids == ["node-current"]
+    assert result.retrieved_transcript_ids == ["turn-current"]
+    assert [item.item_type for item in result.context_items] == [
+        "compiled_evidence_context",
+        "temporal_slot_evidence",
+    ]
+    assert result.tool_trace[0]["query_plan"]["slots"][0]["name"] == "current_value"
+    assert result.tool_trace[0]["selected_per_slot"] == {"current_value": ["slot-evidence-1"]}
 
 
 def test_context_budget_is_enforced_for_production_context() -> None:

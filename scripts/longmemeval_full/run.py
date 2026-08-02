@@ -24,7 +24,7 @@ if str(ROOT / "scripts") not in sys.path:
 from scripts import plan_longmemeval_run
 from scripts import run_longmemeval_waggle_phase as legacy
 
-from .conditions import ALL_CONDITIONS, ConditionConfig, normalize_condition, run_condition
+from .conditions import ALL_CONDITIONS, MEM0_CONTEXT, ConditionConfig, normalize_condition, run_condition
 from .context_builder import token_estimate
 from .fixtures import capability_fixtures
 from .ingestion import DEFAULT_AGENT_ID, build_case_graph, case_id_for
@@ -92,14 +92,25 @@ def main(argv: list[str] | None = None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     cases, dataset_meta = load_cases(args)
+    if args.case_ids:
+        cases = select_cases(cases, args.case_ids)
     if args.limit:
         cases = cases[: max(0, args.limit)]
+    if MEM0_CONTEXT in conditions and args.mem0_context_cache_path is None:
+        args.mem0_context_cache_path = output_dir / "mem0_contexts.jsonl"
     config_payload = {
         "dataset": args.dataset,
         "dataset_path": str(args.dataset_path or ""),
         "dataset_sha": dataset_meta["dataset_sha"],
         "conditions": conditions,
+        "case_ids": args.case_ids,
         "reader_context_budget": args.reader_context_budget,
+        "embedding_model": args.embedding_model,
+        "embedding_model_id": (
+            DeterministicEmbeddingModel.model_id
+            if args.embedding_model == "deterministic"
+            else "all-MiniLM-L6-v2"
+        ),
         "context_assembly_safety_margin_tokens": CONTEXT_ASSEMBLY_SAFETY_MARGIN_TOKENS,
         "retrieval_limit": args.retrieval_limit,
         "max_tool_calls": args.max_tool_calls,
@@ -113,6 +124,14 @@ def main(argv: list[str] | None = None) -> int:
         "git_commit": git_commit(),
         "pricing_config": str(args.pricing_config or ""),
         "external_context_path": str(args.external_context_path or ""),
+        "mem0_context_cache_path": str(args.mem0_context_cache_path or ""),
+        "force_rebuild_mem0_cache": args.force_rebuild_mem0_cache,
+        "mem0_infer": args.mem0_infer,
+        "mem0_max_turn_chars": args.mem0_max_turn_chars,
+        "mem0_per_item_budget": args.mem0_per_item_budget,
+        "mem0_embedder_provider": args.mem0_embedder_provider,
+        "mem0_embedder_model": args.mem0_embedder_model,
+        "mem0_embedding_dims": args.mem0_embedding_dims,
         "graph_cache_dir": str(args.graph_cache_dir or ""),
         "force_rebuild_graph_cache": args.force_rebuild_graph_cache,
         "defer_window_edges": args.defer_window_edges,
@@ -144,14 +163,27 @@ def main(argv: list[str] | None = None) -> int:
     judge_rows: list[dict[str, Any]] = load_jsonl(output_dir / "judge_requests.jsonl")
     completed_pairs = {(str(row.get("case_id")), str(row.get("condition"))) for row in result_rows}
     pricing = load_pricing_config(args.pricing_config)
+    mem0_context_cache_path = prepare_mem0_context_cache(args, cases, output_dir, conditions)
 
     condition_config = ConditionConfig(
         reader_context_budget=max(1, args.reader_context_budget - CONTEXT_ASSEMBLY_SAFETY_MARGIN_TOKENS),
         retrieval_limit=args.retrieval_limit,
         max_tool_calls=args.max_tool_calls,
         external_context_path=args.external_context_path,
+        mem0_context_path=mem0_context_cache_path,
     )
-    embedding_model = DeterministicEmbeddingModel() if args.dry_run else load_real_embedding_model()
+    has_pending_pairs = any(
+        (case_id_for(case, index), condition) not in completed_pairs
+        for index, case in enumerate(cases)
+        for condition in conditions
+    )
+    embedding_model = None
+    if has_pending_pairs:
+        embedding_model = (
+            DeterministicEmbeddingModel()
+            if args.embedding_model == "deterministic"
+            else load_real_embedding_model()
+        )
 
     for index, case in enumerate(cases):
         case_id = case_id_for(case, index)
@@ -260,10 +292,21 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--dataset-path", type=Path, default=None)
     parser.add_argument("--conditions", default="flat_transcript_vector,waggle_production_context")
     parser.add_argument("--reader-context-budget", type=int, default=4096)
+    parser.add_argument(
+        "--embedding-model",
+        choices=["deterministic", "real"],
+        default="deterministic",
+        help="Use deterministic embeddings for harness tests or Waggle's local embedding model for scientific runs.",
+    )
     parser.add_argument("--retrieval-limit", type=int, default=10)
     parser.add_argument("--max-tool-calls", type=int, default=6)
     parser.add_argument("--output-dir", default="runs/longmemeval/full-capability")
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument(
+        "--case-ids",
+        default="",
+        help="Comma-separated case IDs to run, in dataset order. Fails if any requested ID is absent.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--allow-paid", action="store_true")
     parser.add_argument("--reader-model", default=DEFAULT_READER_MODEL)
@@ -277,6 +320,23 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         default=None,
         help="JSONL context export used by external_jsonl:<system> conditions.",
     )
+    parser.add_argument(
+        "--mem0-context-cache-path",
+        type=Path,
+        default=None,
+        help="JSONL cache for the first-class mem0_context condition. Defaults to output-dir/mem0_contexts.jsonl.",
+    )
+    parser.add_argument("--force-rebuild-mem0-cache", action="store_true")
+    parser.add_argument(
+        "--mem0-infer",
+        action="store_true",
+        help="Use Mem0 LLM extraction during add(). Default stores raw turns with infer=False for local/cost parity.",
+    )
+    parser.add_argument("--mem0-max-turn-chars", type=int, default=1800)
+    parser.add_argument("--mem0-per-item-budget", type=int, default=700)
+    parser.add_argument("--mem0-embedder-provider", default="huggingface")
+    parser.add_argument("--mem0-embedder-model", default="all-MiniLM-L6-v2")
+    parser.add_argument("--mem0-embedding-dims", type=int, default=384)
     parser.add_argument("--graph-cache-dir", type=Path, default=None)
     parser.add_argument("--force-rebuild-graph-cache", action="store_true")
     parser.add_argument("--keep-graph-cache", action="store_true")
@@ -294,6 +354,21 @@ def expand_conditions(raw: str) -> list[str]:
     if not names or names == ["all"]:
         return list(ALL_CONDITIONS)
     return names
+
+
+def select_cases(cases: list[dict[str, Any]], raw_case_ids: str) -> list[dict[str, Any]]:
+    requested = [item.strip() for item in raw_case_ids.split(",") if item.strip()]
+    requested_set = set(requested)
+    selected = [
+        case
+        for index, case in enumerate(cases)
+        if case_id_for(case, index) in requested_set
+    ]
+    selected_ids = {case_id_for(case, index) for index, case in enumerate(selected)}
+    missing = [case_id for case_id in requested if case_id not in selected_ids]
+    if missing:
+        raise ValueError(f"requested case IDs not found in dataset: {', '.join(missing)}")
+    return selected
 
 
 def cleanup_case_graph_cache(cache_dir: str | Path, case_id: str) -> None:
@@ -318,6 +393,67 @@ def load_cases(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str
         cases = built_in_stress_v2_fixture()
         return cases, {"dataset_sha": stable_json_sha(cases), "source": "built_in_stress_v2_fixture"}
     raise ValueError(f"{args.dataset} requires --dataset-path in this implementation")
+
+
+def prepare_mem0_context_cache(
+    args: argparse.Namespace,
+    cases: list[dict[str, Any]],
+    output_dir: Path,
+    conditions: list[str],
+) -> Path | None:
+    if MEM0_CONTEXT not in conditions:
+        return None
+    cache_path = args.mem0_context_cache_path or (output_dir / "mem0_contexts.jsonl")
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    if args.force_rebuild_mem0_cache and cache_path.exists():
+        cache_path.unlink()
+
+    existing_rows = load_jsonl(cache_path)
+    completed_case_ids = {
+        str(row.get("case_id") or "")
+        for row in existing_rows
+        if str(row.get("system") or "") in {MEM0_CONTEXT, "mem0", "mem0_oss_raw"}
+    }
+    missing = [
+        (index, case)
+        for index, case in enumerate(cases)
+        if case_id_for(case, index) not in completed_case_ids
+    ]
+    if not missing:
+        return cache_path
+
+    try:
+        from scripts.longmemeval_external import export_mem0_contexts
+    except Exception as exc:
+        raise RuntimeError(
+            "mem0_context requires the Mem0 OSS adapter. Install optional dependencies with `pip install -e .[mem0]` "
+            "or provide a completed --mem0-context-cache-path."
+        ) from exc
+
+    with cache_path.open("a", encoding="utf-8") as handle:
+        for index, case in missing:
+            started = time.perf_counter()
+            row = export_mem0_contexts.export_case(
+                case,
+                case_index=index,
+                system=MEM0_CONTEXT,
+                top_k=max(1, args.retrieval_limit),
+                infer=args.mem0_infer,
+                max_turn_chars=args.mem0_max_turn_chars,
+                per_item_budget=args.mem0_per_item_budget,
+                embedder_provider=args.mem0_embedder_provider,
+                embedder_model=args.mem0_embedder_model,
+                embedding_dims=args.mem0_embedding_dims,
+            )
+            row.setdefault("metadata", {})["cache_latency_ms"] = round((time.perf_counter() - started) * 1000, 3)
+            handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+            handle.flush()
+            print(
+                f"cached mem0_context {row['case_id']} items={len(row.get('context_items') or [])}",
+                file=sys.stderr,
+                flush=True,
+            )
+    return cache_path
 
 
 def built_in_stress_v2_fixture() -> list[dict[str, Any]]:
@@ -418,7 +554,7 @@ def build_result_row(
         "reader_temperature": 0,
         "primary_judge_model": config["primary_judge_model"],
         "secondary_judge_model": config["secondary_judge_model"],
-        "embedding_model": DeterministicEmbeddingModel.model_id if dry_run else "configured-real-embedding-model",
+        "embedding_model": config.get("embedding_model_id", DeterministicEmbeddingModel.model_id),
         "retrieval_mode": condition_result.retrieval_mode,
         "context_budget": config["reader_context_budget"],
         "tool_budget": config["max_tool_calls"],
@@ -448,10 +584,13 @@ def build_result_row(
 
 
 def build_reader_prompt(case: dict[str, Any], context: str) -> str:
+    question_date = str(case.get("question_date") or case.get("questionDate") or "").strip()
+    question_date_line = f"Question date: {question_date}\n" if question_date else ""
     return (
         "Answer using only the supplied memory evidence. Prefer currently valid information. "
         "Preserve exact wording when requested. Do not invent unsupported details.\n\n"
         f"Question: {legacy._question(case)}\n\n"
+        f"{question_date_line}"
         f"Memory Evidence:\n{context}\n\n"
         "Answer:"
     )
