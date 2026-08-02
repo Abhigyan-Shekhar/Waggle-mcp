@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import sys
 import tempfile
 import threading
@@ -984,8 +985,13 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     db_path = str(Path(str(getattr(args, "db_path", "") or resolve_default_db_path())).expanduser())
     host = str(getattr(args, "host", "127.0.0.1") or "127.0.0.1").strip()
     port = int(getattr(args, "port", 8080) or 8080)
+    local_base_url = f"http://{host}:{port}"
+    tunnel_url = str(getattr(args, "tunnel_url", "https://<user-owned-tunnel-domain>") or "").strip()
+    tunnel_url = tunnel_url.rstrip("/") or "https://<user-owned-tunnel-domain>"
+    tunnel_provider = str(getattr(args, "tunnel_provider", "generic") or "generic").strip()
     key_name = str(getattr(args, "key_name", "claude-self-hosted") or "claude-self-hosted").strip()
-    _parse_api_key_scopes(str(getattr(args, "scopes", "graph:read,graph:write") or "graph:read,graph:write"))
+    scopes = _parse_api_key_scopes(str(getattr(args, "scopes", "graph:read,graph:write") or "graph:read,graph:write"))
+    scopes_arg = ",".join(scopes) or "graph:read,graph:write"
     if bool(getattr(args, "create_key", False)):
         print("`--create-key` is deprecated for this guide; use the create-api-key command below.")
         print()
@@ -999,9 +1005,9 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print(f"WAGGLE_DEFAULT_TENANT_ID={tenant_id} \\")
     print(f"WAGGLE_DB_PATH={db_path} \\")
     print("waggle-mcp create-api-key \\")
-    print(f"  --tenant-id {tenant_id} \\")
-    print(f"  --name {key_name} \\")
-    print("  --scopes graph:read,graph:write")
+    print(f"  --tenant-id {shlex.quote(tenant_id)} \\")
+    print(f"  --name {shlex.quote(key_name)} \\")
+    print(f"  --scopes {shlex.quote(scopes_arg)}")
     print("```")
     print()
     print("2. Start the local HTTP server")
@@ -1009,9 +1015,9 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print("```bash")
     print("WAGGLE_TRANSPORT=http \\")
     print("WAGGLE_BACKEND=sqlite \\")
-    print(f"WAGGLE_DEFAULT_TENANT_ID={tenant_id} \\")
-    print(f"WAGGLE_DB_PATH={db_path} \\")
-    print(f"WAGGLE_HTTP_HOST={host} \\")
+    print(f"WAGGLE_DEFAULT_TENANT_ID={shlex.quote(tenant_id)} \\")
+    print(f"WAGGLE_DB_PATH={shlex.quote(db_path)} \\")
+    print(f"WAGGLE_HTTP_HOST={shlex.quote(host)} \\")
     print(f"WAGGLE_HTTP_PORT={port} \\")
     print("WAGGLE_API_KEY_ENVIRONMENT=local \\")
     print("waggle-mcp serve --transport http")
@@ -1020,20 +1026,43 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print("3. Health checks")
     print()
     print("```bash")
-    print("curl http://<local-host>:<port>/health/live")
-    print("curl http://<local-host>:<port>/health/ready")
+    print(f"curl {shlex.quote(local_base_url + '/health/live')}")
+    print(f"curl {shlex.quote(local_base_url + '/health/ready')}")
     print("```")
     print()
-    print("4. Tunnel routes")
+    print("4. Tunnel")
+    print()
+    tunnel_command = _claude_self_host_tunnel_command(tunnel_provider, local_base_url, port)
+    if tunnel_command:
+        print("```bash")
+        print(tunnel_command)
+        print("```")
+        print()
+    print("Tunnel routes:")
     print()
     print("```text")
-    print("https://<user-owned-tunnel-domain>/mcp -> http://<local-host>:<port>/mcp")
-    print("https://<user-owned-tunnel-domain>/health/live -> http://<local-host>:<port>/health/live")
-    print("https://<user-owned-tunnel-domain>/health/ready -> http://<local-host>:<port>/health/ready")
+    print(f"{tunnel_url}/mcp -> {local_base_url}/mcp")
+    print(f"{tunnel_url}/health/live -> {local_base_url}/health/live")
+    print(f"{tunnel_url}/health/ready -> {local_base_url}/health/ready")
     print("```")
+    print()
+    print("5. Claude connector")
+    print()
+    print(f"Server URL: {tunnel_url}/mcp")
+    print("Authorization: Bearer <raw_api_key from step 1>")
     print()
     print("Docs: docs/claude-self-hosted-connector.md")
     return 0
+
+
+def _claude_self_host_tunnel_command(provider: str, local_base_url: str, port: int) -> str:
+    if provider == "cloudflare":
+        return f"cloudflared tunnel --url {shlex.quote(local_base_url)}"
+    if provider == "ngrok":
+        return f"ngrok http {shlex.quote(local_base_url)}"
+    if provider == "tailscale":
+        return f"tailscale funnel {port}"
+    return ""
 
 
 def _normalize_pull_strategy_args(
@@ -1100,7 +1129,16 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
                 "scopes": created.record.scopes,
             },
         )
-        print(json.dumps({"created": True}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "created": True,
+                    "raw_api_key": created.raw_api_key,
+                    "api_key": _serialize_api_key_record(created.record),
+                },
+                indent=2,
+            )
+        )
         return 0
     if args.command == "list-api-keys":
         print(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -10,7 +11,7 @@ import pytest
 from starlette.testclient import TestClient
 
 import waggle
-from waggle.auth import api_key_from_headers, hash_api_key, verify_api_key
+from waggle.auth import api_key_from_headers, api_key_prefix, hash_api_key, legacy_api_key_hash, verify_api_key
 from waggle.config import AppConfig
 from waggle.errors import (
     AuthenticationError,
@@ -119,6 +120,47 @@ def test_api_key_record_tracks_prefix_and_last_used(tmp_path: Path) -> None:
 
     assert authenticated.prefix == created.record.prefix
     assert authenticated.last_used_at is not None
+
+
+def test_legacy_sha256_api_key_record_authenticates_and_rehashes(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    raw_key = "sk_test_legacy.secret"
+    legacy_hash = legacy_api_key_hash(raw_key)
+    graph.ensure_tenant("tenant-http")
+    with graph._lock, graph._connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO api_keys (
+                api_key_id, tenant_id, key_hash, prefix, name, status, created_at, scopes
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "legacy-key",
+                "tenant-http",
+                legacy_hash,
+                legacy_hash[:16],
+                "legacy",
+                "active",
+                datetime.now(UTC).isoformat(),
+                json.dumps(["graph:read"]),
+            ),
+        )
+
+    authenticated = graph.authenticate_api_key(raw_key)
+
+    assert authenticated.api_key_id == "legacy-key"
+    assert authenticated.prefix == api_key_prefix(raw_key)
+    assert authenticated.key_hash != legacy_hash
+    assert authenticated.key_hash.startswith("pbkdf2_sha256$")
+    assert verify_api_key(raw_key, authenticated.key_hash) is True
+    with graph._lock, graph._connect() as connection:
+        stored = connection.execute(
+            "SELECT key_hash, prefix FROM api_keys WHERE api_key_id = ?",
+            ("legacy-key",),
+        ).fetchone()
+    assert stored["key_hash"] == authenticated.key_hash
+    assert stored["prefix"] == api_key_prefix(raw_key)
 
 
 def test_expired_api_key_is_rejected(tmp_path: Path) -> None:
@@ -361,6 +403,46 @@ def test_http_app_health_auth_and_metrics(tmp_path: Path) -> None:
 
     audit_events = graph.for_tenant("tenant-http").list_audit_events(limit=10, event_type="api_key.used")
     assert audit_events[0].api_key_id == created.record.api_key_id
+
+
+def test_http_bearer_auth_upgrades_legacy_sha256_api_key(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    raw_key = "sk_test_legacy_http.secret"
+    legacy_hash = legacy_api_key_hash(raw_key)
+    graph.ensure_tenant("tenant-http")
+    with graph._lock, graph._connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO api_keys (
+                api_key_id, tenant_id, key_hash, prefix, name, status, created_at, scopes
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "legacy-http-key",
+                "tenant-http",
+                legacy_hash,
+                legacy_hash[:16],
+                "legacy http",
+                "active",
+                datetime.now(UTC).isoformat(),
+                json.dumps(["graph:read"]),
+            ),
+        )
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/mcp",
+            json={"jsonrpc": "2.0", "id": "1", "method": "tools/list", "params": {}},
+            headers={"Authorization": f"Bearer {raw_key}", "accept": "application/json, text/event-stream"},
+        )
+
+    assert response.status_code == 200
+    authenticated = graph.authenticate_api_key(raw_key)
+    assert authenticated.key_hash.startswith("pbkdf2_sha256$")
+    assert authenticated.prefix == api_key_prefix(raw_key)
 
 
 def test_http_app_rate_limit_and_payload_limit(tmp_path: Path) -> None:

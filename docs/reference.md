@@ -449,7 +449,7 @@ WAGGLE_NEO4J_USERNAME=neo4j WAGGLE_NEO4J_PASSWORD=change-me \
   waggle-mcp migrate-sqlite --db-path ./memory.db --tenant-id workspace-a
 ```
 
-`create-api-key` returns the raw key once along with non-secret metadata such as the key `prefix`, `expires_at`, `created_by`, and `scopes`. `list-api-keys` deliberately omits `key_hash` and returns only redacted administrative fields so keys can be rotated and audited without exposing the stored verifier.
+`create-api-key` returns `raw_api_key` exactly once along with non-secret metadata such as the key `prefix`, `expires_at`, `created_by`, and `scopes`. Store the raw key before closing the terminal; Waggle stores only a one-way verifier and cannot recover it later. `list-api-keys` deliberately omits `key_hash` and returns only redacted administrative fields so keys can be rotated and audited without exposing the stored verifier. API-key records created before the salted PBKDF2 verifier format are accepted once with their legacy SHA-256 verifier and are rewritten to the current verifier format after successful authentication.
 `retention-status` and `set-retention` manage the per-tenant retention policy. `prune-retention` deletes aged graph records, transcript records, and old files in the configured export directory, then stores a prune summary you can inspect with `list-retention-runs`.
 `list-audit-events` queries the append-only audit stream for a tenant, with filters for event type, actor, resource, and status.
 

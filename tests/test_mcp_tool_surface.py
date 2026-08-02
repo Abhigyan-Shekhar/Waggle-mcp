@@ -97,6 +97,13 @@ def test_all_tools_have_claude_directory_annotations(mcp_surface):
             )
 
 
+def test_export_visualization_tools_are_not_read_only(mcp_surface):
+    tools = {tool.name: tool for tool in mcp_surface._dispatcher.list_tools()}
+
+    assert tools["export_graph_html"].annotations["read_only_hint"] is False
+    assert tools["window_graph_viz"].annotations["read_only_hint"] is False
+
+
 # ── Tool list surface ──────────────────────────────────────────────────────────
 
 

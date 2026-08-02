@@ -7,6 +7,7 @@ from waggle.auth import (
     api_key_prefix,
     generate_api_key,
     hash_api_key,
+    legacy_api_key_hash,
     normalize_api_key_environment,
     principal_from_record,
     verify_api_key,
@@ -98,6 +99,14 @@ def test_verify_api_key_failure():
     hashed = hash_api_key("correct")
 
     assert verify_api_key("wrong", hashed) is False
+
+
+def test_verify_api_key_accepts_legacy_sha256_record():
+    raw = "sk_test_legacy.secret"
+    legacy_hash = legacy_api_key_hash(raw)
+
+    assert verify_api_key(raw, legacy_hash) is True
+    assert verify_api_key("wrong", legacy_hash) is False
 
 
 @pytest.mark.parametrize(

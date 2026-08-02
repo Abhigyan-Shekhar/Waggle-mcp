@@ -27,8 +27,6 @@ READ_ONLY_TOOLS = frozenset(
         "prime_context",
         "get_topics",
         "get_stats",
-        "export_graph_html",
-        "window_graph_viz",
         "diff",
         "grep",
         "load_abhi_chunks",

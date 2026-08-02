@@ -46,7 +46,7 @@ Print the setup commands for your machine:
 waggle-mcp claude-self-host
 ```
 
-Create the local API key in the same step:
+The deprecated `--create-key` compatibility flag prints the same guide and points to the `create-api-key` command:
 
 ```bash
 waggle-mcp claude-self-host --create-key
@@ -55,9 +55,9 @@ waggle-mcp claude-self-host --create-key
 Provider examples:
 
 ```bash
-waggle-mcp claude-self-host --tunnel-provider cloudflare
-waggle-mcp claude-self-host --tunnel-provider ngrok
-waggle-mcp claude-self-host --tunnel-provider tailscale
+waggle-mcp claude-self-host --tunnel-provider cloudflare --tunnel-url https://waggle.example.com
+waggle-mcp claude-self-host --tunnel-provider ngrok --tunnel-url https://waggle.example.ngrok.app
+waggle-mcp claude-self-host --tunnel-provider tailscale --tunnel-url https://your-device.tailnet.ts.net
 ```
 
 Common options:
@@ -117,6 +117,8 @@ waggle-mcp create-api-key \
   --name claude-self-hosted \
   --scopes graph:read,graph:write
 ```
+
+The command prints `raw_api_key` exactly once. Store that value in your password manager or secret store before closing the terminal. Waggle stores only a verifier and cannot recover the raw key later.
 
 Waggle accepts the generated key in either form:
 

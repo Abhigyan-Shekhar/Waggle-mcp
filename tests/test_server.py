@@ -774,9 +774,18 @@ def test_create_and_list_api_keys_cli_redacts_hash(tmp_path: Path, capsys: pytes
     create_payload = json.loads(capsys.readouterr().out)
 
     assert exit_code == 0
-    assert create_payload == {"created": True}
-    assert "raw_api_key" not in create_payload
+    assert create_payload["created"] is True
+    assert create_payload["raw_api_key"].startswith("sk_test_")
+    assert create_payload["api_key"]["prefix"] == create_payload["raw_api_key"].split(".", 1)[0]
+    assert create_payload["api_key"]["created_by"] == "ops@example.com"
+    assert create_payload["api_key"]["expires_at"] is not None
+    assert create_payload["api_key"]["scopes"] == ["graph:read", "graph:write", "admin:read", "admin:write"]
     assert "key_hash" not in create_payload
+    assert "key_hash" not in create_payload["api_key"]
+    assert (
+        app.graph.for_tenant("workspace-a").authenticate_api_key(create_payload["raw_api_key"]).api_key_id
+        == (create_payload["api_key"]["api_key_id"])
+    )
 
     list_args = SimpleNamespace(command="list-api-keys", tenant_id="workspace-a")
     exit_code = _run_admin_command(app.config, list_args)
@@ -807,8 +816,11 @@ def test_claude_self_host_guide_prints_sqlite_setup(capsys: pytest.CaptureFixtur
     assert "WAGGLE_BACKEND=sqlite" in output
     assert f"WAGGLE_DB_PATH={Path('/tmp/waggle.db')}" in output
     assert "waggle-mcp create-api-key" in output
+    assert "--scopes graph:read,graph:write" in output
     assert "waggle-mcp serve --transport http" in output
-    assert "https://<user-owned-tunnel-domain>/mcp" in output
+    assert "ngrok http http://127.0.0.1:18080" in output
+    assert "https://waggle.example.test/mcp -> http://127.0.0.1:18080/mcp" in output
+    assert "Server URL: https://waggle.example.test/mcp" in output
     assert "Docs: docs/claude-self-hosted-connector.md" in output
 
 
@@ -837,6 +849,7 @@ def test_claude_self_host_guide_can_create_api_key(
     assert exit_code == 0
     assert "`--create-key` is deprecated for this guide" in output
     assert "waggle-mcp create-api-key" in output
+    assert "--scopes graph:read" in output
     assert "X-API-Key: sk_local_" not in output
     assert "Authorization: Bearer sk_local_" not in output
     assert "Docs: docs/claude-self-hosted-connector.md" in output
@@ -860,10 +873,14 @@ def test_create_api_key_cli_uses_configured_live_prefix(tmp_path: Path, capsys: 
     create_payload = json.loads(capsys.readouterr().out)
 
     assert exit_code == 0
-    assert create_payload == {"created": True}
+    assert create_payload["created"] is True
+    assert create_payload["raw_api_key"].startswith("sk_live_")
+    assert create_payload["api_key"]["prefix"] == create_payload["raw_api_key"].split(".", 1)[0]
     listed = app.graph.for_tenant("workspace-a").list_api_keys("workspace-a")
     assert listed[0].prefix.startswith("sk_live_")
-    assert "raw_api_key" not in create_payload
+    assert app.graph.for_tenant("workspace-a").authenticate_api_key(create_payload["raw_api_key"]).prefix == (
+        listed[0].prefix
+    )
 
 
 def test_retention_admin_commands_update_and_prune(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -922,8 +939,13 @@ def test_audit_events_are_queryable_from_admin_cli(tmp_path: Path, capsys: pytes
     )
     exit_code = _run_admin_command(app.config, create_args)
     assert exit_code == 0
-    assert json.loads(capsys.readouterr().out) == {"created": True}
+    create_payload = json.loads(capsys.readouterr().out)
+    assert create_payload["created"] is True
+    assert create_payload["raw_api_key"].startswith("sk_test_")
     created_key = app.graph.for_tenant("workspace-a").list_api_keys("workspace-a")[0]
+    assert app.graph.for_tenant("workspace-a").authenticate_api_key(create_payload["raw_api_key"]).api_key_id == (
+        created_key.api_key_id
+    )
 
     audit_args = SimpleNamespace(
         command="list-audit-events",

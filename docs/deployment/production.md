@@ -187,8 +187,10 @@ waggle-mcp create-api-key --tenant-id workspace-a --name "prod-agent" \
 ```
 
 3. Store the issued key in your secret manager.
-4. Configure clients to send it in `X-API-Key`.
+4. Configure clients to send it in `X-API-Key` or `Authorization: Bearer`.
 5. Rotate by issuing a new key, updating clients, then revoking the old key.
+
+`create-api-key` prints the raw key only once. Existing SHA-256 API-key records from pre-upgrade installations continue to authenticate and are rewritten to the current salted PBKDF2 verifier format after their first successful use.
 
 Available admin metadata:
 

@@ -12,6 +12,7 @@ from waggle.models import ApiKeyRecord
 
 _API_KEY_HASH_ALGORITHM = "pbkdf2_sha256"
 _API_KEY_HASH_ITERATIONS = 600_000
+_LEGACY_SHA256_HEX_LENGTH = 64
 
 
 def api_key_from_headers(headers: object) -> str:
@@ -50,7 +51,18 @@ def hash_api_key(raw_api_key: str) -> str:
     return f"{_API_KEY_HASH_ALGORITHM}${_API_KEY_HASH_ITERATIONS}${encoded_salt}${encoded}"
 
 
+def legacy_api_key_hash(raw_api_key: str) -> str:
+    return hashlib.sha256(raw_api_key.encode("utf-8")).hexdigest()
+
+
+def is_legacy_api_key_hash(expected_hash: str) -> bool:
+    value = str(expected_hash or "").strip()
+    return len(value) == _LEGACY_SHA256_HEX_LENGTH and all(character in "0123456789abcdef" for character in value)
+
+
 def verify_api_key(raw_api_key: str, expected_hash: str) -> bool:
+    if is_legacy_api_key_hash(expected_hash):
+        return hmac.compare_digest(legacy_api_key_hash(raw_api_key), expected_hash)
     try:
         algorithm, iterations_raw, encoded_salt, expected_digest = expected_hash.split("$", 3)
         if algorithm != _API_KEY_HASH_ALGORITHM:
