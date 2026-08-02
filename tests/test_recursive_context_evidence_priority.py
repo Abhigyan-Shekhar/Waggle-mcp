@@ -468,9 +468,7 @@ def test_pinned_lane_unspecified_current_record_prefers_newer_count() -> None:
     current = SimpleNamespace(
         role="user",
         observed_at=datetime(2023, 6, 30, tzinfo=UTC),
-        transcript_snippet=(
-            "user: Our volleyball team, the Net Ninjas, is doing well with a 5-2 record."
-        ),
+        transcript_snippet=("user: Our volleyball team, the Net Ninjas, is doing well with a 5-2 record."),
     )
 
     lines, _nodes, _keys, _ids = controller._pinned_fact_section(
@@ -490,9 +488,7 @@ def test_pinned_lane_record_query_rejects_unrelated_date_ranges() -> None:
     noisy = SimpleNamespace(
         role="user",
         observed_at=datetime(2023, 7, 15, tzinfo=UTC),
-        transcript_snippet=(
-            "user: My friend is living in Paris and I'd like to visit her within the next 3-4 months."
-        ),
+        transcript_snippet=("user: My friend is living in Paris and I'd like to visit her within the next 3-4 months."),
     )
     relevant = SimpleNamespace(
         role="user",
@@ -522,9 +518,7 @@ def test_pinned_lane_count_query_rejects_unrelated_durations() -> None:
     relevant = SimpleNamespace(
         role="user",
         observed_at=datetime(2023, 7, 1, tzinfo=UTC),
-        transcript_snippet=(
-            "user: With the new road bike from my brother, I'll actually have four bikes now."
-        ),
+        transcript_snippet=("user: With the new road bike from my brother, I'll actually have four bikes now."),
     )
 
     lines, _nodes, _keys, _ids = controller._pinned_fact_section(
@@ -544,10 +538,7 @@ def test_pinned_lane_ignores_document_date_numbers_for_numeric_fact() -> None:
     stale = SimpleNamespace(
         role="user",
         observed_at=datetime(2026, 8, 2, tzinfo=UTC),
-        transcript_snippet=(
-            "[documentDate: 2023/05/25 (Thu) 05:26] "
-            "user: I've got 1250 followers on Instagram now."
-        ),
+        transcript_snippet=("[documentDate: 2023/05/25 (Thu) 05:26] user: I've got 1250 followers on Instagram now."),
     )
     current = SimpleNamespace(
         role="user",
@@ -1098,9 +1089,7 @@ def test_count_query_context_extracts_base_count_plus_addition() -> None:
         conflicts=[],
         transcript_hits=[
             SimpleNamespace(
-                transcript_snippet=(
-                    "user: I have a total of 37 coins in my pre-1920 American coin collection."
-                )
+                transcript_snippet=("user: I have a total of 37 coins in my pre-1920 American coin collection.")
             ),
             SimpleNamespace(
                 transcript_snippet=(

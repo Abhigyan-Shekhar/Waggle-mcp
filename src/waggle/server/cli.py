@@ -830,16 +830,22 @@ def _build_parser() -> argparse.ArgumentParser:
             "can answer repository-context questions immediately. Source files are not scanned by default."
         ),
     )
-    bootstrap_cmd.add_argument("path", nargs="?", default=".", help="Repository path to bootstrap. Default: current directory.")
+    bootstrap_cmd.add_argument(
+        "path", nargs="?", default=".", help="Repository path to bootstrap. Default: current directory."
+    )
     bootstrap_cmd.add_argument("--project", default="", help="Project scope name. Default: repository folder name.")
     bootstrap_cmd.add_argument("--agent-id", default="waggle-bootstrap")
     bootstrap_cmd.add_argument("--session-id", default="repository-bootstrap")
     bootstrap_cmd.add_argument("--db", default="", help="Database path. Default: WAGGLE_DB_PATH or ~/.waggle/waggle.db")
-    bootstrap_cmd.add_argument("--model", default="", help="Embedding model override. Use deterministic for fast local bootstrap.")
+    bootstrap_cmd.add_argument(
+        "--model", default="", help="Embedding model override. Use deterministic for fast local bootstrap."
+    )
     bootstrap_cmd.add_argument("--max-files", type=int, default=DEFAULT_MAX_FILES)
     bootstrap_cmd.add_argument("--max-file-bytes", type=int, default=DEFAULT_MAX_FILE_BYTES)
     bootstrap_cmd.add_argument("--include-git", action=argparse.BooleanOptionalAction, default=True)
-    bootstrap_cmd.add_argument("--dry-run", action="store_true", help="Show what would be stored without writing memory.")
+    bootstrap_cmd.add_argument(
+        "--dry-run", action="store_true", help="Show what would be stored without writing memory."
+    )
 
     search_cmd = subparsers.add_parser(
         "search",
@@ -854,7 +860,9 @@ def _build_parser() -> argparse.ArgumentParser:
     search_cmd.add_argument("--agent-id", default="", help="Agent/client scope filter.")
     search_cmd.add_argument("--session-id", default="", help="Session scope filter.")
     search_cmd.add_argument("--db", default="", help="Database path. Default: WAGGLE_DB_PATH or ~/.waggle/waggle.db")
-    search_cmd.add_argument("--model", default="", help="Embedding model override. Use deterministic for fast local search.")
+    search_cmd.add_argument(
+        "--model", default="", help="Embedding model override. Use deterministic for fast local search."
+    )
     search_cmd.add_argument("--max-nodes", type=int, default=8)
     search_cmd.add_argument("--max-depth", type=int, default=2)
     search_cmd.add_argument("--mode", choices=["graph", "verbatim", "hybrid"], default="hybrid")
@@ -866,7 +874,9 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Inspect node/edge counts, memory scopes, node types, and recent memories from the terminal.",
     )
     stats_cmd.add_argument("--db", default="", help="Database path. Default: WAGGLE_DB_PATH or ~/.waggle/waggle.db")
-    stats_cmd.add_argument("--model", default="", help="Embedding model override. Use deterministic for fast local stats.")
+    stats_cmd.add_argument(
+        "--model", default="", help="Embedding model override. Use deterministic for fast local stats."
+    )
     stats_cmd.add_argument("--json", "--as-json", dest="json_output", action="store_true")
 
     timeline_cmd = subparsers.add_parser(
@@ -880,7 +890,9 @@ def _build_parser() -> argparse.ArgumentParser:
     timeline_cmd.add_argument("--query", default="", help="Focus timeline around memories matching a query.")
     timeline_cmd.add_argument("--node-id", default="", help="Focus timeline around one node and its related graph.")
     timeline_cmd.add_argument("--db", default="", help="Database path. Default: WAGGLE_DB_PATH or ~/.waggle/waggle.db")
-    timeline_cmd.add_argument("--model", default="", help="Embedding model override. Use deterministic for fast local timeline.")
+    timeline_cmd.add_argument(
+        "--model", default="", help="Embedding model override. Use deterministic for fast local timeline."
+    )
     timeline_cmd.add_argument("--limit", type=int, default=12)
     timeline_cmd.add_argument("--max-depth", type=int, default=2)
     timeline_cmd.add_argument(
@@ -901,8 +913,12 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     inspect_node_cmd.add_argument("node_id", help="Memory node ID.")
-    inspect_node_cmd.add_argument("--db", default="", help="Database path. Default: WAGGLE_DB_PATH or ~/.waggle/waggle.db")
-    inspect_node_cmd.add_argument("--model", default="", help="Embedding model override. Use deterministic for fast local inspect.")
+    inspect_node_cmd.add_argument(
+        "--db", default="", help="Database path. Default: WAGGLE_DB_PATH or ~/.waggle/waggle.db"
+    )
+    inspect_node_cmd.add_argument(
+        "--model", default="", help="Embedding model override. Use deterministic for fast local inspect."
+    )
     inspect_node_cmd.add_argument("--max-depth", type=int, default=1)
     inspect_node_cmd.add_argument("--full", action=argparse.BooleanOptionalAction, default=False)
     inspect_node_cmd.add_argument("--json", "--as-json", dest="json_output", action="store_true")

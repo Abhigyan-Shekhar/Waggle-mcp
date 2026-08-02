@@ -150,9 +150,7 @@ def test_store_node_and_stats_tool(tmp_path: Path) -> None:
     assert "Context windows: 1" in stats_result.content[0].text
 
 
-def test_handle_tool_call_emits_safe_telemetry_boundary(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_handle_tool_call_emits_safe_telemetry_boundary(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     captured: list[dict[str, object]] = []
     app = make_app(tmp_path)
     monkeypatch.setattr(
