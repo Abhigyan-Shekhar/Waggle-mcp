@@ -52,6 +52,8 @@ def hash_api_key(raw_api_key: str) -> str:
 
 
 def legacy_api_key_hash(raw_api_key: str) -> str:
+    # Legacy verifier compatibility only; successful auth rewrites records to PBKDF2.
+    # lgtm[py/weak-sensitive-data-hashing]
     return hashlib.sha256(raw_api_key.encode("utf-8")).hexdigest()
 
 
