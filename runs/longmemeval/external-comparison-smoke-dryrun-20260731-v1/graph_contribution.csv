@@ -1,4 +1,0 @@
-case_id,condition,nodes,edges,transcripts
-stress_v2_fixture_001,waggle_production_context,2,0,0
-stress_v2_fixture_001,external_jsonl:mem0_smoke,0,0,0
-stress_v2_fixture_001,external_jsonl:graphiti_smoke,0,0,0

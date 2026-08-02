@@ -1,3 +1,0 @@
-condition,rows,qa_correct,avg_context_tokens,avg_tool_calls
-external_jsonl:mempalace,9,5,3884.78,0.0
-waggle_production_context,9,9,2580.78,2.0

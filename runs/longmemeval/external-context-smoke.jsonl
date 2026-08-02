@@ -1,2 +1,0 @@
-{"case_id": "stress_v2_fixture_001", "system": "mem0_smoke", "context": "External memory context: the confirmed current Hilton value is two free nights, not one.", "retrieval_mode": "mem0_smoke_retrieval", "adapter_notes": ["smoke fixture only; not a real external system run"]}
-{"case_id": "stress_v2_fixture_001", "system": "graphiti_smoke", "context": "External memory context: the confirmed current Hilton value is two free nights, not one.", "retrieval_mode": "graphiti_smoke_retrieval", "adapter_notes": ["smoke fixture only; not a real external system run"]}

@@ -1,5 +1,0 @@
-conditions:
-  - waggle_agentic_mcp
-reader_context_budget: 4096
-retrieval_limit: 10
-max_tool_calls: 6

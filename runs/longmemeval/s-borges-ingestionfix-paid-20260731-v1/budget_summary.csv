@@ -1,2 +1,0 @@
-case_id,condition,context_budget,final_context_tokens,within_budget
-58470ed2,waggle_production_context,3900,2772,True
