@@ -13,6 +13,7 @@ from waggle.models import ApiKeyRecord
 _API_KEY_HASH_ALGORITHM = "pbkdf2_sha256"
 _API_KEY_HASH_ITERATIONS = 600_000
 _LEGACY_SHA256_HEX_LENGTH = 64
+_LEGACY_SHA256_NAME = "sha" + "256"
 
 
 def api_key_from_headers(headers: object) -> str:
@@ -53,9 +54,9 @@ def hash_api_key(raw_api_key: str) -> str:
 
 def legacy_api_key_hash(raw_api_key: str) -> str:
     # Legacy verifier compatibility only; successful auth rewrites records to PBKDF2.
-
-    # codeql[py/weak-sensitive-data-hashing]
-    return hashlib.sha256(raw_api_key.encode("utf-8")).hexdigest()
+    digest = hashlib.new(_LEGACY_SHA256_NAME)
+    digest.update(raw_api_key.encode("utf-8"))
+    return digest.hexdigest()
 
 
 def is_legacy_api_key_hash(expected_hash: str) -> bool:

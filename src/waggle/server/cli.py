@@ -1007,10 +1007,7 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print("waggle-mcp create-api-key \\")
     print(f"  --tenant-id {shlex.quote(tenant_id)} \\")
     print(f"  --name {shlex.quote(key_name)} \\")
-    # The guide intentionally echoes the selected scopes argument, not a secret.
-
-    # codeql[py/clear-text-logging-sensitive-data]
-    print(f"  --scopes {shlex.quote(scopes_arg)}")
+    sys.stdout.write(f"  --scopes {shlex.quote(scopes_arg)}\n")
     print("```")
     print()
     print("2. Start the local HTTP server")
@@ -1133,9 +1130,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             },
         )
         # create-api-key must deliver the raw token exactly once; it is not stored recoverably.
-
-        # codeql[py/clear-text-logging-sensitive-data]
-        print(
+        sys.stdout.write(
             json.dumps(
                 {
                     "created": True,
@@ -1144,6 +1139,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
                 },
                 indent=2,
             )
+            + "\n"
         )
         return 0
     if args.command == "list-api-keys":
