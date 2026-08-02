@@ -76,6 +76,14 @@ from .drive import _require_drive_sync
 
 LOGGER = logging.getLogger(__name__)
 
+
+def _write_stdout_line(value: str) -> None:
+    stdout = sys.stdout
+    write = type(stdout).write
+    write(stdout, value)
+    write(stdout, "\n")
+
+
 _KNOWN_CONFIG_PATHS: list[tuple[str, str]] = [
     ("Claude Desktop (macOS/Linux)", "~/.config/claude/claude_desktop_config.json"),
     ("Claude Desktop (macOS alt)", "~/Library/Application Support/Claude/claude_desktop_config.json"),
@@ -991,7 +999,7 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     tunnel_provider = str(getattr(args, "tunnel_provider", "generic") or "generic").strip()
     key_name = str(getattr(args, "key_name", "claude-self-hosted") or "claude-self-hosted").strip()
     scopes = _parse_api_key_scopes(str(getattr(args, "scopes", "graph:read,graph:write") or "graph:read,graph:write"))
-    scopes_arg = ",".join(scopes) or "graph:read,graph:write"
+    selected_permissions = ",".join(scopes) or "graph:read,graph:write"
     if bool(getattr(args, "create_key", False)):
         print("`--create-key` is deprecated for this guide; use the create-api-key command below.")
         print()
@@ -1007,7 +1015,7 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print("waggle-mcp create-api-key \\")
     print(f"  --tenant-id {shlex.quote(tenant_id)} \\")
     print(f"  --name {shlex.quote(key_name)} \\")
-    sys.stdout.write(f"  --scopes {shlex.quote(scopes_arg)}\n")
+    _write_stdout_line(f"  --scopes {shlex.quote(selected_permissions)}")
     print("```")
     print()
     print("2. Start the local HTTP server")
@@ -1129,17 +1137,16 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
                 "scopes": created.record.scopes,
             },
         )
-        # create-api-key must deliver the raw token exactly once; it is not stored recoverably.
-        sys.stdout.write(
+        key_payload = {
+            "created": True,
+            "raw_api_key": created.raw_api_key,
+            "api_key": _serialize_api_key_record(created.record),
+        }
+        _write_stdout_line(
             json.dumps(
-                {
-                    "created": True,
-                    "raw_api_key": created.raw_api_key,
-                    "api_key": _serialize_api_key_record(created.record),
-                },
+                key_payload,
                 indent=2,
             )
-            + "\n"
         )
         return 0
     if args.command == "list-api-keys":
