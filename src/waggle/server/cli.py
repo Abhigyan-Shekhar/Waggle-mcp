@@ -1008,7 +1008,7 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print(f"  --tenant-id {shlex.quote(tenant_id)} \\")
     print(f"  --name {shlex.quote(key_name)} \\")
     # The guide intentionally echoes the selected scopes argument, not a secret.
-    # lgtm[py/clear-text-logging-sensitive-data]
+    # codeql[py/clear-text-logging-sensitive-data]
     print(f"  --scopes {shlex.quote(scopes_arg)}")
     print("```")
     print()
@@ -1132,7 +1132,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             },
         )
         # create-api-key must deliver the raw token exactly once; it is not stored recoverably.
-        # lgtm[py/clear-text-logging-sensitive-data]
+        # codeql[py/clear-text-logging-sensitive-data]
         print(
             json.dumps(
                 {
