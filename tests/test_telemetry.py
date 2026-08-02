@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -56,7 +57,7 @@ def test_capture_with_env_enabled_persists_new_installation_id(monkeypatch: pyte
 
     persisted = json.loads(telemetry.CONFIG_PATH.read_text(encoding="utf-8"))
     queued = [json.loads(line) for line in telemetry.QUEUE_PATH.read_text(encoding="utf-8").splitlines()]
-    assert persisted["enabled"] is True
+    assert persisted["enabled"] is False
     assert persisted["installation_id"] == queued[0]["installation_id"]
 
 
@@ -84,6 +85,11 @@ def test_preview_payload_sanitizes_forbidden_and_unknown_properties() -> None:
     assert "unexpected" not in properties
 
 
+def test_embedding_mode_helper_classifies_model_without_backend_coupling() -> None:
+    assert telemetry.embedding_mode("deterministic", "onnx") == "deterministic"
+    assert telemetry.embedding_mode("all-MiniLM-L6-v2", "onnx") == "local"
+
+
 def test_capture_queues_allowed_event_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     telemetry.enable()
     monkeypatch.setattr(telemetry, "flush", lambda: 0)
@@ -98,6 +104,24 @@ def test_capture_queues_allowed_event_when_enabled(monkeypatch: pytest.MonkeyPat
     assert len(queued) == 1
     assert queued[0]["event"] == "memory_retrieved"
     assert queued[0]["properties"]["client"] == "codex"
+
+
+def test_concurrent_capture_keeps_all_events(monkeypatch: pytest.MonkeyPatch) -> None:
+    telemetry.enable()
+    monkeypatch.setattr(telemetry, "flush", lambda: 0)
+
+    def capture_one(index: int) -> None:
+        telemetry.capture(
+            "memory_retrieved",
+            waggle_version="0.1.test",
+            properties={"success": True, "duration_bucket": f"{index}ms"},
+        )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(capture_one, range(20)))
+
+    queued = [json.loads(line) for line in telemetry.QUEUE_PATH.read_text(encoding="utf-8").splitlines()]
+    assert len(queued) == 20
 
 
 def test_capture_ignores_disallowed_event() -> None:

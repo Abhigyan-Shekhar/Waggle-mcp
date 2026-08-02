@@ -30,6 +30,18 @@ class FakeBootstrapGraph:
         )
 
 
+class FailingOnceBootstrapGraph(FakeBootstrapGraph):
+    def __init__(self) -> None:
+        super().__init__()
+        self.failed = False
+
+    def add_node(self, **kwargs: object) -> NodeStoreResult:
+        if not self.failed:
+            self.failed = True
+            raise RuntimeError("write failed")
+        return super().add_node(**kwargs)
+
+
 def test_plan_repository_bootstrap_reads_high_signal_files_only(tmp_path: Path) -> None:
     (tmp_path / "README.md").write_text("# Demo\n\nUse PostgreSQL for app data.\n", encoding="utf-8")
     (tmp_path / "pyproject.toml").write_text("[project]\nname = 'demo'\n", encoding="utf-8")
@@ -57,6 +69,14 @@ def test_plan_repository_bootstrap_limits_file_size(tmp_path: Path) -> None:
     assert candidate.metadata["bytes_read"] == 10
 
 
+def test_plan_repository_bootstrap_keeps_truncated_utf8_prefix(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_bytes("prefix é".encode())
+
+    [candidate] = plan_repository_bootstrap(tmp_path, include_git=False, max_file_bytes=8)
+
+    assert "prefix" in candidate.content
+
+
 def test_bootstrap_repository_dry_run_does_not_write(tmp_path: Path) -> None:
     (tmp_path / "README.md").write_text("# Demo\n", encoding="utf-8")
     graph = FakeBootstrapGraph()
@@ -82,6 +102,17 @@ def test_bootstrap_repository_writes_project_scoped_nodes(tmp_path: Path) -> Non
     assert call["session_id"] == "bootstrap"
     assert call["node_type"] == NodeType.PREFERENCE
     assert "agent-instructions" in call["tags"]
+
+
+def test_bootstrap_repository_continues_after_candidate_write_failure(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# Demo\n", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("Use Waggle automatically.\n", encoding="utf-8")
+    graph = FailingOnceBootstrapGraph()
+
+    result = bootstrap_repository(graph, tmp_path, include_git=False)
+
+    assert result.nodes_created == 1
+    assert len(graph.calls) == 1
 
 
 def test_parser_exposes_project_memory_search_command() -> None:

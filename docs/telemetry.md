@@ -144,6 +144,7 @@ Telemetry properties are allowlisted:
 - `duration_bucket`
 - `result_count_bucket`
 - `error_category`
+- `doctor_ran`
 
 Waggle prefers buckets over exact values, such as `1-5` results or
 `100-500ms` duration.

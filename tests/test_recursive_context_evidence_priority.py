@@ -62,6 +62,14 @@ def test_exact_recall_topic_extraction_uses_about_clause() -> None:
     assert topic == "shift rotation sheet for GM social media agents"
 
 
+def test_capitalized_query_terms_filters_question_words_and_weekdays() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+
+    terms = controller._query_capitalized_terms("Which rotation does Admon have on Sunday?")
+
+    assert terms == ["Admon"]
+
+
 def test_exact_recall_context_puts_top_ranked_memories_before_type_buckets() -> None:
     controller = RecursiveContextController(graph=SimpleNamespace())
     relevant_other = SimpleNamespace(
@@ -170,6 +178,67 @@ def test_build_context_includes_direct_transcript_evidence_when_graph_is_noisy()
 
     assert graph.search_calls
     assert "25:50" in result.context_pack
+
+
+def test_transcript_text_uses_first_non_empty_text_field() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+    hit = SimpleNamespace(transcript_snippet=None, transcript_text="user: real transcript", content="fallback content")
+
+    assert controller._transcript_text(hit) == "user: real transcript"
+
+
+def test_pinned_source_authority_keeps_user_speculation_as_user_stated() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+    source = SimpleNamespace(role="user")
+
+    authority = controller._pinned_source_authority("user: I might switch to morning yoga.", source)
+
+    assert authority == "user_stated"
+
+
+def test_pinned_source_authority_marks_assistant_speculation() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+    source = SimpleNamespace(role="assistant")
+
+    authority = controller._pinned_source_authority("assistant: You might like a morning yoga class.", source)
+
+    assert authority == "assistant_speculation"
+
+
+def test_session_document_date_cache_is_scoped_by_project() -> None:
+    class DateGraph:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str, str]] = []
+
+        def list_transcript_records(self, *, agent_id: str, project: str, session_id: str, limit: int):
+            self.calls.append((agent_id, project, session_id))
+            day = "2024/3/1" if project == "alpha" else "2024/4/1"
+            return [SimpleNamespace(transcript_text=f"[documentDate: {day}] user: note")]
+
+    graph = DateGraph()
+    controller = RecursiveContextController(graph=graph)
+
+    alpha = controller._source_session_document_date(
+        SimpleNamespace(agent_id="agent", project="alpha", session_id="shared")
+    )
+    beta = controller._source_session_document_date(
+        SimpleNamespace(agent_id="agent", project="beta", session_id="shared")
+    )
+
+    assert alpha == datetime(2024, 3, 1, tzinfo=UTC)
+    assert beta == datetime(2024, 4, 1, tzinfo=UTC)
+    assert graph.calls == [("agent", "alpha", "shared"), ("agent", "beta", "shared")]
+
+
+def test_nodes_used_are_deduplicated_by_node_id() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+    first = SimpleNamespace(id="same", label="first")
+    second = SimpleNamespace(id="same", label="second")
+    third = SimpleNamespace(node_id="other", label="third")
+
+    nodes = controller._deduplicate_nodes_used([first, second, third, third])
+
+    assert nodes == [first, third]
 
 
 def test_answer_category_detects_table_fact_and_temporal_queries() -> None:

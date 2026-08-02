@@ -19,6 +19,7 @@ REQUEST_TIMEOUT_SECONDS = 0.75
 MAX_QUEUE_EVENTS = 100
 MAX_QUEUE_AGE = timedelta(days=7)
 MAX_BATCH_SIZE = 20
+QUEUE_LOCK = threading.Lock()
 
 ALLOWED_EVENTS = {
     "setup_completed",
@@ -29,15 +30,6 @@ ALLOWED_EVENTS = {
     "demo_completed",
     "export_completed",
     "operation_failed",
-}
-
-QUALIFYING_ACTIVE_EVENTS = {
-    "memory_stored",
-    "memory_retrieved",
-    "context_primed",
-    "conversation_observed",
-    "graph_queried",
-    "memory_exported",
 }
 
 ALLOWED_PROPERTIES = {
@@ -53,6 +45,7 @@ ALLOWED_PROPERTIES = {
     "duration_bucket",
     "result_count_bucket",
     "error_category",
+    "doctor_ran",
 }
 
 FORBIDDEN_PROPERTY_NAMES = {
@@ -163,7 +156,7 @@ def capture(
     if not config.enabled:
         return
     if not CONFIG_PATH.exists():
-        save_config(TelemetryConfig(enabled=True, installation_id=config.installation_id))
+        save_config(TelemetryConfig(enabled=False, installation_id=config.installation_id))
 
     try:
         payload = _build_payload(event, config.installation_id, waggle_version=waggle_version, properties=properties)
@@ -207,30 +200,31 @@ def flush() -> int:
     if not config.enabled or not QUEUE_PATH.exists():
         return 0
 
-    try:
-        queued = _read_queue()
-    except Exception:
-        return 0
+    with QUEUE_LOCK:
+        try:
+            queued = _read_queue()
+        except Exception:
+            return 0
 
-    if not queued:
-        _replace_queue([])
-        return 0
+        if not queued:
+            _replace_queue([])
+            return 0
 
-    batch = queued[:MAX_BATCH_SIZE]
-    delivered = 0
-    remaining = queued
-    try:
-        _send_batch(batch)
-        delivered = len(batch)
-        remaining = queued[delivered:]
-    except Exception:
-        return 0
+        batch = queued[:MAX_BATCH_SIZE]
+        delivered = 0
+        remaining = queued
+        try:
+            _send_batch(batch)
+            delivered = len(batch)
+            remaining = queued[delivered:]
+        except Exception:
+            return 0
 
-    try:
-        _replace_queue(remaining)
-    except Exception:
+        try:
+            _replace_queue(remaining)
+        except Exception:
+            return delivered
         return delivered
-    return delivered
 
 
 def bucket_count(count: int) -> str:
@@ -243,6 +237,12 @@ def bucket_count(count: int) -> str:
     if count <= 100:
         return "21-100"
     return "101+"
+
+
+def embedding_mode(model_name: str, embedding_backend: str = "") -> str:
+    if model_name == "deterministic":
+        return "deterministic"
+    return "local"
 
 
 def _event_for_tool(tool_name: str, *, structured: dict[str, Any] | list[Any], is_error: bool) -> str | None:
@@ -350,10 +350,11 @@ def _sanitize_properties(properties: dict[str, Any]) -> dict[str, Any]:
 
 
 def _append_event(payload: dict[str, Any]) -> None:
-    queued = _read_queue()
-    queued.append(payload)
-    queued = queued[-MAX_QUEUE_EVENTS:]
-    _replace_queue(queued)
+    with QUEUE_LOCK:
+        queued = _read_queue()
+        queued.append(payload)
+        queued = queued[-MAX_QUEUE_EVENTS:]
+        _replace_queue(queued)
 
 
 def _read_queue() -> list[dict[str, Any]]:

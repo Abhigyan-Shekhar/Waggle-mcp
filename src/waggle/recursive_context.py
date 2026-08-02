@@ -200,6 +200,7 @@ class RecursiveContextController:
         self._graph = graph
         self._hybrid_retriever = hybrid_retriever
         self._config: dict[str, Any] = config or {}
+        self._longmemeval_session_date_cache: dict[tuple[str, str, str], datetime | None] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -373,6 +374,7 @@ class RecursiveContextController:
 
         elapsed = time.perf_counter() - t0
         token_estimate = self._estimate_tokens(context_pack)
+        nodes_used = self._deduplicate_nodes_used(nodes_used)
 
         return RecursiveContextResult(
             original_query=query,
@@ -903,16 +905,16 @@ class RecursiveContextController:
         names: list[str] = []
         for token in re.findall(r"\b[A-Z][a-zA-Z0-9_-]{2,}\b", query or ""):
             if token.lower() in {
-                "Can",
-                "What",
-                "Which",
-                "Sunday",
-                "Monday",
-                "Tuesday",
-                "Wednesday",
-                "Thursday",
-                "Friday",
-                "Saturday",
+                "can",
+                "what",
+                "which",
+                "sunday",
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
             }:
                 continue
             names.append(token)
@@ -2373,7 +2375,7 @@ class RecursiveContextController:
             escaped_value = re.escape(value_lower)
             if re.search(rf"\busing\s+{escaped_value}\s+for\s+my\s+home\s+practice\b", local):
                 score -= 0.55
-            if re.search(rf"\b{escaped_value}\b.{0, 80}\b(app|apps|customization|subscription)\b", local):
+            if re.search(rf"\b{escaped_value}\b.{{0,80}}\b(app|apps|customization|subscription)\b", local):
                 score -= 0.35
 
         if self._looks_like_identity_detail_query(query_lower):
@@ -2438,10 +2440,10 @@ class RecursiveContextController:
     def _pinned_source_authority(self, text: str, source: Any) -> str:
         role = self._source_role(source, text)
         lower = text.lower()
-        if self._looks_like_assistant_speculation(lower):
-            return "assistant_speculation"
         if role == "user":
             return "user_stated"
+        if role in {"assistant", ""} and self._looks_like_assistant_speculation(lower):
+            return "assistant_speculation"
         if role == "assistant":
             return "assistant_unknown"
         if re.search(r"\b(i|my|me)\b", lower):
@@ -2537,14 +2539,11 @@ class RecursiveContextController:
         session_id = self._source_session_id(source)
         if not session_id:
             return None
-        cache = getattr(self, "_longmemeval_session_date_cache", None)
-        if cache is None:
-            cache = {}
-            self._longmemeval_session_date_cache = cache
-        if session_id in cache:
-            return cache[session_id]
         agent_id = self._source_string_attr(source, "agent_id")
         project = self._source_string_attr(source, "project")
+        cache_key = (agent_id, project, session_id)
+        if cache_key in self._longmemeval_session_date_cache:
+            return self._longmemeval_session_date_cache[cache_key]
         try:
             records = self._graph.list_transcript_records(
                 agent_id=agent_id,
@@ -2553,14 +2552,14 @@ class RecursiveContextController:
                 limit=1000,
             )
         except Exception:
-            cache[session_id] = None
+            self._longmemeval_session_date_cache[cache_key] = None
             return None
         for record in records:
             parsed = self._parse_longmemeval_document_date(self._transcript_text(record))
             if parsed is not None:
-                cache[session_id] = parsed
+                self._longmemeval_session_date_cache[cache_key] = parsed
                 return parsed
-        cache[session_id] = None
+        self._longmemeval_session_date_cache[cache_key] = None
         return None
 
     def _source_session_id(self, source: Any) -> str:
@@ -2803,7 +2802,7 @@ class RecursiveContextController:
         return bool(
             re.search(
                 r"\b(might|may|could|would|recommend|suggest|consider|maybe|good fit|best option|"
-                r"you should|you may have|nearby options include|try [A-Z]?)\b",
+                r"you should|you may have|nearby options include|try [a-z]?)\b",
                 text_lower,
             )
         )
@@ -3804,17 +3803,45 @@ class RecursiveContextController:
         return snippet[: max(0, max_chars - 1)].rstrip() + "…"
 
     def _transcript_text(self, hit: Any) -> str:
-        if hasattr(hit, "transcript_snippet"):
-            snippet = str(hit.transcript_snippet)
-        elif hasattr(hit, "transcript_text"):
-            snippet = str(hit.transcript_text)
-        elif hasattr(hit, "content"):
-            snippet = str(hit.content)
-        elif isinstance(hit, dict):
-            snippet = str(hit.get("transcript_snippet") or hit.get("transcript_text") or hit.get("content", ""))
+        snippet = ""
+        if isinstance(hit, dict):
+            for key in ("transcript_snippet", "transcript_text", "content"):
+                value = hit.get(key)
+                if value:
+                    snippet = str(value)
+                    break
         else:
-            snippet = str(hit)
+            for attr in ("transcript_snippet", "transcript_text", "content"):
+                value = getattr(hit, attr, None)
+                if value:
+                    snippet = str(value)
+                    break
+            if not snippet:
+                snippet = str(hit)
         return re.sub(r"\s+", " ", snippet).strip()
+
+    def _deduplicate_nodes_used(self, nodes_used: list[Any]) -> list[Any]:
+        deduped: list[Any] = []
+        seen: set[str] = set()
+        for node in nodes_used:
+            key = self._node_identity_key(node)
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(node)
+        return deduped
+
+    def _node_identity_key(self, node: Any) -> str:
+        for attr in ("id", "node_id"):
+            value = getattr(node, attr, None)
+            if value:
+                return f"{attr}:{value}"
+        if isinstance(node, dict):
+            for attr in ("id", "node_id"):
+                value = node.get(attr)
+                if value:
+                    return f"{attr}:{value}"
+        return f"object:{id(node)}"
 
     def _focused_transcript_snippet(self, query: str, hit: Any, max_chars: int = 620) -> str:
         text = self._transcript_text(hit)

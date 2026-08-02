@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
 from waggle.models import NodeStoreResult, NodeType
+
+LOGGER = logging.getLogger(__name__)
 
 DEFAULT_INCLUDE_PATTERNS = (
     "README.md",
@@ -127,17 +130,21 @@ def bootstrap_repository(
 
     if not dry_run:
         for candidate in candidates:
-            result = graph.add_node(
-                label=candidate.label,
-                content=candidate.content,
-                node_type=candidate.node_type,
-                tags=candidate.tags,
-                source_prompt=f"waggle bootstrap {root}",
-                agent_id=agent_id,
-                project=project_name,
-                session_id=session_id,
-                metadata=candidate.metadata,
-            )
+            try:
+                result = graph.add_node(
+                    label=candidate.label,
+                    content=candidate.content,
+                    node_type=candidate.node_type,
+                    tags=candidate.tags,
+                    source_prompt=f"waggle bootstrap {root}",
+                    agent_id=agent_id,
+                    project=project_name,
+                    session_id=session_id,
+                    metadata=candidate.metadata,
+                )
+            except Exception:
+                LOGGER.warning("bootstrap_candidate_store_failed", extra={"path": candidate.path}, exc_info=True)
+                continue
             if result.created:
                 created += 1
             else:
@@ -186,10 +193,7 @@ def _read_text_file(path: Path, *, max_file_bytes: int) -> str:
         return ""
     if b"\x00" in data:
         return ""
-    try:
-        text = data.decode("utf-8")
-    except UnicodeDecodeError:
-        return ""
+    text = data.decode("utf-8", errors="ignore")
     return text.strip()
 
 

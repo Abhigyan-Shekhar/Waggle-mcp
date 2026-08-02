@@ -353,7 +353,7 @@ class WaggleServer:
             waggle_version=__version__,
             transport=transport,
             backend=self.config.backend,
-            embedding_mode=self._telemetry_embedding_mode(),
+            embedding_mode=telemetry.embedding_mode(self.config.model_name, self.config.embedding_backend),
         )
 
         return _LegacyCallToolResult(
@@ -379,6 +379,3 @@ class WaggleServer:
             )
         except Exception:
             LOGGER.debug("graph_size_metrics_failed", exc_info=True)
-
-    def _telemetry_embedding_mode(self) -> str:
-        return "deterministic" if self.config.model_name == "deterministic" else "local"

@@ -2601,7 +2601,7 @@ def _run_bootstrap(config: AppConfig, args: argparse.Namespace) -> int:
             properties={
                 "success": True,
                 "backend": config.backend,
-                "embedding_mode": _telemetry_embedding_mode(config.model_name),
+                "embedding_mode": telemetry.embedding_mode(config.model_name, config.embedding_backend),
                 "result_count_bucket": _telemetry_count_bucket(result.nodes_created + result.nodes_updated),
             },
         )
@@ -2667,7 +2667,7 @@ def _run_search(config: AppConfig, args: argparse.Namespace) -> int:
             properties={
                 "success": True,
                 "backend": config.backend,
-                "embedding_mode": _telemetry_embedding_mode(config.model_name),
+                "embedding_mode": telemetry.embedding_mode(config.model_name, config.embedding_backend),
                 "result_count_bucket": _telemetry_count_bucket(node_count + replay_count + hybrid_count),
             },
         )
@@ -2954,23 +2954,14 @@ def _run_setup(args: argparse.Namespace) -> int:
         doctor_exit = _run_doctor_command(doctor_config, args)
         if doctor_exit:
             print(_c(_CYAN, "Setup completed; doctor reported follow-up warnings above."))
-        telemetry.capture(
-            "setup_completed",
-            waggle_version=__version__,
-            properties={
-                "success": True,
-                "client": _telemetry_client_bucket(clients),
-                "embedding_mode": _telemetry_embedding_mode(args.model),
-            },
-        )
-        return 0
     telemetry.capture(
         "setup_completed",
         waggle_version=__version__,
         properties={
             "success": True,
             "client": _telemetry_client_bucket(clients),
-            "embedding_mode": _telemetry_embedding_mode(args.model),
+            "embedding_mode": telemetry.embedding_mode(args.model),
+            "doctor_ran": bool(args.run_doctor),
         },
     )
     return 0
@@ -2982,10 +2973,6 @@ def _telemetry_client_bucket(clients: list[str]) -> str:
     if clients:
         return "multiple"
     return "unknown"
-
-
-def _telemetry_embedding_mode(model_name: str) -> str:
-    return "deterministic" if model_name == "deterministic" else "local"
 
 
 def _telemetry_count_bucket(count: int) -> str:
@@ -3017,7 +3004,7 @@ def _capture_export_completed(config: AppConfig, result: Any) -> None:
         properties={
             "success": True,
             "backend": config.backend,
-            "embedding_mode": _telemetry_embedding_mode(config.model_name),
+            "embedding_mode": telemetry.embedding_mode(config.model_name, config.embedding_backend),
             "result_count_bucket": _telemetry_count_bucket(_export_result_count(result)),
         },
     )
@@ -3277,7 +3264,7 @@ def main() -> None:
                 "success": True,
                 "transport": config.transport,
                 "backend": config.backend,
-                "embedding_mode": _telemetry_embedding_mode(config.model_name),
+                "embedding_mode": telemetry.embedding_mode(config.model_name, config.embedding_backend),
             },
         )
     if command in {"edit-graph", "view-graph", "ui", "graph-studio", "open-studio"}:
