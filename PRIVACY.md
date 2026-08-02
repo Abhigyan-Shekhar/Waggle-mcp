@@ -15,6 +15,25 @@ The default local Waggle runtime does not require a cloud account, hosted
 backend, or API key. Memory does not leave the user's machine unless the user
 explicitly exports, shares, syncs, or uploads it.
 
+Anonymous telemetry is disabled by default. If a user explicitly enables it,
+Waggle may send a small allowlisted set of product events such as setup
+completion, server startup, successful memory storage, successful memory
+retrieval, demo completion, export completion, and safe failure categories. This
+telemetry uses a random installation UUID and does not include conversations,
+prompts, memory text, source code, file paths, repository names, project names,
+tenant names, raw exception messages, or stack traces.
+
+Users can inspect, enable, or disable telemetry with:
+
+```bash
+waggle-mcp telemetry status
+waggle-mcp telemetry show
+waggle-mcp telemetry enable
+waggle-mcp telemetry disable
+```
+
+See `docs/telemetry.md` for the exact event schema and privacy controls.
+
 If a user configures optional integrations or sharing workflows, those
 integrations may transmit the data the user chooses to export or sync.
 

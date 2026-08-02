@@ -20,7 +20,7 @@ except ImportError:
 
     request_ctx = _MissingRequestContext()
 
-from waggle import __version__
+from waggle import __version__, telemetry
 from waggle.config import AppConfig
 from waggle.embeddings import STATUS_READY
 from waggle.metrics import MetricsRegistry
@@ -352,6 +352,15 @@ class WaggleServer:
 
         result = self._dispatcher.call_tool(name, arguments, ctx, graph)
         self._record_graph_size(name, graph)
+        telemetry.capture_tool_event(
+            name,
+            structured=result.structured,
+            is_error=result.is_error,
+            waggle_version=__version__,
+            transport=transport,
+            backend=self.config.backend,
+            embedding_mode=self._telemetry_embedding_mode(),
+        )
 
         return _LegacyCallToolResult(
             content=[types.TextContent(type="text", text=result.text)],
@@ -376,3 +385,6 @@ class WaggleServer:
             )
         except Exception:
             LOGGER.debug("graph_size_metrics_failed", exc_info=True)
+
+    def _telemetry_embedding_mode(self) -> str:
+        return "deterministic" if self.config.model_name == "deterministic" else "local"
