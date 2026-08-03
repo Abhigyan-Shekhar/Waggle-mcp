@@ -39,7 +39,7 @@ from waggle.evidence import (
     merge_evidence_records,
     merge_validity_windows,
 )
-from waggle.graph import decode_embedding_blob
+from waggle.graph import decode_embedding_blob, _filter_valid_nodes
 from waggle.intelligence import (
     canonical_concept_overlap,
     compatible_node_types,
@@ -1472,6 +1472,13 @@ class Neo4jMemoryGraph:
                 if props.get("embedding"):
                     embeddings_by_id[node.id] = np.array(props["embedding"], dtype=np.float32)
 
+            candidates = _filter_valid_nodes(candidates)
+            embeddings_by_id = {
+                node_id: emb
+                for node_id, emb in embeddings_by_id.items()
+                if any(node.id == node_id for node in candidates)
+            }
+
             if not candidates:
                 return SubgraphResult(query=query_text, total_nodes_in_graph=total_nodes)
 
@@ -1620,6 +1627,11 @@ class Neo4jMemoryGraph:
                 for node in [self._node_from_props(props)]
                 if _scope_matches(node, agent_id=agent_id, project=project, session_id=session_id)
             }
+            if not nodes_by_id:
+                return SubgraphResult(query=query, total_nodes_in_graph=total_nodes)
+
+            valid_nodes = _filter_valid_nodes(list(nodes_by_id.values()))
+            nodes_by_id = {node.id: node for node in valid_nodes}
             if not nodes_by_id:
                 return SubgraphResult(query=query, total_nodes_in_graph=total_nodes)
             embeddings_by_id = {
