@@ -497,6 +497,7 @@ def build_abhi_document(
     low_confidence_threshold: float = 0.7,
     strict_export: bool = False,
     include_deps: bool = False,
+    conflict_records: list[MergeConflictRecord] | None = None,
 ) -> dict[str, Any]:
     redact_patterns = redact_patterns or []
     filtered = _scope_filter(
@@ -607,6 +608,7 @@ def build_abhi_document(
         "ui": deepcopy(filtered.get("ui", {})),
         "repos": repos,
         "context_window_edges": context_window_edges,
+        "conflict_records": [rec.model_dump(mode="json") for rec in (conflict_records or [])],
     }
     document = {
         "manifest": manifest,
@@ -768,6 +770,7 @@ def write_abhi_document(
     low_confidence_threshold: float = 0.7,
     strict_export: bool = False,
     include_deps: bool = False,
+    conflict_records: list[MergeConflictRecord] | None = None,
 ) -> AbhiExportResult:
     destination = Path(output_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -785,6 +788,7 @@ def write_abhi_document(
         low_confidence_threshold=low_confidence_threshold,
         strict_export=strict_export,
         include_deps=include_deps,
+        conflict_records=conflict_records,
     )
     manifest = document["manifest"]
     # Write the ZIP to a temp file first, then stream magic + ZIP to the final
@@ -1580,7 +1584,12 @@ def merge_abhi_documents(
             contradict_edges_added=len(contradict_edges),
         )
 
-    exported = write_abhi_document(merged_snapshot, output_path=output_path, passphrase=passphrase)
+    exported = write_abhi_document(
+        merged_snapshot,
+        output_path=output_path,
+        passphrase=passphrase,
+        conflict_records=conflict_records,
+    )
 
     # Hash verification
     hash_verified = False
