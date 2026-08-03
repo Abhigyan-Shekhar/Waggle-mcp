@@ -1434,6 +1434,8 @@ class Neo4jMemoryGraph:
         agent_id: str = "",
         project: str = "",
         session_id: str = "",
+        include_invalidated: bool = False,
+        as_of: datetime | None = None,
     ) -> SubgraphResult:
         query_text = query.strip()
         if max_nodes < 1:
@@ -1524,10 +1526,13 @@ class Neo4jMemoryGraph:
         query: str,
         max_nodes: int = 20,
         max_depth: int = 2,
+        expand_depth: int = 0,
         agent_id: str = "",
         project: str = "",
         session_id: str = "",
         retrieval_mode: str = "hybrid",
+        include_invalidated: bool = False,
+        as_of: datetime | None = None,
     ) -> SubgraphResult:
         query_text = query.strip()
         if not query_text:
@@ -1536,6 +1541,8 @@ class Neo4jMemoryGraph:
             raise ValueError("max_nodes must be at least 1.")
         if max_depth < 0:
             raise ValueError("max_depth cannot be negative.")
+        if expand_depth < 0:
+            raise ValueError("expand_depth cannot be negative.")
         normalized_mode = {"replay": "verbatim", "fusion": "hybrid"}.get(
             retrieval_mode.strip().lower(), retrieval_mode.strip().lower()
         )
@@ -1552,9 +1559,12 @@ class Neo4jMemoryGraph:
                 query=query_text,
                 max_nodes=max_nodes,
                 max_depth=max_depth,
+                expand_depth=expand_depth,
                 agent_id=agent_id,
                 project=project,
                 session_id=session_id,
+                include_invalidated=include_invalidated,
+                as_of=as_of,
             )
             if normalized_mode in {"graph", "hybrid"}
             else None
@@ -1597,9 +1607,12 @@ class Neo4jMemoryGraph:
         query: str,
         max_nodes: int,
         max_depth: int,
+        expand_depth: int,
         agent_id: str,
         project: str,
         session_id: str,
+        include_invalidated: bool = False,
+        as_of: datetime | None = None,
     ) -> SubgraphResult:
         with self._lock, self._session() as session:
             temporal_hints = infer_temporal_hints(query)
@@ -1675,7 +1688,7 @@ class Neo4jMemoryGraph:
                 ]
 
             graph = self._load_graph(session)
-            expanded_depths = self._expand_node_depths(graph, ranked_seed_ids, max_depth)
+            expanded_depths = self._expand_node_depths(graph, ranked_seed_ids, max_depth + expand_depth)
             candidate_nodes = [nodes_by_id[node_id] for node_id in expanded_depths]
             temporal_candidates = [node for node in candidate_nodes if within_time_window(node, temporal_hints)]
             if temporal_candidates:
@@ -3583,11 +3596,13 @@ def update_node(
         project: str = "",
         session_id: str = "",
         limit: int = 200,
+        offset: int = 0,
     ) -> list[TranscriptRecord]:
         filters = ["t.tenant_id = $tenant_id"]
         params: dict[str, Any] = {
             "tenant_id": self.tenant_id,
             "limit": max(1, int(limit)),
+            "offset": max(0, int(offset)),
         }
         if project.strip():
             filters.append("t.project = $project")
@@ -3605,6 +3620,7 @@ def update_node(
                 WHERE {" AND ".join(filters)}
                 RETURN t
                 ORDER BY t.observed_at ASC, t.turn_index ASC
+                SKIP $offset
                 LIMIT $limit
                 """,
                 **params,
