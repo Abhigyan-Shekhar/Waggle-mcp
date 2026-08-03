@@ -1213,6 +1213,14 @@ class Neo4jTraversalMixin(MemoryGraphBase):
             for relation in document.relations:
                 target_lookup_id = imported_id_map.get(relation.target_node_id, relation.target_node_id)
                 target = nodes_by_id.get(target_lookup_id) if target_lookup_id else None
+                if target is not None:
+                    if not _scope_matches(
+                        target,
+                        agent_id=source_node.agent_id,
+                        project=source_node.project,
+                        session_id=source_node.session_id,
+                    ):
+                        target = None
                 if target is None and relation.target_label:
                     candidates = label_index.get(relation.target_label.strip().lower(), [])
                     for candidate in candidates:

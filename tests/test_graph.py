@@ -2838,3 +2838,63 @@ def test_read_to_write_lock_upgrade_raises_runtime_error() -> None:
         lock,
     ):
         pass
+
+
+def test_markdown_vault_import_rejects_out_of_scope_id_resolved_target(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+
+    # 1. Target node in a different project/agent/session
+    target_node = graph.add_node(
+        label="Out of Scope Target",
+        content="Target content",
+        node_type=NodeType.NOTE,
+        project="other-project",
+        agent_id="other-agent",
+        session_id="other-session",
+    ).node
+
+    # 2. Source node in default project/agent/session
+    source_node = graph.add_node(
+        label="Source Document",
+        content="We are referencing an out of scope node.",
+        node_type=NodeType.NOTE,
+        project="default",
+        agent_id="default",
+        session_id="default",
+    ).node
+
+    # 3. Write markdown document with direct ID link to out-of-scope target
+    vault_dir = tmp_path / "vault-scope"
+    vault_dir.mkdir(parents=True, exist_ok=True)
+    doc_path = vault_dir / "Source Document.md"
+    doc_content = (
+        "---\n"
+        f"node_id: {source_node.id}\n"
+        "label: Source Document\n"
+        "type: Note\n"
+        "project: default\n"
+        "agent_id: default\n"
+        "session_id: default\n"
+        "---\n"
+        "\n"
+        "We are referencing an out of scope node.\n"
+        "\n"
+        "## Relations\n"
+        f"- [[depends_on::Out of Scope Target]] <!-- node_id:{target_node.id} -->\n"
+    )
+    doc_path.write_text(doc_content, encoding="utf-8")
+
+    # 4. Import the vault
+    imported = graph.import_markdown_vault(root_path=vault_dir)
+
+    # 5. Verify target_node.id was NOT connected, and a stub node was created in the correct scope
+    assert imported.stub_nodes_created == 1
+
+    related = graph.get_related(node_id=source_node.id, max_depth=1)
+    assert not any(edge.target_id == target_node.id for edge in related.edges)
+
+    stub_node = next(node for node in related.nodes if node.id != source_node.id)
+    assert stub_node.label == "Out of Scope Target"
+    assert stub_node.project == "default"
+    assert stub_node.agent_id == "default"
+    assert stub_node.session_id == "default"

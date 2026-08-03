@@ -3592,6 +3592,14 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 for relation in document.relations:
                     target_lookup_id = imported_id_map.get(relation.target_node_id, relation.target_node_id)
                     target_node = nodes_by_id.get(target_lookup_id) if target_lookup_id else None
+                    if target_node is not None:
+                        if not _scope_matches(
+                            target_node,
+                            agent_id=source_node.agent_id,
+                            project=source_node.project,
+                            session_id=source_node.session_id,
+                        ):
+                            target_node = None
                     if target_node is None and relation.target_label:
                         candidates = label_index.get(relation.target_label.strip().lower(), [])
                         for candidate in candidates:

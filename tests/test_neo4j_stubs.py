@@ -458,3 +458,122 @@ def test_neo4j_import_graph_backup_preserves_embeddings(tmp_path: Path) -> None:
             assert "embedding" in kwargs
             assert kwargs["embedding"] == [1.0, 2.0]
     assert create_called
+
+
+def test_neo4j_markdown_vault_import_rejects_out_of_scope_id_resolved_target(tmp_path: Path) -> None:
+    graph = make_mock_graph()
+    mock_session = graph._session.return_value
+
+    # Mock the query "MATCH (n:MemoryNode ...)" to return the out-of-scope target node
+    mock_record = {
+        "n": {
+            "id": "b002-123",
+            "label": "Out of Scope Target",
+            "content": "Target content",
+            "node_type": "note",
+            "project": "other-project",
+            "agent_id": "other-agent",
+            "session_id": "other-session",
+            "tenant_id": "local-default",
+            "tags": [],
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        }
+    }
+
+    mock_result = MagicMock()
+    mock_result.__iter__ = MagicMock(return_value=iter([mock_record]))
+    mock_result.single = MagicMock(return_value=None)
+    mock_session.run.return_value = mock_result
+
+    # Mock add_node to handle both the source node creation and stub node creation
+    source_node = Node(
+        id="a001-123",
+        label="Source Document",
+        content="Source content",
+        node_type=NodeType.NOTE,
+        project="default",
+        agent_id="default",
+        session_id="default",
+        tenant_id="local-default",
+        tags=[],
+    )
+
+    stub_node = Node(
+        id="stub-456",
+        label="Out of Scope Target",
+        content="Stub content",
+        node_type=NodeType.NOTE,
+        project="default",
+        agent_id="default",
+        session_id="default",
+        tenant_id="local-default",
+        tags=["stub", "vault-import"],
+    )
+
+    class MockResult:
+        def __init__(self, node: Node):
+            self.node = node
+
+    def mock_add_node(label: str, **kwargs: object) -> MockResult:
+        if label == "Source Document":
+            return MockResult(source_node)
+        else:
+            # Must be the stub node
+            assert kwargs.get("project") == "default"
+            assert kwargs.get("agent_id") == "default"
+            assert kwargs.get("session_id") == "default"
+            return MockResult(stub_node)
+
+    graph.add_node = MagicMock(side_effect=mock_add_node)
+
+    def mock_fetch_node(session: object, node_id: str) -> Node | None:
+        if node_id == "a001-123":
+            return source_node
+        elif node_id == "stub-456":
+            return stub_node
+        elif node_id == "b002-123":
+            # Out of scope target node
+            return Node(
+                id="b002-123",
+                label="Out of Scope Target",
+                content="Target content",
+                node_type=NodeType.NOTE,
+                project="other-project",
+                agent_id="other-agent",
+                session_id="other-session",
+                tenant_id="local-default",
+            )
+        return None
+
+    graph._fetch_node = MagicMock(side_effect=mock_fetch_node)
+    graph.add_edge = MagicMock()
+
+    # Write the markdown document
+    vault_dir = tmp_path / "vault-scope-neo4j"
+    vault_dir.mkdir(parents=True, exist_ok=True)
+    doc_path = vault_dir / "Source Document.md"
+    doc_content = (
+        "---\n"
+        "node_id: a001-123\n"
+        "label: Source Document\n"
+        "type: Note\n"
+        "project: default\n"
+        "agent_id: default\n"
+        "session_id: default\n"
+        "---\n"
+        "\n"
+        "We are referencing an out of scope node.\n"
+        "\n"
+        "## Relations\n"
+        "- [[depends_on::Out of Scope Target]] <!-- node_id:b002-123 -->\n"
+    )
+    doc_path.write_text(doc_content, encoding="utf-8")
+
+    # Import the vault
+    imported = graph.import_markdown_vault(root_path=vault_dir)
+
+    # Verify that a stub node was created
+    assert imported.stub_nodes_created == 1
+    # Verify that we called add_node to create the stub node (with project="default")
+    assert graph.add_node.call_count == 2
