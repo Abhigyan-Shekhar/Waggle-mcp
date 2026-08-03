@@ -1354,12 +1354,29 @@ def _run_doctor_command(config: AppConfig, args: argparse.Namespace) -> int:
 
 def _collect_memory_stats(config: AppConfig) -> dict[str, Any]:
     db_path = Path(config.db_path).expanduser()
+    try:
+        db_exists = db_path.exists()
+        db_size_bytes = db_path.stat().st_size if db_exists else 0
+    except OSError as exc:
+        return {
+            "status": "warn",
+            "backend": config.backend,
+            "embedding_model": config.model_name,
+            "db_path": str(db_path),
+            "db_size_bytes": 0,
+            "nodes": 0,
+            "edges": 0,
+            "transcript_records": 0,
+            "conversation_sessions": 0,
+            "context_windows": 0,
+            "reason": f"Could not read memory database file statistics: {exc}",
+        }
     stats: dict[str, Any] = {
         "status": "ok",
         "backend": config.backend,
         "embedding_model": config.model_name,
         "db_path": str(db_path),
-        "db_size_bytes": db_path.stat().st_size if db_path.exists() else 0,
+        "db_size_bytes": db_size_bytes,
         "nodes": 0,
         "edges": 0,
         "transcript_records": 0,
@@ -1367,19 +1384,28 @@ def _collect_memory_stats(config: AppConfig) -> dict[str, Any]:
         "context_windows": 0,
     }
     if config.backend != "sqlite":
+        stats["status"] = "warn"
         stats["reason"] = "SQLite file statistics are only available for the sqlite backend."
         return stats
-    if not db_path.exists():
+    if not db_exists:
         return stats
+
+    table_count_queries = {
+        "nodes": "SELECT COUNT(*) FROM nodes",
+        "edges": "SELECT COUNT(*) FROM edges",
+        "transcript_records": "SELECT COUNT(*) FROM transcript_records",
+        "context_windows": "SELECT COUNT(*) FROM context_windows",
+    }
 
     def table_count(connection: sqlite3.Connection, table_name: str) -> int:
         try:
-            return int(connection.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0])
+            return int(connection.execute(table_count_queries[table_name]).fetchone()[0])
         except sqlite3.OperationalError:
             return 0
 
     try:
-        with sqlite3.connect(db_path) as connection:
+        db_uri = f"{db_path.resolve().as_uri()}?mode=ro"
+        with sqlite3.connect(db_uri, uri=True) as connection:
             stats["nodes"] = table_count(connection, "nodes")
             stats["edges"] = table_count(connection, "edges")
             stats["transcript_records"] = table_count(connection, "transcript_records")
@@ -1402,6 +1428,14 @@ def _collect_memory_stats(config: AppConfig) -> dict[str, Any]:
         stats["status"] = "warn"
         stats["reason"] = f"Could not read SQLite memory statistics: {exc}"
     return stats
+
+
+def _format_database_size(size_bytes: int) -> str:
+    if size_bytes < 1024:
+        return f"{size_bytes} bytes"
+    if size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KiB"
+    return f"{size_bytes / (1024 * 1024):.1f} MB"
 
 
 def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = False) -> int:
@@ -1502,17 +1536,18 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     # ── 3. Memory statistics ────────────────────────────────────────────────
     emit(_c(_BOLD, "\n[3] Memory statistics"))
     memory_stats = _collect_memory_stats(config)
-    db_size_mb = memory_stats["db_size_bytes"] / (1024 * 1024)
     emit(f"  Backend: {memory_stats['backend']}")
     emit(f"  Embedding model: {memory_stats['embedding_model']}")
-    emit(f"  Database size: {db_size_mb:.1f} MB")
-    emit(f"  Nodes: {memory_stats['nodes']}")
-    emit(f"  Edges: {memory_stats['edges']}")
-    emit(f"  Transcript records: {memory_stats['transcript_records']}")
-    emit(f"  Conversation sessions: {memory_stats['conversation_sessions']}")
-    emit(f"  Context windows: {memory_stats['context_windows']}")
+    emit(f"  Database size: {_format_database_size(int(memory_stats['db_size_bytes']))}")
     if memory_stats["status"] == "warn":
         warnings.append(str(memory_stats["reason"]))
+        emit(f"  Memory statistics unavailable: {memory_stats['reason']}")
+    else:
+        emit(f"  Nodes: {memory_stats['nodes']}")
+        emit(f"  Edges: {memory_stats['edges']}")
+        emit(f"  Transcript records: {memory_stats['transcript_records']}")
+        emit(f"  Conversation sessions: {memory_stats['conversation_sessions']}")
+        emit(f"  Context windows: {memory_stats['context_windows']}")
     checks["memory_stats"] = memory_stats
 
     # ── 4. Embedding model ───────────────────────────────────────────────────
