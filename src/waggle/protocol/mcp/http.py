@@ -127,7 +127,7 @@ class MCPHttpApp:
             raw_api_key = api_key_from_headers(headers)
             if not raw_api_key:
                 raise AuthenticationError("Missing X-API-Key or Authorization Bearer token.")
-            principal = self._root_graph.authenticate_api_key(raw_api_key)
+            principal = await anyio.to_thread.run_sync(self._root_graph.authenticate_api_key, raw_api_key)
             scope.setdefault("state", {})
             scope["state"]["tenant_id"] = principal.tenant_id
             scope["state"]["api_key_id"] = principal.api_key_id
