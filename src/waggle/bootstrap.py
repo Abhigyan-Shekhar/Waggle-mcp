@@ -63,6 +63,8 @@ class BootstrapResult:
     candidates: list[BootstrapCandidate]
     nodes_created: int
     nodes_updated: int
+    nodes_failed: int
+    failed_paths: list[str]
 
 
 def plan_repository_bootstrap(
@@ -127,6 +129,8 @@ def bootstrap_repository(
     )
     created = 0
     updated = 0
+    failed = 0
+    failed_paths: list[str] = []
 
     if not dry_run:
         for candidate in candidates:
@@ -144,6 +148,8 @@ def bootstrap_repository(
                 )
             except Exception:
                 LOGGER.warning("bootstrap_candidate_store_failed", extra={"path": candidate.path}, exc_info=True)
+                failed += 1
+                failed_paths.append(candidate.path)
                 continue
             if result.created:
                 created += 1
@@ -156,6 +162,8 @@ def bootstrap_repository(
         candidates=candidates,
         nodes_created=created,
         nodes_updated=updated,
+        nodes_failed=failed,
+        failed_paths=failed_paths,
     )
 
 

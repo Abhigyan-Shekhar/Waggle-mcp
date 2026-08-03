@@ -42,6 +42,11 @@ class FailingOnceBootstrapGraph(FakeBootstrapGraph):
         return super().add_node(**kwargs)
 
 
+class AlwaysFailingBootstrapGraph(FakeBootstrapGraph):
+    def add_node(self, **kwargs: object) -> NodeStoreResult:
+        raise RuntimeError("write failed")
+
+
 def test_plan_repository_bootstrap_reads_high_signal_files_only(tmp_path: Path) -> None:
     (tmp_path / "README.md").write_text("# Demo\n\nUse PostgreSQL for app data.\n", encoding="utf-8")
     (tmp_path / "pyproject.toml").write_text("[project]\nname = 'demo'\n", encoding="utf-8")
@@ -112,7 +117,21 @@ def test_bootstrap_repository_continues_after_candidate_write_failure(tmp_path: 
     result = bootstrap_repository(graph, tmp_path, include_git=False)
 
     assert result.nodes_created == 1
+    assert result.nodes_failed == 1
+    assert result.failed_paths == ["README.md"]
     assert len(graph.calls) == 1
+
+
+def test_bootstrap_repository_reports_all_candidate_write_failures(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# Demo\n", encoding="utf-8")
+    graph = AlwaysFailingBootstrapGraph()
+
+    result = bootstrap_repository(graph, tmp_path, include_git=False)
+
+    assert result.nodes_created == 0
+    assert result.nodes_updated == 0
+    assert result.nodes_failed == 1
+    assert result.failed_paths == ["README.md"]
 
 
 def test_parser_exposes_project_memory_search_command() -> None:

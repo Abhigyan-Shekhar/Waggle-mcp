@@ -28,6 +28,7 @@ from waggle.server import (
     _hook_tools_from_args,
     _prompt_yes_no,
     _run_admin_command,
+    _run_bootstrap,
     _run_doctor,
     _run_graph_editor_command,
     _run_init,
@@ -2146,6 +2147,52 @@ def test_run_init_prompts_telemetry_default_no(monkeypatch: pytest.MonkeyPatch, 
     payload = json.loads((tmp_path / "telemetry.json").read_text(encoding="utf-8"))
     assert payload["enabled"] is False
     assert payload["installation_id"]
+
+
+def test_server_entrypoint_routes_telemetry_through_cli(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(telemetry, "CONFIG_PATH", tmp_path / "telemetry.json")
+    monkeypatch.setattr(telemetry, "QUEUE_PATH", tmp_path / "telemetry-queue.jsonl")
+    monkeypatch.setattr("sys.argv", ["waggle-mcp", "telemetry", "status"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        server_module.main()
+
+    assert exc_info.value.code == 0
+    assert json.loads(capsys.readouterr().out)["enabled"] is False
+
+
+def test_run_bootstrap_returns_failure_when_all_candidate_writes_fail(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    class FailingGraph:
+        def add_node(self, **kwargs: object) -> None:
+            raise RuntimeError("write failed")
+
+    (tmp_path / "README.md").write_text("# Demo\n", encoding="utf-8")
+    config = AppConfig.from_env()
+    config.db_path = str(tmp_path / "waggle.db")
+    args = SimpleNamespace(
+        path=str(tmp_path),
+        project="",
+        agent_id="",
+        session_id="",
+        include_git=False,
+        max_file_bytes=1024,
+        max_files=10,
+        dry_run=False,
+        db="",
+        model="",
+    )
+    monkeypatch.setattr(server_module, "_build_backend", lambda config: FailingGraph())
+    monkeypatch.setattr(telemetry, "capture", lambda *args, **kwargs: None)
+
+    exit_code = _run_bootstrap(config, args)
+
+    output = capsys.readouterr().out
+    assert exit_code == 1
+    assert "failed:     1" in output
 
 
 def test_write_codex_config_updates_existing_file_without_duplicates(

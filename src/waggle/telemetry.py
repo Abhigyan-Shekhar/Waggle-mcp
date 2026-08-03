@@ -131,7 +131,8 @@ def status_payload() -> dict[str, Any]:
         "installation_id": config.installation_id,
         "config_path": str(CONFIG_PATH),
         "queue_path": str(QUEUE_PATH),
-        "endpoint": ENDPOINT,
+        "queue_depth": len(_read_queue()),
+        "endpoint": endpoint_url(),
         "overridden_by_env": config.overridden_by_env,
     }
 
@@ -225,6 +226,30 @@ def flush() -> int:
         except Exception:
             return delivered
         return delivered
+
+
+def endpoint_url() -> str:
+    return os.getenv("WAGGLE_TELEMETRY_ENDPOINT", "").strip() or ENDPOINT
+
+
+def smoke_check(*, waggle_version: str) -> dict[str, Any]:
+    endpoint = endpoint_url()
+    payload = _build_payload(
+        "server_started",
+        load_config().installation_id,
+        waggle_version=waggle_version,
+        properties={"success": True, "transport": "smoke", "backend": "unknown", "embedding_mode": "unknown"},
+    )
+    try:
+        _send_batch([payload], endpoint=endpoint)
+    except Exception as exc:
+        return {
+            "ok": False,
+            "endpoint": endpoint,
+            "error_type": type(exc).__name__,
+            "message": str(exc)[:240],
+        }
+    return {"ok": True, "endpoint": endpoint}
 
 
 def bucket_count(count: int) -> str:
@@ -390,9 +415,9 @@ def _replace_queue(events: list[dict[str, Any]]) -> None:
     QUEUE_PATH.write_text(text, encoding="utf-8")
 
 
-def _send_batch(batch: list[dict[str, Any]]) -> None:
+def _send_batch(batch: list[dict[str, Any]], *, endpoint: str | None = None) -> None:
     request = Request(
-        ENDPOINT,
+        endpoint or endpoint_url(),
         data=json.dumps({"events": batch}).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",

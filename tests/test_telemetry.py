@@ -49,6 +49,44 @@ def test_env_override_does_not_rewrite_local_setting(monkeypatch: pytest.MonkeyP
     assert persisted["enabled"] is False
 
 
+def test_status_payload_reports_queue_depth_and_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    telemetry.enable()
+    monkeypatch.setenv("WAGGLE_TELEMETRY_ENDPOINT", "https://telemetry.example.test/events")
+    telemetry.QUEUE_PATH.write_text(
+        json.dumps(
+            telemetry.preview_payload(
+                "memory_retrieved",
+                waggle_version="0.1.test",
+                properties={"success": True},
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    payload = telemetry.status_payload()
+
+    assert payload["endpoint"] == "https://telemetry.example.test/events"
+    assert payload["queue_depth"] == 1
+
+
+def test_smoke_check_reports_delivery_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail_send(batch: list[dict[str, object]], *, endpoint: str | None = None) -> None:
+        raise OSError("TLS handshake failed")
+
+    monkeypatch.setattr(telemetry, "_send_batch", fail_send)
+    monkeypatch.setenv("WAGGLE_TELEMETRY_ENDPOINT", "https://telemetry.example.test/events")
+
+    result = telemetry.smoke_check(waggle_version="0.1.test")
+
+    assert result == {
+        "ok": False,
+        "endpoint": "https://telemetry.example.test/events",
+        "error_type": "OSError",
+        "message": "TLS handshake failed",
+    }
+
+
 def test_capture_with_env_enabled_persists_new_installation_id(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("WAGGLE_TELEMETRY", "1")
     monkeypatch.setattr(telemetry, "flush", lambda: 0)

@@ -910,6 +910,7 @@ def _build_parser() -> argparse.ArgumentParser:
     telemetry_subcommands.add_parser("enable", help="Enable anonymous telemetry for this installation.")
     telemetry_subcommands.add_parser("disable", help="Disable anonymous telemetry for this installation.")
     telemetry_subcommands.add_parser("show", help="Print an example sanitized telemetry payload.")
+    telemetry_subcommands.add_parser("smoke", help="Send a test event to the configured telemetry endpoint.")
 
     subparsers.add_parser(
         "uninstall-hooks",
@@ -2587,6 +2588,11 @@ def _run_bootstrap(config: AppConfig, args: argparse.Namespace) -> int:
     else:
         print(f"  created:    {result.nodes_created}")
         print(f"  updated:    {result.nodes_updated}")
+        print(f"  failed:     {result.nodes_failed}")
+        if result.failed_paths:
+            print(f"  failed paths: {', '.join(result.failed_paths[:5])}")
+            if len(result.failed_paths) > 5:
+                print(f"  ... {len(result.failed_paths) - 5} more failures")
     print()
     for candidate in result.candidates[:20]:
         print(f"  - {candidate.label} ({candidate.path})")
@@ -2605,6 +2611,18 @@ def _run_bootstrap(config: AppConfig, args: argparse.Namespace) -> int:
                 "result_count_bucket": _telemetry_count_bucket(result.nodes_created + result.nodes_updated),
             },
         )
+    if (
+        not getattr(args, "dry_run", False)
+        and result.candidates
+        and result.nodes_failed
+        and result.nodes_created + result.nodes_updated == 0
+    ):
+        telemetry.capture(
+            "operation_failed",
+            waggle_version=__version__,
+            properties={"success": False, "error_category": "bootstrap_write_failed"},
+        )
+        return 1
     return 0
 
 
@@ -3043,6 +3061,10 @@ def _run_telemetry_command(args: argparse.Namespace) -> int:
     if subcommand == "status":
         print(json.dumps(telemetry.status_payload(), indent=2, sort_keys=True))
         return 0
+    if subcommand == "smoke":
+        result = telemetry.smoke_check(waggle_version=__version__)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0 if result.get("ok") is True else 1
     raise ValidationFailure(f"Unsupported telemetry command: {subcommand}")
 
 

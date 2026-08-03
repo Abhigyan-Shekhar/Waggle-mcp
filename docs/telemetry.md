@@ -112,6 +112,7 @@ Queue limits:
 - sub-second HTTP timeout
 
 Telemetry must never block or break Waggle. Delivery failures are ignored.
+Use `waggle-mcp telemetry status` to inspect the current queue depth.
 
 ## Allowed Events
 
@@ -183,6 +184,23 @@ The current client endpoint is:
 
 ```text
 https://analytics.waggle.dev/v1/events
+```
+
+Verify endpoint connectivity explicitly with:
+
+```bash
+waggle-mcp telemetry smoke
+```
+
+The smoke command sends one sanitized test event to the configured endpoint and
+returns a non-zero status if TLS negotiation, connection setup, or delivery
+fails. Background delivery still fails closed so normal Waggle commands are not
+interrupted by telemetry outages.
+
+Override the endpoint for staging or self-hosted verification with:
+
+```bash
+WAGGLE_TELEMETRY_ENDPOINT=https://telemetry.example.test/v1/events waggle-mcp telemetry smoke
 ```
 
 The endpoint should validate event names, delete unknown properties, rate-limit
