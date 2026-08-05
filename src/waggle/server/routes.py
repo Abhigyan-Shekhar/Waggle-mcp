@@ -5,16 +5,12 @@ import binascii
 import json
 import logging
 import tempfile
-import time
 import uuid
-from contextlib import asynccontextmanager
 from copy import deepcopy
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import anyio
-from mcp.server.streamable_http import StreamableHTTPServerTransport
 from starlette.applications import Starlette
 from starlette.datastructures import Headers
 from starlette.requests import Request
@@ -34,7 +30,6 @@ from waggle.config import AppConfig
 from waggle.errors import (
     AuthenticationError,
     PayloadTooLargeError,
-    ServiceUnavailableError,
     ValidationFailure,
     WaggleError,
 )
@@ -43,12 +38,10 @@ from waggle.models import (
     NodeType,
     RelationType,
 )
-from waggle.rate_limit import RateLimiter
-from waggle.runtime_context import runtime_context
+from waggle.protocol.mcp.http import MCPHttpApp as MCPHttpAppV2
 
 from .mcp import WaggleServer
 from .utils import (
-    WRITE_HEAVY_TOOLS,
     _serialize_audit_event,
     _serialize_retention_policy,
     _serialize_retention_run,
@@ -66,169 +59,6 @@ def _decode_base64_content(value: Any, field_name: str = "content_base64") -> by
         if isinstance(exc, ValidationFailure):
             raise
         raise ValidationFailure(f"{field_name} must be valid base64.") from exc
-
-
-class MCPHttpApp:
-    def __init__(self, app_server: WaggleServer, config: AppConfig) -> None:
-        self.app_server = app_server
-        self.config = config
-        self.metrics = app_server.metrics
-        self.rate_limiter = RateLimiter(
-            requests_per_minute=config.rate_limit_rpm,
-            max_concurrent_requests=config.max_concurrent_requests,
-            write_requests_per_minute=config.write_rate_limit_rpm,
-        )
-        self.transport: StreamableHTTPServerTransport | None = None
-        self.ready = False
-        self.draining = False
-
-    @asynccontextmanager
-    async def lifespan(self, app: Starlette):
-        self.transport = StreamableHTTPServerTransport(mcp_session_id=None, is_json_response_enabled=False)
-        em = self.app_server._root_graph.embedding_model
-        if (
-            not self.config.is_fast_mode
-            and hasattr(em, "start_background_warmup")
-            and not getattr(em, "_warmup_started", False)
-        ):
-            em.start_background_warmup()
-        async with self.transport.connect() as (read_stream, write_stream), anyio.create_task_group() as tg:
-            tg.start_soon(
-                self.app_server.server.run,
-                read_stream,
-                write_stream,
-                self.app_server.initialization_options(),
-                False,
-                True,
-            )
-            self.app_server.validate_startup()
-            self.ready = True
-            self.metrics.set_gauge("waggle_ready", 1)
-            app.state.http_service = self
-            try:
-                yield
-            finally:
-                self.draining = True
-                self.ready = False
-                self.metrics.set_gauge("waggle_ready", 0)
-                tg.cancel_scope.cancel()
-
-    async def mcp_asgi(self, scope: Any, receive: Any, send: Any) -> None:
-        started = time.perf_counter()
-        method = scope["method"]
-        headers = {key.decode("latin-1").lower(): value.decode("latin-1") for key, value in scope.get("headers", [])}
-        request_id = headers.get("x-request-id", str(uuid.uuid4()))
-        status_holder = {"status": 500}
-
-        async def send_wrapper(message: dict[str, Any]) -> None:
-            if message["type"] == "http.response.start":
-                status_holder["status"] = int(message["status"])
-            await send(message)
-
-        try:
-            if self.draining:
-                raise ServiceUnavailableError("Server is draining.")
-            body = b""
-            receive_callable = receive
-            if method == "POST":
-                request = Request(scope, receive)
-                body = await request.body()
-                if len(body) > self.config.max_payload_bytes:
-                    raise PayloadTooLargeError()
-                receive_callable = self._replay_receive(body)
-                headers = {
-                    key.decode("latin-1").lower(): value.decode("latin-1") for key, value in scope.get("headers", [])
-                }
-
-            raw_api_key = headers.get("x-api-key", "")
-            if not raw_api_key:
-                raise AuthenticationError("Missing X-API-Key header.")
-            principal = self.app_server._root_graph.authenticate_api_key(raw_api_key)
-            scope.setdefault("state", {})
-            scope["state"]["tenant_id"] = principal.tenant_id
-            scope["state"]["api_key_id"] = principal.api_key_id
-            scope["state"]["request_id"] = request_id
-            tenant_graph = self.app_server._root_graph.for_tenant(principal.tenant_id)
-            tenant_graph.emit_audit_event(
-                event_type="api_key.used",
-                actor_type="api_key",
-                actor_id=principal.name or principal.api_key_id,
-                api_key_id=principal.api_key_id,
-                resource_type="mcp_request",
-                resource_id=request_id,
-                action="use",
-                ip_address=scope.get("client", ("", 0))[0] or "",
-                user_agent=headers.get("user-agent", ""),
-                metadata={"method": method, "tool_name": self._extract_tool_name(body)},
-            )
-
-            tool_name = self._extract_tool_name(body)
-            principal.require_scope("graph:write" if tool_name in WRITE_HEAVY_TOOLS else "graph:read")
-            await self.rate_limiter.check_rate(principal.api_key_id, is_write=tool_name in WRITE_HEAVY_TOOLS)
-            async with self.rate_limiter.concurrency_slot(principal.api_key_id):
-                with runtime_context(
-                    request_id=request_id,
-                    tenant_id=principal.tenant_id,
-                    transport="http",
-                    backend=self.config.backend,
-                    api_key_id=principal.api_key_id,
-                    tool_name=tool_name,
-                ):
-                    with anyio.fail_after(self.config.request_timeout_seconds):
-                        assert self.transport is not None
-                        await self.transport.handle_request(scope, receive_callable, send_wrapper)
-        except TimeoutError:
-            LOGGER.warning("http_request_timeout", extra={"timeout": self.config.request_timeout_seconds})
-            self.metrics.increment("waggle_http_timeouts_total")
-            await JSONResponse({"error": "gateway_timeout", "message": "Request timed out."}, status_code=504)(
-                scope, receive, send
-            )
-            status_holder["status"] = 504
-        except WaggleError as exc:
-            LOGGER.warning("http_request_failed", extra={"error_code": exc.code, "status_code": exc.status_code})
-            if isinstance(exc, AuthenticationError):
-                self.metrics.increment("waggle_auth_failures_total")
-            if exc.code == "rate_limited":
-                self.metrics.increment("waggle_rate_limit_rejections_total")
-            await JSONResponse({"error": exc.code, "message": str(exc)}, status_code=exc.status_code)(
-                scope, receive, send
-            )
-            status_holder["status"] = exc.status_code
-        finally:
-            elapsed = time.perf_counter() - started
-            self.metrics.increment(
-                "waggle_http_requests_total",
-                path="/mcp",
-                method=method,
-                status=str(status_holder["status"]),
-            )
-            self.metrics.observe("waggle_http_request_latency_seconds", elapsed, path="/mcp", method=method)
-
-    @staticmethod
-    def _extract_tool_name(body: bytes) -> str:
-        if not body:
-            return ""
-        try:
-            payload = json.loads(body)
-        except json.JSONDecodeError:
-            return ""
-        params = payload.get("params", {})
-        if isinstance(params, dict):
-            return str(params.get("name", ""))
-        return ""
-
-    @staticmethod
-    def _replay_receive(body: bytes):
-        delivered = False
-
-        async def receive() -> dict[str, Any]:
-            nonlocal delivered
-            if delivered:
-                return {"type": "http.disconnect"}
-            delivered = True
-            return {"type": "http.request", "body": body, "more_body": False}
-
-        return receive
 
 
 class _RequestBodySizeMiddleware:
@@ -270,7 +100,7 @@ class _RequestBodySizeMiddleware:
 
 
 def create_http_application(app_server: WaggleServer, config: AppConfig) -> Starlette:
-    service = MCPHttpApp(app_server, config)
+    service = MCPHttpAppV2(app_server._root_graph, config, app_server.metrics)
 
     async def waggle_error_handler(request: Request, exc: WaggleError) -> Response:
         if isinstance(exc, AuthenticationError):
@@ -283,7 +113,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         return JSONResponse({"status": "live"})
 
     async def ready(request: Request) -> Response:
-        http_service: MCPHttpApp = request.app.state.http_service
+        http_service: MCPHttpAppV2 = request.app.state.http_service
         if not http_service.ready or http_service.draining:
             return JSONResponse({"status": "not-ready"}, status_code=503)
         return JSONResponse({"status": "ready"})
