@@ -110,8 +110,8 @@ publishing. `.sha256` files remain a manual verification fallback.
 ## Versioning
 
 The Codex plugin manifest version is intentionally separate from the GitHub
-release tag. The current plugin version is `0.1.1`; the current public GitHub
-release tag for the complete Codex marketplace bundle is `v0.1.17`.
+release tag. The current plugin version is `0.1.2`; the current public GitHub
+release tag for the complete Codex marketplace bundle is `v0.1.18`.
 
 Earlier GitHub releases were trial releases while the Waggle repository was
 private. Do not align the plugin version to the GitHub tag unless the plugin

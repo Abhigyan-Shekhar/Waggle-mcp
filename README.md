@@ -406,9 +406,9 @@ users download the marketplace zip from GitHub Releases, add it to Codex, and
 the bundled MCP runtime runs on their own machine.
 
 The easiest install path is the Codex app plugin marketplace bundle published
-on the [`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17):
-download `waggle-codex-marketplace-v0.1.17.zip`, extract it, then run
-`codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.17` and
+on the [`v0.1.18` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.18):
+download `waggle-codex-marketplace-v0.1.18.zip`, extract it, then run
+`codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.18` and
 install `Waggle` from the added marketplace. The runtime is intentionally
 unsigned, so macOS Gatekeeper or Windows SmartScreen may show a first-run
 warning; verify the checksum or GitHub attestation before approving it.

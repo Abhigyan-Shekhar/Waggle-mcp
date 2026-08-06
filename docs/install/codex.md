@@ -93,27 +93,27 @@ binary is stale or missing, reinstall or upgrade the Waggle Codex plugin.
 
 Tagged Waggle releases publish two Codex plugin assets. The current Codex
 marketplace artifacts are published on the
-[`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17):
+[`v0.1.18` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.18):
 
-- `waggle-codex-marketplace-v0.1.17.zip`: a complete local marketplace root that
+- `waggle-codex-marketplace-v0.1.18.zip`: a complete local marketplace root that
   can be added with `codex plugin marketplace add`
 - `waggle-codex-plugin-<tag>.zip`: the bare `plugins/waggle` plugin folder
 - `waggle-codex-release-<tag>.json`: release metadata for audit and support
 
 > `v0.1.16` was a partial release and should not be used as a Codex
-> marketplace install source. Use `v0.1.17` instead.
+> marketplace install source. Use `v0.1.18` instead.
 
 The Codex plugin version is intentionally separate from the GitHub release tag.
-The plugin manifest currently reports `0.1.1`; `v0.1.17` is the GitHub release
+The plugin manifest currently reports `0.1.2`; `v0.1.18` is the GitHub release
 tag for the public marketplace bundle after earlier private-repository trial
 releases.
 
 For the easiest install path, download and extract the marketplace bundle
-from the [`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17),
+from the [`v0.1.18` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.18),
 then run:
 
 ```bash
-codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.17
+codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.18
 ```
 
 After that, refresh the plugin directory in Codex and install `Waggle` from the

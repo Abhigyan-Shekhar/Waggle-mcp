@@ -12,6 +12,7 @@ import networkx as nx
 import numpy as np
 import pytest
 
+import waggle.abhi as abhi_module
 from waggle.abhi import (
     ABHI_MAGIC,
     diff_abhi_files,
@@ -282,10 +283,7 @@ def test_query_min_confidence_filters_edges_between_selected_nodes(tmp_path: Pat
     )
 
     assert {project.id, weak_pref.id}.issubset({node.id for node in result.nodes})
-    assert all(
-        (edge.source_id, edge.target_id) != (project.id, weak_pref.id)
-        for edge in result.edges
-    )
+    assert all((edge.source_id, edge.target_id) != (project.id, weak_pref.id) for edge in result.edges)
 
 
 def test_query_includes_all_edges_when_min_confidence_not_set(tmp_path: Path) -> None:
@@ -2756,6 +2754,138 @@ def test_abhi_v1_file_round_trips_through_load(tmp_path: Path) -> None:
     write_abhi_document(_minimal_snapshot(), output_path=out)
     doc = load_abhi_document(out)
     assert "manifest" in doc
+
+
+def test_abhi_read_member_rejects_zip_bomb_metadata_before_read() -> None:
+    class BombArchive:
+        def getinfo(self, member_name: str):
+            return type("ZipInfoStub", (), {"file_size": abhi_module.ABHI_MAX_MEMBER_PAYLOAD_BYTES + 1})()
+
+        def read(self, member_name: str) -> bytes:
+            raise AssertionError("oversized member should be rejected before decompression")
+
+    manifest = {"members": {abhi_module.ABHI_NODES_MEMBER: {}}}
+    with pytest.raises(ValidationFailure, match="too large to import"):
+        abhi_module._read_member(BombArchive(), manifest, abhi_module.ABHI_NODES_MEMBER, passphrase="")
+
+
+def test_abhi_load_rejects_manifest_declared_oversized_member(tmp_path: Path) -> None:
+    archive_path = tmp_path / "oversized.zip"
+    abhi_path = tmp_path / "oversized.abhi"
+    manifest = {
+        "schema_version": abhi_module.ABHI_SPEC_VERSION,
+        "tenant": "test",
+        "agent_id": "",
+        "project": "",
+        "session_id": "",
+        "embedding_model_id": "",
+        "embedding_dim": 0,
+        "encryption": {"enabled": False, "algorithm": ""},
+        "signatures": {"algorithm": "ed25519", "present": False},
+        "scope": "all",
+        "includes_embeddings": False,
+        "export_context": {},
+        "counts": {"transcripts": 0, "nodes": 0, "edges": 0, "context_windows": 0},
+        "members": {
+            abhi_module.ABHI_NODES_MEMBER: {
+                "size": abhi_module.ABHI_MAX_MEMBER_PAYLOAD_BYTES + 1,
+                "encrypted": False,
+            }
+        },
+        "ui": {},
+        "repos": [],
+        "context_window_edges": [],
+        "content_hash": "sha256:0",
+    }
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for member in (
+            abhi_module.ABHI_TRANSCRIPTS_MEMBER,
+            abhi_module.ABHI_NODES_MEMBER,
+            abhi_module.ABHI_EDGES_MEMBER,
+            abhi_module.ABHI_CONTEXT_WINDOWS_MEMBER,
+        ):
+            archive.writestr(abhi_module._deterministic_zip_info(member), b"")
+        archive.writestr(
+            abhi_module._deterministic_zip_info(abhi_module.ABHI_MANIFEST_MEMBER),
+            abhi_module._canonical_json(manifest),
+        )
+    abhi_path.write_bytes(ABHI_MAGIC + archive_path.read_bytes())
+
+    with pytest.raises(ValidationFailure, match="declares an oversized payload"):
+        load_abhi_document(abhi_path)
+
+
+def test_abhi_read_member_rejects_missing_nonempty_declared_payload() -> None:
+    class MissingArchive:
+        def getinfo(self, member_name: str):
+            raise KeyError(member_name)
+
+    manifest = {"members": {abhi_module.ABHI_NODES_MEMBER: {"size": 1, "encrypted": False}}}
+
+    with pytest.raises(ValidationFailure, match="missing but declares a non-empty payload"):
+        abhi_module._read_member(MissingArchive(), manifest, abhi_module.ABHI_NODES_MEMBER, passphrase="")
+
+
+@pytest.mark.parametrize("invalid_size", [True, False, 1.5])
+def test_abhi_manifest_member_size_rejects_bool_and_fractional_values(invalid_size: object) -> None:
+    with pytest.raises(ValidationFailure, match="invalid manifest size"):
+        abhi_module._coerce_manifest_member_size(abhi_module.ABHI_NODES_MEMBER, invalid_size)
+
+
+@pytest.mark.parametrize(
+    ("missing_member", "message"),
+    [
+        (abhi_module.ABHI_SIGNATURE_MEMBER, "signatures/content.ed25519"),
+        (abhi_module.ABHI_PUBLIC_KEY_MEMBER, "signatures/public_key.pem"),
+    ],
+)
+def test_abhi_load_rejects_signed_archive_missing_required_signature_member(
+    tmp_path: Path, missing_member: str, message: str
+) -> None:
+    archive_path = tmp_path / "missing-signature-member.zip"
+    abhi_path = tmp_path / "missing-signature-member.abhi"
+    manifest = {
+        "schema_version": abhi_module.ABHI_SPEC_VERSION,
+        "tenant": "test",
+        "agent_id": "",
+        "project": "",
+        "session_id": "",
+        "embedding_model_id": "",
+        "embedding_dim": 0,
+        "encryption": {"enabled": False, "algorithm": ""},
+        "signatures": {"algorithm": "ed25519", "present": True},
+        "scope": "all",
+        "includes_embeddings": False,
+        "export_context": {},
+        "counts": {"transcripts": 0, "nodes": 0, "edges": 0, "context_windows": 0},
+        "members": {},
+        "ui": {},
+        "repos": [],
+        "context_window_edges": [],
+        "content_hash": "sha256:0",
+    }
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for member in (
+            abhi_module.ABHI_TRANSCRIPTS_MEMBER,
+            abhi_module.ABHI_NODES_MEMBER,
+            abhi_module.ABHI_EDGES_MEMBER,
+            abhi_module.ABHI_CONTEXT_WINDOWS_MEMBER,
+        ):
+            archive.writestr(abhi_module._deterministic_zip_info(member), b"")
+        for member, payload in (
+            (abhi_module.ABHI_SIGNATURE_MEMBER, b"signature"),
+            (abhi_module.ABHI_PUBLIC_KEY_MEMBER, b"public-key"),
+        ):
+            if member != missing_member:
+                archive.writestr(abhi_module._deterministic_zip_info(member), payload)
+        archive.writestr(
+            abhi_module._deterministic_zip_info(abhi_module.ABHI_MANIFEST_MEMBER),
+            abhi_module._canonical_json(manifest),
+        )
+    abhi_path.write_bytes(ABHI_MAGIC + archive_path.read_bytes())
+
+    with pytest.raises(ValidationFailure, match=message):
+        load_abhi_document(abhi_path)
 
 
 def test_abhi_legacy_v0_bare_zip_still_loads(tmp_path: Path, caplog) -> None:
