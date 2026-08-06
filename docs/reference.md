@@ -498,21 +498,13 @@ When an API key is presented:
 
 ### Graphify import
 
-To test the Graphify import functionality locally, you can use the following minimal payload. The API expects the payload to define the `format` alongside the `content`.
+To test the import functionality locally, you can use the following minimal payload. Note that the unified API currently accepts the `json` format, and the graph data must be passed as a JSON-encoded string inside the `content` field.
 
 **Sample `import_payload.json`**
 ```json
 {
-  "format": "graphify",
-  "content": {
-    "nodes": [
-      { "id": "node-1", "kind": "Concept", "name": "Authentication" },
-      { "id": "node-2", "kind": "Module", "name": "auth_service.py" }
-    ],
-    "edges": [
-      { "source": "node-1", "target": "node-2", "kind": "ImplementedBy", "confidence": "EXTRACTED" }
-    ]
-  }
+  "format": "json",
+  "content": "{\"nodes\": [{\"id\": \"node-1\", \"kind\": \"Concept\", \"name\": \"Authentication\"}, {\"id\": \"node-2\", \"kind\": \"Module\", \"name\": \"auth_service.py\"}], \"edges\": [{\"source\": \"node-1\", \"target\": \"node-2\", \"kind\": \"ImplementedBy\", \"confidence\": \"EXTRACTED\"}]}"
 }
 ```
 
