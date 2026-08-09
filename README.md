@@ -410,11 +410,11 @@ Python runtime, so plugin users do not need Python, `pipx`, a Waggle account, or
 an API key.
 
 ```bash
-curl -L https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.21/waggle-codex-marketplace-v0.1.21.zip -o waggle-codex-marketplace-v0.1.21.zip
-curl -L https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.21/waggle-codex-marketplace-v0.1.21.zip.sha256 -o waggle-codex-marketplace-v0.1.21.zip.sha256
-shasum -a 256 -c waggle-codex-marketplace-v0.1.21.zip.sha256
-unzip waggle-codex-marketplace-v0.1.21.zip
-codex plugin marketplace add "$(pwd)/waggle-codex-marketplace-v0.1.21"
+curl -L https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.22/waggle-codex-marketplace-v0.1.22.zip -o waggle-codex-marketplace-v0.1.22.zip
+curl -L https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.22/waggle-codex-marketplace-v0.1.22.zip.sha256 -o waggle-codex-marketplace-v0.1.22.zip.sha256
+shasum -a 256 -c waggle-codex-marketplace-v0.1.22.zip.sha256
+unzip waggle-codex-marketplace-v0.1.22.zip
+codex plugin marketplace add "$(pwd)/waggle-codex-marketplace-v0.1.22"
 codex plugin add waggle@waggle
 ```
 

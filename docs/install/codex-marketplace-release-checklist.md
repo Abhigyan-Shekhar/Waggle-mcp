@@ -7,7 +7,7 @@ users add with `codex plugin marketplace add`.
 ## Version Policy
 
 - Codex plugin version: `0.1.3`
-- GitHub release tag for the Codex skills bundle: `v0.1.21`
+- GitHub release tag for the Codex skills bundle: `v0.1.22`
 - These versions are intentionally separate. The GitHub tag follows the main
   repository release history, including earlier private-repository trial
   releases. The Codex plugin manifest version tracks the plugin surface itself.
@@ -36,7 +36,7 @@ Run these from the repository root:
 
 ```bash
 python3 scripts/build_codex_plugin_runtime.py --require-artifacts
-python3 scripts/package_codex_plugin.py --bundle-version v0.1.21 --output-dir dist/codex-plugin
+python3 scripts/package_codex_plugin.py --bundle-version v0.1.22 --output-dir dist/codex-plugin
 python3 -m pytest tests/test_package_codex_plugin.py tests/test_packaging_metadata.py -q
 ```
 
@@ -45,7 +45,7 @@ development checkout—and follow the public path exactly:
 
 1. Download the published marketplace ZIP and checksum.
 2. Verify and extract it into a new directory.
-3. Run `codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.21`.
+3. Run `codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.22`.
 4. Run `codex plugin add waggle@waggle`.
 5. Start a new Codex task in an unrelated existing repository.
 6. Confirm Codex exposes:
@@ -84,11 +84,11 @@ Also confirm a direct scoped round trip:
 
 Expected files:
 
-- `waggle-codex-marketplace-v0.1.21.zip`
-- `waggle-codex-marketplace-v0.1.21.zip.sha256`
-- `waggle-codex-plugin-v0.1.21.zip`
-- `waggle-codex-plugin-v0.1.21.zip.sha256`
-- `waggle-codex-release-v0.1.21.json`
+- `waggle-codex-marketplace-v0.1.22.zip`
+- `waggle-codex-marketplace-v0.1.22.zip.sha256`
+- `waggle-codex-plugin-v0.1.22.zip`
+- `waggle-codex-plugin-v0.1.22.zip.sha256`
+- `waggle-codex-release-v0.1.22.json`
 
 The marketplace zip is the primary user-facing artifact. The bare plugin zip is
 for debugging, audits, and future installer compatibility.
@@ -118,15 +118,15 @@ Because the runtime is unsigned:
   directory listing or signed native installer.
 - State that the default install path has no required hosting or certificate
   cost.
-- Link users to the `v0.1.21` GitHub release.
+- Link users to the `v0.1.22` GitHub release.
 - Tell users to download the marketplace zip, extract it, and run:
 
 ```bash
-codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.21
+codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.22
 codex plugin add waggle@waggle
 ```
 
 - State clearly that `v0.1.16` and `v0.1.19` were partial releases and should
   not be used as Codex marketplace install sources.
 - State clearly that the plugin version shown in Codex is `0.1.3`, while the
-  GitHub release tag is `v0.1.21`.
+  GitHub release tag is `v0.1.22`.
