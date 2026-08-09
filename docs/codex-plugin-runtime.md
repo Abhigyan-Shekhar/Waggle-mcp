@@ -82,7 +82,8 @@ python scripts/build_codex_plugin_runtime.py --require-artifacts
 Validation enforces:
 
 - all five target binaries are present
-- each target runtime directory is no larger than 80 MB
+- each launcher executable is no larger than 80 MiB
+- each onedir runtime directory is no larger than 192 MiB
 - Unix runtimes keep executable permissions after packaging
 - `--server-info` starts within 10 seconds and emits compatibility metadata when
   `--probe` is run on a native runner
@@ -118,7 +119,7 @@ publishing. `.sha256` files remain a manual verification fallback.
 
 The Codex plugin manifest version is intentionally separate from the GitHub
 release tag. The Codex skills release uses plugin version `0.1.3` and GitHub
-release tag `v0.1.19` for the complete marketplace bundle.
+release tag `v0.1.20` for the complete marketplace bundle.
 
 Earlier GitHub releases were trial releases while the Waggle repository was
 private. Do not align the plugin version to the GitHub tag unless the plugin

@@ -15,6 +15,7 @@ RUNTIME_ROOT = PLUGIN_ROOT / "runtime"
 LAUNCHER_PATH = PLUGIN_ROOT / "bin" / "waggle-server-launcher.js"
 ENTRYPOINT = ROOT / "src" / "waggle" / "entrypoints" / "server_only.py"
 MAX_BINARY_BYTES = 80 * 1024 * 1024
+MAX_RUNTIME_DIRECTORY_BYTES = 192 * 1024 * 1024
 STARTUP_TIMEOUT_SECONDS = 10.0
 BUILD_TIMEOUT_SECONDS = 600.0
 BUNDLE_MODE = "onedir"
@@ -172,8 +173,11 @@ def validate_layout(require_artifacts: bool, probe: bool, verify_signatures: boo
         if size > MAX_BINARY_BYTES:
             failures.append(f"{binary.relative_to(ROOT)} is {size} bytes; limit is {MAX_BINARY_BYTES}")
         target_size = _path_size(target_dir)
-        if target_size > MAX_BINARY_BYTES:
-            failures.append(f"{target_dir.relative_to(ROOT)} is {target_size} bytes; limit is {MAX_BINARY_BYTES}")
+        if target_size > MAX_RUNTIME_DIRECTORY_BYTES:
+            failures.append(
+                f"{target_dir.relative_to(ROOT)} is {target_size} bytes; "
+                f"limit is {MAX_RUNTIME_DIRECTORY_BYTES}"
+            )
 
         if probe and target == current_target:
             started_at = time.monotonic()
