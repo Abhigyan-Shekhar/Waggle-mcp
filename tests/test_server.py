@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import inspect
 import json
+import shlex
 from pathlib import Path
 from threading import Barrier, local
 from types import SimpleNamespace
@@ -822,7 +823,7 @@ def test_claude_self_host_guide_prints_sqlite_setup(capsys: pytest.CaptureFixtur
 
     assert exit_code == 0
     assert "WAGGLE_BACKEND=sqlite" in output
-    assert f"WAGGLE_DB_PATH={Path('/tmp/waggle.db')}" in output
+    assert f"WAGGLE_DB_PATH={shlex.quote(str(Path('/tmp/waggle.db')))}" in output
     assert "waggle-mcp create-api-key" in output
     assert "--scopes graph:read,graph:write" in output
     assert "waggle-mcp serve --transport http" in output
