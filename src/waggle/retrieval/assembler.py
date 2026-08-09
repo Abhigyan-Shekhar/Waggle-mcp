@@ -15,6 +15,16 @@ _DATE_RE = re.compile(r"\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b")
 _DOCUMENT_DATE_RE = re.compile(r"\[documentDate:[^\]]+\]", re.I)
 _DAYS_AGO_RE = re.compile(r"\b(?P<count>\d+|one|two|three|four|five|six|seven)\s+days?\s+ago\b", re.I)
 _NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7}
+_CLOCK_TIME_RE = re.compile(
+    r"\b(?P<hour>1[0-2]|0?[1-9])(?::(?P<minute>[0-5]\d))?\s*(?P<period>a\.?m\.?|p\.?m\.?)\b",
+    re.I,
+)
+_DURATION_RE = re.compile(
+    r"\b(?P<value>\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|half)"
+    r"(?:\s+|-)(?P<unit>hours?|hrs?|minutes?|mins?)\b",
+    re.I,
+)
+_DURATION_NUMBER_WORDS = {**_NUMBER_WORDS, "eight": 8, "nine": 9, "ten": 10, "half": 0.5}
 _QUERY_STOPWORDS = {
     "a", "ago", "all", "and", "are", "as", "at", "be", "did", "do", "for", "from", "how", "i",
     "in", "is", "it", "last", "many", "me", "my", "of", "on", "past", "since", "the", "to", "total",
@@ -154,6 +164,11 @@ class EvidenceAssembler:
             slot_name=slot.name,
             required_role=slot.required_role,
         )
+        if plan.operation == Operation.TIME_OFFSET:
+            if slot.name in {"departure_time", "arrival_time"} and not _CLOCK_TIME_RE.search(focused):
+                return None
+            if slot.name == "travel_duration" and not _DURATION_RE.search(focused):
+                return None
         source_role = self._source_role(focused)
         if slot.required_role and source_role != slot.required_role:
             return None
@@ -313,6 +328,8 @@ class EvidenceAssembler:
             shape += 1 if _NUMBER_RE.search(content) else 0
         if plan.operation == Operation.DATE_DIFFERENCE:
             shape += 1 if _DATE_RE.search(content) or re.search(r"\b(today|yesterday|ago|started|finished|attended|got)\b", lowered) else 0
+        if plan.operation == Operation.TIME_OFFSET:
+            shape += 2 if _CLOCK_TIME_RE.search(content) or _DURATION_RE.search(content) else 0
         cue_text = _DATE_RE.sub("", lowered)
         return overlap * 3 + slot_overlap + shape + self._slot_cue_score(slot.name, cue_text)
 
@@ -340,6 +357,14 @@ class EvidenceAssembler:
             return 10 if re.search(r"\b(started|began|first|attended|got|bought)\b", lowered) else 0
         if slot_name == "end_date":
             return 10 if re.search(r"\b(finished|completed|ended)\b", lowered) else 0
+        if slot_name == "departure_time":
+            if re.search(r"\bleft\s+home\b.{0,60}\b(?:at|around)\s+\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?", lowered):
+                return 60
+            return 24 if re.search(r"\b(?:left|departed|started)\b.{0,100}\b(?:at|around)\s+\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?", lowered) else 0
+        if slot_name == "arrival_time":
+            return 24 if re.search(r"\b(?:arrived|reached|got to)\b.{0,100}\b(?:at|around)\s+\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?", lowered) else 0
+        if slot_name == "travel_duration":
+            return 24 if re.search(r"\b(?:took|lasted|travel time|journey|trip)\b.{0,100}\b(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|half)(?:\s+|-)(?:hours?|hrs?|minutes?|mins?)\b", lowered) else 0
         return 0
 
     @staticmethod
@@ -359,6 +384,11 @@ class EvidenceAssembler:
             return bool(_NUMBER_RE.search(content))
         if plan.operation == Operation.DATE_DIFFERENCE:
             return bool(_DATE_RE.search(content) or re.search(r"\b(today|yesterday|days? ago|weeks? ago|started|finished|attended|got)\b", content, re.I))
+        if plan.operation == Operation.TIME_OFFSET:
+            if slot.name in {"departure_time", "arrival_time"}:
+                return bool(_CLOCK_TIME_RE.search(content))
+            if slot.name == "travel_duration":
+                return bool(_DURATION_RE.search(content))
         return True
 
     @classmethod
@@ -460,6 +490,25 @@ class EvidenceAssembler:
             assert start is not None and end is not None
             days = (end - start).days
             return CalculationResult(plan.operation, (start.isoformat(), end.isoformat()), days, "days", f"{end} - {start} = {days} days")
+        if plan.operation == Operation.TIME_OFFSET:
+            direction = plan.diagnostics.get("time_offset_direction", "add")
+            clock_slot = "arrival_time" if direction == "subtract" else "departure_time"
+            clock_minutes = self._unique_clock_minutes(per_slot.get(clock_slot, []), slot_name=clock_slot)
+            duration_minutes = self._unique_duration_minutes(per_slot.get("travel_duration", []))
+            if clock_minutes is None or duration_minutes is None:
+                return None
+            result_minutes = (clock_minutes - duration_minutes if direction == "subtract" else clock_minutes + duration_minutes) % (24 * 60)
+            operator = "-" if direction == "subtract" else "+"
+            clock_text = self._format_clock_minutes(clock_minutes)
+            result_text = self._format_clock_minutes(result_minutes)
+            duration_text = self._format_duration_minutes(duration_minutes)
+            return CalculationResult(
+                plan.operation,
+                (clock_text, duration_text),
+                result_text,
+                "time",
+                f"{clock_text} {operator} {duration_text} = {result_text}",
+            )
         if plan.operation == Operation.SUM:
             values = self._event_values(per_slot.get("events", []))
             if len(values) < 2:
@@ -548,6 +597,63 @@ class EvidenceAssembler:
                 return cue_values[0]
         values = self._numbers(items)
         return values[0] if len(values) == 1 else None
+
+    @classmethod
+    def _unique_clock_minutes(cls, items: list[SelectedEvidence], *, slot_name: str) -> int | None:
+        cue = (
+            re.compile(r"\b(?:left|departed|started)\b.{0,120}?\b(?:at|around)\s+" + _CLOCK_TIME_RE.pattern, re.I)
+            if slot_name == "departure_time"
+            else re.compile(r"\b(?:arrived|reached|got to)\b.{0,120}?\b(?:at|around)\s+" + _CLOCK_TIME_RE.pattern, re.I)
+        )
+        values: list[int] = []
+        for item in items:
+            match = cue.search(_DOCUMENT_DATE_RE.sub("", item.content))
+            if match is None:
+                matches = list(_CLOCK_TIME_RE.finditer(_DOCUMENT_DATE_RE.sub("", item.content)))
+                match = matches[0] if len(matches) == 1 else None
+            if match is not None:
+                values.append(cls._clock_match_minutes(match))
+        unique = list(dict.fromkeys(values))
+        return unique[0] if len(unique) == 1 else None
+
+    @staticmethod
+    def _clock_match_minutes(match: re.Match[str]) -> int:
+        hour = int(match.group("hour")) % 12
+        minute = int(match.group("minute") or 0)
+        if match.group("period").lower().startswith("p"):
+            hour += 12
+        return hour * 60 + minute
+
+    @staticmethod
+    def _unique_duration_minutes(items: list[SelectedEvidence]) -> int | None:
+        values: list[int] = []
+        for item in items:
+            matches = list(_DURATION_RE.finditer(_DOCUMENT_DATE_RE.sub("", item.content)))
+            if len(matches) != 1:
+                continue
+            match = matches[0]
+            raw_value = match.group("value").lower()
+            value = float(raw_value) if re.fullmatch(r"\d+(?:\.\d+)?", raw_value) else _DURATION_NUMBER_WORDS[raw_value]
+            minutes = float(value) * (60 if match.group("unit").lower().startswith(("hour", "hr")) else 1)
+            if minutes.is_integer():
+                values.append(int(minutes))
+        unique = list(dict.fromkeys(values))
+        return unique[0] if len(unique) == 1 else None
+
+    @staticmethod
+    def _format_clock_minutes(value: int) -> str:
+        value %= 24 * 60
+        hour_24, minute = divmod(value, 60)
+        period = "AM" if hour_24 < 12 else "PM"
+        hour_12 = hour_24 % 12 or 12
+        return f"{hour_12}:{minute:02d} {period}"
+
+    @staticmethod
+    def _format_duration_minutes(value: int) -> str:
+        if value % 60 == 0:
+            hours = value // 60
+            return f"{hours} hour{'s' if hours != 1 else ''}"
+        return f"{value} minutes"
 
     def _event_values(self, items: list[SelectedEvidence]) -> list[float]:
         unit_values_by_item = [self._unit_numbers(item.content) for item in items]

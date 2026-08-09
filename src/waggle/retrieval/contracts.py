@@ -98,7 +98,7 @@ class EvidenceValidator:
                 )
             )
 
-        calculated_operations = {"sum", "count", "difference", "percentage", "date_difference"}
+        calculated_operations = {"sum", "count", "difference", "percentage", "date_difference", "time_offset"}
         operation = assembled.plan.operation
         if operation is not None and operation.value in calculated_operations and assembled.calculation is None:
             issues.append(

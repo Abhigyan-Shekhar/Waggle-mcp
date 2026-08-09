@@ -48,8 +48,9 @@ retire state. This avoids laundering speculation into a current fact.
   evidence capacity.
 - Selection deduplicates repeated evidence within each slot and favors source
   diversity instead of filling a slot with paraphrases of one memory.
-- Local calculations support conservative sums, differences, percentages, and
-  date differences. Calculation abstains when operands are missing or ambiguous.
+- Local calculations support conservative sums, differences, percentages, date
+  differences, and clock-time offsets. Calculation abstains when operands are
+  missing or ambiguous.
 - Relative dates (`today`, `yesterday`, and one-to-seven days ago) are resolved
   against the evidence timestamp; an explicit date in the question can serve as
   the comparison anchor.
@@ -74,6 +75,11 @@ every retrieval hit to an interchangeable text span:
   events are applied.
 - arithmetic and date operations are withheld unless every required slot has
   an unambiguous operand.
+- Derived arrival/departure questions reserve independent clock-time and travel-
+  duration slots across sessions. Exact clock arithmetic is compiled only when
+  both focused evidence atoms satisfy their slot-specific answer shapes; a
+  clock elsewhere in an oversized retrieval hit cannot validate a clock-free
+  focused snippet.
 
 Before compilation, `EvidenceValidator` checks required slots, roles,
 structural fields, operation completeness, active-state ambiguity, active-set
@@ -90,9 +96,9 @@ budget is unchanged.
 
 Synthetic fixtures cover indexed lists, table schemas, assistant-origin
 answers, two-operand differences, multi-event totals, active-set additions and
-cancellations, preference scope, date calculations, and a missing-structure
-fallback. The frozen Fresh24 run remains immutable and was not rescored while
-v2 was developed.
+cancellations, preference scope, date calculations, forward/reverse clock-time
+offsets, unrelated-time distractors, and missing-operand fallback. Frozen
+benchmark slices remain immutable and are not rescored while v2 is developed.
 
 ## Remaining phases
 

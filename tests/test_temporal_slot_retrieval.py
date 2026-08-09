@@ -55,6 +55,92 @@ def test_temporal_plan_uses_explicit_reference_date_without_retrieving_an_end_sl
     assert "2022/04/04" in plan.query
 
 
+def test_planner_creates_independent_slots_for_derived_arrival_time() -> None:
+    plan = DeterministicQueryPlanner().plan("What time did I reach the clinic on Monday?")
+
+    assert plan.query_type == QueryType.GENERAL_MULTI_HOP
+    assert plan.operation == Operation.TIME_OFFSET
+    assert [slot.name for slot in plan.slots] == ["departure_time", "travel_duration"]
+    assert plan.diagnostics["time_offset_direction"] == "add"
+
+
+def test_clock_offset_combines_cross_session_departure_and_duration() -> None:
+    plan = DeterministicQueryPlanner().plan("What time did I reach the clinic on Monday?")
+    assembled = EvidenceAssembler().select(
+        plan=plan,
+        hits_by_slot={
+            "departure_time": [
+                hit("I left home at 7 AM on Monday for my doctor's appointment.", source_id="departure"),
+                hit("My unrelated Monday book club starts at 7 PM.", score=1.2, source_id="distractor"),
+            ],
+            "travel_duration": [
+                hit("It took me two hours to get from home to the clinic last time.", source_id="duration")
+            ],
+        },
+    )
+
+    assert assembled.calculation is not None
+    assert assembled.calculation.expression == "7:00 AM + 2 hours = 9:00 AM"
+    assert assembled.calculation.result == "9:00 AM"
+    assert assembled.per_slot["departure_time"][0].turn_pair_id == "departure"
+
+
+def test_clock_offset_supports_reverse_departure_calculation() -> None:
+    plan = DeterministicQueryPlanner().plan(
+        "What time did I leave home if I reached the clinic at 9 AM after a two-hour trip?"
+    )
+    assembled = EvidenceAssembler().select(
+        plan=plan,
+        hits_by_slot={
+            "arrival_time": [hit("I reached the clinic at 9 AM.", source_id="arrival")],
+            "travel_duration": [hit("The trip took two hours.", source_id="duration")],
+        },
+    )
+
+    assert plan.diagnostics["time_offset_direction"] == "subtract"
+    assert assembled.calculation is not None
+    assert assembled.calculation.expression == "9:00 AM - 2 hours = 7:00 AM"
+
+
+def test_clock_offset_remains_incomplete_without_both_operands() -> None:
+    plan = DeterministicQueryPlanner().plan("What time did I reach the clinic on Monday?")
+    assembled = EvidenceAssembler().select(
+        plan=plan,
+        hits_by_slot={
+            "departure_time": [hit("I left home at 7 AM on Monday.", source_id="departure")],
+            "travel_duration": [],
+        },
+    )
+
+    assert assembled.calculation is None
+    assert "travel_duration" in assembled.missing_slots
+
+
+def test_clock_shape_must_survive_evidence_focusing() -> None:
+    plan = DeterministicQueryPlanner().plan("What time did I reach the clinic on Monday?")
+    oversized_distractor = (
+        "user: I wrote a long unrelated travel diary about clinics and Monday plans. "
+        + "travel " * 250
+        + "assistant: A separate generic schedule starts at 10 AM."
+    )
+    assembled = EvidenceAssembler().select(
+        plan=plan,
+        hits_by_slot={
+            "departure_time": [
+                hit(oversized_distractor, score=2.0, source_id="distractor"),
+                hit("user: I left home at 7 AM on Monday for my doctor's appointment.", source_id="departure"),
+            ],
+            "travel_duration": [
+                hit("user: It took me two hours to get from home to the clinic.", source_id="duration")
+            ],
+        },
+    )
+
+    assert assembled.calculation is not None
+    assert assembled.calculation.result == "9:00 AM"
+    assert assembled.per_slot["departure_time"][0].turn_pair_id == "departure"
+
+
 def test_percentage_is_calculated_only_with_complete_unambiguous_slots() -> None:
     plan = DeterministicQueryPlanner().plan("What percentage of leadership positions are occupied by women?")
     assembled = EvidenceAssembler().select(

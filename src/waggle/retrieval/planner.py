@@ -26,6 +26,7 @@ class Operation(StrEnum):
     DIFFERENCE = "difference"
     PERCENTAGE = "percentage"
     DATE_DIFFERENCE = "date_difference"
+    TIME_OFFSET = "time_offset"
     SET_UNION = "set_union"
 
 
@@ -86,9 +87,65 @@ class DeterministicQueryPlanner:
     )
     _DIRECT_DURATION = re.compile(r"\bhow long have i been\b", re.I)
     _ADVICE_PREFERENCE = re.compile(r"\b(?:ideas?|advice|recommendations?|suggestions?)\b", re.I)
+    _ARRIVAL_TIME = re.compile(
+        r"\bwhat time\b.{0,80}\b(?:reach(?:ed)?|arriv(?:e|ed)|get|got)\b.{0,50}\b(?:clinic|destination|airport|station|office|home|there)\b",
+        re.I,
+    )
+    _DERIVED_DEPARTURE_TIME = re.compile(
+        r"\bwhat time\b.{0,80}\b(?:leave|left|depart(?:ed)?|start(?:ed)?)\b.{0,120}\b(?:if|when|after)\b.{0,80}\b(?:reach(?:ed)?|arriv(?:e|ed)|get|got)\b",
+        re.I,
+    )
 
     def plan(self, query: str, *, reference_date: str = "") -> QueryPlan:
         text = " ".join(query.split())
+        if self._DERIVED_DEPARTURE_TIME.search(text):
+            topic = self._compact_retrieval_query(text)
+            return QueryPlan(
+                query=text,
+                query_type=QueryType.GENERAL_MULTI_HOP,
+                slots=(
+                    EvidenceSlot(
+                        "arrival_time",
+                        f"exact arrival reached destination clock time {topic}",
+                        max_items=1,
+                        evidence_type=EvidenceType.EVENT,
+                        fallback_queries=(f"arrived reached got there at time {topic}",),
+                    ),
+                    EvidenceSlot(
+                        "travel_duration",
+                        f"trip travel journey duration took hours minutes {topic}",
+                        max_items=1,
+                        evidence_type=EvidenceType.EVENT,
+                        fallback_queries=(f"took hours minutes travel time {topic}",),
+                    ),
+                ),
+                operation=Operation.TIME_OFFSET,
+                diagnostics={"rule": "derived_departure_time", "time_offset_direction": "subtract"},
+            )
+        if self._ARRIVAL_TIME.search(text):
+            topic = self._compact_retrieval_query(text)
+            return QueryPlan(
+                query=text,
+                query_type=QueryType.GENERAL_MULTI_HOP,
+                slots=(
+                    EvidenceSlot(
+                        "departure_time",
+                        f"left departed started trip from home clock time {topic}",
+                        max_items=1,
+                        evidence_type=EvidenceType.EVENT,
+                        fallback_queries=(f"left home departed at time for destination {topic}",),
+                    ),
+                    EvidenceSlot(
+                        "travel_duration",
+                        f"trip travel journey duration took hours minutes {topic}",
+                        max_items=1,
+                        evidence_type=EvidenceType.EVENT,
+                        fallback_queries=(f"took hours minutes travel time {topic}",),
+                    ),
+                ),
+                operation=Operation.TIME_OFFSET,
+                diagnostics={"rule": "derived_arrival_time", "time_offset_direction": "add"},
+            )
         indexed_match = self._INDEXED_ITEM.search(text)
         if indexed_match:
             target_index = int(indexed_match.group("index"))
