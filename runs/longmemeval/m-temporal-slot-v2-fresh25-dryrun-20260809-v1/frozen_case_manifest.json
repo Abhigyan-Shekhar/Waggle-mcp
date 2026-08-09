@@ -1,0 +1,198 @@
+{
+  "case_count": 25,
+  "cases": [
+    {
+      "case_id": "352ab8bd",
+      "category": "single-session-assistant",
+      "gold_support_ids": [
+        "answer_sharegpt_NoDZzot_7"
+      ]
+    },
+    {
+      "case_id": "b320f3f8",
+      "category": "single-session-user",
+      "gold_support_ids": [
+        "answer_5cc9b056"
+      ]
+    },
+    {
+      "case_id": "5c40ec5b",
+      "category": "knowledge-update",
+      "gold_support_ids": [
+        "answer_1cb52d0a_1",
+        "answer_1cb52d0a_2"
+      ]
+    },
+    {
+      "case_id": "gpt4_7f6b06db",
+      "category": "temporal-reasoning",
+      "gold_support_ids": [
+        "answer_5d8c99d3_1",
+        "answer_5d8c99d3_2",
+        "answer_5d8c99d3_3"
+      ]
+    },
+    {
+      "case_id": "4adc0475",
+      "category": "multi-session",
+      "gold_support_ids": [
+        "answer_6efce493_1",
+        "answer_6efce493_2"
+      ]
+    },
+    {
+      "case_id": "8cf51dda",
+      "category": "single-session-assistant",
+      "gold_support_ids": [
+        "answer_sharegpt_HFMn2ZX_0"
+      ]
+    },
+    {
+      "case_id": "21436231",
+      "category": "single-session-user",
+      "gold_support_ids": [
+        "answer_1e6d4567"
+      ]
+    },
+    {
+      "case_id": "cf22b7bf",
+      "category": "knowledge-update",
+      "gold_support_ids": [
+        "answer_ae3a122b_1",
+        "answer_ae3a122b_2"
+      ]
+    },
+    {
+      "case_id": "gpt4_45189cb4",
+      "category": "temporal-reasoning",
+      "gold_support_ids": [
+        "answer_e6c20e52_3",
+        "answer_e6c20e52_2",
+        "answer_e6c20e52_1"
+      ]
+    },
+    {
+      "case_id": "efc3f7c2",
+      "category": "multi-session",
+      "gold_support_ids": [
+        "answer_fc81d1a2_1",
+        "answer_fc81d1a2_2"
+      ]
+    },
+    {
+      "case_id": "0e5e2d1a",
+      "category": "single-session-assistant",
+      "gold_support_ids": [
+        "answer_ultrachat_113156"
+      ]
+    },
+    {
+      "case_id": "faba32e5",
+      "category": "single-session-user",
+      "gold_support_ids": [
+        "answer_39b12014"
+      ]
+    },
+    {
+      "case_id": "0977f2af",
+      "category": "knowledge-update",
+      "gold_support_ids": [
+        "answer_3bf5b73b_1",
+        "answer_3bf5b73b_2"
+      ]
+    },
+    {
+      "case_id": "gpt4_65aabe59",
+      "category": "temporal-reasoning",
+      "gold_support_ids": [
+        "answer_30dfe889_2",
+        "answer_30dfe889_1"
+      ]
+    },
+    {
+      "case_id": "e6041065",
+      "category": "multi-session",
+      "gold_support_ids": [
+        "answer_4eb6d671_2",
+        "answer_4eb6d671_1"
+      ]
+    },
+    {
+      "case_id": "6222b6eb",
+      "category": "single-session-assistant",
+      "gold_support_ids": [
+        "answer_sharegpt_H9PiM5G_0"
+      ]
+    },
+    {
+      "case_id": "bc8a6e93_abs",
+      "category": "single-session-user",
+      "gold_support_ids": [
+        "answer_e6143162_abs"
+      ]
+    },
+    {
+      "case_id": "0f05491a",
+      "category": "knowledge-update",
+      "gold_support_ids": [
+        "answer_d6d2eba8_1",
+        "answer_d6d2eba8_2"
+      ]
+    },
+    {
+      "case_id": "gpt4_8279ba03",
+      "category": "temporal-reasoning",
+      "gold_support_ids": [
+        "answer_56521e66_1"
+      ]
+    },
+    {
+      "case_id": "27016adc",
+      "category": "multi-session",
+      "gold_support_ids": [
+        "answer_a37bdf22_1",
+        "answer_a37bdf22_2"
+      ]
+    },
+    {
+      "case_id": "dc439ea3",
+      "category": "single-session-assistant",
+      "gold_support_ids": [
+        "answer_ultrachat_459954"
+      ]
+    },
+    {
+      "case_id": "66f24dbb",
+      "category": "single-session-user",
+      "gold_support_ids": [
+        "answer_fea2e4d3"
+      ]
+    },
+    {
+      "case_id": "031748ae_abs",
+      "category": "knowledge-update",
+      "gold_support_ids": [
+        "answer_8748f791_abs_1",
+        "answer_8748f791_abs_2"
+      ]
+    },
+    {
+      "case_id": "982b5123_abs",
+      "category": "temporal-reasoning",
+      "gold_support_ids": [
+        "answer_ab603dd5_abs_2",
+        "answer_ab603dd5_abs_1"
+      ]
+    },
+    {
+      "case_id": "09ba9854_abs",
+      "category": "multi-session",
+      "gold_support_ids": [
+        "answer_96c743d0_abs_2",
+        "answer_96c743d0_abs_1"
+      ]
+    }
+  ],
+  "dataset": "longmemeval_m_fresh",
+  "dataset_sha": "c28beaf1296a812cd86249d60e2ace1114cb2f7f18b5d1af4af8ef7826770078"
+}

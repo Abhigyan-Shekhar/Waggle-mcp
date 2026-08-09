@@ -1,0 +1,5 @@
+condition,llama_correct,qwen_correct,human_adjudicated_correct,judge_agreement_rows
+flat_transcript_vector,7,6,7,24
+waggle_production_context,12,10,12,23
+waggle_temporal_slot_context,12,10,12,23
+oracle_answer_turn_context,19,17,19,21

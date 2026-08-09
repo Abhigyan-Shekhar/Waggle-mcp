@@ -1,0 +1,2 @@
+case_id,condition,context_budget,final_context_tokens,within_budget
+73d42213,waggle_temporal_slot_context,3900,243,True

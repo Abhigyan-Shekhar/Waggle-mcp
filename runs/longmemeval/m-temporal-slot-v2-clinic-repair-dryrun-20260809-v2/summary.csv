@@ -1,0 +1,2 @@
+condition,rows,qa_correct,avg_context_tokens,avg_tool_calls
+waggle_temporal_slot_context,1,0,243.0,1.0

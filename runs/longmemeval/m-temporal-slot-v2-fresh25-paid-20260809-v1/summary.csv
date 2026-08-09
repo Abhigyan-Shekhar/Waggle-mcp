@@ -1,0 +1,5 @@
+condition,rows,qa_correct,avg_context_tokens,avg_tool_calls
+flat_transcript_vector,25,7,2387.48,0.0
+oracle_answer_turn_context,25,19,817.92,0.0
+waggle_production_context,25,12,3531.68,2.0
+waggle_temporal_slot_context,25,12,277.2,1.0

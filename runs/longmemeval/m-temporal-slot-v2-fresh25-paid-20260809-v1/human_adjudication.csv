@@ -1,0 +1,10 @@
+case_id,condition,llama_correct,qwen_correct,human_correct,reason
+gpt4_45189cb4,oracle_answer_turn_context,true,false,false,objective event order is reversed
+efc3f7c2,waggle_production_context,true,false,true,explicitly derives the gold 30-minute answer despite contradictory extra comparisons
+bc8a6e93_abs,waggle_temporal_slot_context,true,false,true,correct abstention because uncle-birthday baking was not mentioned
+bc8a6e93_abs,oracle_answer_turn_context,false,true,true,correct abstention because uncle-birthday baking was not mentioned
+66f24dbb,flat_transcript_vector,true,false,true,source-grounded answer includes the gold yellow dress plus matching earrings omitted by the gold
+66f24dbb,waggle_production_context,true,false,true,source-grounded answer includes the gold yellow dress plus matching earrings omitted by the gold
+66f24dbb,waggle_temporal_slot_context,true,false,true,source-grounded answer includes the gold yellow dress plus matching earrings omitted by the gold
+66f24dbb,oracle_answer_turn_context,true,false,true,source-grounded answer includes the gold yellow dress plus matching earrings omitted by the gold
+09ba9854_abs,oracle_answer_turn_context,true,false,true,correctly states that the missing bus fare prevents an exact saving
