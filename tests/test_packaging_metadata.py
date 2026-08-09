@@ -27,6 +27,26 @@ def test_dockerfile_uses_module_entrypoint_for_arg_passthrough() -> None:
     assert "HF_HOME=/app/.cache/huggingface" in dockerfile
     assert "SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence-transformers" in dockerfile
     assert "SentenceTransformer('all-MiniLM-L6-v2')" in dockerfile
+    assert dockerfile.index("COPY src ./src") < dockerfile.index('pip install ".[neo4j]"')
+
+
+def test_release_workflows_use_current_entrypoints_and_versioned_image() -> None:
+    binary_workflow = (ROOT / ".github" / "workflows" / "release-binaries.yml").read_text()
+    image_workflow = (ROOT / ".github" / "workflows" / "publish-image.yml").read_text()
+
+    assert "src/waggle/entrypoints/cli.py" in binary_workflow
+    assert "src/waggle/server.py" not in binary_workflow
+    assert "image-version: ${{ steps.meta.outputs.version }}" in image_workflow
+    assert "VERSION=${{ steps.meta.outputs.version }}" in image_workflow
+    assert "${{ needs.build-and-push.outputs.image-version }}" in image_workflow
+    assert "--entrypoint python" in image_workflow
+
+
+def test_codex_onedir_runtime_has_separate_size_budget() -> None:
+    from scripts.build_codex_plugin_runtime import MAX_BINARY_BYTES, MAX_RUNTIME_DIRECTORY_BYTES
+
+    assert MAX_BINARY_BYTES == 80 * 1024 * 1024
+    assert MAX_RUNTIME_DIRECTORY_BYTES == 192 * 1024 * 1024
 
 
 def test_smithery_uses_packaged_cli_entrypoint() -> None:
@@ -105,7 +125,7 @@ def test_codex_release_docs_record_intentional_version_split_and_unsigned_policy
 
     for text in [codex_guide, runtime_guide, checklist]:
         assert "0.1.3" in text
-        assert "v0.1.19" in text
+        assert "v0.1.20" in text
 
     assert "intentionally unsigned" in codex_guide
     assert "intentionally unsigned" in runtime_guide

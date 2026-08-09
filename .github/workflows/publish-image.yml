@@ -14,6 +14,8 @@ jobs:
   build-and-push:
     name: Build & push pre-baked image
     runs-on: ubuntu-latest
+    outputs:
+      image-version: ${{ steps.meta.outputs.version }}
 
     steps:
       - name: Checkout source
@@ -50,6 +52,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
           # GitHub Actions layer cache — dramatically speeds up repeat builds
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -65,16 +69,17 @@ jobs:
     steps:
       - name: Pull published image
         run: |
-          docker pull ghcr.io/${{ github.repository_owner }}/waggle-mcp:${{ github.ref_name }}
+          docker pull ghcr.io/${{ github.repository_owner }}/waggle-mcp:${{ needs.build-and-push.outputs.image-version }}
 
       - name: Verify tool listing responds instantly (fast mode)
         run: |
           # Fast mode must respond within 5 s with zero ML overhead
           timeout 5 docker run --rm \
+            --entrypoint python \
             -e WAGGLE_STARTUP_MODE=fast \
             -e WAGGLE_TRANSPORT=stdio \
-            ghcr.io/${{ github.repository_owner }}/waggle-mcp:${{ github.ref_name }} \
-            python -c "
+            ghcr.io/${{ github.repository_owner }}/waggle-mcp:${{ needs.build-and-push.outputs.image-version }} \
+            -c "
           from waggle.config import AppConfig
           from waggle.server import WaggleServer
           import os

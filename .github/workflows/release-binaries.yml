@@ -73,7 +73,7 @@ jobs:
             --onefile \
             --name "${{ matrix.executable_name }}" \
             --collect-all waggle \
-            src/waggle/server.py
+            src/waggle/entrypoints/cli.py
 
       - name: Smoke test binary
         shell: bash
