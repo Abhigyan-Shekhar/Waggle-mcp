@@ -12,7 +12,7 @@ permissions:
 
 env:
   # GHCR image references must be lowercase; the GitHub account display name is not.
-  IMAGE_NAME: ghcr.io/abhigyanshekhar/waggle-mcp
+  IMAGE_NAME: ghcr.io/abhigyan-shekhar/waggle-mcp
 
 jobs:
   build-and-push:
