@@ -47,6 +47,8 @@ def test_full_capability_dry_run_writes_required_artifacts(tmp_path: Path) -> No
     rows = [json.loads(line) for line in (output_dir / "results.jsonl").read_text(encoding="utf-8").splitlines()]
     assert {row["condition"] for row in rows} == {"flat_transcript_vector", "waggle_production_context"}
     assert all(row["final_context_tokens"] <= 256 for row in rows)
+    config = json.loads((output_dir / "config.json").read_text(encoding="utf-8"))
+    assert config["secondary_judge_policy"] == "none"
     assert validate_output_dir(output_dir) == []
 
 

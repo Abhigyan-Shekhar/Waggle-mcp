@@ -88,6 +88,15 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("--allow-paid cannot be combined with --dry-run")
     if args.allow_paid and not os.getenv("GROQ_API_KEY"):
         raise SystemExit("Paid Groq execution requires GROQ_API_KEY in the environment.")
+    if (
+        not args.dry_run
+        and args.secondary_judge_policy != "none"
+        and args.secondary_judge_model == DEFAULT_SECONDARY_JUDGE_MODEL
+    ):
+        raise SystemExit(
+            "A paid secondary-judge pass requires an explicit --secondary-judge-model. "
+            "Otherwise use --secondary-judge-policy none."
+        )
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -312,7 +321,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--reader-model", default=DEFAULT_READER_MODEL)
     parser.add_argument("--primary-judge-model", default=DEFAULT_PRIMARY_JUDGE_MODEL)
     parser.add_argument("--secondary-judge-model", default=DEFAULT_SECONDARY_JUDGE_MODEL)
-    parser.add_argument("--secondary-judge-policy", default="all_disagreements", choices=["none", "all_disagreements", "all_rows"])
+    parser.add_argument("--secondary-judge-policy", default="none", choices=["none", "all_disagreements", "all_rows"])
     parser.add_argument("--pricing-config", type=Path, default=None)
     parser.add_argument(
         "--external-context-path",

@@ -1,0 +1,44 @@
+{
+  "case_count": 5,
+  "cases": [
+    {
+      "case_id": "c8f1aeed",
+      "category": "single-session-assistant",
+      "gold_support_ids": [
+        "answer_ultrachat_519486"
+      ]
+    },
+    {
+      "case_id": "dccbc061",
+      "category": "single-session-user",
+      "gold_support_ids": [
+        "answer_8f276838"
+      ]
+    },
+    {
+      "case_id": "6aeb4375_abs",
+      "category": "knowledge-update",
+      "gold_support_ids": [
+        "answer_3f9693b7_abs_1",
+        "answer_3f9693b7_abs_2"
+      ]
+    },
+    {
+      "case_id": "71017277",
+      "category": "temporal-reasoning",
+      "gold_support_ids": [
+        "answer_0b4a8adc_1"
+      ]
+    },
+    {
+      "case_id": "73d42213",
+      "category": "multi-session",
+      "gold_support_ids": [
+        "answer_1881e7db_2",
+        "answer_1881e7db_1"
+      ]
+    }
+  ],
+  "dataset": "longmemeval_m_fresh",
+  "dataset_sha": "7158160229df1698009f6b7cd4bcb0e60b1ffb89e182f330bfe8e5a6783683ae"
+}
