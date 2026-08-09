@@ -77,7 +77,7 @@ def exclusion_sources(
     yield from sorted(runs_root.rglob("results.jsonl"))
     yield from sorted(runs_root.rglob("*frozen_case_manifest*.json"))
     for path in sorted(benchmarks_root.glob("*.json")):
-        if path in {source_path, output_path} or "longmemeval_m_" in path.name:
+        if path in {source_path, output_path}:
             continue
         yield path
 
