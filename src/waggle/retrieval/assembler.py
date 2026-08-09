@@ -90,6 +90,8 @@ class EvidenceAssembler:
                     continue
                 if not self._has_slot_answer_shape(plan, slot, raw_content):
                     continue
+                if slot.required_terms and not self._contains_required_terms(raw_content, slot.required_terms):
+                    continue
                 atom = self._structure_atom(plan, slot, raw_content)
                 if atom is None:
                     continue
@@ -358,6 +360,14 @@ class EvidenceAssembler:
         if plan.operation == Operation.DATE_DIFFERENCE:
             return bool(_DATE_RE.search(content) or re.search(r"\b(today|yesterday|days? ago|weeks? ago|started|finished|attended|got)\b", content, re.I))
         return True
+
+    @classmethod
+    def _contains_required_terms(cls, content: str, required_terms: tuple[str, ...]) -> bool:
+        terms = cls._expanded_query_terms(content)
+        return all(
+            term in terms or (term.endswith("s") and term[:-1] in terms)
+            for term in required_terms
+        )
 
     @classmethod
     def _expanded_query_terms(cls, text: str) -> set[str]:

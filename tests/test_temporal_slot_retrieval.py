@@ -265,6 +265,10 @@ def test_planner_builds_structural_contracts_without_case_vocabulary() -> None:
     assert recommendation.slots[0].evidence_type == EvidenceType.ASSISTANT_ANSWER
     assert recommendation.slots[0].required_role == "assistant"
 
+    mentioned = planner.plan("You mentioned several authentication methods. Which ones were they?")
+    assert mentioned.slots[0].evidence_type == EvidenceType.ASSISTANT_ANSWER
+    assert mentioned.slots[0].required_role == "assistant"
+
 
 def test_planner_routes_generic_difference_active_set_and_preference_contracts() -> None:
     planner = DeterministicQueryPlanner()
@@ -465,3 +469,33 @@ def test_retriever_runs_one_micro_expansion_when_structural_contract_is_missing(
     assert graph.retriever.calls[0][1] == 20
     assert graph.retriever.calls[1][1] == 40
     assert "ITEM 12: Rotate credentials" in result.context.text
+
+
+def test_duration_contract_rejects_adjacent_entity_and_recovers_exact_entity() -> None:
+    class FakeRetriever:
+        def __init__(self) -> None:
+            self.calls: list[int] = []
+
+        def retrieve_debug(self, *, top_k: int, **_: object) -> dict[str, object]:
+            self.calls.append(top_k)
+            if top_k == 20:
+                return {"hits": [hit("user: I have collected vintage cameras since last month.")]}
+            return {"hits": [hit("user: I have been collecting vintage films for twelve years.")]}
+
+    class FakeGraph:
+        def __init__(self) -> None:
+            self.retriever = FakeRetriever()
+
+        def hybrid_retriever(self) -> FakeRetriever:
+            return self.retriever
+
+    result = TemporalSlotRetriever(FakeGraph()).retrieve(
+        query="How long have I been collecting vintage films?",
+        max_context_tokens=500,
+    )
+
+    assert result.plan.slots[0].required_terms == ("vintage", "films")
+    assert result.fallback_used is True
+    assert result.validation_issues == ()
+    assert "twelve years" in result.context.text
+    assert "vintage cameras" not in result.context.text

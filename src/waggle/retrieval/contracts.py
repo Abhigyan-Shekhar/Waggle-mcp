@@ -50,6 +50,16 @@ class EvidenceValidator:
                         f"Slot {slot.name} requires {slot.required_role} evidence.",
                     )
                 )
+            if slot.required_terms and evidence and not any(
+                self._contains_required_terms(item.content, slot.required_terms) for item in evidence
+            ):
+                issues.append(
+                    ValidationIssue(
+                        "missing_entity_anchor",
+                        slot.name,
+                        f"Slot {slot.name} does not contain its required entity anchor.",
+                    )
+                )
             for item in evidence:
                 if slot.evidence_type == EvidenceType.LIST_ITEM:
                     if not item.structure.get("list_index") or not item.structure.get("value"):
@@ -105,6 +115,12 @@ class EvidenceValidator:
                     ValidationIssue("ambiguous_current_state", "current_state", "Current-state evidence is not singular.")
                 )
         return self._dedupe(issues)
+
+    @staticmethod
+    def _contains_required_terms(content: str, required_terms: tuple[str, ...]) -> bool:
+        words = set(content.lower().replace("-", " ").split())
+        normalized = {word.strip(".,:;!?()[]{}\"'") for word in words}
+        return all(term in normalized or (term.endswith("s") and term[:-1] in normalized) for term in required_terms)
 
     @staticmethod
     def _dedupe(issues: list[ValidationIssue]) -> list[ValidationIssue]:

@@ -43,6 +43,7 @@ class EvidenceSlot:
     target_key: str = ""
     row_key: str = ""
     fallback_queries: tuple[str, ...] = ()
+    required_terms: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,8 +72,8 @@ class DeterministicQueryPlanner:
     _INDEXED_ITEM = re.compile(r"\b(?P<index>\d+)(?:st|nd|rd|th)\b.*\b(?:item|parameter|entry|point|step|option)\b", re.I)
     _TABLE = re.compile(r"\b(?:shift|rotation|schedule|table|sheet|row|column)\b", re.I)
     _ASSISTANT_ORIGIN = re.compile(
-        r"\b(?:you|your)\b.{0,80}\b(?:gave|provided|recommend(?:ed)?|suggest(?:ed)?|told|listed|said)\b|"
-        r"\b(?:gave|provided|recommend(?:ed)?|suggest(?:ed)?|told|listed)\b.{0,80}\b(?:you|your)\b",
+        r"\b(?:you|your)\b.{0,80}\b(?:gave|provided|recommend(?:ed)?|suggest(?:ed)?|told|listed|said|mentioned|referred)\b|"
+        r"\b(?:gave|provided|recommend(?:ed)?|suggest(?:ed)?|told|listed|mentioned|referred)\b.{0,80}\b(?:you|your)\b",
         re.I,
     )
     _ACTIVE_SET_COUNT = re.compile(
@@ -178,6 +179,7 @@ class DeterministicQueryPlanner:
             )
         if self._DIRECT_DURATION.search(text):
             topic = self._compact_retrieval_query(text)
+            required_terms = self._duration_entity_terms(text)
             return QueryPlan(
                 query=text,
                 query_type=QueryType.DIRECT_FACT,
@@ -185,7 +187,8 @@ class DeterministicQueryPlanner:
                     EvidenceSlot(
                         "duration",
                         f"explicit duration days weeks months years {topic}",
-                        fallback_queries=(f"using for months years since started {topic}",),
+                        fallback_queries=(f"using for months years since started exact entity {topic}",),
+                        required_terms=required_terms,
                     ),
                 ),
                 diagnostics={"rule": "explicit_duration"},
@@ -340,6 +343,18 @@ class DeterministicQueryPlanner:
             if match:
                 return match.group(1)
         return ""
+
+    @staticmethod
+    def _duration_entity_terms(text: str) -> tuple[str, ...]:
+        match = re.search(r"\bhow long have i been\s+(?:\w+ing\s+)?(.+?)(?:\?|$)", text, re.I)
+        if not match:
+            return ()
+        terms = [
+            term
+            for term in re.findall(r"[a-z0-9]+", match.group(1).lower())
+            if len(term) >= 3 and term not in {"the", "this", "that", "for", "with", "using", "doing"}
+        ]
+        return tuple(terms[-2:])
 
     @staticmethod
     def _expanded_retrieval_query(text: str) -> str:

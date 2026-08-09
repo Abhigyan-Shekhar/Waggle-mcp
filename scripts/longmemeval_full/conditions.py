@@ -582,6 +582,7 @@ def temporal_slot_context(
                             "target_index": getattr(slot, "target_index", None),
                             "target_key": getattr(slot, "target_key", ""),
                             "row_key": getattr(slot, "row_key", ""),
+                            "required_terms": list(getattr(slot, "required_terms", ())),
                         }
                         for slot in result.plan.slots
                     ],
