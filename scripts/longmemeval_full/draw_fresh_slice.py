@@ -19,6 +19,7 @@ DEFAULT_CATEGORIES = (
     "temporal-reasoning",
     "multi-session",
 )
+CANONICAL_DATASET_NAMES = {"longmemeval_s_cleaned.json", "longmemeval_m_cleaned.json"}
 
 
 def sha256(path: Path) -> str:
@@ -139,7 +140,7 @@ def exclusion_sources(
     yield from sorted(runs_root.rglob("results.jsonl"))
     yield from sorted(runs_root.rglob("*frozen_case_manifest*.json"))
     for path in sorted(benchmarks_root.glob("*.json")):
-        if path in {source_path, output_path}:
+        if path in {source_path, output_path} or path.name in CANONICAL_DATASET_NAMES:
             continue
         yield path
 
@@ -193,6 +194,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--benchmarks-root", type=Path, default=Path("benchmarks/longmemeval"))
     parser.add_argument("--size", type=int, default=24)
     parser.add_argument("--seed", type=int, default=20260802)
+    parser.add_argument(
+        "--categories",
+        default=",".join(DEFAULT_CATEGORIES),
+        help="Comma-separated category order used for balanced reservoir sampling.",
+    )
     return parser.parse_args()
 
 
@@ -231,7 +237,10 @@ def main() -> int:
             eligible_count += 1
             yield row
 
-    selected = draw_stratified(eligible_rows(), size=args.size, seed=args.seed)
+    categories = tuple(category.strip() for category in args.categories.split(",") if category.strip())
+    if not categories:
+        raise SystemExit("At least one category is required")
+    selected = draw_stratified(eligible_rows(), size=args.size, seed=args.seed, categories=categories)
     spent_ids.intersection_update(source_ids)
     selected_ids = [case_id(row) for row in selected]
     overlap = sorted(set(selected_ids) & spent_ids)
@@ -249,6 +258,7 @@ def main() -> int:
         "source": str(args.source),
         "source_sha256": sha256(args.source),
         "seed": args.seed,
+        "categories": list(categories),
         "requested_size": args.size,
         "selected_count": len(selected),
         "eligible_count_before_draw": eligible_count,
