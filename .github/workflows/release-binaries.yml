@@ -24,7 +24,8 @@ jobs:
             asset_name: waggle-mcp-darwin-arm64
             executable_name: waggle-mcp-darwin-arm64
             artifact_path: dist/waggle-mcp-darwin-arm64
-          - runner: macos-13
+          # macos-13 was retired; retain the x86_64 build on GitHub's supported Intel runner.
+          - runner: macos-15-intel
             asset_name: waggle-mcp-darwin-x64
             executable_name: waggle-mcp-darwin-x64
             artifact_path: dist/waggle-mcp-darwin-x64

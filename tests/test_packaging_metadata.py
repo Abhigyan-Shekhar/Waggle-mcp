@@ -127,7 +127,7 @@ def test_codex_release_docs_record_intentional_version_split_and_unsigned_policy
 
     for text in [codex_guide, runtime_guide, checklist]:
         assert "0.1.3" in text
-        assert "v0.1.21" in text
+        assert "v0.1.22" in text
 
     assert "intentionally unsigned" in codex_guide
     assert "intentionally unsigned" in runtime_guide
