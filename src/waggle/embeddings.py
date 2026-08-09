@@ -67,8 +67,7 @@ class _TransformersMeanPoolEncoder:
         sys.modules.setdefault("sklearn.metrics", metrics_stub)
         try:
             import torch
-            from transformers.models.bert.modeling_bert import BertModel
-            from transformers.models.bert.tokenization_bert import BertTokenizer
+            from transformers import AutoModel, AutoTokenizer
         finally:
             metadata.entry_points = entry_points
             metadata.packages_distributions = packages_distributions
@@ -83,8 +82,8 @@ class _TransformersMeanPoolEncoder:
 
         repo_id = model_name if "/" in model_name else f"sentence-transformers/{model_name}"
         self._torch = torch
-        self._tokenizer = BertTokenizer.from_pretrained(repo_id, local_files_only=local_files_only)
-        self._model = BertModel.from_pretrained(repo_id, local_files_only=local_files_only)
+        self._tokenizer = AutoTokenizer.from_pretrained(repo_id, local_files_only=local_files_only)
+        self._model = AutoModel.from_pretrained(repo_id, local_files_only=local_files_only)
         self._device = device
         self._model.to(device)
         self._model.eval()

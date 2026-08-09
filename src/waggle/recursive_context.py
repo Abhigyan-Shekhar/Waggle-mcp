@@ -296,6 +296,7 @@ class RecursiveContextController:
         all_edges: list[Any] = []
         transcript_hits: list[Any] = []
         pinned_transcript_hits: list[Any] = []
+        transcript_record_pool = self._load_transcript_record_pool(scope) if include_evidence else []
 
         for sq in subqueries:
             # Step 2 ablation: remove "verbatim" from retrieval_modes
@@ -322,7 +323,11 @@ class RecursiveContextController:
 
         if include_evidence:
             direct_hits = self._direct_transcript_evidence(query, scope=scope, limit=8)
-            pinned_transcript_hits = self._pinned_transcript_evidence(query=query, scope=scope, limit=8)
+            pinned_transcript_hits = self._pinned_transcript_evidence(
+                query=query,
+                records=transcript_record_pool,
+                limit=8,
+            )
             direct_hits.extend(pinned_transcript_hits)
             answer_category = self._detect_answer_category(query)
             for evidence_query in self._answer_evidence_queries(query, answer_category):
@@ -333,7 +338,7 @@ class RecursiveContextController:
                 self._lexical_answer_transcript_evidence(
                     query=query,
                     category=answer_category,
-                    scope=scope,
+                    records=transcript_record_pool,
                     limit=6,
                 )
             )
@@ -369,6 +374,7 @@ class RecursiveContextController:
             pinned_transcript_hits=pinned_transcript_hits,
             token_budget=effective_budget,
             scope=scope,
+            transcript_record_pool=transcript_record_pool,
         )
 
         elapsed = time.perf_counter() - t0
@@ -903,16 +909,16 @@ class RecursiveContextController:
         names: list[str] = []
         for token in re.findall(r"\b[A-Z][a-zA-Z0-9_-]{2,}\b", query or ""):
             if token.lower() in {
-                "Can",
-                "What",
-                "Which",
-                "Sunday",
-                "Monday",
-                "Tuesday",
-                "Wednesday",
-                "Thursday",
-                "Friday",
-                "Saturday",
+                "can",
+                "what",
+                "which",
+                "sunday",
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
             }:
                 continue
             names.append(token)
@@ -1013,20 +1019,6 @@ class RecursiveContextController:
             for node in result.nodes:
                 hits.append(self._node_to_hit(node, source=effective_mode, subquery=subquery.query))
             edges.extend(result.edges)
-
-            if "graph" in retrieval_modes and effective_mode != "graph":
-                graph_result = self._graph.query(
-                    query=subquery.query,
-                    max_nodes=8 if mode == "fast" else 12,
-                    max_depth=depth,
-                    agent_id=scope.get("agent_id", ""),
-                    project=scope.get("project", ""),
-                    session_id=scope.get("session_id", ""),
-                    retrieval_mode="graph",
-                )
-                for node in graph_result.nodes:
-                    hits.append(self._node_to_hit(node, source="graph", subquery=subquery.query))
-                edges.extend(graph_result.edges)
 
             # Collect verbatim transcript hits
             if include_evidence and hasattr(result, "replay_hits"):
@@ -1212,6 +1204,7 @@ class RecursiveContextController:
         token_budget: int,
         pinned_transcript_hits: list[Any] | None = None,
         scope: dict[str, str] | None = None,
+        transcript_record_pool: list[Any] | None = None,
     ) -> tuple[str, list[Any]]:
         """
         Build the context pack string within the token budget.
@@ -1226,6 +1219,8 @@ class RecursiveContextController:
         """
         max_tokens = int(token_budget * 1.15)  # allow 15% overage
         nodes_used: list[Any] = []
+        if transcript_record_pool is None:
+            transcript_record_pool = self._load_transcript_record_pool(scope or {})
         answer_category = self._detect_answer_category(query)
         is_personalization_query = self._looks_like_personalization_advice_query(query.lower())
         personalization_graph_hits = self._personalization_graph_hits(query, hits) if is_personalization_query else []
@@ -1309,7 +1304,13 @@ class RecursiveContextController:
                 lines.extend(count_block)
                 used_tokens += count_cost
 
-        candidate_lines = self._answer_candidate_lines(query, answer_category, transcript_hits, scope or {})
+        candidate_lines = self._answer_candidate_lines(
+            query,
+            answer_category,
+            transcript_hits,
+            scope or {},
+            transcript_record_pool or [],
+        )
         if candidate_lines:
             candidate_block = ["Answer candidates:", *candidate_lines, ""]
             candidate_cost = self._estimate_tokens("\n".join(candidate_block))
@@ -1340,6 +1341,7 @@ class RecursiveContextController:
             query=query,
             scope=scope or {},
             transcript_hits=transcript_hits,
+            records=transcript_record_pool or [],
             limit=8,
         )
         personalization_lines, personalization_keys = self._personalization_evidence_section(
@@ -1666,16 +1668,23 @@ class RecursiveContextController:
         category: str,
         transcript_hits: list[Any],
         scope: dict[str, str],
+        record_pool: list[Any],
     ) -> list[str]:
         query_lower = (query or "").lower()
         if category == "short_personal_fact" and "how often" in query_lower:
-            return self._frequency_candidate_lines(query, transcript_hits, scope)
+            return self._frequency_candidate_lines(query, transcript_hits, scope, record_pool)
         if category == "temporal_ordering":
-            return self._temporal_order_candidate_lines(query, transcript_hits, scope)
+            return self._temporal_order_candidate_lines(query, transcript_hits, scope, record_pool)
         return []
 
-    def _frequency_candidate_lines(self, query: str, transcript_hits: list[Any], scope: dict[str, str]) -> list[str]:
-        records = self._candidate_record_pool(transcript_hits, scope)
+    def _frequency_candidate_lines(
+        self,
+        query: str,
+        transcript_hits: list[Any],
+        scope: dict[str, str],
+        record_pool: list[Any],
+    ) -> list[str]:
+        records = self._candidate_record_pool(transcript_hits, scope, record_pool)
         scored: list[tuple[int, str]] = []
         for record in records:
             text = self._transcript_text(record)
@@ -1696,9 +1705,13 @@ class RecursiveContextController:
         return lines[:4]
 
     def _temporal_order_candidate_lines(
-        self, query: str, transcript_hits: list[Any], scope: dict[str, str]
+        self,
+        query: str,
+        transcript_hits: list[Any],
+        scope: dict[str, str],
+        record_pool: list[Any],
     ) -> list[str]:
-        records = self._candidate_record_pool(transcript_hits, scope)
+        records = self._candidate_record_pool(transcript_hits, scope, record_pool)
         lines: list[str] = []
         seen: set[str] = set()
         for record in records:
@@ -1714,21 +1727,14 @@ class RecursiveContextController:
                 lines.append(line)
         return lines[:6]
 
-    def _candidate_record_pool(self, transcript_hits: list[Any], scope: dict[str, str]) -> list[Any]:
-        records = list(transcript_hits)
-        if hasattr(self._graph, "list_transcript_records"):
-            try:
-                records.extend(
-                    self._graph.list_transcript_records(
-                        agent_id=scope.get("agent_id", ""),
-                        project=scope.get("project", ""),
-                        session_id=scope.get("session_id", ""),
-                        limit=5000,
-                    )
-                    or []
-                )
-            except Exception as exc:
-                LOGGER.debug("recursive_context._candidate_record_pool failed: %s", exc)
+    def _candidate_record_pool(
+        self,
+        transcript_hits: list[Any],
+        scope: dict[str, str],
+        record_pool: list[Any],
+    ) -> list[Any]:
+        del scope
+        records = [*transcript_hits, *record_pool]
         deduped: list[Any] = []
         seen: set[str] = set()
         for record in records:
@@ -1738,6 +1744,25 @@ class RecursiveContextController:
             seen.add(key)
             deduped.append(record)
         return deduped
+
+    def _load_transcript_record_pool(self, scope: dict[str, str]) -> list[Any]:
+        if not hasattr(self._graph, "list_transcript_records"):
+            return []
+        configured_limit = int(self._config.get("transcript_record_limit", 1000))
+        limit = max(1, min(configured_limit, 5000))
+        try:
+            return list(
+                self._graph.list_transcript_records(
+                    agent_id=scope.get("agent_id", ""),
+                    project=scope.get("project", ""),
+                    session_id=scope.get("session_id", ""),
+                    limit=limit,
+                )
+                or []
+            )
+        except Exception as exc:
+            LOGGER.debug("recursive_context._load_transcript_record_pool failed: %s", exc)
+            return []
 
     def _replacement_item_candidate_lines(self, query: str, transcript_hits: list[Any]) -> list[str]:
         candidates: dict[str, tuple[str, float]] = {}
@@ -2373,7 +2398,7 @@ class RecursiveContextController:
             escaped_value = re.escape(value_lower)
             if re.search(rf"\busing\s+{escaped_value}\s+for\s+my\s+home\s+practice\b", local):
                 score -= 0.55
-            if re.search(rf"\b{escaped_value}\b.{0, 80}\b(app|apps|customization|subscription)\b", local):
+            if re.search(rf"\b{escaped_value}\b.{{0,80}}\b(app|apps|customization|subscription)\b", local):
                 score -= 0.35
 
         if self._looks_like_identity_detail_query(query_lower):
@@ -3371,21 +3396,14 @@ class RecursiveContextController:
         *,
         query: str,
         category: str,
-        scope: dict[str, str],
+        records: list[Any] | None = None,
+        scope: dict[str, str] | None = None,
         limit: int,
     ) -> list[Any]:
-        if category == "generic" or not hasattr(self._graph, "list_transcript_records"):
+        if category == "generic":
             return []
-        try:
-            records = self._graph.list_transcript_records(
-                agent_id=scope.get("agent_id", ""),
-                project=scope.get("project", ""),
-                session_id=scope.get("session_id", ""),
-                limit=5000,
-            )
-        except Exception as exc:
-            LOGGER.debug("recursive_context._lexical_answer_transcript_evidence failed: %s", exc)
-            return []
+        if records is None:
+            records = self._load_transcript_record_pool(scope or {})
 
         scored: list[tuple[float, int, Any]] = []
         query_lower = query.lower()
@@ -3466,26 +3484,16 @@ class RecursiveContextController:
         query: str,
         scope: dict[str, str],
         transcript_hits: list[Any],
+        records: list[Any] | None = None,
         limit: int,
     ) -> list[Any]:
         query_lower = (query or "").lower()
         if not self._looks_like_personalization_advice_query(query_lower):
             return []
 
-        records: list[Any] = list(transcript_hits)
-        if hasattr(self._graph, "list_transcript_records"):
-            try:
-                records.extend(
-                    self._graph.list_transcript_records(
-                        agent_id=scope.get("agent_id", ""),
-                        project=scope.get("project", ""),
-                        session_id=scope.get("session_id", ""),
-                        limit=5000,
-                    )
-                    or []
-                )
-            except Exception as exc:
-                LOGGER.debug("recursive_context._personalization_transcript_evidence failed: %s", exc)
+        if records is None:
+            records = self._load_transcript_record_pool(scope)
+        records = [*transcript_hits, *records]
 
         scored: list[tuple[float, int, Any]] = []
         seen: set[str] = set()
@@ -3730,20 +3738,19 @@ class RecursiveContextController:
             emitted.add(key)
         return lines, emitted
 
-    def _pinned_transcript_evidence(self, *, query: str, scope: dict[str, str], limit: int) -> list[Any]:
+    def _pinned_transcript_evidence(
+        self,
+        *,
+        query: str,
+        records: list[Any] | None = None,
+        scope: dict[str, str] | None = None,
+        limit: int,
+    ) -> list[Any]:
         query_lower = (query or "").lower()
-        if not self._uses_pinned_fact_lane(query_lower) or not hasattr(self._graph, "list_transcript_records"):
+        if not self._uses_pinned_fact_lane(query_lower):
             return []
-        try:
-            records = self._graph.list_transcript_records(
-                agent_id=scope.get("agent_id", ""),
-                project=scope.get("project", ""),
-                session_id=scope.get("session_id", ""),
-                limit=5000,
-            )
-        except Exception as exc:
-            LOGGER.debug("recursive_context._pinned_transcript_evidence failed: %s", exc)
-            return []
+        if records is None:
+            records = self._load_transcript_record_pool(scope or {})
 
         scored: list[tuple[float, int, Any]] = []
         for index, record in enumerate(records):

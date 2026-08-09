@@ -11,6 +11,7 @@ import pytest
 from starlette.testclient import TestClient
 
 import waggle
+import waggle.server.routes as routes_module
 from waggle.auth import api_key_from_headers, api_key_prefix, hash_api_key, legacy_api_key_hash, verify_api_key
 from waggle.config import AppConfig
 from waggle.errors import (
@@ -403,6 +404,33 @@ def test_http_app_health_auth_and_metrics(tmp_path: Path) -> None:
 
     audit_events = graph.for_tenant("tenant-http").list_audit_events(limit=10, event_type="api_key.used")
     assert audit_events[0].api_key_id == created.record.api_key_id
+
+
+def test_http_graph_route_offloads_bearer_authentication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    graph = make_graph(tmp_path)
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    created = graph.create_api_key("tenant-http", "http-test")
+    app = create_http_application(app_server, app_server.config)
+    original_run_sync = routes_module.anyio.to_thread.run_sync
+    offloaded: list[str] = []
+
+    async def tracked_run_sync(function, *args, **kwargs):
+        offloaded.append(getattr(function, "__name__", ""))
+        return await original_run_sync(function, *args, **kwargs)
+
+    monkeypatch.setattr(routes_module.anyio.to_thread, "run_sync", tracked_run_sync)
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/graph",
+            headers={"Authorization": f"Bearer {created.raw_api_key}"},
+        )
+
+    assert response.status_code == 200
+    assert "authenticate_api_key" in offloaded
 
 
 def test_http_bearer_auth_upgrades_legacy_sha256_api_key(tmp_path: Path) -> None:

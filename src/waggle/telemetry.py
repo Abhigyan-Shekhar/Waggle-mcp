@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import queue
 import threading
 import uuid
 from contextlib import suppress
@@ -19,6 +20,11 @@ REQUEST_TIMEOUT_SECONDS = 0.75
 MAX_QUEUE_EVENTS = 100
 MAX_QUEUE_AGE = timedelta(days=7)
 MAX_BATCH_SIZE = 20
+
+_QUEUE_FILE_LOCK = threading.RLock()
+_WORK_QUEUE: queue.Queue[dict[str, Any]] = queue.Queue()
+_WORKER_LOCK = threading.Lock()
+_WORKER_THREAD: threading.Thread | None = None
 
 ALLOWED_EVENTS = {
     "setup_completed",
@@ -87,7 +93,7 @@ class TelemetryConfig:
 
 def load_config() -> TelemetryConfig:
     env_value = _normalized_env_value()
-    installation_id = str(uuid.uuid4())
+    installation_id = ""
     enabled = False
 
     if CONFIG_PATH.exists():
@@ -104,22 +110,28 @@ def load_config() -> TelemetryConfig:
     if env_value == "0":
         return TelemetryConfig(enabled=False, installation_id=installation_id, overridden_by_env=True)
     if env_value == "1":
-        return TelemetryConfig(enabled=True, installation_id=installation_id, overridden_by_env=True)
+        return TelemetryConfig(
+            enabled=True,
+            installation_id=installation_id or str(uuid.uuid4()),
+            overridden_by_env=True,
+        )
+    if enabled and not installation_id:
+        installation_id = str(uuid.uuid4())
     return TelemetryConfig(enabled=enabled, installation_id=installation_id)
 
 
 def save_config(config: TelemetryConfig) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "enabled": bool(config.enabled),
-        "installation_id": config.installation_id or str(uuid.uuid4()),
-    }
+    payload: dict[str, Any] = {"enabled": bool(config.enabled)}
+    installation_id = config.installation_id or (str(uuid.uuid4()) if config.enabled else "")
+    if installation_id:
+        payload["installation_id"] = installation_id
     CONFIG_PATH.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def enable() -> TelemetryConfig:
     current = load_config()
-    config = TelemetryConfig(enabled=True, installation_id=current.installation_id)
+    config = TelemetryConfig(enabled=True, installation_id=current.installation_id or str(uuid.uuid4()))
     save_config(config)
     return config
 
@@ -167,12 +179,10 @@ def capture(
 
     try:
         payload = _build_payload(event, config.installation_id, waggle_version=waggle_version, properties=properties)
-        _append_event(payload)
     except Exception:
         return
-
-    thread = threading.Thread(target=flush, daemon=True)
-    thread.start()
+    _ensure_worker()
+    _WORK_QUEUE.put(payload)
 
 
 def capture_tool_event(
@@ -207,30 +217,19 @@ def flush() -> int:
     if not config.enabled or not QUEUE_PATH.exists():
         return 0
 
-    try:
-        queued = _read_queue()
-    except Exception:
-        return 0
-
-    if not queued:
-        _replace_queue([])
-        return 0
-
-    batch = queued[:MAX_BATCH_SIZE]
-    delivered = 0
-    remaining = queued
-    try:
-        _send_batch(batch)
-        delivered = len(batch)
-        remaining = queued[delivered:]
-    except Exception:
-        return 0
-
-    try:
-        _replace_queue(remaining)
-    except Exception:
-        return delivered
-    return delivered
+    with _QUEUE_FILE_LOCK:
+        try:
+            queued = _read_queue()
+            if not queued:
+                _replace_queue([])
+                return 0
+            batch = queued[:MAX_BATCH_SIZE]
+            _send_batch(batch)
+            delivered = len(batch)
+            _replace_queue(queued[delivered:])
+            return delivered
+        except Exception:
+            return 0
 
 
 def bucket_count(count: int) -> str:
@@ -350,43 +349,66 @@ def _sanitize_properties(properties: dict[str, Any]) -> dict[str, Any]:
 
 
 def _append_event(payload: dict[str, Any]) -> None:
-    queued = _read_queue()
-    queued.append(payload)
-    queued = queued[-MAX_QUEUE_EVENTS:]
-    _replace_queue(queued)
+    with _QUEUE_FILE_LOCK:
+        QUEUE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with QUEUE_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
 
 
 def _read_queue() -> list[dict[str, Any]]:
-    if not QUEUE_PATH.exists():
-        return []
-    cutoff = datetime.now(UTC) - MAX_QUEUE_AGE
-    events: list[dict[str, Any]] = []
-    for line in QUEUE_PATH.read_text(encoding="utf-8").splitlines():
-        try:
-            event = json.loads(line)
-        except ValueError:
-            continue
-        if not isinstance(event, dict):
-            continue
-        timestamp = event.get("timestamp")
-        if isinstance(timestamp, str):
+    with _QUEUE_FILE_LOCK:
+        if not QUEUE_PATH.exists():
+            return []
+        cutoff = datetime.now(UTC) - MAX_QUEUE_AGE
+        events: list[dict[str, Any]] = []
+        for line in QUEUE_PATH.read_text(encoding="utf-8").splitlines():
             try:
-                if datetime.fromisoformat(timestamp) < cutoff:
-                    continue
+                event = json.loads(line)
             except ValueError:
                 continue
-        events.append(event)
-    return events[-MAX_QUEUE_EVENTS:]
+            if not isinstance(event, dict):
+                continue
+            timestamp = event.get("timestamp")
+            if isinstance(timestamp, str):
+                try:
+                    if datetime.fromisoformat(timestamp) < cutoff:
+                        continue
+                except (TypeError, ValueError):
+                    continue
+            events.append(event)
+        return events[-MAX_QUEUE_EVENTS:]
 
 
 def _replace_queue(events: list[dict[str, Any]]) -> None:
-    QUEUE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if not events:
-        with suppress(FileNotFoundError):
-            QUEUE_PATH.unlink()
-        return
-    text = "".join(json.dumps(event, sort_keys=True) + "\n" for event in events[-MAX_QUEUE_EVENTS:])
-    QUEUE_PATH.write_text(text, encoding="utf-8")
+    with _QUEUE_FILE_LOCK:
+        QUEUE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        if not events:
+            with suppress(FileNotFoundError):
+                QUEUE_PATH.unlink()
+            return
+        text = "".join(json.dumps(event, sort_keys=True) + "\n" for event in events[-MAX_QUEUE_EVENTS:])
+        QUEUE_PATH.write_text(text, encoding="utf-8")
+
+
+def _ensure_worker() -> None:
+    global _WORKER_THREAD
+    with _WORKER_LOCK:
+        if _WORKER_THREAD is not None and _WORKER_THREAD.is_alive():
+            return
+        _WORKER_THREAD = threading.Thread(target=_worker_loop, name="waggle-telemetry", daemon=True)
+        _WORKER_THREAD.start()
+
+
+def _worker_loop() -> None:
+    while True:
+        payload = _WORK_QUEUE.get()
+        try:
+            _append_event(payload)
+            flush()
+        except Exception:
+            pass
+        finally:
+            _WORK_QUEUE.task_done()
 
 
 def _send_batch(batch: list[dict[str, Any]]) -> None:

@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import anyio
 from starlette.applications import Starlette
 from starlette.datastructures import Headers
 from starlette.requests import Request
@@ -129,17 +130,17 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             "session_id": request.query_params.get("session_id", "").strip(),
         }
 
-    def _graph_from_request(request: Request, *, tenant_override: str = "") -> tuple[Any, Any | None]:
+    async def _graph_from_request(request: Request, *, tenant_override: str = "") -> tuple[Any, Any | None]:
         raw_api_key = api_key_from_headers(request.headers)
         if raw_api_key:
-            principal = app_server._root_graph.authenticate_api_key(raw_api_key)
+            principal = await anyio.to_thread.run_sync(app_server._root_graph.authenticate_api_key, raw_api_key)
             return app_server._root_graph.for_tenant(principal.tenant_id), principal
         tenant_id = (
             tenant_override.strip() or request.query_params.get("tenant_id", "").strip() or config.default_tenant_id
         )
         return app_server.graph.for_tenant(tenant_id), None
 
-    def _emit_http_audit(
+    async def _emit_http_audit(
         request: Request,
         *,
         event_type: str,
@@ -150,7 +151,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         tenant_override: str = "",
     ) -> None:
         try:
-            graph, principal = _graph_from_request(request, tenant_override=tenant_override)
+            graph, principal = await _graph_from_request(request, tenant_override=tenant_override)
         except AuthenticationError:
             graph = app_server.graph.for_tenant(tenant_override.strip() or config.default_tenant_id)
             principal = None
@@ -167,10 +168,10 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             metadata=metadata or {},
         )
 
-    def _require_http_scope(
+    async def _require_http_scope(
         request: Request, required_scope: str, *, tenant_override: str = ""
     ) -> tuple[Any, Any | None]:
-        graph, principal = _graph_from_request(request, tenant_override=tenant_override)
+        graph, principal = await _graph_from_request(request, tenant_override=tenant_override)
         if principal is not None:
             principal.require_scope(required_scope)
         return graph, principal
@@ -271,7 +272,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def graph_snapshot(request: Request) -> Response:
         scope = _scope_from_request(request)
-        graph, _ = _require_http_scope(request, "graph:read")
+        graph, _ = await _require_http_scope(request, "graph:read")
         include_source_prompt = request.query_params.get("include_source_prompt", "").strip().lower() in {
             "1",
             "true",
@@ -281,7 +282,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             snapshot = graph.get_graph_snapshot(include_source_prompt=include_source_prompt, **scope)
         except TypeError:
             snapshot = graph.get_graph_snapshot(**scope)
-        _emit_http_audit(
+        await _emit_http_audit(
             request,
             event_type="graph.snapshot.read",
             resource_type="graph_snapshot",
@@ -308,10 +309,10 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         except (ValueError, TypeError):
             raise ValidationFailure("limit and offset query parameters must be integers.")
         query_text = request.query_params.get("query", "").strip()
-        graph, _ = _require_http_scope(request, "graph:read")
+        graph, _ = await _require_http_scope(request, "graph:read")
         if query_text and hasattr(graph, "search_transcript_records"):
             hits = graph.search_transcript_records(query=query_text, limit=limit, **scope)
-            _emit_http_audit(
+            await _emit_http_audit(
                 request,
                 event_type="record.read",
                 resource_type="transcript_records",
@@ -329,7 +330,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             raise ValidationFailure("Transcript listing is not available in this backend.")
         records = graph.list_transcript_records(limit=limit, offset=offset, **scope)
         total_count = graph.count_transcript_records(**scope)
-        _emit_http_audit(
+        await _emit_http_audit(
             request,
             event_type="record.read",
             resource_type="transcript_records",
@@ -363,7 +364,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             max_depth = int(payload.get("max_depth", 1) or 1)
         except (ValueError, TypeError):
             raise ValidationFailure("max_nodes and max_depth must be integers.")
-        graph, _ = _require_http_scope(request, "graph:read")
+        graph, _ = await _require_http_scope(request, "graph:read")
         debug = graph.debug_retrieval(
             query=query_text, max_nodes=max_nodes, max_depth=max_depth, retrieval_mode="hybrid", **scope
         )
@@ -407,7 +408,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                     "reasoning": ", ".join(reasoning) or "ranked by reciprocal-rank fusion",
                 }
             )
-        _emit_http_audit(
+        await _emit_http_audit(
             request,
             event_type="graph.query.executed",
             resource_type="retrieval_debug",
@@ -425,10 +426,10 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def graph_abhi_preview(request: Request) -> Response:
         scope = _scope_from_request(request)
-        graph, _ = _require_http_scope(request, "graph:read")
+        graph, _ = await _require_http_scope(request, "graph:read")
         snapshot, document = _build_scoped_abhi(graph, scope)
         validation = validate_abhi_document(document, input_path="live://graph")
-        _emit_http_audit(
+        await _emit_http_audit(
             request,
             event_type="export.previewed",
             resource_type="abhi_preview",
@@ -451,7 +452,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def graph_query(request: Request) -> Response:
         payload = await request.json()
-        graph, _ = _require_http_scope(request, "graph:read")
+        graph, _ = await _require_http_scope(request, "graph:read")
         scope = {
             "project": str(payload.get("project", "")).strip(),
             "agent_id": str(payload.get("agent_id", "")).strip(),
@@ -463,7 +464,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             query_id=str(payload.get("query_id", "")).strip(),
             query_text=str(payload.get("query", "")).strip(),
         )
-        _emit_http_audit(
+        await _emit_http_audit(
             request,
             event_type="graph.query.executed",
             resource_type="abhi_query",
@@ -477,9 +478,9 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def graph_diff_feed(request: Request) -> Response:
         since = request.query_params.get("since", "24h").strip() or "24h"
-        graph, _ = _require_http_scope(request, "graph:read")
+        graph, _ = await _require_http_scope(request, "graph:read")
         diff = graph.graph_diff(since=since)
-        _emit_http_audit(
+        await _emit_http_audit(
             request,
             event_type="graph.diff.read",
             resource_type="graph_diff",
@@ -498,7 +499,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def graph_save_ui(request: Request) -> Response:
         payload = await request.json()
-        graph, _ = _require_http_scope(request, "graph:write")
+        graph, _ = await _require_http_scope(request, "graph:write")
         zoom_val = None
         if "zoom" in payload and payload.get("zoom") is not None:
             try:
@@ -547,7 +548,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             "agent_id": str(payload.get("agent_id", "")).strip(),
             "session_id": str(payload.get("session_id", "")).strip(),
         }
-        graph, _ = _require_http_scope(request, "graph:write")
+        graph, _ = await _require_http_scope(request, "graph:write")
         current = graph.get_graph_snapshot(**scope)
         desired_nodes = {
             str(node.get("id", "")).strip(): node
@@ -716,7 +717,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def graph_create_node(request: Request) -> Response:
         payload = await request.json()
-        graph, _ = _require_http_scope(request, "graph:write")
+        graph, _ = await _require_http_scope(request, "graph:write")
         scope = {
             "project": str(payload.get("project", "")).strip(),
             "agent_id": str(payload.get("agent_id", "")).strip(),
@@ -740,7 +741,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
     async def graph_update_node(request: Request) -> Response:
         node_id = request.path_params["node_id"]
         payload = await request.json()
-        graph, _ = _require_http_scope(request, "graph:write")
+        graph, _ = await _require_http_scope(request, "graph:write")
         snapshot = graph.get_graph_snapshot()
         existing = next(
             (node for node in snapshot.get("nodes", []) if str(node.get("id", "")).strip() == node_id), None
@@ -764,13 +765,13 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def graph_delete_node(request: Request) -> Response:
         node_id = request.path_params["node_id"]
-        graph, _ = _require_http_scope(request, "graph:write")
+        graph, _ = await _require_http_scope(request, "graph:write")
         deleted = graph.delete_node(node_id=node_id)
         return JSONResponse(deleted.model_dump(mode="json"))
 
     async def graph_create_edge(request: Request) -> Response:
         payload = await request.json()
-        graph, _ = _require_http_scope(request, "graph:write")
+        graph, _ = await _require_http_scope(request, "graph:write")
         raw_weight = payload.get("weight", 1.0)
         try:
             weight_value = float(raw_weight)
@@ -793,7 +794,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
     async def graph_update_edge(request: Request) -> Response:
         edge_id = request.path_params["edge_id"]
         payload = await request.json()
-        graph, _ = _require_http_scope(request, "graph:write")
+        graph, _ = await _require_http_scope(request, "graph:write")
         if "weight" in payload and payload.get("weight") is not None:
             try:
                 weight_value = float(payload["weight"])
@@ -826,18 +827,18 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def graph_delete_edge(request: Request) -> Response:
         edge_id = request.path_params["edge_id"]
-        graph, _ = _require_http_scope(request, "graph:write")
+        graph, _ = await _require_http_scope(request, "graph:write")
         edge = graph.delete_edge(edge_id=edge_id)
         return JSONResponse(edge.model_dump(mode="json"))
 
     async def graph_export(request: Request) -> Response:
-        graph, _ = _require_http_scope(request, "graph:read")
+        graph, _ = await _require_http_scope(request, "graph:read")
         scope = _scope_from_request(request)
         export_format = request.query_params.get("format", "abhi").strip().lower()
         if export_format == "abhi":
             exported = graph.export_abhi(**scope)
             content = Path(exported.output_path).read_bytes()
-            _emit_http_audit(
+            await _emit_http_audit(
                 request,
                 event_type="export.downloaded",
                 resource_type="abhi_export",
@@ -852,7 +853,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             )
         if export_format == "json":
             snapshot = graph.get_graph_snapshot(**scope)
-            _emit_http_audit(
+            await _emit_http_audit(
                 request,
                 event_type="export.downloaded",
                 resource_type="backup",
@@ -867,7 +868,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         raise ValidationFailure("format must be one of: abhi, json.")
 
     async def graph_import(request: Request) -> Response:
-        graph, _ = _require_http_scope(request, "graph:write")
+        graph, _ = await _require_http_scope(request, "graph:write")
         payload = await request.json()
         import_format = str(payload.get("format", "abhi")).strip().lower()
         content = str(payload.get("content", ""))
@@ -904,7 +905,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             temp_path.unlink(missing_ok=True)
 
     async def graph_import_preview(request: Request) -> Response:
-        graph, _ = _require_http_scope(request, "graph:read")
+        graph, _ = await _require_http_scope(request, "graph:read")
         payload = await request.json()
         import_format = str(payload.get("format", "abhi")).strip().lower()
         content = str(payload.get("content", ""))
@@ -961,7 +962,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             temp_path.unlink(missing_ok=True)
 
     async def graph_abhi_diff(request: Request) -> Response:
-        graph, _ = _require_http_scope(request, "graph:read")
+        graph, _ = await _require_http_scope(request, "graph:read")
         payload = await request.json()
         content_a = str(payload.get("content_a", ""))
         content_b = str(payload.get("content_b", ""))
@@ -1001,7 +1002,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             path_b.unlink(missing_ok=True)
 
     async def admin_retention_status(request: Request) -> Response:
-        graph, _ = _require_http_scope(request, "admin:read")
+        graph, _ = await _require_http_scope(request, "admin:read")
         policy = graph.get_retention_policy(
             default_enabled=config.retention_enabled,
             default_retention_days=config.retention_days,
@@ -1013,7 +1014,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def admin_retention_update(request: Request) -> Response:
         payload = await request.json()
-        graph, principal = _require_http_scope(
+        graph, principal = await _require_http_scope(
             request, "admin:write", tenant_override=str(payload.get("tenant_id", "") or "")
         )
         policy = graph.update_retention_policy(
@@ -1044,7 +1045,9 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def admin_retention_prune(request: Request) -> Response:
         payload = await request.json() if request.method != "GET" else {}
-        graph, _ = _require_http_scope(request, "admin:write", tenant_override=str(payload.get("tenant_id", "") or ""))
+        graph, _ = await _require_http_scope(
+            request, "admin:write", tenant_override=str(payload.get("tenant_id", "") or "")
+        )
         try:
             batch_size = int(payload.get("batch_size", 1000) or 1000)
         except (ValueError, TypeError):
@@ -1066,7 +1069,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         return JSONResponse(response)
 
     async def admin_retention_runs(request: Request) -> Response:
-        graph, _ = _require_http_scope(request, "admin:read")
+        graph, _ = await _require_http_scope(request, "admin:read")
         try:
             limit = int(request.query_params.get("limit", "20") or "20")
         except (ValueError, TypeError):
@@ -1075,7 +1078,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         return JSONResponse([_serialize_retention_run(run) for run in runs])
 
     async def admin_audit_events(request: Request) -> Response:
-        graph, _ = _require_http_scope(request, "admin:read")
+        graph, _ = await _require_http_scope(request, "admin:read")
         try:
             limit = int(request.query_params.get("limit", "100") or "100")
         except (ValueError, TypeError):

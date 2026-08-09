@@ -16,7 +16,6 @@ READ_ONLY_TOOLS = frozenset(
         "aggregate_graph",
         "query_graph",
         "debug_retrieval",
-        "get_related",
         "get_node_history",
         "list_context_scopes",
         "list_context_windows",

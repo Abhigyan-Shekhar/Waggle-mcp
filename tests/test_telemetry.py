@@ -13,6 +13,7 @@ DOCS_ROOT = Path(__file__).resolve().parent.parent / "docs"
 
 @pytest.fixture(autouse=True)
 def isolated_telemetry_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    telemetry._WORK_QUEUE.join()
     monkeypatch.setattr(telemetry, "CONFIG_PATH", tmp_path / "telemetry.json")
     monkeypatch.setattr(telemetry, "QUEUE_PATH", tmp_path / "telemetry-queue.jsonl")
     monkeypatch.delenv("WAGGLE_TELEMETRY", raising=False)
@@ -22,7 +23,7 @@ def test_telemetry_defaults_to_disabled() -> None:
     config = telemetry.load_config()
 
     assert config.enabled is False
-    assert config.installation_id
+    assert config.installation_id == ""
     assert config.overridden_by_env is False
 
 
@@ -44,8 +45,10 @@ def test_env_override_does_not_rewrite_local_setting(monkeypatch: pytest.MonkeyP
 
     assert loaded.enabled is True
     assert loaded.overridden_by_env is True
-    assert loaded.installation_id == saved.installation_id
+    assert saved.installation_id == ""
+    assert loaded.installation_id
     assert persisted["enabled"] is False
+    assert "installation_id" not in persisted
 
 
 def test_capture_with_env_enabled_persists_new_installation_id(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -53,6 +56,7 @@ def test_capture_with_env_enabled_persists_new_installation_id(monkeypatch: pyte
     monkeypatch.setattr(telemetry, "flush", lambda: 0)
 
     telemetry.capture("memory_retrieved", waggle_version="0.1.test", properties={"success": True})
+    telemetry._WORK_QUEUE.join()
 
     persisted = json.loads(telemetry.CONFIG_PATH.read_text(encoding="utf-8"))
     queued = [json.loads(line) for line in telemetry.QUEUE_PATH.read_text(encoding="utf-8").splitlines()]
@@ -93,6 +97,7 @@ def test_capture_queues_allowed_event_when_enabled(monkeypatch: pytest.MonkeyPat
         waggle_version="0.1.test",
         properties={"client": "codex", "result_count_bucket": "1-5"},
     )
+    telemetry._WORK_QUEUE.join()
 
     queued = [json.loads(line) for line in telemetry.QUEUE_PATH.read_text(encoding="utf-8").splitlines()]
     assert len(queued) == 1
@@ -126,6 +131,24 @@ def test_read_queue_drops_events_older_than_retention() -> None:
 
     assert len(queued) == 1
     assert queued[0]["timestamp"] == now.isoformat()
+
+
+def test_read_queue_skips_naive_timestamp() -> None:
+    now = datetime.now(UTC)
+    telemetry.QUEUE_PATH.write_text(
+        "\n".join(
+            [
+                json.dumps({"event": "memory_retrieved", "timestamp": "2026-08-01T12:00:00", "properties": {}}),
+                json.dumps({"event": "memory_retrieved", "timestamp": now.isoformat(), "properties": {}}),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    queued = telemetry._read_queue()
+
+    assert [event["timestamp"] for event in queued] == [now.isoformat()]
 
 
 def test_capture_tool_event_maps_retrieval_without_content(monkeypatch: pytest.MonkeyPatch) -> None:

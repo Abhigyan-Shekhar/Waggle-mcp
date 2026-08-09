@@ -99,6 +99,25 @@ def test_call_tool_validation_failure_returns_is_error(tmp_path: Path) -> None:
     assert "query" in result.content[0].text
 
 
+def test_call_tool_captures_telemetry_on_v2_path(tmp_path: Path, monkeypatch) -> None:
+    adapter = make_adapter(tmp_path)
+    captured: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "waggle.protocol.mcp.adapter.telemetry.capture_tool_event",
+        lambda name, **kwargs: captured.append({"name": name, **kwargs}),
+    )
+
+    anyio.run(
+        adapter.on_call_tool,
+        SimpleNamespace(request_id="r1", request=None),
+        types.CallToolRequestParams(name="query_graph", arguments={}),
+    )
+
+    assert captured[0]["name"] == "query_graph"
+    assert captured[0]["transport"] == "stdio"
+    assert captured[0]["is_error"] is True
+
+
 def test_alias_defaults_are_applied_before_schema_validation(tmp_path: Path) -> None:
     adapter = make_adapter(tmp_path)
 

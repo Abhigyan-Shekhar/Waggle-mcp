@@ -1067,12 +1067,13 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             for row in rows
         ]
 
-    def revoke_api_key(self, api_key_id: str) -> None:
+    def revoke_api_key(self, api_key_id: str) -> bool:
         with self._lock, self._pool.checkout() as connection:
-            connection.execute(
+            cursor = connection.execute(
                 "UPDATE api_keys SET status = 'revoked', revoked_at = ? WHERE api_key_id = ?",
                 (utc_now().isoformat(), api_key_id),
             )
+            return cursor.rowcount > 0
 
     def get_retention_policy(
         self,

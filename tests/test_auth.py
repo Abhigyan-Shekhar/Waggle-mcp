@@ -101,6 +101,11 @@ def test_verify_api_key_failure():
     assert verify_api_key("wrong", hashed) is False
 
 
+@pytest.mark.parametrize("expected_hash", [None, 123])
+def test_verify_api_key_rejects_non_string_hash(expected_hash):
+    assert verify_api_key("secret", expected_hash) is False
+
+
 def test_verify_api_key_accepts_legacy_sha256_record():
     raw = "sk_test_legacy.secret"
     legacy_hash = legacy_api_key_hash(raw)

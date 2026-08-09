@@ -181,15 +181,13 @@ def _iter_bootstrap_files(root: Path, *, max_files: int) -> list[Path]:
 
 def _read_text_file(path: Path, *, max_file_bytes: int) -> str:
     try:
-        data = path.read_bytes()[:max_file_bytes]
+        with path.open("rb") as handle:
+            data = handle.read(max(0, max_file_bytes))
     except OSError:
         return ""
     if b"\x00" in data:
         return ""
-    try:
-        text = data.decode("utf-8")
-    except UnicodeDecodeError:
-        return ""
+    text = data.decode("utf-8", errors="ignore")
     return text.strip()
 
 

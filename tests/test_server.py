@@ -799,6 +799,14 @@ def test_create_and_list_api_keys_cli_redacts_hash(tmp_path: Path, capsys: pytes
     assert "key_hash" not in listed[0]
 
 
+def test_revoke_api_key_cli_rejects_unknown_key(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+    args = SimpleNamespace(command="revoke-api-key", tenant_id="workspace-a", api_key_id="missing")
+
+    with pytest.raises(ValidationFailure, match="API key not found"):
+        _run_admin_command(app.config, args)
+
+
 def test_claude_self_host_guide_prints_sqlite_setup(capsys: pytest.CaptureFixture[str]) -> None:
     args = SimpleNamespace(
         tenant_id="workspace-a",
@@ -2251,7 +2259,7 @@ def test_run_init_prompts_telemetry_default_no(monkeypatch: pytest.MonkeyPatch, 
     assert result == 0
     payload = json.loads((tmp_path / "telemetry.json").read_text(encoding="utf-8"))
     assert payload["enabled"] is False
-    assert payload["installation_id"]
+    assert "installation_id" not in payload
 
 
 def test_write_codex_config_updates_existing_file_without_duplicates(

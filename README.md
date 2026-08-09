@@ -417,7 +417,7 @@ curl -L \
   https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.18/waggle-codex-marketplace-v0.1.18.zip.sha256 \
   -o waggle-codex-marketplace-v0.1.18.zip.sha256
 
-shasum -a 256 -c waggle-codex-marketplace-v0.1.18.zip.sha256
+python3 -c 'import hashlib, pathlib; p=pathlib.Path("waggle-codex-marketplace-v0.1.18.zip"); expected=pathlib.Path(str(p)+".sha256").read_text().split()[0]; actual=hashlib.sha256(p.read_bytes()).hexdigest(); assert actual == expected, f"SHA-256 mismatch: {actual}"'
 unzip waggle-codex-marketplace-v0.1.18.zip
 codex plugin marketplace add "$(pwd)/waggle-codex-marketplace-v0.1.18"
 ```
@@ -854,7 +854,7 @@ Run `waggle-mcp doctor` first — it usually identifies the actual failure mode.
 
 **`AuthenticationError: Invalid API key`**
 - Cause: HTTP transport requires a valid API key header.
-- Fix: send `X-API-Key: <your_key>` and generate one with `waggle-mcp create-api-key`; see `docs/reference.md`.
+- Fix: send either `X-API-Key: <your_key>` or `Authorization: Bearer <your_key>` and generate one with `waggle-mcp create-api-key`; see `docs/reference.md`.
 
 **Client cannot see tools**
 - Cause: the client is not connected to the correct MCP server.

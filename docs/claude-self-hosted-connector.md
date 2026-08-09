@@ -142,7 +142,7 @@ https://<user-owned-tunnel-domain>/health/ready -> http://127.0.0.1:8080/health/
 Security requirements:
 
 - Keep the tunnel URL private when possible.
-- Require `X-API-Key` for `/mcp`.
+- Require either `X-API-Key` or `Authorization: Bearer` for `/mcp`.
 - Do not put API keys in URL query parameters.
 - Rotate the API key if the tunnel URL or key is shared accidentally.
 - Stop `waggle-mcp serve` or disable the tunnel when not using web/mobile.

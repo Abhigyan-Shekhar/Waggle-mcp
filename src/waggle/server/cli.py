@@ -1010,8 +1010,8 @@ def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
     print()
     print("```bash")
     print("WAGGLE_BACKEND=sqlite \\")
-    print(f"WAGGLE_DEFAULT_TENANT_ID={tenant_id} \\")
-    print(f"WAGGLE_DB_PATH={db_path} \\")
+    print(f"WAGGLE_DEFAULT_TENANT_ID={shlex.quote(tenant_id)} \\")
+    print(f"WAGGLE_DB_PATH={shlex.quote(db_path)} \\")
     print("waggle-mcp create-api-key \\")
     print(f"  --tenant-id {shlex.quote(tenant_id)} \\")
     print(f"  --name {shlex.quote(key_name)} \\")
@@ -1158,7 +1158,8 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         return 0
     if args.command == "revoke-api-key":
         tenant_backend = backend.for_tenant(getattr(args, "tenant_id", "") or config.default_tenant_id)
-        tenant_backend.revoke_api_key(args.api_key_id)
+        if not tenant_backend.revoke_api_key(args.api_key_id):
+            raise ValidationFailure(f"API key not found: {args.api_key_id}")
         tenant_backend.emit_audit_event(
             event_type="api_key.revoked",
             actor_type="admin",
@@ -2064,7 +2065,10 @@ def _prompt_yes_no(question: str, *, default: bool = False, details: str = "") -
     if details:
         print(details.rstrip())
     suffix = "[Y/n]" if default else "[y/N]"
-    raw = input(f"  {suffix}: ").strip().lower()
+    try:
+        raw = input(f"  {suffix}: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        raw = ""
     if not raw:
         result = default
     else:
@@ -2842,16 +2846,20 @@ def _run_timeline(config: AppConfig, args: argparse.Namespace) -> int:
         config.model_name = str(args.model)
 
     graph = _build_backend(config)
+    requested_limit = int(getattr(args, "limit", 12))
+    event_filter = str(getattr(args, "events", "all") or "all")
+    candidate_limit = requested_limit if event_filter == "all" else max(100, requested_limit * 10)
     result = graph.timeline(
         node_id=str(getattr(args, "node_id", "") or ""),
         query=str(getattr(args, "query", "") or ""),
-        limit=int(getattr(args, "limit", 12)),
+        limit=candidate_limit,
         max_depth=int(getattr(args, "max_depth", 2)),
         include_evidence=bool(getattr(args, "include_evidence", True)),
     )
-    event_filter = str(getattr(args, "events", "all") or "all")
     if event_filter != "all":
-        result.items = [item for item in result.items if _timeline_event_matches(item.kind, event_filter)]
+        result.items = [item for item in result.items if _timeline_event_matches(item.kind, event_filter)][
+            :requested_limit
+        ]
     if getattr(args, "json_output", False):
         print(result.model_dump_json(indent=2))
         return 0

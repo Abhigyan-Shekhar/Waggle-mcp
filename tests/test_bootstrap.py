@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from waggle.bootstrap import bootstrap_repository, plan_repository_bootstrap
-from waggle.models import Node, NodeStoreResult, NodeType
-from waggle.server.cli import _build_parser, _snippet, _timeline_event_matches
+from waggle.models import ContextTimelineItem, Node, NodeStoreResult, NodeType, TimelineResult
+from waggle.server.cli import _build_parser, _run_timeline, _snippet, _timeline_event_matches
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -57,6 +62,14 @@ def test_plan_repository_bootstrap_limits_file_size(tmp_path: Path) -> None:
     assert candidate.metadata["bytes_read"] == 10
 
 
+def test_plan_repository_bootstrap_keeps_truncated_utf8_prefix(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("abcérest", encoding="utf-8")
+
+    [candidate] = plan_repository_bootstrap(tmp_path, include_git=False, max_file_bytes=4)
+
+    assert "abc" in candidate.content
+
+
 def test_bootstrap_repository_dry_run_does_not_write(tmp_path: Path) -> None:
     (tmp_path / "README.md").write_text("# Demo\n", encoding="utf-8")
     graph = FakeBootstrapGraph()
@@ -82,6 +95,46 @@ def test_bootstrap_repository_writes_project_scoped_nodes(tmp_path: Path) -> Non
     assert call["session_id"] == "bootstrap"
     assert call["node_type"] == NodeType.PREFERENCE
     assert "agent-instructions" in call["tags"]
+
+
+def test_timeline_filters_before_applying_requested_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    class TimelineGraph:
+        requested_limits: list[int] = []
+
+        def timeline(self, **kwargs):
+            self.requested_limits.append(kwargs["limit"])
+            items = [
+                ContextTimelineItem(kind="node_updated", timestamp=datetime.now(UTC), label=f"updated-{index}")
+                for index in range(90)
+            ]
+            items.extend(
+                ContextTimelineItem(kind="node_created", timestamp=datetime.now(UTC), label=f"created-{index}")
+                for index in range(10)
+            )
+            return TimelineResult(scope="tenant", items=items[: kwargs["limit"]])
+
+    graph = TimelineGraph()
+    monkeypatch.setattr("waggle.server.cli._build_backend", lambda _config: graph)
+    args = SimpleNamespace(
+        db="",
+        model="",
+        node_id="",
+        query="",
+        limit=3,
+        max_depth=2,
+        include_evidence=True,
+        events="created",
+        json_output=True,
+    )
+
+    assert _run_timeline(SimpleNamespace(db_path="memory.db"), args) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert graph.requested_limits == [100]
+    assert [item["kind"] for item in payload["items"]] == ["node_created", "node_created", "node_created"]
 
 
 def test_parser_exposes_project_memory_search_command() -> None:

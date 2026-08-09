@@ -73,7 +73,7 @@ def verify_api_key(raw_api_key: str, expected_hash: str) -> bool:
             return False
         salt = base64.urlsafe_b64decode(encoded_salt.encode("ascii"))
         iterations = int(iterations_raw)
-    except (TypeError, ValueError):
+    except (AttributeError, TypeError, ValueError):
         return False
     digest = hashlib.pbkdf2_hmac("sha256", raw_api_key.encode("utf-8"), salt, iterations)
     candidate = base64.urlsafe_b64encode(digest).decode("ascii")

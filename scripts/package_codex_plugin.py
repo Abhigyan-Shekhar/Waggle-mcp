@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.build_codex_plugin_runtime import TARGETS
+from scripts.build_codex_plugin_runtime import TARGETS  # noqa: E402
 
 PLUGIN_DIR = Path("plugins") / "waggle"
 FIXED_TIMESTAMP = (2000, 1, 1, 0, 0, 0)
@@ -193,7 +193,8 @@ def _validate_version_consistency(root: Path) -> list[str]:
 
 
 def _root_manifest_asset_paths(root: Path) -> list[Path]:
-    manifest_path = root / ".codex-plugin" / "plugin.json"
+    resolved_root = root.resolve()
+    manifest_path = resolved_root / ".codex-plugin" / "plugin.json"
     if not manifest_path.exists():
         return []
 
@@ -213,7 +214,11 @@ def _root_manifest_asset_paths(root: Path) -> list[Path]:
     paths: list[Path] = []
     for value in asset_values:
         if value.startswith("./"):
-            paths.append(Path(value.removeprefix("./")))
+            source = (resolved_root / value.removeprefix("./")).resolve()
+            try:
+                paths.append(source.relative_to(resolved_root))
+            except ValueError as exc:
+                raise ValueError(f"Manifest asset escapes repository root: {value}") from exc
     return sorted(set(paths))
 
 

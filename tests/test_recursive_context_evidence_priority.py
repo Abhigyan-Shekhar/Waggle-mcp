@@ -6,6 +6,35 @@ from types import SimpleNamespace
 from src.waggle.recursive_context import RecursiveContextController
 
 
+def test_capitalized_query_terms_ignore_interrogatives_and_weekdays() -> None:
+    controller = RecursiveContextController(graph=SimpleNamespace())
+
+    assert controller._query_capitalized_terms("Which agent works the Sunday shift?") == []
+
+
+def test_build_context_reuses_one_bounded_transcript_pool() -> None:
+    class TranscriptGraph:
+        def __init__(self) -> None:
+            self.list_calls: list[int] = []
+
+        def list_transcript_records(self, **kwargs):
+            self.list_calls.append(kwargs["limit"])
+            return []
+
+        def search_transcript_records(self, **_kwargs):
+            return []
+
+        def query(self, **_kwargs):
+            return SimpleNamespace(nodes=[], edges=[], replay_hits=[], hybrid_hits=[])
+
+    graph = TranscriptGraph()
+    controller = RecursiveContextController(graph=graph, config={"transcript_record_limit": 250})
+
+    controller.build_context("How many tomato plants did I initially plant?", include_evidence=True)
+
+    assert graph.list_calls == [250]
+
+
 def test_constraint_query_prioritizes_correction_evidence() -> None:
     controller = RecursiveContextController(graph=SimpleNamespace())
     hits = [

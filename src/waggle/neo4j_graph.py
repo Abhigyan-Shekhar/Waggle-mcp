@@ -711,16 +711,18 @@ class Neo4jMemoryGraph:
                 for row in rows
             ]
 
-    def revoke_api_key(self, api_key_id: str) -> None:
+    def revoke_api_key(self, api_key_id: str) -> bool:
         with self._lock, self._session() as session:
-            session.run(
+            record = session.run(
                 """
                 MATCH (a:GraphApiKey {api_key_id: $api_key_id})
                 SET a.status = 'revoked', a.revoked_at = $revoked_at
+                RETURN count(a) AS updated
                 """,
                 api_key_id=api_key_id,
                 revoked_at=utc_now().isoformat(),
-            ).consume()
+            ).single()
+        return bool(record and record["updated"])
 
     def get_retention_policy(
         self,
