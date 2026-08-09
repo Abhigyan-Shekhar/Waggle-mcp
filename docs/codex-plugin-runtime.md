@@ -9,11 +9,11 @@ Release artifacts are copied into target directories:
 
 ```text
 plugins/waggle/runtime/
-  darwin-arm64/waggle-server
-  darwin-x86_64/waggle-server
-  linux-x86_64/waggle-server
-  linux-aarch64/waggle-server
-  win32-x86_64/waggle-server.exe
+  darwin-arm64/{waggle-server,_internal/}
+  darwin-x86_64/{waggle-server,_internal/}
+  linux-x86_64/{waggle-server,_internal/}
+  linux-aarch64/{waggle-server,_internal/}
+  win32-x86_64/{waggle-server.exe,_internal/}
 ```
 
 The plugin `.mcp.json` starts `plugins/waggle/bin/waggle-server-launcher.js`.
@@ -21,13 +21,20 @@ That launcher resolves the current platform, applies the default Waggle
 environment, and executes the matching bundled binary. It does not fall back to
 `waggle-mcp` on `PATH`.
 
+The `.mcp.json` file contains the Codex-compatible `mcpServers` map accepted by
+the current plugin validator. The `waggle` entry declares a local stdio
+command, arguments, and environment variables; `plugin.json` points to it with
+`"mcpServers": "./.mcp.json"`. The manifest also points to the bundled skills
+directory.
+
 ## Build
 
 Build each artifact on a native runner. PyInstaller is the default packager
 because it produces Python-free executables and avoids cross-compilation.
-Waggle uses PyInstaller `--onefile` mode for the Codex plugin runtime. The
-startup probe budget is 10 seconds to accommodate onefile archive extraction on
-first launch.
+Waggle uses PyInstaller's directory layout for the Codex plugin runtime. This
+keeps the plugin self-contained while avoiding a per-launch one-file extraction
+penalty that can exceed Codex's MCP startup window. The startup probe budget is
+10 seconds.
 
 ```bash
 python -m pip install . pyinstaller
@@ -110,8 +117,8 @@ publishing. `.sha256` files remain a manual verification fallback.
 ## Versioning
 
 The Codex plugin manifest version is intentionally separate from the GitHub
-release tag. The current plugin version is `0.1.2`; the current public GitHub
-release tag for the complete Codex marketplace bundle is `v0.1.18`.
+release tag. The Codex skills release uses plugin version `0.1.3` and GitHub
+release tag `v0.1.19` for the complete marketplace bundle.
 
 Earlier GitHub releases were trial releases while the Waggle repository was
 private. Do not align the plugin version to the GitHub tag unless the plugin

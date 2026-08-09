@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.build_codex_plugin_runtime import TARGETS
+from scripts.build_codex_plugin_runtime import TARGETS  # noqa: E402
 
 PLUGIN_DIR = Path("plugins") / "waggle"
 FIXED_TIMESTAMP = (2000, 1, 1, 0, 0, 0)
@@ -35,6 +35,12 @@ PLUGIN_BUNDLE_FILES = [
 MAX_RELEASE_BUNDLE_BYTES = 450 * 1024 * 1024
 MARKETPLACE_DISTRIBUTION = "single-bundle"
 MIN_CODEX_PLUGIN_VERSION = "0.1.0"
+CODEX_SKILLS = (
+    "waggle-memory",
+    "waggle-prime",
+    "waggle-recall",
+    "waggle-checkpoint",
+)
 
 
 def validate_bundle_inputs(root: Path) -> list[str]:
@@ -69,6 +75,7 @@ def validate_bundle_inputs(root: Path) -> list[str]:
                 )
 
     failures.extend(_validate_version_consistency(root))
+    failures.extend(_validate_plugin_surface(root))
 
     return failures
 
@@ -117,6 +124,7 @@ def _build_marketplace_bundle(root: Path, tmp_root: Path, output_dir: Path, bund
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
 
+    _copy_tree(root / "skills", bundle_root / "skills")
     _copy_tree(root / PLUGIN_DIR, bundle_root / PLUGIN_DIR)
     _write_install_notes(bundle_root / "INSTALL.md", marketplace_bundle=True, bundle_version=bundle_version)
     return _write_bundle(bundle_root, output_dir)
@@ -188,6 +196,78 @@ def _validate_version_consistency(root: Path) -> list[str]:
                 f"{plugin_path.relative_to(root).as_posix()} version {plugin_version!r} "
                 f"would downgrade the published Codex plugin version {MIN_CODEX_PLUGIN_VERSION!r}"
             )
+
+    return failures
+
+
+def _validate_plugin_surface(root: Path) -> list[str]:
+    failures: list[str] = []
+    plugin_root = root / PLUGIN_DIR
+
+    manifest_expectations = {
+        root / ".codex-plugin" / "plugin.json": "./skills/",
+        plugin_root / ".codex-plugin" / "plugin.json": "./skills/",
+    }
+    for manifest_path, expected_skills_path in manifest_expectations.items():
+        if not manifest_path.exists():
+            continue
+        manifest = json.loads(manifest_path.read_text())
+        display_path = manifest_path.relative_to(root).as_posix()
+        if manifest.get("name") != "waggle":
+            failures.append(f"{display_path} must declare name 'waggle'")
+        if manifest.get("mcpServers") != "./.mcp.json":
+            failures.append(f"{display_path} must point mcpServers to ./.mcp.json")
+        if manifest.get("skills") != expected_skills_path:
+            failures.append(f"{display_path} must point skills to {expected_skills_path}")
+
+    mcp_expectations = {
+        root / ".mcp.json": ("./plugins/waggle/bin/waggle-server-launcher.js", "./plugins/waggle"),
+        plugin_root / ".mcp.json": ("./bin/waggle-server-launcher.js", "."),
+    }
+    for mcp_path, (expected_launcher, expected_cwd) in mcp_expectations.items():
+        if not mcp_path.exists():
+            continue
+        payload = json.loads(mcp_path.read_text())
+        display_path = mcp_path.relative_to(root).as_posix()
+        server_map = payload.get("mcpServers")
+        if not isinstance(server_map, dict):
+            failures.append(f"{display_path} must contain the Codex-compatible mcpServers map")
+            continue
+        server = server_map.get("waggle")
+        if not isinstance(server, dict):
+            failures.append(f"{display_path} is missing the waggle MCP server")
+            continue
+        if server.get("command") != "node":
+            failures.append(f"{display_path} must launch the bundled server through node")
+        if server.get("cwd") != expected_cwd:
+            failures.append(f"{display_path} must resolve the launcher from plugin cwd {expected_cwd!r}")
+        if server.get("args") != [expected_launcher, "serve", "--transport", "stdio"]:
+            failures.append(f"{display_path} has an unexpected Waggle startup command")
+        env = server.get("env")
+        if not isinstance(env, dict) or env.get("WAGGLE_BACKEND") != "sqlite":
+            failures.append(f"{display_path} must configure the local SQLite backend")
+        if not isinstance(env, dict) or env.get("WAGGLE_TRANSPORT") != "stdio":
+            failures.append(f"{display_path} must configure stdio transport")
+        if not isinstance(env, dict) or env.get("WAGGLE_MODEL") != "deterministic":
+            failures.append(f"{display_path} must configure the offline-safe deterministic model")
+        if not isinstance(env, dict) or env.get("WAGGLE_STARTUP_MODE") != "normal":
+            failures.append(f"{display_path} must keep memory tools available in normal startup mode")
+
+    for skill_name in CODEX_SKILLS:
+        skill_variants: list[str] = []
+        for skills_root in (root / "skills", plugin_root / "skills"):
+            skill_path = skills_root / skill_name / "SKILL.md"
+            if not skill_path.exists():
+                failures.append(f"Missing required Codex skill: {skill_path.relative_to(root).as_posix()}")
+                continue
+            skill_text = skill_path.read_text()
+            if not skill_text.startswith("---\n") or f"name: {skill_name}\n" not in skill_text:
+                failures.append(f"{skill_path.relative_to(root).as_posix()} has invalid skill frontmatter")
+            if "description:" not in skill_text.split("---", 2)[1]:
+                failures.append(f"{skill_path.relative_to(root).as_posix()} is missing a skill description")
+            skill_variants.append(skill_text)
+        if len(skill_variants) == 2 and skill_variants[0] != skill_variants[1]:
+            failures.append(f"Root and standalone copies of skill {skill_name!r} must match")
 
     return failures
 
@@ -306,7 +386,11 @@ attestation before approving the binary.
 
    codex plugin marketplace add /path/to/{path.parent.name}
 
-3. Refresh the plugin directory in Codex and install `Waggle` from that marketplace.
+3. Install Waggle, then start a new Codex task:
+
+   codex plugin add waggle@waggle
+
+The new task loads the local MCP server and the bundled project-memory skills.
 """
     else:
         contents = f"""# Waggle Codex plugin bundle

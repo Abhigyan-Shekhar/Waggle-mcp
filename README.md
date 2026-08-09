@@ -398,60 +398,100 @@ claude mcp add waggle \
 
 Claude Code also supports **automatic memory hooks** — see the [Hooks](#automatic-memory-hooks-claude-code) section below.
 
-### Codex
+## Use Waggle with Codex
 
-Waggle is available for Codex as a self-hosted local MCP plugin. No hosted
-backend, Apple Developer ID, or Windows Authenticode certificate is required:
-users download the marketplace zip from GitHub Releases, add it to Codex, and
-the bundled MCP runtime runs on their own machine.
+Waggle is **portable, local project memory for coding agents**. Assistant
+memory is what one assistant remembers; Waggle is what the project remembers.
+The Codex plugin packages the existing Waggle MCP server plus skills that teach
+Codex when to retrieve and checkpoint durable project knowledge.
 
-Install the Codex app plugin from the
-[`v0.1.18` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.18):
+Prerequisites: Codex CLI or the Codex desktop app, Node.js, and a supported
+64-bit macOS, Linux, or Windows system. The release bundle includes Waggle's
+Python runtime, so plugin users do not need Python, `pipx`, a Waggle account, or
+an API key.
+
+### Quick start
+
+Copy and paste this from the directory where you want to keep the downloaded
+marketplace:
 
 ```bash
-curl -L \
-  https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.18/waggle-codex-marketplace-v0.1.18.zip \
-  -o waggle-codex-marketplace-v0.1.18.zip
-
-curl -L \
-  https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.18/waggle-codex-marketplace-v0.1.18.zip.sha256 \
-  -o waggle-codex-marketplace-v0.1.18.zip.sha256
-
-shasum -a 256 -c waggle-codex-marketplace-v0.1.18.zip.sha256
-unzip waggle-codex-marketplace-v0.1.18.zip
-codex plugin marketplace add "$(pwd)/waggle-codex-marketplace-v0.1.18"
+curl -L https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.19/waggle-codex-marketplace-v0.1.19.zip -o waggle-codex-marketplace-v0.1.19.zip
+curl -L https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.19/waggle-codex-marketplace-v0.1.19.zip.sha256 -o waggle-codex-marketplace-v0.1.19.zip.sha256
+shasum -a 256 -c waggle-codex-marketplace-v0.1.19.zip.sha256
+unzip waggle-codex-marketplace-v0.1.19.zip
+codex plugin marketplace add "$(pwd)/waggle-codex-marketplace-v0.1.19"
+codex plugin add waggle@waggle
 ```
 
-Then open Codex, go to **Plugins**, select the added Waggle marketplace, and
-install **Waggle**. Start a new Codex task after installing so the bundled MCP
-server and tools are loaded.
+Start a new Codex task after installation. Codex loads the plugin's skills and
+starts `node ./bin/waggle-server-launcher.js serve --transport stdio`. The
+launcher selects the bundled executable for the host platform; that executable
+is the existing Waggle server, using SQLite at `~/.waggle/waggle.db`. It opens
+no network listener and does not upload memory. Memory leaves the machine only
+if you explicitly configure a remote backend or export/sync it.
+The compact plugin runtime uses Waggle's deterministic offline embedding mode
+so it starts without downloading a model; install the Python package when full
+sentence-transformer retrieval is required.
 
-Waggle is not currently listed in OpenAI's global plugin directory because that
-submission path requires a hosted public MCP endpoint. This bundle keeps Waggle
-fully local: the MCP runtime and SQLite memory store run on your machine. The
-runtime is intentionally unsigned, so macOS Gatekeeper or Windows SmartScreen
-may show a first-run warning; verify the checksum or GitHub attestation before
-approving it.
+For the current unsigned release, macOS Gatekeeper or Windows SmartScreen may
+show a first-run warning. Verify the checksum or GitHub attestation before
+approving the binary. `v0.1.16` was a partial release and is not a viable
+marketplace source; use `v0.1.19` or newer for the Codex skills integration.
 
-`v0.1.16` was a partial release and is not a viable Codex marketplace install
-source. See [`docs/install/codex.md`](docs/install/codex.md) for full details.
+### What Codex does automatically
 
-For direct Codex CLI usage instead, add Waggle to `~/.codex/config.toml`:
+The bundled `waggle-memory` skill uses a stable repository identity to keep
+unrelated projects isolated. For meaningful work it primes context once, then
+queries the graph before answers that may depend on past decisions,
+constraints, failed approaches, experiments, bugs, or project preferences. At
+the end of a completed turn it stores an outcome only when forgetting it would
+likely cause duplicated work, a wrong future decision, or violation of an
+established constraint. It does not store something merely because it happened,
+and skips greetings, command logs, speculative chatter, secrets, duplicate
+facts, and aborted work.
 
-```toml
-[mcp_servers.waggle]
-command = "waggle-mcp"
-args    = ["serve"]
-env     = {
-  WAGGLE_TRANSPORT         = "stdio",
-  WAGGLE_BACKEND           = "sqlite",
-  WAGGLE_DB_PATH           = "~/.waggle/waggle.db",
-  WAGGLE_DEFAULT_TENANT_ID = "local-default",
-  WAGGLE_MODEL             = "all-MiniLM-L6-v2"
-}
+Codex hooks are not included. Current hooks require separate user trust, and a
+hidden stop hook would be too aggressive for selective model-judged memory
+writes. The skill keeps retrieval and checkpointing visible to Codex's normal
+tool approval policy.
+
+Codex supports explicit skill invocation rather than plugin-defined slash
+commands:
+
+- `$waggle-prime` — load a scoped project brief before starting or resuming work.
+- `$waggle-recall <topic>` — retrieve project history about a decision, bug, component, or experiment.
+- `$waggle-checkpoint` — save only durable outcomes and next steps from the current task.
+- `$waggle-memory` — apply the complete automatic-memory workflow explicitly.
+
+### Inspect, export, and delete memory
+
+Ask Codex to call `get_stats`, `list_context_scopes`, `query_graph`, or
+`get_node_history` to inspect local memory. Ask it to call `commit` to export a
+portable `.abhi` archive. For deletion, ask it to preview `clear_session`,
+`clear_project`, or `clear_all` with `dry_run: true`, then explicitly confirm
+the destructive call. Uninstalling the plugin does not delete
+`~/.waggle/waggle.db`.
+
+To disable or uninstall the integration:
+
+```bash
+codex plugin remove waggle@waggle
+codex plugin marketplace remove waggle
 ```
 
-`waggle-mcp setup --yes` also writes a managed memory block into `AGENTS.md` in the current workspace so automatic memory is enabled by default for that repo.
+### Direct MCP setup and other clients
+
+Codex users who prefer the PyPI package can run `pipx install waggle-mcp` and
+`waggle-mcp setup --yes`; setup writes Codex MCP configuration and a managed
+memory policy into the repository's `AGENTS.md`. Claude, Cursor, Gemini CLI,
+Antigravity, and other MCP clients continue to run the unchanged
+`waggle-mcp serve --transport stdio` entrypoint. See
+[`docs/install`](./docs/install/README.md) for client-specific setup and
+[`docs/install/codex.md`](docs/install/codex.md) for detailed Codex release and
+troubleshooting notes.
+
+## Other MCP clients
 
 ### Gemini CLI
 
