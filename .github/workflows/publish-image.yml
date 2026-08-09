@@ -10,6 +10,10 @@ permissions:
   contents: read
   packages: write
 
+env:
+  # GHCR image references must be lowercase; the GitHub account display name is not.
+  IMAGE_NAME: ghcr.io/abhigyanshekhar/waggle-mcp
+
 jobs:
   build-and-push:
     name: Build & push pre-baked image
@@ -36,7 +40,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/waggle-mcp
+          images: ${{ env.IMAGE_NAME }}
           tags: |
             # Immutable semver tag  →  ghcr.io/.../waggle-mcp:0.1.12
             type=semver,pattern={{version}}
@@ -69,7 +73,7 @@ jobs:
     steps:
       - name: Pull published image
         run: |
-          docker pull ghcr.io/${{ github.repository_owner }}/waggle-mcp:${{ needs.build-and-push.outputs.image-version }}
+          docker pull ${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-version }}
 
       - name: Verify tool listing responds instantly (fast mode)
         run: |
@@ -78,7 +82,7 @@ jobs:
             --entrypoint python \
             -e WAGGLE_STARTUP_MODE=fast \
             -e WAGGLE_TRANSPORT=stdio \
-            ghcr.io/${{ github.repository_owner }}/waggle-mcp:${{ needs.build-and-push.outputs.image-version }} \
+            ${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-version }} \
             -c "
           from waggle.config import AppConfig
           from waggle.server import WaggleServer
