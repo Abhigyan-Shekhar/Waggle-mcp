@@ -93,26 +93,26 @@ binary is stale or missing, reinstall or upgrade the Waggle Codex plugin.
 
 Tagged Waggle releases publish two Codex plugin assets. The current Codex
 marketplace artifacts are published on the
-[`v0.1.20` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.20):
+[`v0.1.21` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.21):
 
-- `waggle-codex-marketplace-v0.1.20.zip`: a complete local marketplace root that
+- `waggle-codex-marketplace-v0.1.21.zip`: a complete local marketplace root that
   can be added with `codex plugin marketplace add`
 - `waggle-codex-plugin-<tag>.zip`: the bare `plugins/waggle` plugin folder
 - `waggle-codex-release-<tag>.json`: release metadata for audit and support
 
 > `v0.1.16` and `v0.1.19` were partial releases and should not be used as Codex
-> marketplace install sources. Use `v0.1.20` instead.
+> marketplace install sources. Use `v0.1.21` instead.
 
 The Codex plugin version is intentionally separate from the GitHub release tag.
-The plugin manifest reports `0.1.3`; `v0.1.20` is the GitHub release tag for
+The plugin manifest reports `0.1.3`; `v0.1.21` is the GitHub release tag for
 the marketplace bundle containing the Codex memory skills.
 
 For the easiest install path, download and extract the marketplace bundle
-from the [`v0.1.20` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.20),
+from the [`v0.1.21` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.21),
 then run:
 
 ```bash
-codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.20
+codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.21
 ```
 
 After that, refresh the plugin directory in Codex and install `Waggle` from the
