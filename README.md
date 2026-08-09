@@ -400,41 +400,44 @@ Claude Code also supports **automatic memory hooks** — see the [Hooks](#automa
 
 ### Codex
 
-Waggle is available for Codex as a self-hosted local MCP plugin. No hosted
-backend, Apple Developer ID, or Windows Authenticode certificate is required:
-users download the marketplace zip from GitHub Releases, add it to Codex, and
-the bundled MCP runtime runs on their own machine.
+Waggle is portable, local project memory for coding agents. The Codex plugin
+packages the existing Waggle MCP server plus skills that teach Codex when to
+retrieve and checkpoint durable project knowledge.
 
-Install the Codex app plugin from the
-[`v0.1.18` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.18):
+Prerequisites: Codex CLI or the Codex desktop app, Node.js, and a supported
+64-bit macOS, Linux, or Windows system. The release bundle includes Waggle's
+Python runtime, so plugin users do not need Python, `pipx`, a Waggle account, or
+an API key.
 
 ```bash
-curl -L \
-  https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.18/waggle-codex-marketplace-v0.1.18.zip \
-  -o waggle-codex-marketplace-v0.1.18.zip
-
-curl -L \
-  https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.18/waggle-codex-marketplace-v0.1.18.zip.sha256 \
-  -o waggle-codex-marketplace-v0.1.18.zip.sha256
-
-python3 -c 'import hashlib, pathlib; p=pathlib.Path("waggle-codex-marketplace-v0.1.18.zip"); expected=pathlib.Path(str(p)+".sha256").read_text().split()[0]; actual=hashlib.sha256(p.read_bytes()).hexdigest(); assert actual == expected, f"SHA-256 mismatch: {actual}"'
-unzip waggle-codex-marketplace-v0.1.18.zip
-codex plugin marketplace add "$(pwd)/waggle-codex-marketplace-v0.1.18"
+curl -L https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.19/waggle-codex-marketplace-v0.1.19.zip -o waggle-codex-marketplace-v0.1.19.zip
+curl -L https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.19/waggle-codex-marketplace-v0.1.19.zip.sha256 -o waggle-codex-marketplace-v0.1.19.zip.sha256
+shasum -a 256 -c waggle-codex-marketplace-v0.1.19.zip.sha256
+unzip waggle-codex-marketplace-v0.1.19.zip
+codex plugin marketplace add "$(pwd)/waggle-codex-marketplace-v0.1.19"
+codex plugin add waggle@waggle
 ```
 
-Then open Codex, go to **Plugins**, select the added Waggle marketplace, and
-install **Waggle**. Start a new Codex task after installing so the bundled MCP
-server and tools are loaded.
+Start a new Codex task after installation. The launcher selects the bundled
+executable for the host platform and uses SQLite at `~/.waggle/waggle.db`. It
+opens no network listener and does not upload memory. The compact runtime uses
+Waggle's deterministic offline embedding mode so startup does not download a
+model; install the Python package when full sentence-transformer retrieval is
+required.
 
-Waggle is not currently listed in OpenAI's global plugin directory because that
-submission path requires a hosted public MCP endpoint. This bundle keeps Waggle
-fully local: the MCP runtime and SQLite memory store run on your machine. The
-runtime is intentionally unsigned, so macOS Gatekeeper or Windows SmartScreen
-may show a first-run warning; verify the checksum or GitHub attestation before
-approving it.
+For the current unsigned release, macOS Gatekeeper or Windows SmartScreen may
+show a first-run warning. Verify the checksum or GitHub attestation before
+approving the binary. See [`docs/install/codex.md`](docs/install/codex.md) for
+full details.
 
-`v0.1.16` was a partial release and is not a viable Codex marketplace install
-source. See [`docs/install/codex.md`](docs/install/codex.md) for full details.
+The bundled `waggle-memory` skill primes context for meaningful work and checks
+project history before context-dependent answers. It stores an outcome only
+when forgetting it would likely cause duplicated work, a wrong future decision,
+or violation of an established constraint. It does not store something merely
+because it happened. Automatic lifecycle hooks are intentionally not included.
+
+Explicit workflows are available as `$waggle-prime`, `$waggle-recall`,
+`$waggle-checkpoint`, and `$waggle-memory`.
 
 For direct Codex CLI usage instead, add Waggle to `~/.codex/config.toml`:
 
