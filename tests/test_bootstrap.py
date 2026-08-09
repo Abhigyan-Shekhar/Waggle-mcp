@@ -67,7 +67,7 @@ def test_plan_repository_bootstrap_keeps_truncated_utf8_prefix(tmp_path: Path) -
 
     [candidate] = plan_repository_bootstrap(tmp_path, include_git=False, max_file_bytes=4)
 
-    assert "abc" in candidate.content
+    assert candidate.content == "Source file: README.md\n\nabc"
 
 
 def test_bootstrap_repository_dry_run_does_not_write(tmp_path: Path) -> None:
