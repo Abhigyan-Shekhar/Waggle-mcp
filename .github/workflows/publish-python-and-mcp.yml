@@ -1,0 +1,264 @@
+name: Publish Python package and MCP Registry entry
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-build:
+    name: Validate and build release artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - name: Check out exact release ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install validation, test, and build tools
+        run: >-
+          python -m pip install -e ".[dev]"
+          "build>=1.2.2" "twine>=6.1.0"
+
+      - name: Validate tag and expose release version
+        id: release
+        shell: bash
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version="$(python scripts/check_release_publication.py tag --tag "$GITHUB_REF_NAME")"
+          else
+            version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          fi
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check release metadata drift
+        run: python scripts/sync_release_metadata.py --check
+
+      - name: Fetch declared registry schema
+        shell: bash
+        run: |
+          schema_url="$(python -c 'import json; print(json.load(open("server.json"))["$schema"])')"
+          curl --fail --location --retry 3 --silent --show-error \
+            --output "$RUNNER_TEMP/server.schema.json" \
+            "$schema_url"
+
+      - name: Validate server.json schema
+        run: >-
+          python scripts/check_registry_readiness.py schema
+          --schema "$RUNNER_TEMP/server.schema.json"
+
+      - name: Validate package and console metadata
+        run: python scripts/check_registry_readiness.py project
+
+      - name: Lint Python
+        run: python -m ruff check .
+
+      - name: Check Python formatting
+        run: python -m ruff format --check .
+
+      - name: Run complete test suite
+        env:
+          WAGGLE_MODEL: deterministic
+        run: python -m pytest -q
+
+      - name: Build wheel and source distribution once
+        run: python -m build --outdir dist
+
+      - name: Validate distribution metadata
+        run: python -m twine check dist/*
+
+      - name: Inspect complete release artifacts
+        run: python scripts/check_registry_readiness.py artifacts --dist-dir dist
+
+      - name: Verify wheel embeds README and mcp-name marker
+        shell: bash
+        run: |
+          wheel_path="$(find dist -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          python scripts/check_registry_readiness.py wheel \
+            --wheel "$wheel_path" \
+            --readme README.md
+
+      - name: Install wheel into a fresh virtual environment
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/release-venv"
+          "$RUNNER_TEMP/release-venv/bin/python" -m pip install dist/*.whl
+
+      - name: Run installed doctor offline
+        env:
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+          WAGGLE_BACKEND: sqlite
+          WAGGLE_DB_PATH: ${{ runner.temp }}/doctor-waggle.db
+          WAGGLE_DEFAULT_TENANT_ID: release-smoke
+          WAGGLE_MODEL: deterministic
+          WAGGLE_STARTUP_MODE: fast
+          WAGGLE_TRANSPORT: stdio
+        run: >-
+          "$RUNNER_TEMP/release-venv/bin/waggle-mcp" doctor --json
+
+      - name: Smoke-test installed MCP server over stdio
+        run: >-
+          "$RUNNER_TEMP/release-venv/bin/python"
+          scripts/check_registry_readiness.py stdio
+          --command "$RUNNER_TEMP/release-venv/bin/waggle-mcp"
+          --work-dir "$RUNNER_TEMP/stdio-smoke"
+
+      - name: Upload validated Python distributions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python-distributions
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload standalone public verifier
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-verifier
+          path: scripts/check_release_publication.py
+          if-no-files-found: error
+          retention-days: 7
+
+  pypi-publish:
+    name: Publish and verify PyPI release
+    needs: validate-build
+    if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: pypi
+    permissions:
+      id-token: write
+    outputs:
+      version: ${{ needs.validate-build.outputs.version }}
+
+    steps:
+      - name: Download validated Python distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: python-distributions
+          path: dist/
+
+      - name: Publish distributions with PyPI trusted publishing
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: dist/
+
+      - name: Download standalone public verifier
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-verifier
+          path: release-verifier/
+
+      - name: Wait for exact PyPI version
+        run: >-
+          python3 release-verifier/check_release_publication.py pypi
+          --project waggle-mcp
+          --version "${{ needs.validate-build.outputs.version }}"
+
+  mcp-registry-publish:
+    name: Publish and verify MCP Registry entry
+    needs: pypi-publish
+    if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: mcp-registry
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out exact release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Install verified mcp-publisher v1.8.1
+        shell: bash
+        env:
+          MCP_PUBLISHER_URL: https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz
+          MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+        run: |
+          archive="$RUNNER_TEMP/mcp-publisher_linux_amd64.tar.gz"
+          curl --fail --location --retry 3 --silent --show-error \
+            --output "$archive" \
+            "$MCP_PUBLISHER_URL"
+          echo "$MCP_PUBLISHER_SHA256  $archive" | sha256sum --check --strict
+          tar --extract --gzip --file "$archive" --directory "$RUNNER_TEMP" mcp-publisher
+          chmod +x "$RUNNER_TEMP/mcp-publisher"
+          "$RUNNER_TEMP/mcp-publisher" --help
+
+      - name: Recheck tracked release metadata before authentication
+        run: python scripts/sync_release_metadata.py --check
+
+      - name: Authenticate to MCP Registry with GitHub OIDC
+        run: >-
+          "$RUNNER_TEMP/mcp-publisher" login github-oidc
+
+      # MCP Registry versions are immutable. Do not rerun this publish command for a version that may already exist.
+      - name: Publish tracked server.json to MCP Registry
+        run: >-
+          "$RUNNER_TEMP/mcp-publisher" publish
+
+      - name: Wait for exact MCP Registry version
+        run: >-
+          python scripts/check_release_publication.py registry
+          --name io.github.Abhigyan-Shekhar/Waggle-mcp
+          --version "${{ needs.pypi-publish.outputs.version }}"
+          --package waggle-mcp
+
+  release-assets:
+    name: Attach distributions to owner-controlled GitHub release
+    needs: mcp-registry-publish
+    if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download original Python distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: python-distributions
+          path: dist/
+
+      - name: Reuse existing release or create a draft and upload assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Using existing GitHub release for $GITHUB_REF_NAME."
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --draft \
+              --verify-tag \
+              --generate-notes \
+              --title "Waggle $GITHUB_REF_NAME"
+          fi
+          gh release upload "$GITHUB_REF_NAME" dist/* --clobber
