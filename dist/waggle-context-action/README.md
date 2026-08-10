@@ -109,6 +109,7 @@ The owner must then review every file, confirm `action.yml` is at the new reposi
 Use Python 3.11 or newer with Waggle installed editable, then run:
 
 ```bash
+python -m pip install --requirement requirements-dev.txt
 python -m pytest tests -q
 ruff check scripts tests
 mypy scripts/run_action.py

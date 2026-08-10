@@ -381,7 +381,9 @@ def _normalize_discussion(payload: Mapping[str, Any], repository: str) -> Normal
         action=action,
         subject_key=f"discussion:{number}",
         label=f"Discussion #{number}: {title}",
-        content=_content(title, _text(discussion.get("body")), [f"Action: {action}", f"Category: {_text(category.get('name'))}"]),
+        content=_content(
+            title, _text(discussion.get("body")), [f"Action: {action}", f"Category: {_text(category.get('name'))}"]
+        ),
         repository=_repository(payload, repository),
         actor=_actor(payload),
         source_url=source_url,
@@ -498,9 +500,7 @@ def _normalize_generic(payload: Mapping[str, Any], repository: str) -> Normalize
     )
 
 
-def normalize_github_event(
-    payload: Mapping[str, Any], *, event_type: str, repository: str
-) -> NormalizedGitHubEvent:
+def normalize_github_event(payload: Mapping[str, Any], *, event_type: str, repository: str) -> NormalizedGitHubEvent:
     normalized_type = _EVENT_ALIASES.get(event_type.strip().lower())
     if normalized_type is None:
         raise ValidationFailure(f"Unsupported GitHub event type: {event_type or 'unknown'}.")

@@ -120,9 +120,7 @@ def test_validate_export_scope_rejects_invalid_combinations(
     ],
 )
 def test_validate_export_scope_accepts_existing_modes(scope: str, session_id: str, since_date: str) -> None:
-    assert (
-        validate_export_scope(scope, project="octo/demo", session_id=session_id, since_date=since_date) == scope
-    )
+    assert validate_export_scope(scope, project="octo/demo", session_id=session_id, since_date=since_date) == scope
 
 
 def test_ingest_github_event_writes_valid_checkpoint_and_context(tmp_path: Path) -> None:

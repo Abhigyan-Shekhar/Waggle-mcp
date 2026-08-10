@@ -210,4 +210,3 @@ def test_real_action_runner_proves_secure_offline_handoff(
     assert SECRET_MARKER not in searched_output
     assert "/tmp/waggle-owned" not in action.stdout + action.stderr
     assert not Path("/tmp/waggle-owned").exists()
-

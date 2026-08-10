@@ -1,0 +1,46 @@
+name: Fixture example
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - action.yml
+      - scripts/**
+      - fixtures/**
+      - .github/workflows/fixture-example.yml
+
+permissions:
+  contents: read
+
+jobs:
+  issue-context:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.11"
+
+      - name: Run the local Action against an issue fixture
+        id: waggle
+        uses: ./
+        with:
+          event-path: fixtures/issue.json
+          scope: fixture/repository
+          upload-artifact: "false"
+
+      - name: Assert declared outputs are real and non-empty
+        env:
+          CONTEXT_FILE: ${{ steps.waggle.outputs.context-file }}
+          CHECKPOINT_FILE: ${{ steps.waggle.outputs.checkpoint-file }}
+          NODES_ADDED: ${{ steps.waggle.outputs.nodes-added }}
+          EDGES_ADDED: ${{ steps.waggle.outputs.edges-added }}
+        shell: bash
+        run: |
+          test -s "$CONTEXT_FILE"
+          test -s "$CHECKPOINT_FILE"
+          test "$NODES_ADDED" -ge 1
+          test "$EDGES_ADDED" -ge 1

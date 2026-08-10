@@ -9,4 +9,3 @@ Thank you for improving Waggle Context Handoff.
 5. Open a pull request describing security impact, CLI compatibility, and verification output.
 
 Contributions must preserve the offline trust boundary: no hosted Waggle dependency, external LLM call, event-text execution, repository mutation, issue comment, or permission expansion. By submitting a contribution, you agree it is licensed under Apache-2.0.
-

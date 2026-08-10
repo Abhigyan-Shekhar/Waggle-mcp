@@ -35,4 +35,3 @@ jobs:
           CHECKPOINT_FILE: ${{ steps.extended.outputs.checkpoint-file }}
         shell: bash
         run: test -s "$CONTEXT_FILE" && test -s "$CHECKPOINT_FILE"
-

@@ -76,4 +76,3 @@ runs:
           ${{ steps.run.outputs.checkpoint-file }}
         if-no-files-found: error
         retention-days: 7
-

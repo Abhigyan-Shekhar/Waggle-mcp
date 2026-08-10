@@ -131,7 +131,9 @@ def run_checked(argv: Sequence[str], *, env: Mapping[str, str]) -> subprocess.Co
         )
     except subprocess.CalledProcessError as exc:
         executable = Path(command[0]).name if command else "child process"
-        raise ActionExecutionError(f"{executable} failed with exit code {exc.returncode}; captured output was suppressed.") from None
+        raise ActionExecutionError(
+            f"{executable} failed with exit code {exc.returncode}; captured output was suppressed."
+        ) from None
 
 
 def _parse_result(stdout: str) -> ActionResult:
@@ -266,4 +268,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

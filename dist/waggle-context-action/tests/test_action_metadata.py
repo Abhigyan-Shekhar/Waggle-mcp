@@ -129,4 +129,37 @@ def test_local_documentation_links_resolve() -> None:
     for document in ACTION_ROOT.glob("*.md"):
         for target in re.findall(r"\[[^]]+\]\(([^)]+)\)", document.read_text(encoding="utf-8")):
             if "://" not in target and not target.startswith("#"):
-                assert (document.parent / target.split("#", maxsplit=1)[0]).exists(), f"broken link in {document}: {target}"
+                assert (document.parent / target.split("#", maxsplit=1)[0]).exists(), (
+                    f"broken link in {document}: {target}"
+                )
+
+
+def test_dependabot_covers_python_and_github_actions() -> None:
+    path = ACTION_ROOT / ".github" / "dependabot.yml"
+    assert path.is_file()
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    ecosystems = {update["package-ecosystem"] for update in document["updates"]}
+    assert ecosystems == {"pip", "github-actions"}
+    assert all(update["directory"] == "/" for update in document["updates"])
+
+
+def test_ci_is_read_only_sha_pinned_and_runs_all_required_checks() -> None:
+    ci_path = ACTION_ROOT / ".github" / "workflows" / "ci.yml"
+    fixture_path = ACTION_ROOT / ".github" / "workflows" / "fixture-example.yml"
+    assert ci_path.is_file() and fixture_path.is_file()
+    for path in (ci_path, fixture_path):
+        text = path.read_text(encoding="utf-8")
+        document = yaml.safe_load(text)
+        assert document["permissions"] == {"contents": "read"}
+        assert "write" not in text
+        for reference in re.findall(r"uses:\s*([^\s#]+)", text):
+            if not reference.startswith("./"):
+                assert re.fullmatch(r"[^@]+@[0-9a-f]{40}", reference)
+
+    ci = ci_path.read_text(encoding="utf-8")
+    for command in ("pytest", "ruff check", "mypy", "yamllint", "test_integration.py"):
+        assert command in ci
+    fixture = fixture_path.read_text(encoding="utf-8")
+    assert "uses: ./" in fixture
+    assert "fixtures/issue.json" in fixture
+    assert "test -s" in fixture

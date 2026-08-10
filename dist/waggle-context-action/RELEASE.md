@@ -10,4 +10,3 @@ Only the repository owner performs releases. No script in this repository publis
 6. Draft a GitHub release from the semantic tag, include compatibility/security notes, and publish only after the Marketplace checks are complete.
 
 Never move an immutable semantic tag. If a release is faulty, publish a new patch release.
-

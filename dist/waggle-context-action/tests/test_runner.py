@@ -206,4 +206,3 @@ def test_action_can_disable_step_summary(tmp_path: Path, monkeypatch: pytest.Mon
     runner.run_action(runner.ActionInputs.from_environment(environment), environ=environment)
 
     assert not Path(environment["GITHUB_STEP_SUMMARY"]).exists()
-

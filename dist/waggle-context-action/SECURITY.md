@@ -15,4 +15,3 @@ The Action creates a unique temporary database, validates that outputs remain un
 ## Reporting a vulnerability
 
 Privately report a suspected vulnerability through the security advisory feature of the eventual public Action repository. Include the affected commit, reproduction, impact, and whether any secret or artifact was exposed. Do not open a public issue for an undisclosed vulnerability. The owner should acknowledge the report, coordinate a fix and advisory, and rotate any credentials shown in a reproduction.
-
