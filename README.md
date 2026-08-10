@@ -1,3 +1,5 @@
+<!-- mcp-name: io.github.Abhigyan-Shekhar/Waggle-mcp -->
+
 <p align="center">
   <strong>waggle-mcp</strong>
 </p>
