@@ -8,10 +8,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, TypeAlias
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from uuid import UUID, uuid5
 
 from pydantic import BaseModel, Field
 
 from waggle.errors import ValidationFailure
+from waggle.graph import MemoryGraph
+from waggle.models import EvidenceRecord, Node, NodeType, RelationType
 
 GitHubEventType = Literal["issue", "pull-request", "discussion", "release", "push", "generic"]
 JsonScalar: TypeAlias = str | int | float | bool | None
@@ -24,6 +27,7 @@ MAX_GENERIC_SCALAR_CHARS = 4_000
 MAX_GENERIC_RENDERED_CHARS = 32_000
 MAX_EVENT_TEXT_CHARS = 32_000
 MAX_PUSH_COMMITS = 50
+GITHUB_EVENT_NAMESPACE = UUID("b22ecba3-b920-5ac6-8f5a-1a1c87ed96a8")
 
 _EVENT_ALIASES: dict[str, GitHubEventType] = {
     "issue": "issue",
@@ -91,6 +95,18 @@ class NormalizedGitHubEvent(BaseModel):
     occurred_at: datetime
     metadata: dict[str, Any] = Field(default_factory=dict)
     children: list[NormalizedGitHubChild] = Field(default_factory=list)
+
+
+class GitHubEventIngestionResult(BaseModel):
+    status: Literal["ingested"] = "ingested"
+    event_type: GitHubEventType
+    repository: str
+    project: str
+    event_node_id: str
+    node_ids: list[str] = Field(default_factory=list)
+    edge_ids: list[str] = Field(default_factory=list)
+    nodes_added: int = 0
+    edges_added: int = 0
 
 
 def _sanitize_url(raw: str) -> str:
@@ -477,3 +493,244 @@ def normalize_github_event(
         "generic": _normalize_generic,
     }
     return normalizers[normalized_type](payload, repository)
+
+
+def stable_id(kind: str, *parts: str) -> str:
+    normalized = "\x1f".join([kind.strip().lower(), *[str(part).strip() for part in parts]])
+    return str(uuid5(GITHUB_EVENT_NAMESPACE, normalized))
+
+
+def _get_node_or_none(graph: MemoryGraph, node_id: str) -> Node | None:
+    try:
+        return graph.get_node(node_id)
+    except ValueError as exc:
+        if str(exc) == f"Node not found: {node_id}":
+            return None
+        raise
+
+
+def _upsert_node(
+    graph: MemoryGraph,
+    *,
+    node_id: str,
+    label: str,
+    content: str,
+    node_type: NodeType,
+    tags: list[str],
+    metadata: dict[str, Any],
+    project: str,
+    session_id: str,
+    occurred_at: datetime,
+    evidence_records: list[EvidenceRecord],
+) -> tuple[Node, bool]:
+    existing = _get_node_or_none(graph, node_id)
+    if existing is None:
+        stored = graph.add_node(
+            node_id=node_id,
+            label=label,
+            content=content,
+            node_type=node_type,
+            tags=tags,
+            metadata=metadata,
+            project=project,
+            session_id=session_id,
+            evidence_records=evidence_records,
+            valid_from=occurred_at,
+            created_at=occurred_at,
+            updated_at=occurred_at,
+        )
+        return stored.node, True
+    if (
+        existing.label != label
+        or existing.content != content
+        or existing.tags != tags
+        or existing.metadata != metadata
+        or existing.evidence_records != evidence_records
+        or existing.valid_from != occurred_at
+    ):
+        existing = graph.update_node(
+            node_id=node_id,
+            label=label,
+            content=content,
+            tags=tags,
+            metadata=metadata,
+            evidence_records=evidence_records,
+            valid_from=occurred_at,
+            updated_at=occurred_at,
+        )
+    return existing, False
+
+
+def _evidence(node_id: str, content: str, occurred_at: datetime, session_id: str) -> list[EvidenceRecord]:
+    return [
+        EvidenceRecord(
+            evidence_id=stable_id("evidence", node_id, occurred_at.isoformat()),
+            session_id=session_id,
+            turn_index=0,
+            source_role="github-event",
+            source_text=content,
+            observed_at=occurred_at,
+        )
+    ]
+
+
+def ingest_normalized_event(
+    graph: MemoryGraph,
+    event: NormalizedGitHubEvent,
+    *,
+    project: str,
+    session_id: str = "",
+) -> GitHubEventIngestionResult:
+    normalized_project = project.strip()
+    if not normalized_project:
+        raise ValidationFailure("GitHub event ingestion requires a project.")
+
+    repository_identity = event.repository.database_id or event.repository.name
+    repository_node_id = stable_id("repository", repository_identity)
+    actor_node_id = (
+        stable_id("actor", event.actor.database_id or event.actor.login) if event.actor is not None else None
+    )
+    event_node_id = stable_id("event", event.repository.name, event.event_type, event.subject_key)
+    existing_edge_ids = {str(edge["id"]) for edge in graph.get_graph_snapshot().get("edges", [])}
+    node_ids: list[str] = []
+    edge_ids: list[str] = []
+    nodes_added = 0
+    edges_added = 0
+
+    repository_metadata: dict[str, Any] = {
+        "repository": event.repository.name,
+        "database_id": event.repository.database_id,
+        "source_url": event.repository.url,
+    }
+    repository_node, created = _upsert_node(
+        graph,
+        node_id=repository_node_id,
+        label=event.repository.name,
+        content=f"GitHub repository {event.repository.name}",
+        node_type=NodeType.ENTITY,
+        tags=["github", "github-repository"],
+        metadata=repository_metadata,
+        project=normalized_project,
+        session_id=session_id,
+        occurred_at=event.occurred_at,
+        evidence_records=_evidence(
+            repository_node_id,
+            f"GitHub repository {event.repository.name}",
+            event.occurred_at,
+            session_id,
+        ),
+    )
+    node_ids.append(repository_node.id)
+    nodes_added += int(created)
+
+    if event.actor is not None and actor_node_id is not None:
+        actor_metadata: dict[str, Any] = {
+            "actor": event.actor.login,
+            "database_id": event.actor.database_id,
+            "source_url": event.actor.url,
+        }
+        actor_node, created = _upsert_node(
+            graph,
+            node_id=actor_node_id,
+            label=event.actor.login,
+            content=f"GitHub actor {event.actor.login}",
+            node_type=NodeType.ENTITY,
+            tags=["github", "github-actor"],
+            metadata=actor_metadata,
+            project=normalized_project,
+            session_id=session_id,
+            occurred_at=event.occurred_at,
+            evidence_records=_evidence(
+                actor_node_id,
+                f"GitHub actor {event.actor.login}",
+                event.occurred_at,
+                session_id,
+            ),
+        )
+        node_ids.append(actor_node.id)
+        nodes_added += int(created)
+
+    child_node_ids: list[str] = []
+    for child in sorted(event.children, key=lambda item: (item.occurred_at, item.key)):
+        child_node_id = stable_id("event-child", event.repository.name, event.event_type, child.key)
+        child_metadata = {
+            **child.metadata,
+            "repository": event.repository.name,
+            "event_type": event.event_type,
+            "parent_subject_key": event.subject_key,
+            "source_url": child.source_url,
+        }
+        child_node, created = _upsert_node(
+            graph,
+            node_id=child_node_id,
+            label=child.label,
+            content=child.content,
+            node_type=NodeType.NOTE,
+            tags=["github", "github-event", "github-commit"],
+            metadata=child_metadata,
+            project=normalized_project,
+            session_id=session_id,
+            occurred_at=child.occurred_at,
+            evidence_records=_evidence(child_node_id, child.content, child.occurred_at, session_id),
+        )
+        child_node_ids.append(child_node.id)
+        node_ids.append(child_node.id)
+        nodes_added += int(created)
+
+    event_metadata: dict[str, Any] = {
+        **event.metadata,
+        "repository": event.repository.name,
+        "event_type": event.event_type,
+        "action": event.action,
+        "actor": event.actor.login if event.actor is not None else "",
+        "subject_key": event.subject_key,
+        "source_url": event.source_url,
+        "occurred_at": event.occurred_at.isoformat(),
+    }
+    event_node, created = _upsert_node(
+        graph,
+        node_id=event_node_id,
+        label=event.label,
+        content=event.content,
+        node_type=NodeType.NOTE,
+        tags=["github", "github-event", f"github-event:{event.event_type}"],
+        metadata=event_metadata,
+        project=normalized_project,
+        session_id=session_id,
+        occurred_at=event.occurred_at,
+        evidence_records=_evidence(event_node_id, event.content, event.occurred_at, session_id),
+    )
+    node_ids.append(event_node.id)
+    nodes_added += int(created)
+
+    edge_specs: list[tuple[str, str, RelationType]] = [
+        (event_node_id, repository_node_id, RelationType.PART_OF),
+    ]
+    if actor_node_id is not None:
+        edge_specs.append((event_node_id, actor_node_id, RelationType.DERIVED_FROM))
+    edge_specs.extend((child_node_id, event_node_id, RelationType.PART_OF) for child_node_id in child_node_ids)
+    for source_id, target_id, relationship in edge_specs:
+        edge_id = stable_id("edge", source_id, target_id, relationship.value)
+        edge = graph.add_edge(
+            edge_id=edge_id,
+            source_id=source_id,
+            target_id=target_id,
+            relationship=relationship,
+            metadata={"source": "github-event"},
+            created_at=event.occurred_at,
+        )
+        edge_ids.append(edge.id)
+        if edge.id not in existing_edge_ids:
+            existing_edge_ids.add(edge.id)
+            edges_added += 1
+
+    return GitHubEventIngestionResult(
+        event_type=event.event_type,
+        repository=event.repository.name,
+        project=normalized_project,
+        event_node_id=event_node_id,
+        node_ids=node_ids,
+        edge_ids=edge_ids,
+        nodes_added=nodes_added,
+        edges_added=edges_added,
+    )

@@ -6,16 +6,28 @@ from pathlib import Path
 
 import pytest
 
+from waggle.embeddings import EmbeddingModel
 from waggle.errors import ValidationFailure
 from waggle.github_event import (
+    ingest_normalized_event,
     load_event_payload,
     normalize_event_type,
     normalize_github_event,
     sanitize_generic_payload,
     sanitize_text,
 )
+from waggle.graph import MemoryGraph
+from waggle.models import NodeType
 
 FIXTURES = Path(__file__).parent / "fixtures" / "github_events"
+
+
+def make_graph(tmp_path: Path) -> MemoryGraph:
+    return MemoryGraph(
+        tmp_path / "memory.db",
+        EmbeddingModel("deterministic"),
+        enable_dedup=False,
+    )
 
 
 @pytest.mark.parametrize(
@@ -152,3 +164,89 @@ def test_generic_payload_rejects_excessive_depth() -> None:
 
     with pytest.raises(ValidationFailure, match="nesting depth"):
         sanitize_generic_payload(payload)
+
+
+def test_ingest_issue_creates_repository_actor_event_and_provenance(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    event = normalize_github_event(
+        load_event_payload(FIXTURES / "issue.json"),
+        event_type="issue",
+        repository="octo/demo",
+    )
+
+    result = ingest_normalized_event(graph, event, project="octo/demo")
+    snapshot = graph.get_graph_snapshot(project="octo/demo")
+
+    assert result.nodes_added == 3
+    assert result.edges_added == 2
+    assert len(snapshot["nodes"]) == 3
+    assert len(snapshot["edges"]) == 2
+    event_node = graph.get_node(result.event_node_id)
+    assert event_node.node_type == NodeType.NOTE
+    assert event_node.project == "octo/demo"
+    assert event_node.created_at == datetime(2025, 1, 2, 3, 4, 5, tzinfo=UTC)
+    assert event_node.metadata["repository"] == "octo/demo"
+    assert event_node.metadata["event_type"] == "issue"
+    assert event_node.metadata["actor"] == "octocat"
+    assert event_node.metadata["source_url"] == "https://github.com/octo/demo/issues/42"
+    assert event_node.metadata["number"] == "42"
+    assert event_node.evidence_records[0].observed_at == event.occurred_at
+
+
+def test_reingesting_same_event_is_idempotent(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    event = normalize_github_event(
+        load_event_payload(FIXTURES / "issue.json"),
+        event_type="issue",
+        repository="octo/demo",
+    )
+
+    first = ingest_normalized_event(graph, event, project="octo/demo")
+    second = ingest_normalized_event(graph, event, project="octo/demo")
+    snapshot = graph.get_graph_snapshot(project="octo/demo")
+
+    assert first.nodes_added == 3
+    assert first.edges_added == 2
+    assert second.nodes_added == 0
+    assert second.edges_added == 0
+    assert len(snapshot["nodes"]) == 3
+    assert len(snapshot["edges"]) == 2
+
+
+def test_reingesting_edited_issue_updates_stable_event_node(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    original_payload = load_event_payload(FIXTURES / "issue.json")
+    original = normalize_github_event(original_payload, event_type="issue", repository="octo/demo")
+    first = ingest_normalized_event(graph, original, project="octo/demo")
+    edited_payload = json.loads(json.dumps(original_payload))
+    edited_payload["action"] = "edited"
+    edited_payload["issue"]["body"] = "Edited body"
+    edited_payload["issue"]["updated_at"] = "2025-01-03T04:05:06Z"
+    edited = normalize_github_event(edited_payload, event_type="issue", repository="octo/demo")
+
+    second = ingest_normalized_event(graph, edited, project="octo/demo")
+    event_node = graph.get_node(first.event_node_id)
+
+    assert second.event_node_id == first.event_node_id
+    assert second.nodes_added == 0
+    assert second.edges_added == 0
+    assert "Edited body" in event_node.content
+    assert event_node.metadata["action"] == "edited"
+    assert event_node.updated_at == datetime(2025, 1, 3, 4, 5, 6, tzinfo=UTC)
+
+
+def test_ingest_push_creates_bounded_commit_children(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    event = normalize_github_event(
+        load_event_payload(FIXTURES / "push.json"),
+        event_type="push",
+        repository="octo/demo",
+    )
+
+    result = ingest_normalized_event(graph, event, project="octo/demo")
+    snapshot = graph.get_graph_snapshot(project="octo/demo")
+
+    assert result.nodes_added == 5
+    assert result.edges_added == 4
+    assert len([node for node in snapshot["nodes"] if "github-commit" in node["tags"]]) == 2
+    assert sum(edge["relationship"] == "part_of" for edge in snapshot["edges"]) == 3
