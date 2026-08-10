@@ -3,7 +3,10 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 import re
+import stat
+import tempfile
 import tomllib
 from collections.abc import Sequence
 from pathlib import Path
@@ -144,6 +147,56 @@ def build_server_candidate(original: bytes, data: dict[str, Any], version: str) 
     return candidate
 
 
+def _stage_bytes(target: Path, data: bytes) -> Path:
+    fd, name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=target.parent)
+    staged = Path(name)
+    try:
+        try:
+            view = memoryview(data)
+            while view:
+                written = os.write(fd, view)
+                if written == 0:
+                    raise OSError(f"failed to stage {target.name}: write returned zero bytes")
+                view = view[written:]
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        staged.chmod(stat.S_IMODE(target.stat().st_mode))
+    except BaseException:
+        staged.unlink(missing_ok=True)
+        raise
+    return staged
+
+
+def _replace_files(changes: Sequence[tuple[Path, bytes, bytes]]) -> None:
+    candidates: list[tuple[Path, Path]] = []
+    originals: list[tuple[Path, Path]] = []
+    replaced: list[tuple[Path, Path]] = []
+    try:
+        for target, original_bytes, candidate_bytes in changes:
+            candidates.append((target, _stage_bytes(target, candidate_bytes)))
+            originals.append((target, _stage_bytes(target, original_bytes)))
+
+        try:
+            for (target, candidate_path), (_, original_path) in zip(candidates, originals, strict=True):
+                os.replace(candidate_path, target)
+                replaced.append((target, original_path))
+        except BaseException as replace_error:
+            rollback_errors: list[str] = []
+            for target, original_path in reversed(replaced):
+                try:
+                    os.replace(original_path, target)
+                except OSError as rollback_error:
+                    rollback_errors.append(f"{target.name}: {rollback_error}")
+            if rollback_errors:
+                details = "; ".join(rollback_errors)
+                raise OSError(f"{replace_error}; rollback failed for {details}") from replace_error
+            raise
+    finally:
+        for _, staged in candidates + originals:
+            staged.unlink(missing_ok=True)
+
+
 def write_metadata(root: Path | None = None) -> list[str]:
     repo_root = resolve_root(root)
     try:
@@ -165,10 +218,12 @@ def write_metadata(root: Path | None = None) -> list[str]:
             readme_newline = b"\r\n" if b"\r\n" in readme_original else b"\n"
             readme_candidate = f"<!-- mcp-name: {name} -->".encode() + readme_newline + readme_newline + readme_original
 
+        changes = []
         if server_candidate != server_original:
-            server_path.write_bytes(server_candidate)
+            changes.append((server_path, server_original, server_candidate))
         if readme_candidate != readme_original:
-            readme_path.write_bytes(readme_candidate)
+            changes.append((readme_path, readme_original, readme_candidate))
+        _replace_files(changes)
         return check_metadata(repo_root)
     except (OSError, UnicodeError, json.JSONDecodeError, tomllib.TOMLDecodeError, ValueError) as exc:
         return [str(exc)]

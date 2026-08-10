@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 from pathlib import Path
 from types import ModuleType
 
@@ -252,6 +253,31 @@ def test_write_refuses_noncanonical_json_without_touching_files(tmp_path: Path) 
 
     assert issues == ["server.json is not in canonical two-space JSON format; refusing to rewrite unrelated bytes"]
     assert {path: path.read_bytes() for path in before} == before
+
+
+def test_write_rolls_back_server_when_readme_replace_fails(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    write_repo(tmp_path, server_version="0.1.8", marker=None)
+    server_path = tmp_path / "server.json"
+    readme_path = tmp_path / "README.md"
+    before = {server_path: server_path.read_bytes(), readme_path: readme_path.read_bytes()}
+    original_entries = {path.name for path in tmp_path.iterdir()}
+    real_replace = os.replace
+
+    def fail_readme_replace(
+        source: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        destination: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+    ) -> None:
+        if Path(destination) == readme_path:
+            raise OSError("simulated README replacement failure")
+        real_replace(source, destination)
+
+    monkeypatch.setattr(os, "replace", fail_readme_replace)
+
+    issues = sync_module().write_metadata(tmp_path)
+
+    assert issues == ["simulated README replacement failure"]
+    assert {path: path.read_bytes() for path in before} == before
+    assert {path.name for path in tmp_path.iterdir()} == original_entries
 
 
 def test_write_cli_returns_one_when_marker_remains_unresolved(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
