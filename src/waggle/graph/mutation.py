@@ -83,15 +83,22 @@ class MutationMixin(MemoryGraphBase):
         evidence_records: list[EvidenceRecord] | None = None,
         valid_from: datetime | None = None,
         valid_to: datetime | None = None,
+        created_at: datetime | None = None,
+        updated_at: datetime | None = None,
         context_window_id: str | None = None,
         embedding: np.ndarray | None = None,
         metadata: dict[str, Any] | None = None,
         connection: sqlite3.Connection | None = None,
     ) -> NodeStoreResult:
+        resolved_created_at = created_at or utc_now()
+        resolved_updated_at = updated_at or resolved_created_at
         resolved_context_window_id = context_window_id
         if resolved_context_window_id is None:
             _, resolved_context_window_id = self.resolve_window_context(
-                project=project, session_id=session_id, connection=connection
+                project=project,
+                session_id=session_id,
+                connection=connection,
+                observed_at=resolved_updated_at,
             )
         node_kwargs: dict[str, Any] = {}
         if node_id is not None and str(node_id).strip():
@@ -122,6 +129,8 @@ class MutationMixin(MemoryGraphBase):
             evidence_records=evidence_records or [],
             valid_from=valid_from,
             valid_to=valid_to,
+            created_at=resolved_created_at,
+            updated_at=resolved_updated_at,
         )
 
         def _insert(active_connection: sqlite3.Connection) -> NodeStoreResult:
@@ -143,7 +152,11 @@ class MutationMixin(MemoryGraphBase):
                             """,
                             (merged_node.context_window_id, self.tenant_id, merged_node.id),
                         )
-                        self._mark_window_embedding_stale(active_connection, merged_node.context_window_id)
+                        self._mark_window_embedding_stale(
+                            active_connection,
+                            merged_node.context_window_id,
+                            observed_at=resolved_updated_at,
+                        )
                     self._mark_communities_stale(active_connection)
                     self.emit_audit_event(
                         event_type="graph.node.updated",
@@ -200,8 +213,16 @@ class MutationMixin(MemoryGraphBase):
                     node.access_count,
                 ),
             )
-            self._mark_window_embedding_stale(active_connection, resolved_context_window_id)
-            self._update_window_node_count(active_connection, resolved_context_window_id)
+            self._mark_window_embedding_stale(
+                active_connection,
+                resolved_context_window_id,
+                observed_at=resolved_updated_at,
+            )
+            self._update_window_node_count(
+                active_connection,
+                resolved_context_window_id,
+                observed_at=resolved_updated_at,
+            )
             self._mark_communities_stale(active_connection)
             conflicts = self._register_conflicts(active_connection, node) if self.enable_dedup else []
             self.emit_audit_event(
@@ -232,6 +253,7 @@ class MutationMixin(MemoryGraphBase):
         relationship: str | RelationType,
         weight: float = 1.0,
         metadata: dict[str, Any] | None = None,
+        created_at: datetime | None = None,
         connection: sqlite3.Connection | None = None,
     ) -> Edge:
         edge_kwargs: dict[str, Any] = {}
@@ -245,6 +267,7 @@ class MutationMixin(MemoryGraphBase):
             relationship=relationship,
             weight=weight,
             metadata=metadata or {},
+            created_at=created_at or utc_now(),
         )
 
         def _insert(active_connection: sqlite3.Connection) -> Edge:
@@ -439,6 +462,8 @@ class MutationMixin(MemoryGraphBase):
         valid_from: datetime | None = None,
         valid_to: datetime | None = None,
         evidence_records: list[EvidenceRecord] | None = None,
+        metadata: dict[str, Any] | None = None,
+        updated_at: datetime | None = None,
     ) -> Node:
         if (
             content is None
@@ -450,6 +475,8 @@ class MutationMixin(MemoryGraphBase):
             and valid_from is None
             and valid_to is None
             and evidence_records is None
+            and metadata is None
+            and updated_at is None
         ):
             raise ValueError("At least one field must be provided for update.")
 
@@ -462,7 +489,7 @@ class MutationMixin(MemoryGraphBase):
             updated_label = label if label is not None else node.label
             updated_content = content if content is not None else node.content
             updated_tags = tags if tags is not None else node.tags
-            updated_at = utc_now()
+            resolved_updated_at = updated_at or utc_now()
             embedding_bytes = row["embedding"]
             embedding_model_id = node.embedding_model_id
             embedding_dim = node.embedding_dim
@@ -479,10 +506,10 @@ class MutationMixin(MemoryGraphBase):
             resolved_context_window_id = node.context_window_id
             if scope_changed:
                 _, resolved_context_window_id = self.resolve_window_context(
-                    connection,
-                    agent_id=agent_id if agent_id is not None else node.agent_id,
                     project=project if project is not None else node.project,
                     session_id=session_id if session_id is not None else node.session_id,
+                    connection=connection,
+                    observed_at=resolved_updated_at,
                 )
 
             updated_node = Node(
@@ -501,12 +528,12 @@ class MutationMixin(MemoryGraphBase):
                 embedding_model_id=embedding_model_id,
                 embedding_dim=embedding_dim,
                 source_turn_pair_id=node.source_turn_pair_id,
-                metadata=node.metadata,
+                metadata=metadata if metadata is not None else node.metadata,
                 evidence_records=evidence_records if evidence_records is not None else node.evidence_records,
                 valid_from=valid_from if valid_from is not None else node.valid_from,
                 valid_to=valid_to if valid_to is not None else node.valid_to,
                 created_at=node.created_at,
-                updated_at=updated_at,
+                updated_at=resolved_updated_at,
                 access_count=node.access_count,
             )
 
@@ -543,13 +570,33 @@ class MutationMixin(MemoryGraphBase):
 
             if scope_changed:
                 if node.context_window_id:
-                    self._mark_window_embedding_stale(connection, node.context_window_id)
-                    self._update_window_node_count(connection, node.context_window_id)
+                    self._mark_window_embedding_stale(
+                        connection,
+                        node.context_window_id,
+                        observed_at=resolved_updated_at,
+                    )
+                    self._update_window_node_count(
+                        connection,
+                        node.context_window_id,
+                        observed_at=resolved_updated_at,
+                    )
                 if resolved_context_window_id:
-                    self._mark_window_embedding_stale(connection, resolved_context_window_id)
-                    self._update_window_node_count(connection, resolved_context_window_id)
+                    self._mark_window_embedding_stale(
+                        connection,
+                        resolved_context_window_id,
+                        observed_at=resolved_updated_at,
+                    )
+                    self._update_window_node_count(
+                        connection,
+                        resolved_context_window_id,
+                        observed_at=resolved_updated_at,
+                    )
             elif content is not None and resolved_context_window_id:
-                self._mark_window_embedding_stale(connection, resolved_context_window_id)
+                self._mark_window_embedding_stale(
+                    connection,
+                    resolved_context_window_id,
+                    observed_at=resolved_updated_at,
+                )
 
             self._mark_communities_stale(connection)
 
