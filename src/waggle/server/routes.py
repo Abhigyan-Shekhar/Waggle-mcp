@@ -284,9 +284,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             metadata=metadata or {},
         )
 
-    def _require_http_scope(
-        request: Request, required_scope: str, *, tenant_override: str = ""
-    ) -> tuple[Any, Any]:
+    def _require_http_scope(request: Request, required_scope: str, *, tenant_override: str = "") -> tuple[Any, Any]:
         graph, principal = _graph_from_request(request, tenant_override=tenant_override)
         if principal is None:
             raise AuthenticationError("Missing X-API-Key header.")
