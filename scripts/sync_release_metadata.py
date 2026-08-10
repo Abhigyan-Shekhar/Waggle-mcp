@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import re
 import tomllib
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 MCP_NAME_MARKER = re.compile(r"<!--\s*mcp-name:\s*(?P<name>[^>]+?)\s*-->")
+VERSION_SENTINEL = "__WAGGLE_GENERATED_VERSION__"
 
 
 def resolve_root(root: Path | None) -> Path:
@@ -78,15 +80,95 @@ def check_metadata(root: Path | None = None) -> list[str]:
         return [f"metadata validation failed: {exc}"]
 
 
+def render_server_json(data: dict[str, Any]) -> bytes:
+    return (json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode()
+
+
+def set_generated_versions(data: dict[str, Any], version: str) -> None:
+    data["version"] = version
+    packages = data.get("packages")
+    if not isinstance(packages, list):
+        raise ValueError("server.json .packages must be an array")
+    if not packages:
+        raise ValueError("server.json .packages must declare at least one package")
+    for index, package in enumerate(packages):
+        if not isinstance(package, dict):
+            raise ValueError(f"server.json .packages[{index}] must be an object")
+        package["version"] = version
+
+
+def _changed_line_indexes(before: bytes, after: bytes) -> set[int]:
+    before_lines = before.splitlines(keepends=True)
+    after_lines = after.splitlines(keepends=True)
+    if len(before_lines) != len(after_lines):
+        raise ValueError("server.json rewrite would change the number of lines")
+    return {
+        index
+        for index, (old_line, new_line) in enumerate(zip(before_lines, after_lines, strict=True))
+        if old_line != new_line
+    }
+
+
+def build_server_candidate(original: bytes, data: dict[str, Any], version: str) -> bytes:
+    canonical_original = render_server_json(data)
+    if canonical_original != original:
+        raise ValueError("server.json is not in canonical two-space JSON format; refusing to rewrite unrelated bytes")
+
+    sentinel_data = copy.deepcopy(data)
+    set_generated_versions(sentinel_data, VERSION_SENTINEL)
+    allowed_lines = _changed_line_indexes(canonical_original, render_server_json(sentinel_data))
+
+    candidate_data = copy.deepcopy(data)
+    set_generated_versions(candidate_data, version)
+    candidate = render_server_json(candidate_data)
+    changed_lines = _changed_line_indexes(original, candidate)
+    unexpected_lines = changed_lines - allowed_lines
+    if unexpected_lines:
+        display_lines = ", ".join(str(index + 1) for index in sorted(unexpected_lines))
+        raise ValueError(f"server.json rewrite changed unrelated lines: {display_lines}")
+    return candidate
+
+
+def write_metadata(root: Path | None = None) -> list[str]:
+    repo_root = resolve_root(root)
+    try:
+        project_version = load_project_version(repo_root)
+        server_path = repo_root / "server.json"
+        readme_path = repo_root / "README.md"
+        server_original = server_path.read_bytes()
+        server = load_server_metadata(repo_root)
+        server_candidate = build_server_candidate(server_original, server, project_version)
+
+        name = server.get("name")
+        if not isinstance(name, str) or not name:
+            raise ValueError("server.json .name must be a non-empty string")
+        readme_original = readme_path.read_bytes()
+        readme_text = readme_original.decode()
+        markers = find_readme_markers(readme_text)
+        readme_candidate = readme_original
+        if not markers:
+            readme_candidate = f"<!-- mcp-name: {name} -->\n\n".encode() + readme_original
+
+        if server_candidate != server_original:
+            server_path.write_bytes(server_candidate)
+        if readme_candidate != readme_original:
+            readme_path.write_bytes(readme_candidate)
+        return check_metadata(repo_root)
+    except (OSError, UnicodeError, json.JSONDecodeError, tomllib.TOMLDecodeError, ValueError) as exc:
+        return [str(exc)]
+
+
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Check release metadata.")
-    parser.add_argument("--check", action="store_true", required=True, help="report drift without writing")
+    parser = argparse.ArgumentParser(description="Check or synchronize release metadata.")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--check", action="store_true", help="report drift without writing")
+    mode.add_argument("--write", action="store_true", help="synchronize generated metadata")
     return parser
 
 
 def main(argv: Sequence[str] | None = None, *, root: Path | None = None) -> int:
-    _parser().parse_args(argv)
-    issues = check_metadata(root)
+    args = _parser().parse_args(argv)
+    issues = write_metadata(root) if args.write else check_metadata(root)
     if issues:
         print("Release metadata validation failed:")
         for issue in issues:

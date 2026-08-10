@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from types import ModuleType
 
+import pytest
 from pytest import CaptureFixture, MonkeyPatch
 
 NAME = "io.github.Abhigyan-Shekhar/Waggle-mcp"
@@ -140,3 +141,107 @@ def test_default_root_is_resolved_inside_each_call(tmp_path: Path, monkeypatch: 
         "server.json .version: expected 0.1.23, found 0.1.22",
         "server.json .packages[0].version: expected 0.1.23, found 0.1.22",
     ]
+
+
+def test_write_changes_only_generated_version_lines(tmp_path: Path) -> None:
+    write_repo(
+        tmp_path,
+        project_version="0.1.22",
+        server_version="0.1.8",
+        package_versions=("0.1.8", "0.1.7"),
+    )
+    server_path = tmp_path / "server.json"
+    before = server_path.read_bytes()
+    expected = before.replace(b'"version": "0.1.8"', b'"version": "0.1.22"')
+    expected = expected.replace(b'"version": "0.1.7"', b'"version": "0.1.22"')
+
+    assert sync_module().write_metadata(tmp_path) == []
+    assert server_path.read_bytes() == expected
+    assert b"Keep caf\xc3\xa9 metadata unchanged." in server_path.read_bytes()
+
+
+def test_write_inserts_missing_marker_from_server_name(tmp_path: Path) -> None:
+    write_repo(tmp_path, marker=None)
+    readme_path = tmp_path / "README.md"
+
+    assert sync_module().write_metadata(tmp_path) == []
+    assert readme_path.read_bytes() == f"<!-- mcp-name: {NAME} -->\n\n# Waggle\n".encode()
+
+
+def test_write_leaves_matching_marker_byte_identical(tmp_path: Path) -> None:
+    write_repo(tmp_path)
+    readme_path = tmp_path / "README.md"
+    before = readme_path.read_bytes()
+
+    assert sync_module().write_metadata(tmp_path) == []
+    assert readme_path.read_bytes() == before
+
+
+def test_write_never_overwrites_mismatched_marker(tmp_path: Path) -> None:
+    wrong_name = "io.github.someone-else/waggle-mcp"
+    write_repo(
+        tmp_path,
+        project_version="0.1.22",
+        server_version="0.1.8",
+        marker=wrong_name,
+    )
+    readme_path = tmp_path / "README.md"
+    readme_before = readme_path.read_bytes()
+
+    issues = sync_module().write_metadata(tmp_path)
+
+    assert readme_path.read_bytes() == readme_before
+    assert json.loads((tmp_path / "server.json").read_text())["version"] == "0.1.22"
+    assert len(issues) == 1
+    assert "does not match server.json .name" in issues[0]
+
+
+def test_write_never_overwrites_duplicate_markers(tmp_path: Path) -> None:
+    write_repo(tmp_path, server_version="0.1.8")
+    readme_path = tmp_path / "README.md"
+    readme_path.write_text(
+        readme_path.read_text(encoding="utf-8") + f"<!-- mcp-name: {NAME} -->\n",
+        encoding="utf-8",
+    )
+    readme_before = readme_path.read_bytes()
+
+    issues = sync_module().write_metadata(tmp_path)
+
+    assert readme_path.read_bytes() == readme_before
+    assert json.loads((tmp_path / "server.json").read_text())["version"] == "0.1.22"
+    assert issues == ["README.md: found 2 mcp-name markers; expected exactly one"]
+
+
+def test_write_refuses_noncanonical_json_without_touching_files(tmp_path: Path) -> None:
+    write_repo(tmp_path, project_version="0.1.22", server_version="0.1.8", marker=None)
+    server_path = tmp_path / "server.json"
+    readme_path = tmp_path / "README.md"
+    server_path.write_bytes(server_path.read_bytes().replace(b"\n", b"\r\n"))
+    before = {server_path: server_path.read_bytes(), readme_path: readme_path.read_bytes()}
+
+    issues = sync_module().write_metadata(tmp_path)
+
+    assert issues == ["server.json is not in canonical two-space JSON format; refusing to rewrite unrelated bytes"]
+    assert {path: path.read_bytes() for path in before} == before
+
+
+def test_write_cli_returns_one_when_marker_remains_unresolved(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
+    write_repo(tmp_path, server_version="0.1.8", marker="wrong/name")
+
+    assert sync_module().main(["--write"], root=tmp_path) == 1
+    assert "does not match server.json .name" in capsys.readouterr().out
+
+
+def test_write_cli_returns_zero_after_synchronizing(tmp_path: Path) -> None:
+    write_repo(tmp_path, server_version="0.1.8", marker=None)
+
+    assert sync_module().main(["--write"], root=tmp_path) == 0
+    assert sync_module().main(["--check"], root=tmp_path) == 0
+
+
+@pytest.mark.parametrize("argv", [[], ["--check", "--write"]])
+def test_cli_requires_exactly_one_mode(argv: list[str]) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        sync_module().main(argv)
+
+    assert exc_info.value.code == 2
