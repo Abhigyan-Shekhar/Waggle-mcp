@@ -1,0 +1,12 @@
+{
+  "timestamp": "2025-01-02T03:04:05Z",
+  "title": "Manual workflow context",
+  "description": "Prepare a portable handoff.",
+  "nested": {
+    "priority": "high",
+    "password": "FIXTURE_SECRET_DO_NOT_LEAK",
+    "authorization": "Bearer FIXTURE_SECRET_DO_NOT_LEAK"
+  },
+  "token": "FIXTURE_SECRET_DO_NOT_LEAK",
+  "items": ["one", "two"]
+}
