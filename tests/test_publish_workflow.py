@@ -101,6 +101,24 @@ def test_validation_builds_once_and_hands_off_original_artifacts() -> None:
     assert any(step.get("with", {}).get("name") == "release-verifier" for step in job_steps(jobs["validate-build"]))
 
 
+def test_validation_lints_the_established_source_scope_and_release_helpers() -> None:
+    commands = run_commands(load_workflow()["jobs"]["validate-build"])
+    lint_command = next(command for command in commands if "ruff check" in command)
+    format_command = next(command for command in commands if "ruff format --check" in command)
+
+    expected_paths = (
+        "src/",
+        "tests/",
+        "scripts/check_release_publication.py",
+        "scripts/check_registry_readiness.py",
+        "scripts/sync_release_metadata.py",
+    )
+    assert all(path in lint_command for path in expected_paths)
+    assert all(path in format_command for path in expected_paths)
+    assert "ruff check ." not in lint_command
+    assert "ruff format --check ." not in format_command
+
+
 def test_registry_metadata_is_checked_not_rewritten_or_pushed() -> None:
     workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
     registry_commands = run_commands(load_workflow()["jobs"]["mcp-registry-publish"])

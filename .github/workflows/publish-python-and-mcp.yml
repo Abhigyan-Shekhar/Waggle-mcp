@@ -70,10 +70,20 @@ jobs:
         run: python scripts/check_registry_readiness.py project
 
       - name: Lint Python
-        run: python -m ruff check .
+        run: >-
+          python -m ruff check
+          src/ tests/
+          scripts/check_release_publication.py
+          scripts/check_registry_readiness.py
+          scripts/sync_release_metadata.py
 
       - name: Check Python formatting
-        run: python -m ruff format --check .
+        run: >-
+          python -m ruff format --check
+          src/ tests/
+          scripts/check_release_publication.py
+          scripts/check_registry_readiness.py
+          scripts/sync_release_metadata.py
 
       - name: Run complete test suite
         env:

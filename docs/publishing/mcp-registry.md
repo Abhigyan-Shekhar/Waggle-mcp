@@ -49,8 +49,14 @@ curl --fail --location --retry 3 --silent --show-error \
 python scripts/check_registry_readiness.py schema \
   --schema "$release_tmp/server.schema.json"
 python scripts/check_registry_readiness.py project
-python -m ruff check .
-python -m ruff format --check .
+python -m ruff check src/ tests/ \
+  scripts/check_release_publication.py \
+  scripts/check_registry_readiness.py \
+  scripts/sync_release_metadata.py
+python -m ruff format --check src/ tests/ \
+  scripts/check_release_publication.py \
+  scripts/check_registry_readiness.py \
+  scripts/sync_release_metadata.py
 WAGGLE_MODEL=deterministic python -m pytest -q
 python -m build --outdir "$release_tmp/dist"
 python -m twine check "$release_tmp"/dist/*
