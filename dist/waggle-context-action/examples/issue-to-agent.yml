@@ -1,0 +1,40 @@
+name: Issue context to AI-agent handoff
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  handoff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the Action repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Build repository-scoped context
+        id: waggle
+        uses: ./
+        with:
+          scope: ${{ github.repository }}
+
+      - name: Consume context in a later AI-agent preparation step
+        env:
+          WAGGLE_CONTEXT_FILE: ${{ steps.waggle.outputs.context-file }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          context_path = Path(os.environ["WAGGLE_CONTEXT_FILE"])
+          context = context_path.read_text(encoding="utf-8")
+          if not context.strip():
+              raise SystemExit("empty context handoff")
+          request_path = Path(os.environ["RUNNER_TEMP"]) / "agent-request.md"
+          request_path.write_text(context, encoding="utf-8")
+          print(f"Prepared downstream agent context at {request_path}")
+          PY
+
