@@ -16,6 +16,7 @@ def test_pyproject_uses_setuptools_src_layout() -> None:
     assert pyproject["build-system"]["build-backend"] == "setuptools.build_meta"
     assert pyproject["tool"]["setuptools"]["package-dir"] == {"": "src"}
     assert pyproject["tool"]["setuptools"]["packages"]["find"]["where"] == ["src"]
+    assert "cryptography>=45.0.0,<46.0.0" in pyproject["project"]["dependencies"]
 
 
 def test_dockerfile_uses_module_entrypoint_for_arg_passthrough() -> None:
@@ -38,10 +39,15 @@ def test_release_workflows_use_current_entrypoints_and_versioned_image() -> None
     assert "src/waggle/server.py" not in binary_workflow
     assert '"${{ matrix.artifact_path }}" doctor --help' in binary_workflow
     assert '"${{ matrix.artifact_path }}" doctor\n' not in binary_workflow
+    from scripts.build_codex_plugin_runtime import HEAVY_EXCLUDES
+
+    for module in HEAVY_EXCLUDES:
+        assert f"--exclude-module {module}" in binary_workflow
     assert "image-version: ${{ steps.meta.outputs.version }}" in image_workflow
     assert "VERSION=${{ steps.meta.outputs.version }}" in image_workflow
     assert "${{ needs.build-and-push.outputs.image-version }}" in image_workflow
     assert "--entrypoint python" in image_workflow
+    assert "cache-to: type=gha,mode=max,ignore-error=true" in image_workflow
 
 
 def test_codex_onedir_runtime_has_separate_size_budget() -> None:
@@ -127,7 +133,8 @@ def test_codex_release_docs_record_intentional_version_split_and_unsigned_policy
 
     for text in [codex_guide, runtime_guide, checklist]:
         assert "0.1.3" in text
-        assert "v0.1.22" in text
+        assert "v0.1.24" in text
+        assert "v0.1.23" not in text
 
     assert "intentionally unsigned" in codex_guide
     assert "intentionally unsigned" in runtime_guide

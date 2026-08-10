@@ -60,7 +60,8 @@ jobs:
             VERSION=${{ steps.meta.outputs.version }}
           # GitHub Actions layer cache — dramatically speeds up repeat builds
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # The image push is authoritative; a transient cache-service failure must not fail the release.
+          cache-to: type=gha,mode=max,ignore-error=true
           # Build for both amd64 and arm64 (Apple Silicon, AWS Graviton)
           platforms: linux/amd64,linux/arm64
 

@@ -119,7 +119,7 @@ publishing. `.sha256` files remain a manual verification fallback.
 
 The Codex plugin manifest version is intentionally separate from the GitHub
 release tag. The Codex skills release uses plugin version `0.1.3` and GitHub
-release tag `v0.1.22` for the complete marketplace bundle.
+release tag `v0.1.24` for the complete marketplace bundle.
 
 Earlier GitHub releases were trial releases while the Waggle repository was
 private. Do not align the plugin version to the GitHub tag unless the plugin
