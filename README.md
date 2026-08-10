@@ -90,6 +90,23 @@ Recommended:
 - Claude: use [docs/install/claude-code.md](./docs/install/claude-code.md) or [docs/install/claude-desktop.md](./docs/install/claude-desktop.md)
 - Developers: `pipx install waggle-mcp`
 
+### Start here
+
+Choose the distribution that matches your client:
+
+| Client | Install path | Verify |
+| --- | --- | --- |
+| VS Code | Search for **Waggle: Local Memory for AI Agents** in the VS Code Marketplace, then run `Waggle: Enable for this Workspace`. | Run `Waggle: Doctor` from the Command Palette. |
+| Codex | Download the [v0.1.24 Codex marketplace bundle](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.24), then run `codex plugin marketplace add <bundle-directory>` and `codex plugin add waggle@waggle`. | Start a new Codex task and ask it to run `get_stats`. |
+| Claude, Cursor, Gemini CLI, or another local MCP client | `pipx install waggle-mcp && waggle-mcp setup --yes` | Run `waggle-mcp doctor`, then restart the client. |
+| Docker deployments | Pull `ghcr.io/abhigyan-shekhar/waggle-mcp:latest`. | Run the image's built-in `doctor` command. |
+
+Waggle is local-first: its default SQLite database is `~/.waggle/waggle.db`, and it does not require an account, API key, or cloud connection. Memory is exported, synced, or sent to a remote backend only when you explicitly configure that behavior.
+
+### Codex marketplace discovery
+
+Waggle can be installed today from its release marketplace bundle. This is a custom Codex marketplace source, so users add it once before installing `waggle@waggle`. A community directory submission is under review; until it is approved, use the GitHub Release as the canonical discovery and download page.
+
 Benchmark:
 
 - LongMemEval 500-case retrieval-only: `97.4% R@5`, `89.0% Exact@5` for `graph_raw` retrieval
