@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import re
+import tarfile
 import tomllib
 from collections.abc import Sequence
 from email.parser import Parser
@@ -15,6 +16,36 @@ from zipfile import BadZipFile, ZipFile
 import jsonschema
 
 MCP_NAME_MARKER = re.compile(r"<!--\s*mcp-name:\s*(?P<name>[^>]+?)\s*-->")
+WINDOWS_DRIVE_PATH = re.compile(r"^[A-Za-z]:")
+FORBIDDEN_ARCHIVE_COMPONENTS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "benchmark_results",
+    "build",
+    "dist",
+    "dist-release",
+    "graph-ui",
+    "htmlcov",
+    "node_modules",
+    "tests",
+}
+FORBIDDEN_ARCHIVE_BASENAMES = {
+    ".npmrc",
+    ".pypirc",
+    ".coverage",
+    ".ds_store",
+    "credentials",
+    "credentials.json",
+    "id_dsa",
+    "id_ecdsa",
+    "id_ed25519",
+    "id_rsa",
+}
+FORBIDDEN_ARCHIVE_SUFFIXES = {".db", ".key", ".pem", ".pyc", ".pyd", ".pyo", ".sqlite", ".sqlite3"}
 
 
 def _exception_summary(exc: BaseException) -> str:
@@ -135,6 +166,107 @@ def check_wheel(wheel_path: Path, readme_path: Path) -> list[str]:
     return issues
 
 
+def _unsafe_archive_path(name: str) -> bool:
+    if not name or "\\" in name or name.startswith("/") or WINDOWS_DRIVE_PATH.match(name):
+        return True
+    return any(part in {"", ".", ".."} for part in name.split("/"))
+
+
+def _forbidden_archive_path(name: str) -> bool:
+    parts = [part.casefold() for part in name.split("/")]
+    basename = parts[-1]
+    if any(part in FORBIDDEN_ARCHIVE_COMPONENTS for part in parts):
+        return True
+    if basename == ".env" or basename.startswith(".env."):
+        return True
+    if basename in FORBIDDEN_ARCHIVE_BASENAMES:
+        return True
+    return any(basename.endswith(suffix) for suffix in FORBIDDEN_ARCHIVE_SUFFIXES)
+
+
+def _check_member_paths(names: list[str], archive_label: str) -> list[str]:
+    issues: list[str] = []
+    for name in names:
+        if _unsafe_archive_path(name):
+            issues.append(f"{archive_label} contains unsafe path: {name}")
+        elif _forbidden_archive_path(name):
+            issues.append(f"{archive_label} contains forbidden member: {name}")
+    return issues
+
+
+def _check_wheel_artifact(wheel_path: Path) -> list[str]:
+    try:
+        with ZipFile(wheel_path) as archive:
+            names = [
+                member.filename.rstrip("/") if member.is_dir() else member.filename for member in archive.infolist()
+            ]
+    except (OSError, BadZipFile) as exc:
+        return [f"wheel could not be inspected: {exc}"]
+
+    issues = _check_member_paths(names, "wheel")
+    metadata = [name for name in names if name.endswith(".dist-info/METADATA")]
+    wheel_metadata = [name for name in names if name.endswith(".dist-info/WHEEL")]
+    records = [name for name in names if name.endswith(".dist-info/RECORD")]
+    if len(metadata) != 1:
+        issues.append(f"wheel must contain exactly one .dist-info/METADATA file; found {len(metadata)}")
+    if len(wheel_metadata) != 1:
+        issues.append(f"wheel must contain exactly one .dist-info/WHEEL file; found {len(wheel_metadata)}")
+    if len(records) != 1:
+        issues.append(f"wheel must contain exactly one .dist-info/RECORD file; found {len(records)}")
+    if not any(name.startswith("waggle/") for name in names):
+        issues.append("wheel must contain the waggle package root")
+    if not any(name.startswith("rlm/") for name in names):
+        issues.append("wheel must contain the rlm package root")
+    return issues
+
+
+def _check_sdist_artifact(sdist_path: Path) -> list[str]:
+    try:
+        with tarfile.open(sdist_path, "r:gz") as archive:
+            names = [member.name.rstrip("/") if member.isdir() else member.name for member in archive.getmembers()]
+    except (OSError, tarfile.TarError) as exc:
+        return [f"sdist could not be inspected: {exc}"]
+
+    issues = _check_member_paths(names, "sdist")
+    roots = {name.split("/", 1)[0] for name in names if name}
+    if len(roots) != 1:
+        issues.append(f"sdist must contain exactly one top-level directory; found {len(roots)}")
+        return issues
+
+    root = next(iter(roots))
+    relative_names = {name.removeprefix(f"{root}/") for name in names if name != root and name.startswith(f"{root}/")}
+    for required in ("README.md", "pyproject.toml", "PKG-INFO"):
+        if required not in relative_names:
+            issues.append(f"sdist must contain {required} at its package root")
+    if not any(name.startswith("src/waggle/") for name in relative_names):
+        issues.append("sdist must contain the src/waggle package root")
+    if not any(name.startswith("src/rlm/") for name in relative_names):
+        issues.append("sdist must contain the src/rlm package root")
+    return issues
+
+
+def check_artifacts(dist_dir: Path) -> list[str]:
+    try:
+        wheels = sorted(dist_dir.glob("*.whl"))
+        sdists = sorted(dist_dir.glob("*.tar.gz"))
+    except OSError as exc:
+        return [f"distribution directory could not be inspected: {exc}"]
+
+    issues: list[str] = []
+    if len(wheels) != 1:
+        issues.append(f"distribution directory must contain exactly one wheel; found {len(wheels)}")
+    if len(sdists) != 1:
+        issues.append(
+            f"distribution directory must contain exactly one .tar.gz source distribution; found {len(sdists)}"
+        )
+    if issues:
+        return sorted(issues)
+
+    issues.extend(_check_wheel_artifact(wheels[0]))
+    issues.extend(_check_sdist_artifact(sdists[0]))
+    return sorted(issues)
+
+
 async def _run_stdio_smoke(command: Path, work_dir: Path) -> list[str]:
     from mcp.client.session import ClientSession
     from mcp.client.stdio import StdioServerParameters, stdio_client
@@ -204,6 +336,9 @@ def _parser() -> argparse.ArgumentParser:
     wheel.add_argument("--wheel", type=Path, required=True)
     wheel.add_argument("--readme", type=Path, default=Path("README.md"))
 
+    artifacts = subparsers.add_parser("artifacts", help="inspect the complete wheel and source distribution")
+    artifacts.add_argument("--dist-dir", type=Path, required=True)
+
     stdio = subparsers.add_parser("stdio", help="smoke-test an installed waggle-mcp command over stdio")
     stdio.add_argument("--command", type=Path, required=True)
     stdio.add_argument("--work-dir", type=Path, required=True)
@@ -230,6 +365,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _print_result(check_manifest(args.root, args.schema))
     if args.command == "wheel":
         return _print_result(check_wheel(args.wheel, args.readme))
+    if args.command == "artifacts":
+        return _print_result(check_artifacts(args.dist_dir))
     return _print_result(asyncio.run(smoke_stdio(args.command, args.work_dir)))
 
 
