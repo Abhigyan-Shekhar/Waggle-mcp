@@ -74,6 +74,27 @@ jobs:
             --onefile \
             --name "${{ matrix.executable_name }}" \
             --collect-all waggle \
+            --exclude-module sentence_transformers \
+            --exclude-module torch \
+            --exclude-module transformers \
+            --exclude-module sklearn \
+            --exclude-module scipy \
+            --exclude-module huggingface_hub \
+            --exclude-module tokenizers \
+            --exclude-module safetensors \
+            --exclude-module numpy.random \
+            --exclude-module numpy.fft \
+            --exclude-module numpy.testing \
+            --exclude-module numpy.f2py \
+            --exclude-module googleapiclient \
+            --exclude-module google_auth_httplib2 \
+            --exclude-module google.genai \
+            --exclude-module pyvis \
+            --exclude-module IPython \
+            --exclude-module jedi \
+            --exclude-module openai \
+            --exclude-module anthropic \
+            --exclude-module portkey_ai \
             src/waggle/entrypoints/cli.py
 
       - name: Smoke test binary

@@ -39,10 +39,15 @@ def test_release_workflows_use_current_entrypoints_and_versioned_image() -> None
     assert "src/waggle/server.py" not in binary_workflow
     assert '"${{ matrix.artifact_path }}" doctor --help' in binary_workflow
     assert '"${{ matrix.artifact_path }}" doctor\n' not in binary_workflow
+    from scripts.build_codex_plugin_runtime import HEAVY_EXCLUDES
+
+    for module in HEAVY_EXCLUDES:
+        assert f"--exclude-module {module}" in binary_workflow
     assert "image-version: ${{ steps.meta.outputs.version }}" in image_workflow
     assert "VERSION=${{ steps.meta.outputs.version }}" in image_workflow
     assert "${{ needs.build-and-push.outputs.image-version }}" in image_workflow
     assert "--entrypoint python" in image_workflow
+    assert "cache-to: type=gha,mode=max,ignore-error=true" in image_workflow
 
 
 def test_codex_onedir_runtime_has_separate_size_budget() -> None:
@@ -128,8 +133,8 @@ def test_codex_release_docs_record_intentional_version_split_and_unsigned_policy
 
     for text in [codex_guide, runtime_guide, checklist]:
         assert "0.1.3" in text
-        assert "v0.1.23" in text
-        assert "v0.1.22" not in text
+        assert "v0.1.24" in text
+        assert "v0.1.23" not in text
 
     assert "intentionally unsigned" in codex_guide
     assert "intentionally unsigned" in runtime_guide
