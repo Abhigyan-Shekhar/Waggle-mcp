@@ -16,6 +16,7 @@ def test_pyproject_uses_setuptools_src_layout() -> None:
     assert pyproject["build-system"]["build-backend"] == "setuptools.build_meta"
     assert pyproject["tool"]["setuptools"]["package-dir"] == {"": "src"}
     assert pyproject["tool"]["setuptools"]["packages"]["find"]["where"] == ["src"]
+    assert "cryptography>=45.0.0,<46.0.0" in pyproject["project"]["dependencies"]
 
 
 def test_dockerfile_uses_module_entrypoint_for_arg_passthrough() -> None:
@@ -127,7 +128,7 @@ def test_codex_release_docs_record_intentional_version_split_and_unsigned_policy
 
     for text in [codex_guide, runtime_guide, checklist]:
         assert "0.1.3" in text
-        assert "v0.1.22" in text
+        assert "v0.1.23" in text
 
     assert "intentionally unsigned" in codex_guide
     assert "intentionally unsigned" in runtime_guide
