@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import tempfile
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,6 +14,7 @@ from uuid import UUID, uuid5
 
 from pydantic import BaseModel, Field
 
+from waggle.abhi import load_abhi_document
 from waggle.errors import ValidationFailure
 from waggle.graph import MemoryGraph
 from waggle.models import EvidenceRecord, Node, NodeType, RelationType
@@ -107,6 +110,19 @@ class GitHubEventIngestionResult(BaseModel):
     edge_ids: list[str] = Field(default_factory=list)
     nodes_added: int = 0
     edges_added: int = 0
+
+
+class GitHubEventCommandResult(BaseModel):
+    status: Literal["ingested", "unsupported"]
+    event_type: str
+    repository: str
+    project: str
+    context_file: str
+    checkpoint_file: str
+    nodes_added: int = 0
+    edges_added: int = 0
+    checkpoint_nodes: int = 0
+    checkpoint_edges: int = 0
 
 
 def _sanitize_url(raw: str) -> str:
@@ -223,6 +239,10 @@ def _mapping(payload: Mapping[str, Any], key: str, event_type: str) -> Mapping[s
 
 def _optional_mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
+
+
+def _optional_list(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
 
 
 def _text(value: Any, *, max_chars: int = MAX_EVENT_TEXT_CHARS) -> str:
@@ -733,4 +753,196 @@ def ingest_normalized_event(
         edge_ids=edge_ids,
         nodes_added=nodes_added,
         edges_added=edges_added,
+    )
+
+
+def validate_export_scope(scope: str, *, project: str, session_id: str, since_date: str) -> str:
+    normalized = scope.strip().lower() or "project"
+    if normalized not in {"all", "project", "session", "since-date"}:
+        raise ValidationFailure("scope must be one of: all, project, session, since-date.")
+    if normalized in {"project", "session"} and not project.strip():
+        raise ValidationFailure(f"{normalized} scope requires --project.")
+    if normalized == "session" and not session_id.strip():
+        raise ValidationFailure("session scope requires --session-id.")
+    if normalized == "since-date" and not since_date.strip():
+        raise ValidationFailure("since-date scope requires --since-date.")
+    return normalized
+
+
+def render_context_handoff(
+    document: Mapping[str, Any],
+    *,
+    status: str,
+    event_type: str | None,
+    repository: str,
+    project: str,
+) -> str:
+    manifest = _optional_mapping(document.get("manifest"))
+    raw_nodes = _optional_list(document.get("nodes"))
+    raw_edges = _optional_list(document.get("edges"))
+    nodes = [node for node in raw_nodes if isinstance(node, Mapping)]
+    edges = [edge for edge in raw_edges if isinstance(edge, Mapping)]
+    node_labels = {str(node.get("id", "")): str(node.get("label", "")) for node in nodes}
+    lines = [
+        "# Waggle GitHub Context Handoff",
+        "",
+        "Use this checkpoint and summary as portable repository context for downstream AI workflows.",
+        "",
+        "## Handoff metadata",
+        "",
+        f"- Status: `{status}`",
+        f"- Event type: `{event_type or 'unknown'}`",
+        f"- Repository: `{repository}`",
+        f"- Project: `{project}`",
+        f"- Scope: `{manifest.get('scope', '')}`",
+        f"- Nodes: {len(nodes)}",
+        f"- Edges: {len(edges)}",
+        "",
+    ]
+    if status == "unsupported":
+        lines.extend(
+            [
+                "## Summary",
+                "",
+                "This event type is not supported, so no event context was added to memory.",
+                "The checkpoint still contains the requested existing Waggle scope.",
+                "",
+            ]
+        )
+    if nodes:
+        lines.extend(["## Memory", ""])
+        for node in sorted(
+            nodes,
+            key=lambda item: (str(item.get("node_type", "")), str(item.get("label", "")), str(item.get("id", ""))),
+        ):
+            label = str(node.get("label", "")).strip()
+            node_type = str(node.get("node_type", "note")).strip()
+            content = str(node.get("content", "")).strip()
+            lines.append(f"### {label}")
+            lines.append("")
+            lines.append(f"Type: `{node_type}`")
+            lines.append("")
+            lines.append(content)
+            lines.append("")
+    if edges:
+        lines.extend(["## Relationships", ""])
+        for edge in sorted(
+            edges,
+            key=lambda item: (
+                str(item.get("source_id", "")),
+                str(item.get("target_id", "")),
+                str(item.get("relationship", "")),
+            ),
+        ):
+            source = node_labels.get(str(edge.get("source_id", "")), str(edge.get("source_id", "")))
+            target = node_labels.get(str(edge.get("target_id", "")), str(edge.get("target_id", "")))
+            lines.append(f"- {source} --`{edge.get('relationship', '')}`--> {target}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _temporary_sibling(destination: Path) -> Path:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, raw_path = tempfile.mkstemp(
+        prefix=f".{destination.name}.",
+        suffix=".tmp",
+        dir=destination.parent,
+    )
+    os.close(descriptor)
+    return Path(raw_path)
+
+
+def ingest_github_event(
+    graph: MemoryGraph,
+    *,
+    event_path: Path,
+    event_type: str,
+    github_event_name: str,
+    repository: str,
+    project: str,
+    scope: str,
+    session_id: str,
+    since_date: str,
+    output_context: Path,
+    output_checkpoint: Path,
+    max_input_bytes: int = DEFAULT_MAX_INPUT_BYTES,
+) -> GitHubEventCommandResult:
+    normalized_repository = repository.strip()
+    normalized_project = project.strip()
+    if not normalized_repository:
+        raise ValidationFailure("GitHub event ingestion requires --repository.")
+    normalized_scope = validate_export_scope(
+        scope,
+        project=normalized_project,
+        session_id=session_id,
+        since_date=since_date,
+    )
+    payload = load_event_payload(event_path, max_input_bytes=max_input_bytes)
+    resolved_type = normalize_event_type(event_type, github_event_name, payload)
+    if event_type.strip() and resolved_type is None:
+        raise ValidationFailure(f"Unsupported explicit GitHub event type: {event_type}.")
+
+    status: Literal["ingested", "unsupported"] = "unsupported"
+    nodes_added = 0
+    edges_added = 0
+    if resolved_type is not None:
+        normalized_event = normalize_github_event(
+            payload,
+            event_type=resolved_type,
+            repository=normalized_repository,
+        )
+        ingestion = ingest_normalized_event(
+            graph,
+            normalized_event,
+            project=normalized_project,
+            session_id=session_id,
+        )
+        status = "ingested"
+        nodes_added = ingestion.nodes_added
+        edges_added = ingestion.edges_added
+
+    context_destination = output_context.expanduser().resolve()
+    checkpoint_destination = output_checkpoint.expanduser().resolve()
+    if context_destination == checkpoint_destination:
+        raise ValidationFailure("--output-context and --output-checkpoint must be different paths.")
+    temporary_context = _temporary_sibling(context_destination)
+    temporary_checkpoint = _temporary_sibling(checkpoint_destination)
+    try:
+        graph.export_abhi(
+            output_path=temporary_checkpoint,
+            project=normalized_project,
+            session_id=session_id,
+            scope=normalized_scope,
+            since_date=since_date,
+            include_embeddings=True,
+        )
+        document = load_abhi_document(temporary_checkpoint)
+        rendered = render_context_handoff(
+            document,
+            status=status,
+            event_type=resolved_type or github_event_name.strip() or None,
+            repository=normalized_repository,
+            project=normalized_project,
+        )
+        temporary_context.write_text(rendered, encoding="utf-8")
+        temporary_context.chmod(0o600)
+        os.replace(temporary_checkpoint, checkpoint_destination)
+        os.replace(temporary_context, context_destination)
+    finally:
+        temporary_checkpoint.unlink(missing_ok=True)
+        temporary_context.unlink(missing_ok=True)
+
+    manifest = _optional_mapping(document.get("manifest"))
+    counts = _optional_mapping(manifest.get("counts"))
+    return GitHubEventCommandResult(
+        status=status,
+        event_type=resolved_type or github_event_name.strip() or "unknown",
+        repository=normalized_repository,
+        project=normalized_project,
+        context_file=str(context_destination),
+        checkpoint_file=str(checkpoint_destination),
+        nodes_added=nodes_added,
+        edges_added=edges_added,
+        checkpoint_nodes=int(counts.get("nodes", 0) or 0),
+        checkpoint_edges=int(counts.get("edges", 0) or 0),
     )
