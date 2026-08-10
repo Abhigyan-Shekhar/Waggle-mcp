@@ -8,6 +8,7 @@ import contextlib
 import json
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -24,19 +25,32 @@ FILES = {
 
 
 def read_toml_version(path: Path) -> str:
-    content = path.read_text(encoding="utf-8")
-    match = re.search(r'(?m)^version\s*=\s*"([^"]+)"', content)
-    if not match:
-        raise ValueError(f"Could not find version in {path}")
-    return match.group(1)
+    with open(path, "rb") as f:
+        data = tomllib.load(f)
+    try:
+        return data["project"]["version"]
+    except KeyError as e:
+        raise ValueError(f"Could not find version in [project] in {path}") from e
 
 
 def get_toml_new_content(path: Path, version: str) -> str:
     content = path.read_text(encoding="utf-8")
-    new_content, count = re.subn(r'(?m)^version\s*=\s*"[^"]+"', f'version = "{version}"', content)
+    project_match = re.search(r"(?m)^\[project\]", content)
+    if not project_match:
+        raise ValueError(f"Could not find [project] section in {path}")
+    start_idx = project_match.end()
+    next_section_match = re.search(r"(?m)^\[", content[start_idx:])
+    if next_section_match:
+        end_idx = start_idx + next_section_match.start()
+    else:
+        end_idx = len(content)
+    project_section = content[start_idx:end_idx]
+    new_project_section, count = re.subn(
+        r'(?m)^version\s*=\s*"[^"]+"', f'version = "{version}"', project_section, count=1
+    )
     if count == 0:
-        raise ValueError(f"Could not find version line to replace in {path}")
-    return new_content
+        raise ValueError(f"Could not find version line to replace in [project] section of {path}")
+    return content[:start_idx] + new_project_section + content[end_idx:]
 
 
 def read_json_version(path: Path) -> str:
