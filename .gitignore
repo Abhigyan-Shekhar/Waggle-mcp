@@ -7,7 +7,9 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-dist/
+dist/*
+!dist/waggle-context-action/
+!dist/waggle-context-action/**
 dist-release/
 build/
 *.aux
