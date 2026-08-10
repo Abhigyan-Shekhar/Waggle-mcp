@@ -10,10 +10,16 @@ permissions:
   contents: read
   packages: write
 
+env:
+  # GHCR image references must be lowercase; the GitHub account display name is not.
+  IMAGE_NAME: ghcr.io/abhigyan-shekhar/waggle-mcp
+
 jobs:
   build-and-push:
     name: Build & push pre-baked image
     runs-on: ubuntu-latest
+    outputs:
+      image-version: ${{ steps.meta.outputs.version }}
 
     steps:
       - name: Checkout source
@@ -23,7 +29,7 @@ jobs:
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -34,7 +40,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/waggle-mcp
+          images: ${{ env.IMAGE_NAME }}
           tags: |
             # Immutable semver tag  →  ghcr.io/.../waggle-mcp:0.1.12
             type=semver,pattern={{version}}
@@ -50,9 +56,12 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
           # GitHub Actions layer cache — dramatically speeds up repeat builds
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # The image push is authoritative; a transient cache-service failure must not fail the release.
+          cache-to: type=gha,mode=max,ignore-error=true
           # Build for both amd64 and arm64 (Apple Silicon, AWS Graviton)
           platforms: linux/amd64,linux/arm64
 
@@ -65,16 +74,17 @@ jobs:
     steps:
       - name: Pull published image
         run: |
-          docker pull ghcr.io/${{ github.repository_owner }}/waggle-mcp:${{ github.ref_name }}
+          docker pull ${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-version }}
 
       - name: Verify tool listing responds instantly (fast mode)
         run: |
           # Fast mode must respond within 5 s with zero ML overhead
           timeout 5 docker run --rm \
+            --entrypoint python \
             -e WAGGLE_STARTUP_MODE=fast \
             -e WAGGLE_TRANSPORT=stdio \
-            ghcr.io/${{ github.repository_owner }}/waggle-mcp:${{ github.ref_name }} \
-            python -c "
+            ${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-version }} \
+            -c "
           from waggle.config import AppConfig
           from waggle.server import WaggleServer
           import os

@@ -19,7 +19,8 @@ classifiers = [
 dependencies = [
   "anthropic>=0.75.0",
   "anyio>=4.4.0",
-  "cryptography>=45.0.0",
+  # cryptography 46 requires OpenSSL symbols unavailable in the hosted macOS 15 Python 3.11 runtime.
+  "cryptography>=45.0.0,<46.0.0",
   "google-api-python-client>=2.170.0",
   "google-auth>=2.40.0",
   "google-genai>=1.56.0",
