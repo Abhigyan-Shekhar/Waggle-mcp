@@ -80,8 +80,19 @@ def check_metadata(root: Path | None = None) -> list[str]:
         return [f"metadata validation failed: {exc}"]
 
 
-def render_server_json(data: dict[str, Any]) -> bytes:
-    return (json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode()
+def render_server_json(data: dict[str, Any], *, newline: bytes = b"\n") -> bytes:
+    return (json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode().replace(b"\n", newline)
+
+
+def _server_json_newline(original: bytes) -> bytes:
+    without_crlf = original.replace(b"\r\n", b"")
+    if b"\r\n" in original:
+        if b"\n" in without_crlf or b"\r" in without_crlf:
+            raise ValueError("server.json has mixed line endings; refusing to rewrite unrelated bytes")
+        return b"\r\n"
+    if b"\r" in original:
+        raise ValueError("server.json has unsupported bare CR line endings; refusing to rewrite unrelated bytes")
+    return b"\n"
 
 
 def set_generated_versions(data: dict[str, Any], version: str) -> None:
@@ -110,17 +121,21 @@ def _changed_line_indexes(before: bytes, after: bytes) -> set[int]:
 
 
 def build_server_candidate(original: bytes, data: dict[str, Any], version: str) -> bytes:
-    canonical_original = render_server_json(data)
+    newline = _server_json_newline(original)
+    canonical_original = render_server_json(data, newline=newline)
     if canonical_original != original:
         raise ValueError("server.json is not in canonical two-space JSON format; refusing to rewrite unrelated bytes")
 
     sentinel_data = copy.deepcopy(data)
     set_generated_versions(sentinel_data, VERSION_SENTINEL)
-    allowed_lines = _changed_line_indexes(canonical_original, render_server_json(sentinel_data))
+    allowed_lines = _changed_line_indexes(
+        canonical_original,
+        render_server_json(sentinel_data, newline=newline),
+    )
 
     candidate_data = copy.deepcopy(data)
     set_generated_versions(candidate_data, version)
-    candidate = render_server_json(candidate_data)
+    candidate = render_server_json(candidate_data, newline=newline)
     changed_lines = _changed_line_indexes(original, candidate)
     unexpected_lines = changed_lines - allowed_lines
     if unexpected_lines:
@@ -147,7 +162,8 @@ def write_metadata(root: Path | None = None) -> list[str]:
         markers = find_readme_markers(readme_text)
         readme_candidate = readme_original
         if not markers:
-            readme_candidate = f"<!-- mcp-name: {name} -->\n\n".encode() + readme_original
+            readme_newline = b"\r\n" if b"\r\n" in readme_original else b"\n"
+            readme_candidate = f"<!-- mcp-name: {name} -->".encode() + readme_newline + readme_newline + readme_original
 
         if server_candidate != server_original:
             server_path.write_bytes(server_candidate)

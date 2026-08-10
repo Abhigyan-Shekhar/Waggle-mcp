@@ -6,12 +6,12 @@
     "url": "https://github.com/Abhigyan-Shekhar/Waggle-mcp",
     "source": "github"
   },
-  "version": "0.1.22",
+  "version": "0.1.25",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "waggle-mcp",
-      "version": "0.1.22",
+      "version": "0.1.25",
       "transport": {
         "type": "stdio"
       },
