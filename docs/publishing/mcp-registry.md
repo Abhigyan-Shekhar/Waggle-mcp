@@ -30,7 +30,7 @@ python scripts/sync_release_metadata.py --check
 
 **Maintainer:** Review and commit the generated diff before creating a tag. `--write` is a release-PR operation only. The publishing workflow runs `--check`; it never rewrites, commits, or pushes metadata from an ephemeral runner.
 
-**Repository owner:** Confirm the chosen version before merging the release PR. The proposed next repository version is `0.1.22`, pending owner confirmation.
+**Repository owner:** Confirm the chosen version before merging the release PR. Treat `[project].version` in the release commit as the authoritative version; do not copy a version from this guide.
 
 ## Contributor validation
 
@@ -112,20 +112,28 @@ WAGGLE_TRANSPORT=stdio \
 
 ## Owner-only recovery
 
+**Repository owner:** Run each recovery block from a clean checkout of the exact release tag. Each block derives the version from that checkout and stops if the tag and tracked version disagree.
+
 **Repository owner:** After an uncertain PyPI result, query PyPI before doing anything else:
 
 ```bash
-VERSION=0.1.22
+set -euo pipefail
+TAG="$(git describe --tags --exact-match HEAD)"
+VERSION="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+test "$TAG" = "v$VERSION"
 curl --fail --silent --show-error \
   "https://pypi.org/pypi/waggle-mcp/$VERSION/json"
 ```
 
 **Repository owner:** If that exact version exists, do not rerun any PyPI upload. PyPI versions and their files cannot be replaced. `twine upload` is deliberately not part of this recovery path. If the exact version is absent, diagnose the trusted-publisher identity or rerun the gated workflow only after confirming that no file was accepted.
 
-**Repository owner:** If PyPI is correct but Registry publication needs manual recovery, first install a currently released `mcp-publisher` from its official release asset and verify the published checksum. Then run, from a clean checkout of the exact release tag:
+**Repository owner:** If PyPI is correct but Registry publication needs manual recovery, first install a currently released `mcp-publisher` from its official release asset and verify the published checksum. Then run:
 
 ```bash
-VERSION=0.1.22
+set -euo pipefail
+TAG="$(git describe --tags --exact-match HEAD)"
+VERSION="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+test "$TAG" = "v$VERSION"
 python scripts/sync_release_metadata.py --check
 mcp-publisher login github
 mcp-publisher publish
@@ -140,7 +148,10 @@ python scripts/check_release_publication.py registry \
 **Repository owner:** Recover a release-asset failure without republishing PyPI or Registry metadata:
 
 ```bash
-TAG=v0.1.22
+set -euo pipefail
+TAG="$(git describe --tags --exact-match HEAD)"
+VERSION="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+test "$TAG" = "v$VERSION"
 gh release view "$TAG" || gh release create "$TAG" \
   --draft --verify-tag --generate-notes --title "Waggle $TAG"
 gh release upload "$TAG" dist/* --clobber
@@ -165,7 +176,7 @@ gh release upload "$TAG" dist/* --clobber
 
 ## Known pre-existing public state
 
-**Maintainer:** Treat this as a known mismatch, not as evidence that this branch repaired public state: the official Registry advertises PyPI version `0.1.8`, while PyPI currently has only `0.0.1`. The proposed next repository version is `0.1.22`, pending owner confirmation.
+**Maintainer:** Treat the public state observed on 2026-08-10 as a known mismatch, not as evidence that this branch repaired it: the official Registry advertised PyPI version `0.1.8`, while PyPI had only `0.0.1`.
 
 ## Owner-only release checklist
 

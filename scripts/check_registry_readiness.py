@@ -177,9 +177,9 @@ def _forbidden_archive_path(name: str) -> bool:
     basename = parts[-1]
     if any(part in FORBIDDEN_ARCHIVE_COMPONENTS for part in parts):
         return True
-    if basename == ".env" or basename.startswith(".env."):
+    if any(part == ".env" or part.startswith(".env.") for part in parts):
         return True
-    if basename in FORBIDDEN_ARCHIVE_BASENAMES:
+    if any(part in FORBIDDEN_ARCHIVE_BASENAMES for part in parts):
         return True
     return any(basename.endswith(suffix) for suffix in FORBIDDEN_ARCHIVE_SUFFIXES)
 
@@ -198,7 +198,8 @@ def _check_wheel_artifact(wheel_path: Path) -> list[str]:
     try:
         with ZipFile(wheel_path) as archive:
             names = [
-                member.filename.rstrip("/") if member.is_dir() else member.filename for member in archive.infolist()
+                member.orig_filename.rstrip("/") if member.is_dir() else member.orig_filename
+                for member in archive.infolist()
             ]
     except (OSError, BadZipFile) as exc:
         return [f"wheel could not be inspected: {exc}"]

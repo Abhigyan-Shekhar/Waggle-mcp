@@ -307,6 +307,8 @@ def test_artifacts_check_rejects_unsafe_sdist_paths(tmp_path: Path, member: str)
         "data/local.sqlite",
         "data/local.sqlite3",
         "config/credentials.json",
+        "config/credentials/token",
+        "config/.env.production/token",
         "config/private.pem",
         "config/private.key",
         ".ssh/id_rsa",
@@ -336,6 +338,8 @@ def test_artifacts_check_rejects_forbidden_wheel_members(tmp_path: Path, member:
         "waggle_mcp-0.1.22/.env",
         "waggle_mcp-0.1.22/data/local.db",
         "waggle_mcp-0.1.22/config/credentials.json",
+        "waggle_mcp-0.1.22/config/credentials/token",
+        "waggle_mcp-0.1.22/config/.env.production/token",
         "waggle_mcp-0.1.22/config/private.key",
         "waggle_mcp-0.1.22/tests/test_leak.py",
     ],
@@ -349,10 +353,12 @@ def test_artifacts_check_rejects_forbidden_sdist_members(tmp_path: Path, member:
     assert any("sdist contains forbidden member" in issue and member in issue for issue in issues)
 
 
-def test_artifacts_check_rejects_backslash_paths(tmp_path: Path) -> None:
+def test_artifacts_check_rejects_backslash_paths_on_windows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     member = "waggle\\..\\outside.txt"
     members = {**VALID_WHEEL_MEMBERS, member: b"unsafe"}
     write_artifact_pair(tmp_path, wheel_members=members)
+
+    monkeypatch.setattr("zipfile.os.sep", "\\")
 
     assert any("wheel contains unsafe path" in issue and member in issue for issue in check_artifacts(tmp_path))
 
