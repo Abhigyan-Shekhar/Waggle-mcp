@@ -39,9 +39,15 @@ jobs:
         shell: bash
         run: |
           schema_url="$(python -c 'import json; print(json.load(open("server.json"))["$schema"])')"
-          curl --fail --location --retry 3 --silent --show-error \
+          expected_schema_url="https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json"
+          if [[ "$schema_url" != "$expected_schema_url" ]]; then
+            echo "Unexpected registry schema URL: $schema_url" >&2
+            exit 1
+          fi
+          curl --fail --location --proto '=https' --proto-redir '=https' \
+            --retry 3 --silent --show-error \
             --output "$RUNNER_TEMP/server.schema.json" \
-            "$schema_url"
+            "$expected_schema_url"
 
       - name: Parse and validate server.json
         run: >-
