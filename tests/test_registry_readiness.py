@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tarfile
 from pathlib import Path
-from zipfile import ZIP_DEFLATED, ZipFile
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 import pytest
 
@@ -355,8 +355,11 @@ def test_artifacts_check_rejects_forbidden_sdist_members(tmp_path: Path, member:
 
 def test_artifacts_check_rejects_backslash_paths_on_windows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     member = "waggle\\..\\outside.txt"
-    members = {**VALID_WHEEL_MEMBERS, member: b"unsafe"}
-    write_artifact_pair(tmp_path, wheel_members=members)
+    wheel_path, _ = write_artifact_pair(tmp_path)
+    raw_member = ZipInfo(member)
+    raw_member.filename = member
+    with ZipFile(wheel_path, "a", compression=ZIP_DEFLATED) as archive:
+        archive.writestr(raw_member, b"unsafe")
 
     monkeypatch.setattr("zipfile.os.sep", "\\")
 
