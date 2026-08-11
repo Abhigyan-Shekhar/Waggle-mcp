@@ -149,7 +149,7 @@ def poll_registry(
 ) -> None:
     name_path = quote(name, safe="")
     version_path = quote(version, safe="")
-    url = f"https://registry.modelcontextprotocol.io/v0/servers/{name_path}/versions/{version_path}"
+    url = f"https://registry.modelcontextprotocol.io/v0.1/servers/{name_path}/versions/{version_path}"
 
     def validate(payload: object) -> None:
         server = _require_object(payload, "server", "Registry")

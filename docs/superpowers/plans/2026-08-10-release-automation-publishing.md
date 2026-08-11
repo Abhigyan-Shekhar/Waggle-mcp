@@ -87,7 +87,7 @@ https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_
   .venv/bin/python -m pytest tests/test_check_release_publication.py -q
   ```
 
-- [ ] Implement the smallest standard-library-only module that satisfies the tests. Use `urllib.parse.quote(value, safe="")` for every path component. PyPI must query `https://pypi.org/pypi/<project>/<version>/json`; Registry must query `https://registry.modelcontextprotocol.io/v0/servers/<name>/versions/<version>`.
+- [ ] Implement the smallest standard-library-only module that satisfies the tests. Use `urllib.parse.quote(value, safe="")` for every path component. PyPI must query `https://pypi.org/pypi/<project>/<version>/json`; Registry must query `https://registry.modelcontextprotocol.io/v0.1/servers/<name>/versions/<version>`.
 - [ ] Validate PyPI `info.name` and `info.version`. Validate Registry `server.name`, `server.version`, and exactly one matching package object with `registryType == "pypi"`, the requested identifier, and the requested version.
 - [ ] Retry only not-yet-visible responses (404). Reject 200 responses with malformed or mismatched metadata immediately. Sleep only between attempts, never after the final attempt.
 - [ ] Add argparse subcommands exactly matching the design: `tag --tag`, `pypi --project --version`, and `registry --name --version --package`.

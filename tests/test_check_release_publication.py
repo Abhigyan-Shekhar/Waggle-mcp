@@ -137,7 +137,7 @@ def test_registry_url_encodes_namespace_and_accepts_exact_package() -> None:
 
     assert calls == [
         (
-            "https://registry.modelcontextprotocol.io/v0/servers/"
+            "https://registry.modelcontextprotocol.io/v0.1/servers/"
             "io.github.Abhigyan-Shekhar%2FWaggle-mcp/versions/0.1.22",
             10.0,
         )
