@@ -59,7 +59,7 @@ No published release currently contains `ingest-github-event`; specify the versi
 
 ## Supported context
 
-GitHub issue, pull request, discussion, release, and push payloads are normalized with source URL, repository, event type, actor, timestamps, and identifiers retained as provenance. `workflow_dispatch` maps to bounded generic JSON. Unsupported events return a valid scoped checkpoint and a clear `unsupported` status with zero additions. Malformed supported payloads fail without replacing existing outputs.
+GitHub issue, pull request, discussion, release, and push payloads are normalized with source URL, repository, event type, actor, timestamps, and identifiers retained as provenance. `workflow_dispatch` maps to bounded generic JSON. Because GitHub does not include an occurrence timestamp in a standard `workflow_dispatch` payload, Waggle uses the ingestion time unless the generic payload supplies an explicit `timestamp`. Unsupported events return a valid scoped checkpoint and a clear `unsupported` status with zero additions. Malformed supported payloads fail without replacing existing outputs.
 
 Supplying `checkpoint` imports earlier memory before ingestion, so repeated workflows can accumulate repository context. IDs are derived deterministically from stable GitHub provenance; reprocessing the same event updates the same graph objects instead of duplicating them.
 

@@ -139,7 +139,7 @@ jobs:
       - name: Check distribution metadata
         run: |
           pip install twine
-          twine check dist/*
+          twine check dist/*.whl dist/*.tar.gz
 
   codex-plugin-runtime:
     name: Codex plugin runtime layout

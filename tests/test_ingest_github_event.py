@@ -272,6 +272,7 @@ def test_cli_main_writes_only_result_json_to_stdout(
     config = make_config(tmp_path)
     config.transport = "http"
     config.log_level = "INFO"
+    monkeypatch.delenv("GITHUB_EVENT_NAME", raising=False)
     monkeypatch.setattr(AppConfig, "from_env", classmethod(lambda cls: config))
     monkeypatch.setattr(
         sys,

@@ -37,6 +37,7 @@ from waggle.models import (
     DedupCandidatePair,
     DedupCandidatesResult,
     Edge,
+    EdgeStoreResult,
     EvidenceRecord,
     Node,
     NodeStoreResult,
@@ -142,6 +143,7 @@ class MutationMixin(MemoryGraphBase):
                         active_connection,
                         existing_node=existing_node,
                         incoming_node=node,
+                        updated_at=resolved_updated_at,
                     )
                     if merged_node.context_window_id:
                         active_connection.execute(
@@ -224,7 +226,11 @@ class MutationMixin(MemoryGraphBase):
                 observed_at=resolved_updated_at,
             )
             self._mark_communities_stale(active_connection)
-            conflicts = self._register_conflicts(active_connection, node) if self.enable_dedup else []
+            conflicts = (
+                self._register_conflicts(active_connection, node, occurred_at=resolved_updated_at)
+                if self.enable_dedup
+                else []
+            )
             self.emit_audit_event(
                 event_type="graph.node.created",
                 resource_type="node",
@@ -256,6 +262,33 @@ class MutationMixin(MemoryGraphBase):
         created_at: datetime | None = None,
         connection: sqlite3.Connection | None = None,
     ) -> Edge:
+        """Create an edge or return the existing edge with the same graph key."""
+
+        return self.add_edge_with_result(
+            edge_id=edge_id,
+            source_id=source_id,
+            target_id=target_id,
+            relationship=relationship,
+            weight=weight,
+            metadata=metadata,
+            created_at=created_at,
+            connection=connection,
+        ).edge
+
+    def add_edge_with_result(
+        self,
+        *,
+        edge_id: str | None = None,
+        source_id: str,
+        target_id: str,
+        relationship: str | RelationType,
+        weight: float = 1.0,
+        metadata: dict[str, Any] | None = None,
+        created_at: datetime | None = None,
+        connection: sqlite3.Connection | None = None,
+    ) -> EdgeStoreResult:
+        """Create or reuse an edge and report whether storage created it."""
+
         edge_kwargs: dict[str, Any] = {}
         if edge_id is not None and str(edge_id).strip():
             edge_kwargs["id"] = str(edge_id).strip()
@@ -270,7 +303,7 @@ class MutationMixin(MemoryGraphBase):
             created_at=created_at or utc_now(),
         )
 
-        def _insert(active_connection: sqlite3.Connection) -> Edge:
+        def _insert(active_connection: sqlite3.Connection) -> EdgeStoreResult:
             self._require_node(active_connection, edge.source_id)
             self._require_node(active_connection, edge.target_id)
             source_row = self._fetch_node_row(active_connection, edge.source_id)
@@ -286,7 +319,7 @@ class MutationMixin(MemoryGraphBase):
                 relationship=edge.relationship,
             )
             if existing_edge is not None:
-                return existing_edge
+                return EdgeStoreResult(edge=existing_edge, created=False)
             active_connection.execute(
                 """
                 INSERT INTO edges (
@@ -308,9 +341,13 @@ class MutationMixin(MemoryGraphBase):
             self._mark_communities_stale(active_connection)
             if edge.relationship in {RelationType.UPDATES.value, RelationType.CONTRADICTS.value}:
                 self._mark_node_superseded(
-                    active_connection, old_node=target_node, new_node=source_node, relationship=edge.relationship
+                    active_connection,
+                    old_node=target_node,
+                    new_node=source_node,
+                    relationship=edge.relationship,
+                    occurred_at=edge.created_at,
                 )
-            return edge
+            return EdgeStoreResult(edge=edge, created=True)
 
         if connection is not None:
             return _insert(connection)
@@ -1201,6 +1238,7 @@ class MutationMixin(MemoryGraphBase):
         *,
         existing_node: Node,
         incoming_node: Node,
+        updated_at: datetime,
     ) -> Node:
         merged_tags = list(dict.fromkeys([*existing_node.tags, *incoming_node.tags]))
         updated_source_prompt = existing_node.source_prompt or incoming_node.source_prompt
@@ -1232,7 +1270,6 @@ class MutationMixin(MemoryGraphBase):
                 ]
             )
         )
-        updated_at = utc_now()
         connection.execute(
             """
             UPDATE nodes
@@ -1482,6 +1519,8 @@ class MutationMixin(MemoryGraphBase):
         self,
         connection: sqlite3.Connection,
         node: Node,
+        *,
+        occurred_at: datetime,
     ) -> list[ConflictRecord]:
         if node.node_type not in {NodeType.PREFERENCE, NodeType.DECISION}:
             return []
@@ -1533,6 +1572,7 @@ class MutationMixin(MemoryGraphBase):
                     target_id=existing_node.id,
                     relationship=RelationType.CONTRADICTS,
                     metadata={"origin": "auto-conflict", "reason": reason},
+                    created_at=occurred_at,
                 )
                 connection.execute(
                     """
@@ -1553,7 +1593,11 @@ class MutationMixin(MemoryGraphBase):
                     ),
                 )
                 self._mark_node_superseded(
-                    connection, old_node=existing_node, new_node=node, relationship=edge.relationship
+                    connection,
+                    old_node=existing_node,
+                    new_node=node,
+                    relationship=edge.relationship,
+                    occurred_at=occurred_at,
                 )
             conflicts.append(
                 ConflictRecord(
@@ -1571,10 +1615,12 @@ class MutationMixin(MemoryGraphBase):
         old_node: Node,
         new_node: Node,
         relationship: str,
+        occurred_at: datetime | None = None,
     ) -> None:
+        superseded_at = occurred_at or utc_now()
         metadata = dict(old_node.metadata)
         metadata["superseded_by"] = new_node.id
-        metadata["superseded_at"] = utc_now().isoformat()
+        metadata["superseded_at"] = superseded_at.isoformat()
         metadata["superseded_relationship"] = relationship
         connection.execute(
             "UPDATE nodes SET metadata = ?, updated_at = ? WHERE id = ? AND tenant_id = ?",

@@ -97,6 +97,15 @@ def test_issue_sanitizes_secret_without_changing_multiline_shell_text() -> None:
     assert "café" in event.content
 
 
+def test_issue_with_non_list_labels_normalizes_to_empty_labels() -> None:
+    payload = load_event_payload(FIXTURES / "issue.json")
+    payload["issue"]["labels"] = None
+
+    event = normalize_github_event(payload, event_type="issue", repository="octo/demo")
+
+    assert event.metadata["labels"] == []
+
+
 def test_generic_payload_removes_sensitive_keys_recursively() -> None:
     payload = load_event_payload(FIXTURES / "generic.json")
 
@@ -108,6 +117,21 @@ def test_generic_payload_removes_sensitive_keys_recursively() -> None:
     assert "authorization" not in rendered.lower()
     assert "token" not in rendered.lower()
     assert sanitized["nested"] == {"priority": "high"}
+
+
+def test_workflow_dispatch_without_timestamp_uses_explicit_fallback() -> None:
+    payload = load_event_payload(FIXTURES / "generic.json")
+    fallback = datetime(2025, 1, 2, 3, 4, 5, tzinfo=UTC)
+
+    event = normalize_github_event(
+        payload,
+        event_type="workflow_dispatch",
+        repository="octo/demo",
+        fallback_occurred_at=fallback,
+    )
+
+    assert event.event_type == "generic"
+    assert event.occurred_at == fallback
 
 
 def test_sanitize_text_removes_url_credentials_and_sensitive_query_values() -> None:
@@ -211,6 +235,44 @@ def test_reingesting_same_event_is_idempotent(tmp_path: Path) -> None:
     assert second.edges_added == 0
     assert len(snapshot["nodes"]) == 3
     assert len(snapshot["edges"]) == 2
+
+
+def test_ingestion_counts_edges_without_materializing_graph_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    graph = make_graph(tmp_path)
+    event = normalize_github_event(
+        load_event_payload(FIXTURES / "issue.json"),
+        event_type="issue",
+        repository="octo/demo",
+    )
+
+    def reject_snapshot(*args: object, **kwargs: object) -> None:
+        raise AssertionError("ingestion must not materialize the full graph")
+
+    monkeypatch.setattr(graph, "get_graph_snapshot", reject_snapshot)
+
+    result = ingest_normalized_event(graph, event, project="octo/demo")
+
+    assert result.edges_added == 2
+
+
+def test_ingesting_same_event_into_distinct_projects_keeps_projects_isolated(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    event = normalize_github_event(
+        load_event_payload(FIXTURES / "issue.json"),
+        event_type="issue",
+        repository="octo/demo",
+    )
+
+    first = ingest_normalized_event(graph, event, project="project-one")
+    second = ingest_normalized_event(graph, event, project="project-two")
+
+    assert first.event_node_id != second.event_node_id
+    assert second.nodes_added == 3
+    assert second.edges_added == 2
+    assert len(graph.get_graph_snapshot(project="project-one")["nodes"]) == 3
+    assert len(graph.get_graph_snapshot(project="project-two")["nodes"]) == 3
 
 
 def test_reingesting_edited_issue_updates_stable_event_node(tmp_path: Path) -> None:

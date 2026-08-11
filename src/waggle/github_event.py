@@ -1,3 +1,5 @@
+"""Normalize bounded GitHub event payloads and ingest them into Waggle memory."""
+
 from __future__ import annotations
 
 import hashlib
@@ -66,18 +68,24 @@ _URL_PATTERN = re.compile(r"https?://[^\s<>]+")
 
 
 class GitHubRepository(BaseModel):
+    """Sanitized repository provenance retained for a GitHub event."""
+
     name: str
     database_id: str = ""
     url: str = ""
 
 
 class GitHubActor(BaseModel):
+    """Sanitized GitHub actor provenance retained for an event."""
+
     login: str
     database_id: str = ""
     url: str = ""
 
 
 class NormalizedGitHubChild(BaseModel):
+    """A bounded child record, such as a commit contained in a push event."""
+
     key: str
     label: str
     content: str
@@ -87,6 +95,8 @@ class NormalizedGitHubChild(BaseModel):
 
 
 class NormalizedGitHubEvent(BaseModel):
+    """Canonical representation shared by all supported GitHub event types."""
+
     event_type: GitHubEventType
     action: str = ""
     subject_key: str
@@ -101,6 +111,8 @@ class NormalizedGitHubEvent(BaseModel):
 
 
 class GitHubEventIngestionResult(BaseModel):
+    """Counts and graph identifiers produced while ingesting one event."""
+
     status: Literal["ingested"] = "ingested"
     event_type: GitHubEventType
     repository: str
@@ -113,6 +125,8 @@ class GitHubEventIngestionResult(BaseModel):
 
 
 class GitHubEventCommandResult(BaseModel):
+    """Serializable result returned by the GitHub event CLI command."""
+
     status: Literal["ingested", "unsupported"]
     event_type: str
     repository: str
@@ -140,6 +154,8 @@ def _sanitize_url(raw: str) -> str:
 
 
 def sanitize_text(value: str, *, max_chars: int) -> str:
+    """Redact recognized secrets and bound untrusted event text."""
+
     sanitized = _URL_PATTERN.sub(lambda match: _sanitize_url(match.group(0)), str(value))
     for pattern in _SECRET_PATTERNS:
         sanitized = pattern.sub("[REDACTED]", sanitized)
@@ -149,6 +165,8 @@ def sanitize_text(value: str, *, max_chars: int) -> str:
 
 
 def load_event_payload(path: Path, *, max_input_bytes: int = DEFAULT_MAX_INPUT_BYTES) -> dict[str, Any]:
+    """Load a size-bounded UTF-8 GitHub event payload from disk."""
+
     if max_input_bytes < 1:
         raise ValidationFailure("max_input_bytes must be positive.")
     try:
@@ -170,6 +188,8 @@ def load_event_payload(path: Path, *, max_input_bytes: int = DEFAULT_MAX_INPUT_B
 
 
 def normalize_event_type(explicit: str, github_event_name: str, payload: Mapping[str, Any]) -> str | None:
+    """Resolve a supported event type from CLI input, environment, or payload shape."""
+
     normalized_explicit = explicit.strip().lower()
     if normalized_explicit:
         return _EVENT_ALIASES.get(normalized_explicit)
@@ -221,6 +241,8 @@ def _sanitize_generic_value(value: Any, *, depth: int, item_counter: list[int]) 
 
 
 def sanitize_generic_payload(payload: Mapping[str, Any]) -> dict[str, JsonValue]:
+    """Recursively redact and bound an arbitrary workflow payload."""
+
     sanitized = _sanitize_generic_value(payload, depth=0, item_counter=[0])
     if not isinstance(sanitized, dict):  # pragma: no cover - Mapping input guarantees this
         raise ValidationFailure("Generic event input must be an object.")
@@ -305,7 +327,7 @@ def _normalize_issue(payload: Mapping[str, Any], repository: str) -> NormalizedG
     title = _identifier(issue.get("title"), field="title", event_type="issue")
     labels = [
         _text(item.get("name"), max_chars=200)
-        for item in issue.get("labels", [])
+        for item in _optional_list(issue.get("labels"))
         if isinstance(item, Mapping) and _text(item.get("name"), max_chars=200)
     ]
     occurred_at = _timestamp(issue.get("updated_at") or issue.get("created_at"), field="updated_at", event_type="issue")
@@ -482,11 +504,23 @@ def _normalize_push(payload: Mapping[str, Any], repository: str) -> NormalizedGi
     )
 
 
-def _normalize_generic(payload: Mapping[str, Any], repository: str) -> NormalizedGitHubEvent:
+def _normalize_generic(
+    payload: Mapping[str, Any],
+    repository: str,
+    *,
+    fallback_occurred_at: datetime | None,
+) -> NormalizedGitHubEvent:
     sanitized = sanitize_generic_payload(payload)
     rendered = json.dumps(sanitized, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     digest = hashlib.sha256(rendered.encode("utf-8")).hexdigest()
-    occurred_at = _timestamp(sanitized.get("timestamp"), field="timestamp", event_type="generic")
+    raw_timestamp = sanitized.get("timestamp")
+    if raw_timestamp is not None:
+        occurred_at = _timestamp(raw_timestamp, field="timestamp", event_type="generic")
+    else:
+        occurred_at = fallback_occurred_at or datetime.now(UTC)
+        if occurred_at.tzinfo is None:
+            occurred_at = occurred_at.replace(tzinfo=UTC)
+        occurred_at = occurred_at.astimezone(UTC)
     title = _text(sanitized.get("title"), max_chars=1_000) or "Generic GitHub workflow event"
     return NormalizedGitHubEvent(
         event_type="generic",
@@ -500,7 +534,15 @@ def _normalize_generic(payload: Mapping[str, Any], repository: str) -> Normalize
     )
 
 
-def normalize_github_event(payload: Mapping[str, Any], *, event_type: str, repository: str) -> NormalizedGitHubEvent:
+def normalize_github_event(
+    payload: Mapping[str, Any],
+    *,
+    event_type: str,
+    repository: str,
+    fallback_occurred_at: datetime | None = None,
+) -> NormalizedGitHubEvent:
+    """Normalize a supported GitHub payload into the canonical event model."""
+
     normalized_type = _EVENT_ALIASES.get(event_type.strip().lower())
     if normalized_type is None:
         raise ValidationFailure(f"Unsupported GitHub event type: {event_type or 'unknown'}.")
@@ -510,12 +552,15 @@ def normalize_github_event(payload: Mapping[str, Any], *, event_type: str, repos
         "discussion": _normalize_discussion,
         "release": _normalize_release,
         "push": _normalize_push,
-        "generic": _normalize_generic,
     }
+    if normalized_type == "generic":
+        return _normalize_generic(payload, repository, fallback_occurred_at=fallback_occurred_at)
     return normalizers[normalized_type](payload, repository)
 
 
 def stable_id(kind: str, *parts: str) -> str:
+    """Derive a stable UUID from a kind and ordered identity components."""
+
     normalized = "\x1f".join([kind.strip().lower(), *[str(part).strip() for part in parts]])
     return str(uuid5(GITHUB_EVENT_NAMESPACE, normalized))
 
@@ -601,17 +646,20 @@ def ingest_normalized_event(
     project: str,
     session_id: str = "",
 ) -> GitHubEventIngestionResult:
+    """Upsert one normalized event into a project-scoped memory graph."""
+
     normalized_project = project.strip()
     if not normalized_project:
         raise ValidationFailure("GitHub event ingestion requires a project.")
 
     repository_identity = event.repository.database_id or event.repository.name
-    repository_node_id = stable_id("repository", repository_identity)
+    repository_node_id = stable_id("repository", normalized_project, repository_identity)
     actor_node_id = (
-        stable_id("actor", event.actor.database_id or event.actor.login) if event.actor is not None else None
+        stable_id("actor", normalized_project, event.actor.database_id or event.actor.login)
+        if event.actor is not None
+        else None
     )
-    event_node_id = stable_id("event", event.repository.name, event.event_type, event.subject_key)
-    existing_edge_ids = {str(edge["id"]) for edge in graph.get_graph_snapshot().get("edges", [])}
+    event_node_id = stable_id("event", normalized_project, event.repository.name, event.event_type, event.subject_key)
     node_ids: list[str] = []
     edge_ids: list[str] = []
     nodes_added = 0
@@ -672,7 +720,13 @@ def ingest_normalized_event(
 
     child_node_ids: list[str] = []
     for child in sorted(event.children, key=lambda item: (item.occurred_at, item.key)):
-        child_node_id = stable_id("event-child", event.repository.name, event.event_type, child.key)
+        child_node_id = stable_id(
+            "event-child",
+            normalized_project,
+            event.repository.name,
+            event.event_type,
+            child.key,
+        )
         child_metadata = {
             **child.metadata,
             "repository": event.repository.name,
@@ -731,7 +785,7 @@ def ingest_normalized_event(
     edge_specs.extend((child_node_id, event_node_id, RelationType.PART_OF) for child_node_id in child_node_ids)
     for source_id, target_id, relationship in edge_specs:
         edge_id = stable_id("edge", source_id, target_id, relationship.value)
-        edge = graph.add_edge(
+        edge_result = graph.add_edge_with_result(
             edge_id=edge_id,
             source_id=source_id,
             target_id=target_id,
@@ -739,10 +793,9 @@ def ingest_normalized_event(
             metadata={"source": "github-event"},
             created_at=event.occurred_at,
         )
+        edge = edge_result.edge
         edge_ids.append(edge.id)
-        if edge.id not in existing_edge_ids:
-            existing_edge_ids.add(edge.id)
-            edges_added += 1
+        edges_added += int(edge_result.created)
 
     return GitHubEventIngestionResult(
         event_type=event.event_type,
@@ -757,6 +810,8 @@ def ingest_normalized_event(
 
 
 def validate_export_scope(scope: str, *, project: str, session_id: str, since_date: str) -> str:
+    """Validate and normalize an existing Waggle export scope mode."""
+
     normalized = scope.strip().lower() or "project"
     if normalized not in {"all", "project", "session", "since-date"}:
         raise ValidationFailure("scope must be one of: all, project, session, since-date.")
@@ -777,6 +832,8 @@ def render_context_handoff(
     repository: str,
     project: str,
 ) -> str:
+    """Render a portable Markdown handoff from an exported ABHI document."""
+
     manifest = _optional_mapping(document.get("manifest"))
     raw_nodes = _optional_list(document.get("nodes"))
     raw_edges = _optional_list(document.get("edges"))
@@ -867,6 +924,8 @@ def ingest_github_event(
     output_checkpoint: Path,
     max_input_bytes: int = DEFAULT_MAX_INPUT_BYTES,
 ) -> GitHubEventCommandResult:
+    """Load, normalize, ingest, and atomically export one GitHub event."""
+
     normalized_repository = repository.strip()
     normalized_project = project.strip()
     if not normalized_repository:
