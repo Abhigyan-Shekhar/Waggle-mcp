@@ -102,7 +102,7 @@ def check_project_metadata(root: Path) -> list[str]:
 
 def check_manifest(root: Path, schema_path: Path) -> list[str]:
     schema_issues = check_schema(root / "server.json", schema_path)
-    return schema_issues or check_project_metadata(root)
+    return [*schema_issues, *check_project_metadata(root)]
 
 
 def _normalized_description(value: str) -> str:

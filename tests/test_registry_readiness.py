@@ -122,6 +122,20 @@ def test_manifest_check_reports_schema_validation_path(tmp_path: Path) -> None:
     assert check_manifest(tmp_path, schema_path) == ["server.json title: 'Waggle' was expected"]
 
 
+def test_manifest_check_reports_schema_and_project_metadata_issues(tmp_path: Path) -> None:
+    schema_path = write_repository_fixture(tmp_path)
+    manifest_path = tmp_path / "server.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["title"] = "Not Waggle"
+    manifest["packages"][0]["identifier"] = "different-package"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    assert check_manifest(tmp_path, schema_path) == [
+        "server.json title: 'Waggle' was expected",
+        "server.json PyPI package 'different-package' does not match pyproject.toml [project].name 'waggle-mcp'",
+    ]
+
+
 def test_schema_check_rejects_downloaded_schema_with_wrong_identity(tmp_path: Path) -> None:
     schema_path = write_repository_fixture(tmp_path)
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
