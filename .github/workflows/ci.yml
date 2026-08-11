@@ -78,6 +78,15 @@ jobs:
           PYTHONUTF8: "1"   # prevents UnicodeEncodeError on Windows
         run: pytest -v --tb=long
 
+      - name: Build local wheel for Action smoke
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        run: python -m pip wheel --no-deps --no-build-isolation --wheel-dir dist .
+
+      # This proves the install path works, not that this exact version is live on PyPI.
+      - name: Local-wheel Action install smoke
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        run: python dist/waggle-context-action/tests/local_wheel_install_smoke.py dist/*.whl
+
   # ── Code-analysis tests ───────────────────────────────────────────────────
   code-analysis:
     name: Code-analysis (Python ${{ matrix.python-version }})
@@ -232,4 +241,3 @@ jobs:
 
       - name: Check metadata version alignment
         run: python3 ../../../scripts/check_extension_metadata.py --verbose
-

@@ -20,7 +20,7 @@ Name search record:
 
 ## Release readiness
 
-- [ ] Confirm `waggle-mcp==0.1.25` exists publicly and that its `waggle-mcp ingest-github-event --help` exposes the required command. Update the exact default version if it does not.
+- [ ] Confirm the explicitly selected `waggle-mcp` version exists publicly and that its `waggle-mcp ingest-github-event --help` exposes the required command. Configure `WAGGLE_VERSION` for CI and pass that version through the required Action input.
 - [ ] Run unit, metadata, YAML, lint, type, and all fixture integration tests from a clean checkout.
 - [ ] Confirm all remote Actions are pinned to reviewed 40-character commit SHAs.
 - [ ] Confirm examples request only `contents: read` and do not execute untrusted pull-request code.

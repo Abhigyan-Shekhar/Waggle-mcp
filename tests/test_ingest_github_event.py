@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,7 +13,7 @@ from waggle.embeddings import EmbeddingModel
 from waggle.errors import ValidationFailure
 from waggle.github_event import ingest_github_event, validate_export_scope
 from waggle.graph import MemoryGraph
-from waggle.server import _build_parser, _run_ingest_github_event
+from waggle.server import _build_parser, _run_ingest_github_event, main
 
 FIXTURES = Path(__file__).parent / "fixtures" / "github_events"
 
@@ -263,6 +264,44 @@ def test_cli_runner_uses_deterministic_backend_and_emits_json(
     assert result["status"] == "ingested"
     assert result["nodes_added"] == 3
     assert result["edges_added"] == 2
+
+
+def test_cli_main_writes_only_result_json_to_stdout(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = make_config(tmp_path)
+    config.transport = "http"
+    config.log_level = "INFO"
+    monkeypatch.setattr(AppConfig, "from_env", classmethod(lambda cls: config))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "waggle-mcp",
+            "ingest-github-event",
+            "--event-path",
+            str(FIXTURES / "issue.json"),
+            "--repository",
+            "octo/demo",
+            "--project",
+            "octo/demo",
+            "--scope",
+            "project",
+            "--output-context",
+            str(tmp_path / "main-context.md"),
+            "--output-checkpoint",
+            str(tmp_path / "main-memory.abhi"),
+        ],
+    )
+
+    with pytest.raises(SystemExit, match="0"):
+        main()
+
+    captured = capsys.readouterr()
+    result = json.loads(captured.out)
+    assert result["status"] == "ingested"
+    startup = json.loads(captured.err)
+    assert startup["message"] == "waggle_startup"
 
 
 def test_cli_runner_rejects_non_sqlite_backend(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

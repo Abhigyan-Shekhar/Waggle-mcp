@@ -19,6 +19,7 @@ jobs:
         with:
           event-path: fixtures/issue.json
           scope: ${{ github.repository }}
+          waggle-version: ${{ vars.WAGGLE_VERSION }}
           upload-artifact: "false"
 
       - name: Restore and extend the same project memory
@@ -28,6 +29,7 @@ jobs:
           event-path: fixtures/release.json
           checkpoint: ${{ steps.baseline.outputs.checkpoint-file }}
           scope: ${{ github.repository }}
+          waggle-version: ${{ vars.WAGGLE_VERSION }}
 
       - name: Confirm portable outputs
         env:

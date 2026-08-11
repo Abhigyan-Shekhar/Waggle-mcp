@@ -119,7 +119,7 @@ def test_real_action_runner_proves_secure_offline_handoff(
             "WAGGLE_ACTION_CHECKPOINT": "",
             "WAGGLE_ACTION_SCOPE": "",
             "WAGGLE_ACTION_OUTPUT_DIRECTORY": ".waggle-output",
-            "WAGGLE_ACTION_WAGGLE_VERSION": "0.1.25",
+            "WAGGLE_ACTION_WAGGLE_VERSION": "1.2.3",
             "WAGGLE_ACTION_UPLOAD_ARTIFACT": "false",
             "WAGGLE_ACTION_WRITE_STEP_SUMMARY": "true",
             "WAGGLE_ACTION_SKIP_INSTALL": "true",

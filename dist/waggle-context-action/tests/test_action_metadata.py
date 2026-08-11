@@ -40,13 +40,15 @@ def test_inputs_match_the_public_contract() -> None:
         "upload-artifact",
         "write-step-summary",
     }
-    defaults = {name: details.get("default") for name, details in inputs.items()}
+    waggle_version = inputs["waggle-version"]
+    assert waggle_version["required"] is True
+    assert "default" not in waggle_version
+    defaults = {name: details.get("default") for name, details in inputs.items() if name != "waggle-version"}
     assert defaults == {
         "event-path": "",
         "checkpoint": "",
         "scope": "",
         "output-directory": ".waggle-output",
-        "waggle-version": "0.1.25",
         "upload-artifact": "true",
         "write-step-summary": "true",
     }
@@ -102,6 +104,13 @@ def test_readme_states_the_exact_purpose_and_non_mutation_contract() -> None:
         "does not call an external llm",
     ):
         assert statement in normalized
+
+
+def test_readme_explains_why_waggle_version_has_no_default() -> None:
+    readme = (ACTION_ROOT / "README.md").read_text(encoding="utf-8").lower()
+    assert (
+        "no published release currently contains `ingest-github-event`; specify the version explicitly once one exists."
+    ) in readme
 
 
 def test_examples_use_read_only_permissions_and_pin_remote_actions() -> None:
@@ -163,3 +172,8 @@ def test_ci_is_read_only_sha_pinned_and_runs_all_required_checks() -> None:
     assert "uses: ./" in fixture
     assert "fixtures/issue.json" in fixture
     assert "test -s" in fixture
+
+    repository_root = ACTION_ROOT.parents[1]
+    root_ci = (repository_root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "Local-wheel Action install smoke" in root_ci
+    assert "proves the install path works, not that this exact version is live on PyPI" in root_ci

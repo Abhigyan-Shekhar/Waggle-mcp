@@ -2710,7 +2710,7 @@ def main() -> None:
         config.validate()
     if command in {"serve", "edit-graph", "view-graph", "ui", "graph-studio", "open-studio"}:
         print_startup_banner(config, args)
-    log_stream = sys.stderr if config.transport == "stdio" else sys.stdout
+    log_stream = sys.stderr if command == "ingest-github-event" or config.transport == "stdio" else sys.stdout
     from waggle.logging_utils import configure_logging
 
     configure_logging(config.log_level, stream=log_stream)

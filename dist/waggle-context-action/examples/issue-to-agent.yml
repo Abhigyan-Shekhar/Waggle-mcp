@@ -19,6 +19,7 @@ jobs:
         uses: ./
         with:
           scope: ${{ github.repository }}
+          waggle-version: ${{ vars.WAGGLE_VERSION }}
 
       - name: Consume context in a later AI-agent preparation step
         env:

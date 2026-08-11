@@ -82,8 +82,10 @@ class ActionInputs:
         event_path = env.get("WAGGLE_ACTION_EVENT_PATH", "").strip() or env.get("GITHUB_EVENT_PATH", "").strip()
         project = env.get("WAGGLE_ACTION_SCOPE", "").strip() or repository
         version = env.get("WAGGLE_ACTION_WAGGLE_VERSION", "").strip()
+        if not version:
+            raise ActionInputError("waggle-version is required.")
         if _EXACT_VERSION.fullmatch(version) is None:
-            raise ActionInputError("waggle-version must be an exact normalized version such as 0.1.25.")
+            raise ActionInputError("waggle-version must be an exact normalized version such as 1.2.3.")
         return cls(
             event_path=_required_path(event_path, name="event-path"),
             checkpoint=_optional_path(env.get("WAGGLE_ACTION_CHECKPOINT", ""), name="checkpoint"),

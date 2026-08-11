@@ -24,7 +24,7 @@ def base_environment(tmp_path: Path) -> dict[str, str]:
         "WAGGLE_ACTION_CHECKPOINT": "",
         "WAGGLE_ACTION_SCOPE": "octo/demo",
         "WAGGLE_ACTION_OUTPUT_DIRECTORY": ".waggle-output",
-        "WAGGLE_ACTION_WAGGLE_VERSION": "0.1.25",
+        "WAGGLE_ACTION_WAGGLE_VERSION": "1.2.3",
         "WAGGLE_ACTION_UPLOAD_ARTIFACT": "true",
         "WAGGLE_ACTION_WRITE_STEP_SUMMARY": "true",
         "GITHUB_EVENT_PATH": str(event),
@@ -47,13 +47,21 @@ def test_inputs_reject_non_boolean_values(tmp_path: Path, key: str) -> None:
 
 @pytest.mark.parametrize(
     "version",
-    ["latest", "~=0.1", "0.1.25 --extra-index-url https://attacker", "git+https://example.test/repo", "01.1.1"],
+    ["latest", "~=1.2", "1.2.3 --extra-index-url https://attacker", "git+https://example.test/repo", "01.1.1"],
 )
 def test_inputs_require_an_exact_normalized_version(tmp_path: Path, version: str) -> None:
     environment = base_environment(tmp_path)
     environment["WAGGLE_ACTION_WAGGLE_VERSION"] = version
 
     with pytest.raises(runner.ActionInputError, match="exact normalized version"):
+        runner.ActionInputs.from_environment(environment)
+
+
+def test_inputs_require_waggle_version(tmp_path: Path) -> None:
+    environment = base_environment(tmp_path)
+    environment["WAGGLE_ACTION_WAGGLE_VERSION"] = ""
+
+    with pytest.raises(runner.ActionInputError, match="waggle-version is required"):
         runner.ActionInputs.from_environment(environment)
 
 
@@ -153,7 +161,7 @@ def test_action_imports_checkpoint_and_maps_scope_to_project(
     result = runner.run_action(runner.ActionInputs.from_environment(environment), environ=environment)
 
     assert calls[0][0][:4] == [sys.executable, "-m", "pip", "install"]
-    assert calls[0][0][-1] == "waggle-mcp==0.1.25"
+    assert calls[0][0][-1] == "waggle-mcp==1.2.3"
     assert calls[1][0] == ["waggle-mcp", "import", "--input", str(checkpoint.resolve()), "--reembed-on-mismatch"]
     ingest_argv = calls[2][0]
     assert ingest_argv[ingest_argv.index("--project") + 1] == "octo/demo"

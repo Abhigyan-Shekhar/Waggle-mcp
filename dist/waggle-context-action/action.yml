@@ -24,9 +24,10 @@ inputs:
     required: false
     default: .waggle-output
   waggle-version:
-    description: Exact waggle-mcp package version to install.
-    required: false
-    default: 0.1.25
+    description: >-
+      Exact published waggle-mcp package version to install; no current release
+      contains ingest-github-event.
+    required: true
   upload-artifact:
     description: Upload the Markdown handoff and checkpoint as a workflow artifact.
     required: false

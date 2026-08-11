@@ -24,6 +24,8 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - id: waggle
         uses: YOUR_ORG/waggle-context-handoff@REPLACE_WITH_40_CHARACTER_COMMIT_SHA
+        with:
+          waggle-version: ${{ vars.WAGGLE_VERSION }}
       - name: Consume the handoff by file path
         env:
           WAGGLE_CONTEXT_FILE: ${{ steps.waggle.outputs.context-file }}
@@ -34,15 +36,17 @@ The event body is read from `GITHUB_EVENT_PATH` by Python. It is never interpola
 
 ## Inputs
 
-| Input | Default | Meaning |
+| Input | Required/default | Meaning |
 | --- | --- | --- |
 | `event-path` | effective `GITHUB_EVENT_PATH` | JSON event file; set explicitly for manual or standalone use. |
 | `checkpoint` | empty | Existing `.abhi` checkpoint to import before the new event. |
 | `scope` | effective `GITHUB_REPOSITORY` | Accumulating Waggle project namespace. |
 | `output-directory` | `.waggle-output` | Destination inside `GITHUB_WORKSPACE`. |
-| `waggle-version` | `0.1.25` | Exact normalized `waggle-mcp` package version. Confirm this release contains `ingest-github-event` before publishing. |
+| `waggle-version` | required; no default | Exact normalized `waggle-mcp` package version. |
 | `upload-artifact` | `true` | Upload both generated files for seven days. Accepts only `true` or `false`, case-insensitively. |
 | `write-step-summary` | `true` | Write safe metadata and counts to the job summary. Accepts only `true` or `false`, case-insensitively. |
+
+No published release currently contains `ingest-github-event`; specify the version explicitly once one exists. Until then, the repository's local-wheel smoke test proves the install path works, not that this exact version is live on PyPI.
 
 ## Outputs
 
@@ -102,11 +106,11 @@ git add .
 git commit -m "feat: publish Waggle Context Handoff action"
 ```
 
-The owner must then review every file, confirm `action.yml` is at the new repository root, confirm the pinned Waggle version exists and contains this CLI, follow the release checklist, and choose where to push. Nothing in this distribution creates a repository, publishes Marketplace metadata, accepts agreements, or pushes commits.
+The owner must then review every file, confirm `action.yml` is at the new repository root, configure `WAGGLE_VERSION` to a published release containing this CLI, follow the release checklist, and choose where to push. Nothing in this distribution creates a repository, publishes Marketplace metadata, accepts agreements, or pushes commits.
 
 ## Development
 
-Use Python 3.11 or newer with Waggle installed editable, then run:
+Use Python 3.11 or newer with Waggle installed editable. The standalone Action repository's CI also expects a `WAGGLE_VERSION` repository variable after the required release exists. Then run:
 
 ```bash
 python -m pip install --requirement requirements-dev.txt

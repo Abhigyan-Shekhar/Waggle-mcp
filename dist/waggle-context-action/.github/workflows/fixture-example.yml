@@ -30,6 +30,7 @@ jobs:
         with:
           event-path: fixtures/issue.json
           scope: fixture/repository
+          waggle-version: ${{ vars.WAGGLE_VERSION }}
           upload-artifact: "false"
 
       - name: Assert declared outputs are real and non-empty
