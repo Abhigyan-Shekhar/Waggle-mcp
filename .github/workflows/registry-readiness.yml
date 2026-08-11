@@ -71,9 +71,23 @@ jobs:
           "$RUNNER_TEMP/registry-venv/bin/python" -m pip install \
             "$RUNNER_TEMP"/dist/*.whl
 
+      - name: Configure installed command in a temporary home
+        env:
+          HOME: ${{ runner.temp }}/registry-home
+        run: >-
+          "$RUNNER_TEMP/registry-venv/bin/waggle-mcp" setup
+          --yes
+          --clients codex
+          --db "$RUNNER_TEMP/doctor-waggle.db"
+          --model deterministic
+          --no-project-instructions
+          --hooks none
+          --no-run-doctor
+
       - name: Run installed doctor offline
         env:
           HF_HUB_OFFLINE: "1"
+          HOME: ${{ runner.temp }}/registry-home
           TRANSFORMERS_OFFLINE: "1"
           WAGGLE_BACKEND: sqlite
           WAGGLE_DB_PATH: ${{ runner.temp }}/doctor-waggle.db

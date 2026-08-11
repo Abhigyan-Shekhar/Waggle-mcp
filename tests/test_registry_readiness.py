@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -179,7 +180,7 @@ def test_wheel_check_reports_missing_marker_and_readme_drift(tmp_path: Path) -> 
 
 @pytest.mark.asyncio
 async def test_stdio_smoke_initializes_installed_command_without_protocol_noise(tmp_path: Path) -> None:
-    executable = Path(sys.executable).with_name("waggle-mcp")
-    assert executable.is_file()
+    executable = shutil.which("waggle-mcp")
+    assert executable is not None
 
-    assert await smoke_stdio(executable, tmp_path) == []
+    assert await smoke_stdio(Path(executable), tmp_path) == []
