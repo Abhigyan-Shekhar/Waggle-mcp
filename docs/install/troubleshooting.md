@@ -51,6 +51,16 @@ waggle-mcp serve --transport stdio
 
 Then restart the client and verify the MCP entry is enabled.
 
+## `AuthenticationError: Invalid API key` over HTTP transport
+
+HTTP transport requires a valid API key header. Send `X-API-Key: <your_key>` with each request, and issue one with:
+
+```bash
+waggle-mcp create-api-key --tenant-id <tenant> --name <label> --scopes "graph:read,graph:write"
+```
+
+See [docs/reference.md](../reference.md) for the full admin command list and [docs/security/security-model.md](../security/security-model.md#authentication) for how API keys and tenant scopes work.
+
 ## Run Waggle diagnostics
 
 ```bash
@@ -146,3 +156,13 @@ If the plugin still fails after approval, run:
 ```bash
 waggle-mcp doctor
 ```
+
+
+## Related setup and security documentation
+
+| Error type | Where to look next |
+|------------|--------------------|
+| Install, PATH, or `command not found` | [Install guide](./README.md) |
+| Config or connection errors (`WAGGLE_BACKEND`, `WAGGLE_DB_PATH`, ports, rate limits) | [Environment variables](../environment-variables.md) |
+| `AuthenticationError` or API key management | [Security model](../security/security-model.md), [admin commands reference](../reference.md) |
+| Production hardening, TLS, or network exposure | [Hardening checklist](../security/hardening-checklist.md) |
