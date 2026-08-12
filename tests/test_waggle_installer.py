@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import io
 import json
@@ -40,7 +41,7 @@ class Response:
         return self.stream.read(size)
 
 
-def release_payload(*, asset: bool = True) -> list[dict]:
+def release_payload(*, asset: bool = True, digest: str | None = None) -> list[dict]:
     assets = []
     if asset:
         assets.append(
@@ -50,6 +51,7 @@ def release_payload(*, asset: bool = True) -> list[dict]:
                     "https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/"
                     "v9.8.7/waggle-codex-marketplace-v9.8.7.zip"
                 ),
+                "digest": digest or f"sha256:{hashlib.sha256(MARKETPLACE_ARCHIVE).hexdigest()}",
             }
         )
     return [
@@ -81,6 +83,9 @@ def marketplace_zip() -> bytes:
         bundle.writestr(f"{root}/.agents/plugins/marketplace.json", json.dumps(marketplace))
         bundle.writestr(f"{root}/plugins/waggle/.codex-plugin/plugin.json", '{"name":"waggle"}')
     return output.getvalue()
+
+
+MARKETPLACE_ARCHIVE = marketplace_zip()
 
 
 def opener_for(payload: list[dict], archive: bytes = b""):
@@ -133,7 +138,7 @@ def test_fresh_install_uses_existing_codex_commands(tmp_path):
     result = installer.install(
         codex="codex",
         install_base=tmp_path,
-        opener=opener_for(release_payload(), marketplace_zip()),
+        opener=opener_for(release_payload(), MARKETPLACE_ARCHIVE),
         runner=runner,
     )
 
@@ -149,11 +154,19 @@ def test_latest_stable_release_ignores_drafts_and_prereleases():
 
     assert asset.tag == "v9.8.7"
     assert asset.name == "waggle-codex-marketplace-v9.8.7.zip"
+    assert asset.digest == f"sha256:{hashlib.sha256(MARKETPLACE_ARCHIVE).hexdigest()}"
 
 
 def test_missing_release_asset_fails():
     with pytest.raises(installer.InstallerError, match="does not contain the expected asset"):
         installer.discover_latest_stable(opener_for(release_payload(asset=False)))
+
+
+def test_download_digest_mismatch_fails(tmp_path):
+    asset = installer.discover_latest_stable(opener_for(release_payload(digest=f"sha256:{'0' * 64}")))
+
+    with pytest.raises(installer.InstallerError, match="does not match GitHub's SHA-256 digest"):
+        installer.download_asset(asset, tmp_path / "bundle.zip", opener_for([], MARKETPLACE_ARCHIVE))
 
 
 def test_malformed_zip_fails(tmp_path):
@@ -173,14 +186,37 @@ def test_path_traversal_zip_fails(tmp_path):
         installer.safe_extract(archive, tmp_path / "out")
 
 
+def test_oversized_marketplace_manifest_is_rejected(tmp_path, monkeypatch):
+    root = tmp_path / "waggle-marketplace"
+    manifest = root / ".agents" / "plugins" / "marketplace.json"
+    plugin_manifest = root / "plugins" / "waggle" / ".codex-plugin" / "plugin.json"
+    manifest.parent.mkdir(parents=True)
+    plugin_manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        json.dumps(
+            {
+                "name": "waggle",
+                "plugins": [{"name": "waggle", "source": {"source": "local", "path": "./plugins/waggle"}}],
+            }
+        )
+    )
+    plugin_manifest.write_text('{"name":"waggle"}')
+    monkeypatch.setattr(installer, "MAX_MARKETPLACE_MANIFEST_BYTES", manifest.stat().st_size - 1)
+
+    with pytest.raises(installer.InstallerError, match="Could not find one valid Waggle marketplace root"):
+        installer.find_marketplace_root(tmp_path)
+
+
 def test_marketplace_command_failure_is_reported(tmp_path):
-    runner = CodexRunner(fail_at=("plugin", "marketplace", "add", str(tmp_path / "v9.8.7" / "waggle-codex-marketplace-v9.8.7")))
+    runner = CodexRunner(
+        fail_at=("plugin", "marketplace", "add", str(tmp_path / "v9.8.7" / "waggle-codex-marketplace-v9.8.7"))
+    )
 
     with pytest.raises(installer.InstallerError, match="plugin marketplace add"):
         installer.install(
             codex="codex",
             install_base=tmp_path,
-            opener=opener_for(release_payload(), marketplace_zip()),
+            opener=opener_for(release_payload(), MARKETPLACE_ARCHIVE),
             runner=runner,
         )
 
@@ -192,6 +228,6 @@ def test_plugin_install_failure_is_reported(tmp_path):
         installer.install(
             codex="codex",
             install_base=tmp_path,
-            opener=opener_for(release_payload(), marketplace_zip()),
+            opener=opener_for(release_payload(), MARKETPLACE_ARCHIVE),
             runner=runner,
         )

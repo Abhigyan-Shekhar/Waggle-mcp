@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -25,6 +27,7 @@ ASSET_RE = re.compile(r"^waggle-codex-marketplace-(v\d+\.\d+\.\d+(?:[-+][0-9A-Za
 MAX_DOWNLOAD_BYTES = 1_000_000_000
 MAX_ARCHIVE_ENTRIES = 10_000
 MAX_EXTRACTED_BYTES = 2_000_000_000
+MAX_MARKETPLACE_MANIFEST_BYTES = 1_000_000
 USER_AGENT = "waggle-codex-installer/1.0"
 
 
@@ -37,6 +40,7 @@ class ReleaseAsset:
     tag: str
     name: str
     url: str
+    digest: str
 
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
@@ -80,23 +84,38 @@ def discover_latest_stable(opener: Opener = urllib.request.urlopen) -> ReleaseAs
         raise InstallerError(f"Release {tag} does not contain the expected asset {expected_name}.")
 
     url = matches[0].get("browser_download_url")
-    if not isinstance(url, str) or not url.startswith(f"{DOWNLOAD_PREFIX}{tag}/") or not url.endswith(f"/{expected_name}"):
+    if (
+        not isinstance(url, str)
+        or not url.startswith(f"{DOWNLOAD_PREFIX}{tag}/")
+        or not url.endswith(f"/{expected_name}")
+    ):
         raise InstallerError("GitHub returned an unexpected download URL for the Waggle marketplace bundle.")
     if ASSET_RE.fullmatch(expected_name) is None:
         raise InstallerError("The Waggle marketplace asset name is not recognized.")
-    return ReleaseAsset(tag=tag, name=expected_name, url=url)
+    digest = matches[0].get("digest")
+    digest_match = re.fullmatch(r"sha256:([0-9a-fA-F]{64})", digest) if isinstance(digest, str) else None
+    if digest_match is None:
+        raise InstallerError("GitHub did not provide a valid SHA-256 digest for the Waggle marketplace bundle.")
+    return ReleaseAsset(tag=tag, name=expected_name, url=url, digest=f"sha256:{digest_match.group(1).lower()}")
 
 
 def download_asset(asset: ReleaseAsset, destination: Path, opener: Opener = urllib.request.urlopen) -> None:
-    request = urllib.request.Request(asset.url, headers={"Accept": "application/octet-stream", "User-Agent": USER_AGENT})
+    request = urllib.request.Request(
+        asset.url, headers={"Accept": "application/octet-stream", "User-Agent": USER_AGENT}
+    )
     downloaded = 0
+    hasher = hashlib.sha256()
     try:
         with opener(request, timeout=60) as response, destination.open("wb") as output:
             while chunk := response.read(1024 * 1024):
                 downloaded += len(chunk)
                 if downloaded > MAX_DOWNLOAD_BYTES:
                     raise InstallerError("The Waggle release asset exceeds the installer safety limit.")
+                hasher.update(chunk)
                 output.write(chunk)
+        actual_digest = f"sha256:{hasher.hexdigest()}"
+        if not hmac.compare_digest(actual_digest, asset.digest):
+            raise InstallerError(f"Downloaded {asset.name} does not match GitHub's SHA-256 digest.")
     except InstallerError:
         raise
     except (OSError, urllib.error.URLError, TimeoutError) as exc:
@@ -156,11 +175,15 @@ def find_marketplace_root(extracted: Path) -> Path:
         if manifest.parts[-3:] != (".agents", "plugins", "marketplace.json"):
             continue
         try:
+            if manifest.stat().st_size > MAX_MARKETPLACE_MANIFEST_BYTES:
+                continue
             data = json.loads(manifest.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             continue
         entries = data.get("plugins") if isinstance(data, dict) else None
-        waggle = next((entry for entry in entries or [] if isinstance(entry, dict) and entry.get("name") == "waggle"), None)
+        waggle = next(
+            (entry for entry in entries or [] if isinstance(entry, dict) and entry.get("name") == "waggle"), None
+        )
         source = waggle.get("source") if isinstance(waggle, dict) else None
         source_path = source.get("path") if isinstance(source, dict) else None
         if data.get("name") != "waggle" or not isinstance(source_path, str):
