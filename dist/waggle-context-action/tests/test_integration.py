@@ -21,6 +21,7 @@ EVENT_CASES = (
     ("discussion", "discussion", 3, 2),
     ("release", "release", 3, 2),
     ("push", "push", 5, 4),
+    ("push_deleted", "push", 3, 2),
     ("generic", "workflow_dispatch", 2, 1),
 )
 

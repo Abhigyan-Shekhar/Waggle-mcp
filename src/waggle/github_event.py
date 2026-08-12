@@ -53,6 +53,7 @@ _SENSITIVE_QUERY_KEY = re.compile(r"(?i)(?:token|secret|password|signature|key|a
 _SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b"),
     re.compile(r"\bsk-ant-[A-Za-z0-9_-]{16,}\b"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"),
     re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"),
     re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
@@ -142,13 +143,15 @@ class GitHubEventCommandResult(BaseModel):
 def _sanitize_url(raw: str) -> str:
     try:
         parsed = urlsplit(raw)
+        hostname = parsed.hostname
+        port = parsed.port
     except ValueError:
         return "[REDACTED]"
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+    if parsed.scheme not in {"http", "https"} or not hostname:
         return raw
-    host = parsed.hostname
-    if parsed.port is not None:
-        host = f"{host}:{parsed.port}"
+    host = hostname
+    if port is not None:
+        host = f"{host}:{port}"
     retained_query = [(key, value) for key, value in parse_qsl(parsed.query) if not _SENSITIVE_QUERY_KEY.search(key)]
     return urlunsplit((parsed.scheme, host, parsed.path, urlencode(retained_query), parsed.fragment))
 
@@ -287,6 +290,21 @@ def _timestamp(value: Any, *, field: str, event_type: str) -> datetime:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
+
+
+def _push_occurred_at(payload: Mapping[str, Any], head: Mapping[str, Any]) -> datetime:
+    head_timestamp = head.get("timestamp")
+    if head_timestamp is not None:
+        return _timestamp(head_timestamp, field="head_commit.timestamp", event_type="push")
+
+    repository = _optional_mapping(payload.get("repository"))
+    pushed_at = repository.get("pushed_at")
+    if isinstance(pushed_at, bool) or not isinstance(pushed_at, int | float):
+        raise ValidationFailure("push event payload is missing head_commit.timestamp and repository.pushed_at.")
+    try:
+        return datetime.fromtimestamp(pushed_at, tz=UTC)
+    except (OverflowError, OSError, ValueError) as exc:
+        raise ValidationFailure("push event has invalid repository.pushed_at timestamp.") from exc
 
 
 def _repository(payload: Mapping[str, Any], repository: str) -> GitHubRepository:
@@ -454,7 +472,7 @@ def _normalize_push(payload: Mapping[str, Any], repository: str) -> NormalizedGi
     ref = _identifier(payload.get("ref"), field="ref", event_type="push")
     after = _identifier(payload.get("after"), field="after", event_type="push")
     head = _optional_mapping(payload.get("head_commit"))
-    occurred_at = _timestamp(head.get("timestamp"), field="head_commit.timestamp", event_type="push")
+    occurred_at = _push_occurred_at(payload, head)
     source_url = _text(payload.get("compare"), max_chars=2_000)
     children: list[NormalizedGitHubChild] = []
     raw_commits = payload.get("commits")
@@ -605,6 +623,8 @@ def _upsert_node(
             updated_at=occurred_at,
         )
         return stored.node, True
+    if occurred_at < existing.updated_at:
+        return existing, False
     if (
         existing.label != label
         or existing.content != content

@@ -144,6 +144,21 @@ def test_sanitize_text_removes_url_credentials_and_sensitive_query_values() -> N
     assert "view=public" in sanitized
 
 
+def test_sanitize_text_redacts_fine_grained_github_tokens() -> None:
+    token = "github_pat_11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyz"
+
+    sanitized = sanitize_text(f"token: {token}", max_chars=500)
+
+    assert token not in sanitized
+    assert sanitized == "token: [REDACTED]"
+
+
+def test_sanitize_text_redacts_urls_with_invalid_ports() -> None:
+    sanitized = sanitize_text("See https://example.com:invalid/path", max_chars=500)
+
+    assert sanitized == "See [REDACTED]"
+
+
 def test_load_event_payload_rejects_missing_file(tmp_path: Path) -> None:
     with pytest.raises(ValidationFailure, match="not found"):
         load_event_payload(tmp_path / "missing.json")
@@ -297,6 +312,28 @@ def test_reingesting_edited_issue_updates_stable_event_node(tmp_path: Path) -> N
     assert event_node.updated_at == datetime(2025, 1, 3, 4, 5, 6, tzinfo=UTC)
 
 
+def test_older_issue_redelivery_does_not_overwrite_newer_event_state(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    original_payload = load_event_payload(FIXTURES / "issue.json")
+    newer_payload = json.loads(json.dumps(original_payload))
+    newer_payload["action"] = "edited"
+    newer_payload["issue"]["body"] = "Newest body"
+    newer_payload["issue"]["updated_at"] = "2025-01-03T04:05:06Z"
+    newer = normalize_github_event(newer_payload, event_type="issue", repository="octo/demo")
+    older = normalize_github_event(original_payload, event_type="issue", repository="octo/demo")
+
+    first = ingest_normalized_event(graph, newer, project="octo/demo")
+    second = ingest_normalized_event(graph, older, project="octo/demo")
+    event_node = graph.get_node(first.event_node_id)
+
+    assert second.event_node_id == first.event_node_id
+    assert second.nodes_added == 0
+    assert second.edges_added == 0
+    assert "Newest body" in event_node.content
+    assert event_node.metadata["action"] == "edited"
+    assert event_node.updated_at == datetime(2025, 1, 3, 4, 5, 6, tzinfo=UTC)
+
+
 def test_ingest_push_creates_bounded_commit_children(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
     event = normalize_github_event(
@@ -312,3 +349,15 @@ def test_ingest_push_creates_bounded_commit_children(tmp_path: Path) -> None:
     assert result.edges_added == 4
     assert len([node for node in snapshot["nodes"] if "github-commit" in node["tags"]]) == 2
     assert sum(edge["relationship"] == "part_of" for edge in snapshot["edges"]) == 3
+
+
+def test_normalize_branch_deletion_push_uses_repository_timestamp() -> None:
+    event = normalize_github_event(
+        load_event_payload(FIXTURES / "push_deleted.json"),
+        event_type="push",
+        repository="octo/demo",
+    )
+
+    assert event.occurred_at == datetime(2025, 1, 2, 3, 4, 5, tzinfo=UTC)
+    assert event.metadata["deleted"] is True
+    assert event.children == []
