@@ -1,5 +1,20 @@
 # Troubleshooting
 
+## Common error messages
+
+Waggle validates configuration at startup and fails with the exact reason, so
+you can usually jump straight from the message to the relevant doc instead of
+guessing:
+
+| Error message | Cause | See |
+|---|---|---|
+| `Unsupported WAGGLE_BACKEND: ...` | `WAGGLE_BACKEND` isn't `sqlite` or `neo4j` | [Environment variables -> Core runtime](../environment-variables.md#core-runtime) |
+| `HTTP transport requires WAGGLE_BACKEND=neo4j.` | `WAGGLE_TRANSPORT=http` set while still on the sqlite backend | [Environment variables -> Core runtime](../environment-variables.md#core-runtime) |
+| `Neo4j backend requires WAGGLE_NEO4J_URI, WAGGLE_NEO4J_USERNAME, and WAGGLE_NEO4J_PASSWORD.` | One or more Neo4j connection variables are unset | [Environment variables -> Neo4j storage](../environment-variables.md#neo4j-storage), [Production deployment -> Neo4j production notes](../deployment/production.md#neo4j-production-notes) |
+| `Neo4j backend requested but the neo4j package is not installed.` | Installed without the `neo4j` extra | [Production deployment -> Required services](../deployment/production.md#required-services) |
+| `Invalid API key.` / `API key expired.` | A request to the HTTP transport sent a bad or expired `sk_...` key | [Security model -> Authentication](../security/security-model.md#authentication), [Production deployment -> API keys](../deployment/production.md#api-keys) |
+| `Unsupported WAGGLE_API_KEY_ENVIRONMENT: ...` | `WAGGLE_API_KEY_ENVIRONMENT` isn't `test`, `local`, or `live` | [Environment variables -> Core runtime](../environment-variables.md#core-runtime) |
+
 ## `waggle-mcp: command not found`
 
 Install with `pipx install waggle-mcp`, then run `pipx ensurepath` and restart your shell.
