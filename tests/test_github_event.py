@@ -334,6 +334,27 @@ def test_older_issue_redelivery_does_not_overwrite_newer_event_state(tmp_path: P
     assert event_node.updated_at == datetime(2025, 1, 3, 4, 5, 6, tzinfo=UTC)
 
 
+def test_equal_timestamp_issue_redelivery_does_not_overwrite_event_state(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    original_payload = load_event_payload(FIXTURES / "issue.json")
+    first_payload = json.loads(json.dumps(original_payload))
+    first_payload["action"] = "edited"
+    first_payload["issue"]["body"] = "First observed body"
+    first = normalize_github_event(first_payload, event_type="issue", repository="octo/demo")
+    redelivery = normalize_github_event(original_payload, event_type="issue", repository="octo/demo")
+
+    first_result = ingest_normalized_event(graph, first, project="octo/demo")
+    second_result = ingest_normalized_event(graph, redelivery, project="octo/demo")
+    event_node = graph.get_node(first_result.event_node_id)
+
+    assert second_result.event_node_id == first_result.event_node_id
+    assert second_result.nodes_added == 0
+    assert second_result.edges_added == 0
+    assert "First observed body" in event_node.content
+    assert event_node.metadata["action"] == "edited"
+    assert event_node.updated_at == datetime(2025, 1, 2, 3, 4, 5, tzinfo=UTC)
+
+
 def test_ingest_push_creates_bounded_commit_children(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
     event = normalize_github_event(

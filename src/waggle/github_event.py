@@ -623,7 +623,7 @@ def _upsert_node(
             updated_at=occurred_at,
         )
         return stored.node, True
-    if occurred_at < existing.updated_at:
+    if occurred_at <= existing.updated_at:
         return existing, False
     if (
         existing.label != label
