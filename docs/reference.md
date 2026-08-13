@@ -23,7 +23,8 @@ structured content includes:
 }
 ```
 
-The equivalent HTTP error response uses the same code and message fields:
+The equivalent HTTP error response preserves the same code and message values,
+using `error` for the code and `message` for the diagnostic text:
 
 ```json
 {
@@ -32,7 +33,8 @@ The equivalent HTTP error response uses the same code and message fields:
 }
 ```
 
-Use `error_code` for programmatic handling and `message` for diagnostics.
+Use `error_code` for programmatic handling in MCP structured results and `error`
+in HTTP responses. Use `message` for diagnostics.
 
 ## Production evaluation docs
 
