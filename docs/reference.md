@@ -2,6 +2,38 @@
 
 This page keeps the lower-level operational and configuration material out of the top-level README.
 
+## Error responses
+
+Waggle exposes typed, recoverable errors for expected failures such as invalid
+tool arguments, authentication failures, and rate limits. The canonical error
+codes and their HTTP-equivalent status codes are defined in
+[`src/waggle/errors.py`](../src/waggle/errors.py).
+
+For MCP tool calls, expected failures are returned as tool results with
+`isError: true` rather than as uncaught exceptions. For example, calling
+`query_graph` without its required `query` argument returns a result whose
+structured content includes:
+
+```json
+{
+  "error": "Invalid arguments for tool 'query_graph': 'query' is a required property",
+  "error_type": "ValidationFailure",
+  "error_code": "validation_failed",
+  "status_code": 400
+}
+```
+
+The equivalent HTTP error response uses the same code and message fields:
+
+```json
+{
+  "error": "validation_failed",
+  "message": "Invalid arguments for tool 'query_graph': 'query' is a required property"
+}
+```
+
+Use `error_code` for programmatic handling and `message` for diagnostics.
+
 ## Production evaluation docs
 
 For self-hosted production planning:
