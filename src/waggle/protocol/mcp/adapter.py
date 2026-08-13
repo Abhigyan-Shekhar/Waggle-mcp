@@ -19,6 +19,28 @@ from waggle.tools.results import WaggleToolResult
 
 from .surface import build_prompts, build_resources, get_prompt_result, read_resource_text
 
+_READ_ONLY_TOOLS = frozenset(
+    {
+        "aggregate_graph",
+        "debug_retrieval",
+        "dedup_candidates",
+        "get_context_window",
+        "get_node_history",
+        "get_related",
+        "get_stats",
+        "list_conflicts",
+        "list_context_scopes",
+        "list_context_windows",
+        "query_graph",
+        "timeline",
+    }
+)
+
+
+def _tool_annotations(name: str) -> types.ToolAnnotations:
+    """Return conservative MCP safety hints for the stable tool surface."""
+    return types.ToolAnnotations(readOnlyHint=name in _READ_ONLY_TOOLS)
+
 
 class WagglemcpAdapter:
     """Translates MCP SDK v2 handler calls into ``WaggleToolDispatcher`` calls.
@@ -52,6 +74,7 @@ class WagglemcpAdapter:
                 name=d.name,
                 description=d.description,
                 input_schema=d.input_schema,  # snake_case in SDK v2
+                annotations=_tool_annotations(d.name),
             )
             for d in self._dispatcher.list_tools()
         ]

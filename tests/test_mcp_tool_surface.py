@@ -141,6 +141,19 @@ def test_tool_property_names_unchanged(mcp_surface):
         assert not removed, f"Tool '{name}' lost argument properties since fixture was taken: {sorted(removed)}"
 
 
+def test_representative_tools_retain_safety_annotations(mcp_surface):
+    """Read and write tools must remain distinguishable to MCP clients."""
+    import anyio
+
+    result = anyio.run(mcp_surface.on_list_tools, None, None)
+    tools = {tool.name: tool for tool in result.tools}
+
+    assert tools["query_graph"].annotations is not None
+    assert tools["query_graph"].annotations.read_only_hint is True
+    assert tools["store_node"].annotations is not None
+    assert tools["store_node"].annotations.read_only_hint is False
+
+
 # ── Resource list surface ──────────────────────────────────────────────────────
 
 
