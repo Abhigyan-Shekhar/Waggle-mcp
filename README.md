@@ -340,6 +340,14 @@ Conflicts or superseded context:
 User  → Agent → observe_conversation(...)  → Graph stores typed nodes + edges
 User  → Agent → query_graph("database")   → Subgraph returned → Agent answers with linked rationale
 ```
+### Ollama
+
+Waggle supports local Ollama models through the `ollama` backend. Set the model name explicitly and make sure the model is available locally.
+
+```bash
+ollama pull llama3.2
+Then run Waggle with:
+WAGGLE_BACKEND=ollama WAGGLE_MODEL=llama3.2 waggle-mcp serve
 
 **Session 1**
 ```
