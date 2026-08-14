@@ -805,6 +805,23 @@ WAGGLE_MODEL=all-mpnet-base-v2 waggle-mcp serve
 
 For existing DBs, a model change is a migration event: run `waggle-mcp doctor`, then `waggle-mcp doctor --fix` if mixed `embedding_model_id` values are reported.
 
+### Local Ollama (hybrid rerank)
+
+The hybrid reranker can use a local [Ollama](https://ollama.com) model instead of a cloud LLM. Prefix the model name with `ollama:` and Waggle calls the default Ollama endpoint at `http://127.0.0.1:11434`:
+
+```bash
+# 1. Pull the model once
+ollama pull qwen2.5:7b
+
+# 2. Enable hybrid reranking against the local model
+WAGGLE_HYBRID_RERANK_ENABLED=true \
+WAGGLE_HYBRID_RERANK_MODEL=ollama:qwen2.5:7b \
+waggle-mcp serve
+```
+
+- The `ollama:` prefix is required — the suffix is passed to Ollama as the model name.
+- If the reranker call fails, Waggle falls back to the no-rerank hybrid path instead of failing the query.
+
 ### `WAGGLE_DEDUP_THRESHOLD`
 
 Controls the cosine similarity threshold for automatic node deduplication at write time (default `0.88`, minimum `0.85`). Nodes above this threshold with matching type and scope are merged automatically. Use `dedup_candidates` to review near-duplicates below the auto-merge threshold.
