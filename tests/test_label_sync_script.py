@@ -4,6 +4,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "sync_github_labels.py"
 SPEC = importlib.util.spec_from_file_location("sync_github_labels", MODULE_PATH)
 assert SPEC and SPEC.loader
@@ -31,6 +33,23 @@ def test_parse_simple_yaml(tmp_path: Path) -> None:
 
     assert [label.name for label in labels] == ["good first issue", "documentation"]
     assert labels[0].color == "7057ff"
+
+
+def test_parse_simple_yaml_rejects_malformed_entry(tmp_path: Path) -> None:
+    labels_file = tmp_path / "labels.yml"
+    labels_file.write_text(
+        """
+- name: good first issue
+  color: "7057ff"
+  description: Small task.
+- malformed entry without a colon
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=r"expected 'key: value' line, got 'malformed entry without a colon'"):
+        MODULE.parse_simple_yaml(labels_file)
 
 
 def test_sync_labels_plans_create_update_and_delete() -> None:
