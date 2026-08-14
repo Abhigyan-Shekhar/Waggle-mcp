@@ -6,16 +6,24 @@ Waggle is local-first and does not send telemetry by default. Local operation ke
 
 No telemetry is enabled by default, so there is no telemetry service to opt out of for normal local operation.
 
-To minimize application log output, set the logging level to `ERROR` before starting Waggle:
-
+To minimize application log output, set the logging level to ERROR before starting Waggle:
 ```bash
 export WAGGLE_LOG_LEVEL=ERROR
+```
 
-
-``
 This controls the verbosity of Waggle's local application logs. It does not disable local memory storage or delete existing logs or database data.
+
 ## What remains available locally
-Reducing application logging does not disable Waggle's local memory database. Memory data continues to be stored locally using the configured WAGGLE_DB_PATH, which defaults to ~/.waggle/waggle.db.
+
+Reducing application logging does not disable Waggle's local memory database. Memory data continues 
+to be stored locally using the configured WAGGLE_DB_PATH. When WAGGLE_DB_PATH is not set
+directly, Waggle first checks mcp_servers.waggle.env.WAGGLE_DB_PATH in ~/.codex/config.toml, then
+falls back to ~/.waggle/waggle.db.
+
 Local application logs may still contain operational information needed for debugging and health checks, depending on the configured log level.
+
 For more information about local-first storage and privacy, see the project's security documentation.
-``
+
+
+
+
