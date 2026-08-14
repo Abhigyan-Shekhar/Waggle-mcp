@@ -269,6 +269,28 @@ Recommended practice:
 3. test restore into a staging environment
 4. document restore ownership and RTO/RPO expectations
 
+### SQLite backups
+
+For local-first `WAGGLE_BACKEND=sqlite` deployments, back up the database file at `WAGGLE_DB_PATH` (default `~/.waggle/waggle.db`).
+
+What to back up:
+
+- The main database file. Waggle runs SQLite in WAL mode, so recent writes live in the `-wal` and `-shm` sidecar files until a checkpoint. Copying only the `.db` file can therefore miss the latest transactions.
+
+When to stop writes:
+
+- Quiesce first: stop the `waggle-mcp` service before copying, or take a consistent snapshot while it runs with `sqlite3`'s backup API:
+
+```bash
+sqlite3 ~/.waggle/waggle.db ".backup '/backups/waggle-$(date +%F).db'"
+```
+
+Restore guidance:
+
+- Rebuild from a portable JSON backup with `import_graph_backup` (see the [full migration flow in the README](../../README.md#cross-client-handoffs--migration)).
+- Session-scoped `.abhi` checkpoints cover handoffs between machines, not a full database restore.
+- Test restore into a staging environment before production use (see the [hardening checklist](../security/hardening-checklist.md)).
+
 ## Upgrades
 
 Recommended upgrade flow:
