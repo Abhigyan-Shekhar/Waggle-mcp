@@ -25,6 +25,7 @@ FILES = {
 
 
 def read_toml_version(path: Path) -> str:
+    """Read the project version from pyproject.toml."""
     with open(path, "rb") as f:
         data = tomllib.load(f)
     try:
@@ -34,6 +35,7 @@ def read_toml_version(path: Path) -> str:
 
 
 def get_toml_new_content(path: Path, version: str) -> str:
+    """Return new pyproject.toml content with updated project version."""
     content = path.read_text(encoding="utf-8")
     project_match = re.search(r"(?m)^\[project\]", content)
     if not project_match:
@@ -54,12 +56,14 @@ def get_toml_new_content(path: Path, version: str) -> str:
 
 
 def read_json_version(path: Path) -> str:
+    """Read the version field from a JSON manifest."""
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     return data["version"]
 
 
 def get_json_new_content(path: Path, version: str) -> str:
+    """Return new JSON content with the updated version."""
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     data["version"] = version
@@ -67,6 +71,7 @@ def get_json_new_content(path: Path, version: str) -> str:
 
 
 def read_json_lock_version(path: Path) -> str:
+    """Read and validate the version field from a package-lock.json."""
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     root_version = data.get("version")
@@ -81,6 +86,7 @@ def read_json_lock_version(path: Path) -> str:
 
 
 def get_json_lock_new_content(path: Path, version: str) -> str:
+    """Return new package-lock.json content with the updated version."""
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     data["version"] = version
@@ -90,6 +96,7 @@ def get_json_lock_new_content(path: Path, version: str) -> str:
 
 
 def read_version(rel_path: str, file_type: str) -> str:
+    """Read version from a manifest file based on its file type."""
     path = REPO_ROOT / rel_path
     if not path.exists():
         raise FileNotFoundError(f"File not found: {path}")
@@ -104,6 +111,7 @@ def read_version(rel_path: str, file_type: str) -> str:
 
 
 def prepare_new_content(rel_path: str, file_type: str, version: str) -> str:
+    """Prepare the new content for a manifest file with the target version."""
     path = REPO_ROOT / rel_path
     if not path.exists():
         raise FileNotFoundError(f"File not found: {path}")
@@ -118,6 +126,7 @@ def prepare_new_content(rel_path: str, file_type: str, version: str) -> str:
 
 
 def check_versions() -> bool:
+    """Validate that all registered manifest files are in sync."""
     versions = {}
     has_error = False
 
@@ -144,6 +153,7 @@ def check_versions() -> bool:
 
 
 def sync_versions(target_version: str | None = None) -> bool:
+    """Synchronize all manifest file versions to the target version."""
     if target_version is None:
         try:
             target_version = read_version("pyproject.toml", "toml")
@@ -219,6 +229,7 @@ def sync_versions(target_version: str | None = None) -> bool:
 
 
 def main():
+    """Parse command line arguments and execute check or sync operations."""
     parser = argparse.ArgumentParser(description="Sync or check versions across configuration manifests.")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--check", action="store_true", help="Check that all manifest versions are identical.")
