@@ -1,7 +1,7 @@
 {
   "name": "waggle-claude-desktop-extension",
   "private": true,
-  "version": "0.1.0rc1",
+  "version": "0.1.25",
   "description": "MCPB packaging helpers for the Waggle Claude Desktop extension.",
   "scripts": {
     "pack": "mcpb pack .",
