@@ -647,6 +647,7 @@ class TestEdgeQualityReport:
             # Both edges should be kept because the default confidence is 1.0
             assert len(doc["edges"]) == 2
 
+
 # ---------------------------------------------------------------------------
 # Idempotency regression tests
 # ---------------------------------------------------------------------------
@@ -682,7 +683,6 @@ class TestEdgeIdempotency:
             metadata={"edge_confidence": 0.8},
         )
 
-        # Assert total edge count does not increase
         with graph._lock, graph._connect() as conn:
             final_count = conn.execute(
                 "SELECT COUNT(*) FROM edges WHERE tenant_id = ?",
