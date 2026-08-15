@@ -1,0 +1,32 @@
+{
+  "name": "waggle-installer",
+  "version": "1.0.0",
+  "description": "Installs the official Waggle plugin locally for Codex from GitHub Releases.",
+  "author": {
+    "name": "Abhigyan Shekhar",
+    "url": "https://github.com/Abhigyan-Shekhar"
+  },
+  "homepage": "https://github.com/Abhigyan-Shekhar/Waggle-mcp",
+  "repository": "https://github.com/Abhigyan-Shekhar/Waggle-mcp",
+  "license": "Apache-2.0",
+  "keywords": [
+    "waggle",
+    "installer",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Install Waggle",
+    "shortDescription": "Install Waggle locally for Codex.",
+    "longDescription": "Downloads the latest stable official Waggle Codex marketplace bundle from GitHub Releases and installs waggle@waggle locally through the Codex CLI.",
+    "developerName": "Abhigyan Shekhar",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Local Codex plugin installation"
+    ],
+    "websiteURL": "https://github.com/Abhigyan-Shekhar/Waggle-mcp",
+    "defaultPrompt": [
+      "Install Waggle for Codex."
+    ]
+  }
+}
