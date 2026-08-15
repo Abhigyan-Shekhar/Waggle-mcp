@@ -646,3 +646,47 @@ class TestEdgeQualityReport:
             assert "non-dict metadata" in caplog.text
             # Both edges should be kept because the default confidence is 1.0
             assert len(doc["edges"]) == 2
+
+# ---------------------------------------------------------------------------
+# Idempotency regression tests
+# ---------------------------------------------------------------------------
+
+
+class TestEdgeIdempotency:
+    """Verify that repeated insertion of the same edge identifier does not duplicate state."""
+
+    def test_add_edge_idempotency(self, tmp_path: Path) -> None:
+        graph = make_graph(tmp_path)
+        a = graph.add_node(label="Node A", content="service A content", node_type=NodeType.FACT).node
+        b = graph.add_node(label="Node B", content="service B content", node_type=NodeType.FACT).node
+
+        # First edge insertion
+        graph.add_edge(
+            source_id=a.id,
+            target_id=b.id,
+            relationship=RelationType.RELATES_TO,
+            metadata={"edge_confidence": 0.8},
+        )
+
+        with graph._lock, graph._connect() as conn:
+            initial_count = conn.execute(
+                "SELECT COUNT(*) FROM edges WHERE tenant_id = ?",
+                (graph.tenant_id,),
+            ).fetchone()[0]
+
+        # Duplicate edge insertion (same source, target, relationship)
+        graph.add_edge(
+            source_id=a.id,
+            target_id=b.id,
+            relationship=RelationType.RELATES_TO,
+            metadata={"edge_confidence": 0.8},
+        )
+
+        # Assert total edge count does not increase
+        with graph._lock, graph._connect() as conn:
+            final_count = conn.execute(
+                "SELECT COUNT(*) FROM edges WHERE tenant_id = ?",
+                (graph.tenant_id,),
+            ).fetchone()[0]
+
+        assert final_count == initial_count, "Repeated insertion of the same edge must be idempotent"
