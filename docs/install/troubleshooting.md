@@ -51,9 +51,17 @@ waggle-mcp serve --transport stdio
 
 Then restart the client and verify the MCP entry is enabled.
 
-## `AuthenticationError: Invalid API key` over HTTP transport
+## `AuthenticationError` over HTTP transport
 
-HTTP transport requires a valid API key header. Send `X-API-Key: <your_key>` with each request, and issue one with:
+Requests to `/mcp` require a valid API key header. The health and metrics endpoints (`/health/live`, `/health/ready`, `/metrics`) do not.
+
+Three distinct messages can surface here:
+
+- `Missing X-API-Key header.` — no `X-API-Key` header was sent.
+- `Invalid API key.` — a key was sent, but it is unknown, not active, or the hash did not verify.
+- `API key expired.` — the key was found but its `expires_at` has already passed.
+
+In all three cases, send a valid `X-API-Key: <your_key>` with the request. Issue one with:
 
 ```bash
 waggle-mcp create-api-key --tenant-id <tenant> --name <label> --scopes "graph:read,graph:write"
@@ -156,13 +164,3 @@ If the plugin still fails after approval, run:
 ```bash
 waggle-mcp doctor
 ```
-
-
-## Related setup and security documentation
-
-| Error type | Where to look next |
-|------------|--------------------|
-| Install, PATH, or `command not found` | [Install guide](./README.md) |
-| Config or connection errors (`WAGGLE_BACKEND`, `WAGGLE_DB_PATH`, ports, rate limits) | [Environment variables](../environment-variables.md) |
-| `AuthenticationError` or API key management | [Security model](../security/security-model.md), [admin commands reference](../reference.md) |
-| Production hardening, TLS, or network exposure | [Hardening checklist](../security/hardening-checklist.md) |
