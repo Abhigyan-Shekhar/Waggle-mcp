@@ -1,0 +1,79 @@
+name: Waggle Context Handoff
+description: Convert GitHub events into portable Waggle memory and compact Markdown context for downstream AI workflows.
+author: Waggle contributors
+
+branding:
+  icon: share-2
+  color: purple
+
+inputs:
+  event-path:
+    description: GitHub event JSON path; defaults at runtime to GITHUB_EVENT_PATH.
+    required: false
+    default: ""
+  checkpoint:
+    description: Existing portable .abhi checkpoint to restore before ingesting the event.
+    required: false
+    default: ""
+  scope:
+    description: Waggle project namespace; defaults at runtime to GITHUB_REPOSITORY.
+    required: false
+    default: ""
+  output-directory:
+    description: Output directory inside GITHUB_WORKSPACE.
+    required: false
+    default: .waggle-output
+  waggle-version:
+    description: >-
+      Exact published waggle-mcp package version to install; no current release
+      contains ingest-github-event.
+    required: true
+  upload-artifact:
+    description: Upload the Markdown handoff and checkpoint as a workflow artifact.
+    required: false
+    default: "true"
+  write-step-summary:
+    description: Add a secret-safe result table to GITHUB_STEP_SUMMARY.
+    required: false
+    default: "true"
+
+outputs:
+  context-file:
+    description: Absolute path to the generated Markdown handoff.
+    value: ${{ steps.run.outputs.context-file }}
+  checkpoint-file:
+    description: Absolute path to the generated portable .abhi checkpoint.
+    value: ${{ steps.run.outputs.checkpoint-file }}
+  nodes-added:
+    description: Number of graph nodes added for this event.
+    value: ${{ steps.run.outputs.nodes-added }}
+  edges-added:
+    description: Number of graph edges added for this event.
+    value: ${{ steps.run.outputs.edges-added }}
+
+runs:
+  using: composite
+  steps:
+    - name: Generate Waggle context handoff
+      id: run
+      shell: bash
+      env:
+        WAGGLE_ACTION_EVENT_PATH: ${{ inputs.event-path }}
+        WAGGLE_ACTION_CHECKPOINT: ${{ inputs.checkpoint }}
+        WAGGLE_ACTION_SCOPE: ${{ inputs.scope }}
+        WAGGLE_ACTION_OUTPUT_DIRECTORY: ${{ inputs.output-directory }}
+        WAGGLE_ACTION_WAGGLE_VERSION: ${{ inputs.waggle-version }}
+        WAGGLE_ACTION_UPLOAD_ARTIFACT: ${{ inputs.upload-artifact }}
+        WAGGLE_ACTION_WRITE_STEP_SUMMARY: ${{ inputs.write-step-summary }}
+      run: python3 "$GITHUB_ACTION_PATH/scripts/run_action.py"
+
+    - name: Upload Waggle context handoff
+      if: steps.run.outputs.upload-artifact == 'true'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: waggle-context-handoff
+        path: |
+          ${{ steps.run.outputs.context-file }}
+          ${{ steps.run.outputs.checkpoint-file }}
+        if-no-files-found: error
+        retention-days: 7
