@@ -278,6 +278,13 @@ class NodeStoreResult(BaseModel):
     conflicts: list[ConflictRecord] = Field(default_factory=list)
 
 
+class EdgeStoreResult(BaseModel):
+    """An edge returned from storage with whether it was newly created."""
+
+    edge: Edge
+    created: bool = True
+
+
 class CanonicalizeResult(BaseModel):
     canonical_node: Node
     merged_node_ids: list[str] = Field(default_factory=list)

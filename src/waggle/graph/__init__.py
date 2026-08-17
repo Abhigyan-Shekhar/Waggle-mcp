@@ -2209,10 +2209,15 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
 
         return {"transcript_rows_updated": transcript_updated, "node_rows_updated": node_updated}
 
-    def ensure_repo(self, project: str = "", connection: sqlite3.Connection | None = None) -> str:
+    def ensure_repo(
+        self,
+        project: str = "",
+        connection: sqlite3.Connection | None = None,
+        observed_at: datetime | None = None,
+    ) -> str:
         name = project.strip() or "default"
         repo_id = f"{self.tenant_id}:{slugify(name)}"
-        now = utc_now().isoformat()
+        now = (observed_at or utc_now()).isoformat()
 
         def _ensure(active_connection: sqlite3.Connection) -> str:
             active_connection.execute(
@@ -2239,11 +2244,12 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         session_id: str = "",
         repo_id: str | None = None,
         connection: sqlite3.Connection | None = None,
+        observed_at: datetime | None = None,
     ) -> str:
         normalized_session = session_id.strip() or "default"
-        resolved_repo_id = repo_id or self.ensure_repo("default", connection=connection)
+        resolved_repo_id = repo_id or self.ensure_repo("default", connection=connection, observed_at=observed_at)
         window_id = f"{resolved_repo_id}:{slugify(normalized_session)}"
-        now = utc_now().isoformat()
+        now = (observed_at or utc_now()).isoformat()
 
         def _ensure(active_connection: sqlite3.Connection) -> str:
             active_connection.execute(
@@ -2276,9 +2282,15 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         project: str | None = None,
         session_id: str | None = None,
         connection: sqlite3.Connection | None = None,
+        observed_at: datetime | None = None,
     ) -> tuple[str, str]:
-        repo_id = self.ensure_repo(project or "default", connection=connection)
-        window_id = self.ensure_context_window(session_id or "default", repo_id, connection=connection)
+        repo_id = self.ensure_repo(project or "default", connection=connection, observed_at=observed_at)
+        window_id = self.ensure_context_window(
+            session_id or "default",
+            repo_id,
+            connection=connection,
+            observed_at=observed_at,
+        )
         return repo_id, window_id
 
     def update_window_node_count(self, window_id: str) -> int:
@@ -2290,7 +2302,12 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         with self._lock, self._pool.checkout() as connection:
             self._mark_window_embedding_stale(connection, window_id)
 
-    def _update_window_node_count(self, connection: sqlite3.Connection, window_id: str) -> int:
+    def _update_window_node_count(
+        self,
+        connection: sqlite3.Connection,
+        window_id: str,
+        observed_at: datetime | None = None,
+    ) -> int:
         count = int(
             connection.execute(
                 "SELECT COUNT(*) FROM nodes WHERE tenant_id = ? AND context_window_id = ?",
@@ -2303,18 +2320,23 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             SET node_count = ?, updated_at = ?
             WHERE tenant_id = ? AND id = ?
             """,
-            (count, utc_now().isoformat(), self.tenant_id, window_id),
+            (count, (observed_at or utc_now()).isoformat(), self.tenant_id, window_id),
         )
         return count
 
-    def _mark_window_embedding_stale(self, connection: sqlite3.Connection, window_id: str) -> None:
+    def _mark_window_embedding_stale(
+        self,
+        connection: sqlite3.Connection,
+        window_id: str,
+        observed_at: datetime | None = None,
+    ) -> None:
         connection.execute(
             """
             UPDATE context_windows
             SET embedding_stale = 1, updated_at = ?
             WHERE tenant_id = ? AND id = ?
             """,
-            (utc_now().isoformat(), self.tenant_id, window_id),
+            ((observed_at or utc_now()).isoformat(), self.tenant_id, window_id),
         )
 
     def _mark_communities_stale(self, connection: sqlite3.Connection) -> None:
