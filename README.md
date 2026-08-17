@@ -45,7 +45,13 @@ This repository is the public Waggle product repo: Apache-2.0 licensed, availabl
 ```bash
 # Install globally (no venv needed)
 pipx install waggle-mcp
+pipx ensurepath
+```
 
+The first time you run `pipx ensurepath`, restart your terminal (or run
+`exec zsh -l` in zsh) so the updated `PATH` is loaded. Then finish setup:
+
+```bash
 # One-line setup — detects your MCP clients and writes config
 waggle-mcp setup --yes
 
@@ -53,7 +59,7 @@ waggle-mcp setup --yes
 waggle-mcp doctor
 ```
 
-*(No `pipx`? Run `brew install pipx && pipx ensurepath` first.)*
+*(No `pipx` on macOS? Run `brew install pipx` first.)*
 
 `setup --yes` detects Claude Code, Codex, Cursor, Gemini CLI, and Antigravity, writes the MCP config, and installs automatic memory hooks where supported. Restart your client and you're live.
 
@@ -521,8 +527,14 @@ Do not expose Waggle publicly without authentication.
 ### `waggle-mcp` not on PATH?
 
 ```bash
-pipx ensurepath   # then restart your terminal
+pipx ensurepath
+exec zsh -l                 # zsh; otherwise close and reopen the terminal
+command -v waggle-mcp
 ```
+
+If `pipx list` says Waggle is installed but `command -v` is still empty after
+the restart, rebuild the app link with `pipx reinstall waggle-mcp`. Updating
+`pipx` itself is not normally required.
 
 ---
 
