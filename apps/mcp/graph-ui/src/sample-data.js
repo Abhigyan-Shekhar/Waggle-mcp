@@ -97,7 +97,7 @@ export const SAMPLE_GRAPH_SNAPSHOT = {
   edges: [
     { id: "edge-1", source_id: "node-decision", target_id: "node-fact", relationship: "depends_on", weight: 1 },
     { id: "edge-2", source_id: "node-widget", target_id: "node-decision", relationship: "derived_from", weight: 1 },
-    { id: "edge-3", source_id: "node-import", target_id: "node-decision", relationship: "relates_to", weight: 0.6 }
+    { id: "edge-3", source_id: "node-import", target_id: "node-decision", relationship: "relates_to", weight: 0.6, metadata: { edge_confidence: 0.6 } }
   ],
   ui: {}
 };

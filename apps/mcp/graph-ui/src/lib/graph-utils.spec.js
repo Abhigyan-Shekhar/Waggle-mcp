@@ -27,12 +27,12 @@ describe("graph-utils - buildFilterBuckets", () => {
       { session_id: "s2", project: "p1", agent_id: "a2" }
     ];
     const buckets = buildFilterBuckets(nodes, transcripts);
-    
+
     expect(buckets.sessions).toEqual([
       { id: "s1", label: "s1", count: 2 },
       { id: "s2", label: "s2", count: 1 }
     ]);
-    
+
     expect(buckets.projects).toEqual([
       { id: "p1", label: "p1", count: 2 },
       { id: "p2", label: "p2", count: 1 }
@@ -133,7 +133,7 @@ describe("graph-utils - filterGraph", () => {
 
   it("filters by tags, sessions, sources, agents, projects", () => {
     const graph = { nodes: baseNodes, edges: baseEdges };
-    
+
     let result = filterGraph(graph, { ...defaultFilters, tags: ["bug"] });
     expect(result.nodes).toHaveLength(1);
     expect(result.nodes[0].id).toBe("1");
@@ -157,7 +157,7 @@ describe("graph-utils - filterGraph", () => {
 
   it("filters by date range", () => {
     const graph = { nodes: baseNodes, edges: baseEdges };
-    
+
     // "7d" should match node 1 (2 days ago), but not node 2 (10 days ago)
     let result = filterGraph(graph, { ...defaultFilters, dateRange: "7d" });
     expect(result.nodes).toHaveLength(1);
@@ -170,12 +170,37 @@ describe("graph-utils - filterGraph", () => {
 
   it("combinations of multiple filters use AND logic", () => {
     const graph = { nodes: baseNodes, edges: baseEdges };
-    
+
     const result1 = filterGraph(graph, { ...defaultFilters, projects: ["p1"], tags: ["bug"] });
     expect(result1.nodes).toHaveLength(1);
     expect(result1.nodes[0].id).toBe("1");
 
     const result2 = filterGraph(graph, { ...defaultFilters, projects: ["p1"], tags: ["ui"] });
     expect(result2.nodes).toHaveLength(0);
+  });
+  it("hides edges below the confidence threshold when hideWeakEdges is enabled", () => {
+    const edges = [
+      { id: "e1", source_id: "1", target_id: "2", metadata: { edge_confidence: 0.9 } },
+      { id: "e2", source_id: "2", target_id: "1", metadata: { edge_confidence: 0.3 } }
+    ];
+    const graph = { nodes: baseNodes, edges };
+    const result = filterGraph(graph, { ...defaultFilters, hideWeakEdges: true });
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0].id).toBe("e1");
+  });
+  it("includes all edges regardless of confidence when hideWeakEdges is false", () => {
+    const edges = [
+      { id: "e1", source_id: "1", target_id: "2", metadata: { edge_confidence: 0.9 } },
+      { id: "e2", source_id: "2", target_id: "1", metadata: { edge_confidence: 0.3 } }
+    ];
+    const graph = { nodes: baseNodes, edges };
+    const result = filterGraph(graph, { ...defaultFilters, hideWeakEdges: false });
+    expect(result.edges).toHaveLength(2);
+  });
+  it("treats an edge with no edge_confidence metadata as fully confident", () => {
+    const edges = [{ id: "e1", source_id: "1", target_id: "2", metadata: {} }];
+    const graph = { nodes: baseNodes, edges };
+    const result = filterGraph(graph, { ...defaultFilters, hideWeakEdges: true });
+    expect(result.edges).toHaveLength(1);
   });
 });

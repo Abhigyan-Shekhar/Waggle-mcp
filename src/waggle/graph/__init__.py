@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import math
 import sqlite3
 import threading
 
@@ -4277,7 +4278,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             target_id=row["target_id"],
             relationship=row["relationship"],
             weight=float(row["weight"]),
-            metadata=json.loads(row["metadata"] or "{}"),
+            metadata=_decode_metadata(row["metadata"]),
             created_at=_parse_datetime(row["created_at"]),
         )
 
@@ -4484,6 +4485,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         connection: sqlite3.Connection,
         *,
         node_ids: Iterable[str],
+        min_confidence: float | None = None,
     ) -> nx.DiGraph:
         graph = nx.DiGraph()
         graph.add_nodes_from(node_ids)
@@ -4495,13 +4497,17 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             """,
             (self.tenant_id,),
         ).fetchall()
-
         for row in rows:
-            try:
-                metadata = json.loads(row["metadata"]) if row["metadata"] else {}
-            except (json.JSONDecodeError, TypeError):
-                metadata = {}
-
+            metadata = _decode_metadata(row["metadata"])
+            if min_confidence is not None:
+                try:
+                    edge_confidence = float(metadata.get("edge_confidence", 1.0))
+                except (TypeError, ValueError):
+                    edge_confidence = 1.0
+                if not math.isfinite(edge_confidence):
+                    edge_confidence = 1.0
+                if edge_confidence < min_confidence:
+                    continue
             graph.add_edge(
                 row["source_id"],
                 row["target_id"],

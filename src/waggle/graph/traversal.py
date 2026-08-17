@@ -157,6 +157,7 @@ from .base import (
     MemoryGraphBase,
     _decode_metadata,
     _encode_metadata,
+    _filter_edges_by_confidence,
     _filter_valid_nodes,
     _normalized_content_hash,
     _parse_datetime,
@@ -225,6 +226,7 @@ class TraversalMixin(MemoryGraphBase):
         retrieval_mode: str = "graph",
         include_invalidated: bool = False,
         as_of: datetime | None = None,
+        min_confidence: float | None = None,
     ) -> SubgraphResult:
         query_text = query.strip()
         if not query_text:
@@ -235,6 +237,8 @@ class TraversalMixin(MemoryGraphBase):
             raise ValueError("max_depth cannot be negative.")
         if expand_depth < 0:
             raise ValueError("expand_depth cannot be negative.")
+        if min_confidence is not None and not (0.0 <= min_confidence <= 1.0):
+            raise ValueError("min_confidence must be between 0.0 and 1.0.")
         normalized_mode = retrieval_mode.strip().lower()
         normalized_mode = {"replay": "verbatim", "fusion": "hybrid"}.get(normalized_mode, normalized_mode)
         # Accept "hybrid_no_rerank" as alias for "hybrid" (reranking is configurable via HybridRetrievalConfig)
@@ -265,8 +269,14 @@ class TraversalMixin(MemoryGraphBase):
                 include_invalidated=include_invalidated,
                 as_of=as_of,
             )
+            result.edges = _filter_edges_by_confidence(
+                result.edges,
+                min_confidence=min_confidence,
+            )
             return result
 
+        # Only "graph" mode reaches this point: "verbatim" and "hybrid" are
+        # handled by the hybrid_retriever early return above.
         graph_result = (
             self.tiered_query(
                 query=query_text,
@@ -278,56 +288,29 @@ class TraversalMixin(MemoryGraphBase):
                 session_id=session_id,
                 include_invalidated=include_invalidated,
                 as_of=as_of,
+                min_confidence=min_confidence,
             )
             if self.tiered_retrieval and project.strip()
-            else (
-                self._query_graph_only(
-                    query=query_text,
-                    max_nodes=max_nodes,
-                    max_depth=max_depth,
-                    expand_depth=expand_depth,
-                    agent_id=agent_id,
-                    project=project,
-                    session_id=session_id,
-                    include_invalidated=include_invalidated,
-                    as_of=as_of,
-                )
-                if normalized_mode in {"graph", "fusion"}
-                else None
-            )
-        )
-        replay_hits = (
-            self._query_replay_hits(
+            else self._query_graph_only(
                 query=query_text,
-                max_hits=max_nodes,
+                max_nodes=max_nodes,
+                max_depth=max_depth,
+                expand_depth=expand_depth,
                 agent_id=agent_id,
                 project=project,
                 session_id=session_id,
+                include_invalidated=include_invalidated,
+                as_of=as_of,
+                min_confidence=min_confidence,
             )
-            if normalized_mode in {"verbatim", "hybrid"}
-            else []
         )
-        if normalized_mode == "graph":
-            if graph_result.retrieval_mode not in {"tiered", "flat_fallback"}:
-                graph_result.retrieval_mode = "graph"
-            return graph_result
-        if normalized_mode == "verbatim":
-            return SubgraphResult(
-                replay_hits=replay_hits,
-                retrieval_mode="verbatim",
-                query=query_text,
-                total_nodes_in_graph=(graph_result.total_nodes_in_graph if graph_result is not None else 0),
-            )
-        fusion_hits = self._build_fusion_hits(graph_result or SubgraphResult(query=query_text), replay_hits)
-        return SubgraphResult(
-            nodes=graph_result.nodes if graph_result is not None else [],
-            edges=graph_result.edges if graph_result is not None else [],
-            replay_hits=replay_hits,
-            fusion_hits=fusion_hits[:max_nodes],
-            retrieval_mode="hybrid",
-            query=query_text,
-            total_nodes_in_graph=(graph_result.total_nodes_in_graph if graph_result is not None else 0),
+        if graph_result.retrieval_mode not in {"tiered", "flat_fallback"}:
+            graph_result.retrieval_mode = "graph"
+        graph_result.edges = _filter_edges_by_confidence(
+            graph_result.edges,
+            min_confidence=min_confidence,
         )
+        return graph_result
 
     def _subgraph_from_hybrid_hits(
         self,
@@ -383,6 +366,7 @@ class TraversalMixin(MemoryGraphBase):
         session_id: str = "",
         include_invalidated: bool = False,
         as_of: datetime | None = None,
+        min_confidence: float | None = None,
     ) -> SubgraphResult:
         query_text = query.strip()
         if not query_text:
@@ -434,6 +418,7 @@ class TraversalMixin(MemoryGraphBase):
                 session_id=session_id,
                 include_invalidated=include_invalidated,
                 as_of=as_of,
+                min_confidence=min_confidence,
             )
             fallback.retrieval_mode = "flat_fallback"
             return fallback
@@ -474,6 +459,7 @@ class TraversalMixin(MemoryGraphBase):
                     session_id=session_id,
                     include_invalidated=include_invalidated,
                     as_of=as_of,
+                    min_confidence=min_confidence,
                 )
                 fallback.retrieval_mode = "flat_fallback"
                 return fallback
@@ -514,6 +500,7 @@ class TraversalMixin(MemoryGraphBase):
                     session_id=session_id,
                     include_invalidated=include_invalidated,
                     as_of=as_of,
+                    min_confidence=min_confidence,
                 )
                 fallback.retrieval_mode = "flat_fallback"
                 return fallback
@@ -542,7 +529,10 @@ class TraversalMixin(MemoryGraphBase):
 
             candidates = final_candidates
             candidate_ids = [node.id for node in candidates]
-            edges = self._fetch_edges_for_nodes(connection, candidate_ids)
+            edges = _filter_edges_by_confidence(
+                self._fetch_edges_for_nodes(connection, candidate_ids),
+                min_confidence=min_confidence,
+            )
             scored_nodes = [
                 self._apply_node_score(
                     node,
@@ -562,7 +552,10 @@ class TraversalMixin(MemoryGraphBase):
             )
             selected_nodes = scored_nodes[:max_nodes]
             selected_ids = [node.id for node in selected_nodes]
-            selected_edges = self._fetch_edges_for_nodes(connection, selected_ids)
+            selected_edges = _filter_edges_by_confidence(
+                self._fetch_edges_for_nodes(connection, selected_ids),
+                min_confidence=min_confidence,
+            )
             self._increment_access_counts(connection, selected_ids)
             for node in selected_nodes:
                 node.access_count += 1
@@ -756,6 +749,7 @@ class TraversalMixin(MemoryGraphBase):
         session_id: str,
         include_invalidated: bool = False,
         as_of: datetime | None = None,
+        min_confidence: float | None = None,
     ) -> SubgraphResult:
         with self._lock, self._pool.checkout() as connection:
             temporal_hints = infer_temporal_hints(query)
@@ -917,7 +911,7 @@ class TraversalMixin(MemoryGraphBase):
                     max_seeds=max_nodes,
                 )
 
-            graph = self._load_graph(connection, node_ids=nodes_by_id.keys())
+            graph = self._load_graph(connection, node_ids=nodes_by_id.keys(), min_confidence=min_confidence)
             expanded_depths, expansion_metadata = self._expand_node_depths_with_context(
                 graph, ranked_seed_ids, max_depth
             )
@@ -929,7 +923,10 @@ class TraversalMixin(MemoryGraphBase):
             max_access = max((node.access_count for node in candidate_nodes), default=0)
             degree_by_id = dict(graph.degree(expanded_depths.keys()))
             max_degree = max(degree_by_id.values(), default=0)
-            candidate_edges = self._fetch_edges_for_nodes(connection, [node.id for node in candidate_nodes])
+            candidate_edges = _filter_edges_by_confidence(
+                self._fetch_edges_for_nodes(connection, [node.id for node in candidate_nodes]),
+                min_confidence=min_confidence,
+            )
             scored_nodes = self._sort_scored_nodes(
                 candidate_nodes,
                 max_nodes=max_nodes,
@@ -963,7 +960,10 @@ class TraversalMixin(MemoryGraphBase):
             selected_nodes = self._ensure_support_coverage(selected_nodes, candidate_pool, graph, result_limit)
             selected_ids = [node.id for node in selected_nodes]
 
-            edges = self._fetch_edges_for_nodes(connection, selected_ids)
+            edges = _filter_edges_by_confidence(
+                self._fetch_edges_for_nodes(connection, selected_ids),
+                min_confidence=min_confidence,
+            )
             self._increment_access_counts(connection, selected_ids)
             for node in selected_nodes:
                 node.access_count += 1

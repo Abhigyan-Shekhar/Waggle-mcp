@@ -378,6 +378,12 @@ class WaggleToolDispatcher:
                             "minimum": 0,
                             "description": "Optional support expansion depth. At 1, graph mode may return up to twice max_nodes.",
                         },
+                        "min_confidence": {
+                            "type": "number",
+                            "minimum": 0.0,
+                            "maximum": 1.0,
+                            "description": "Minimum edge confidence (0.0-1.0) required to include an edge. Omit to include all edges regardless of confidence.",
+                        },
                         **_scope_properties(),
                         "retrieval_mode": {
                             "type": "string",
@@ -1419,6 +1425,9 @@ class WaggleToolDispatcher:
                 retrieval_mode=arguments.get("retrieval_mode", "hybrid"),
                 include_invalidated=bool(arguments.get("include_invalidated", False)),
                 as_of=_as_of,
+                min_confidence=(
+                    float(arguments["min_confidence"]) if arguments.get("min_confidence") is not None else None
+                ),
             )
             return self._ok(serialize_subgraph(subgraph), self._subgraph_payload(subgraph))
 
