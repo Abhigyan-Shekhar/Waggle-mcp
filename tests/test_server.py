@@ -1669,6 +1669,29 @@ def test_cli_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
     assert f"waggle-mcp {waggle.__version__}" in captured.out
 
 
+def test_quiet_mode_preserves_machine_readable_stdout(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WAGGLE_DB_PATH", str(tmp_path / "waggle.db"))
+    monkeypatch.setenv("WAGGLE_MODEL", "deterministic")
+    monkeypatch.setattr(
+        "sys.argv",
+        ["waggle-mcp", "--quiet", "list-api-keys", "--tenant-id", "test-tenant"],
+    )
+
+    from waggle.server.cli import main
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    captured = capsys.readouterr()
+
+    assert excinfo.value.code == 0
+    payload = json.loads(captured.out)
+    assert payload == []
+
 def test_store_node_reports_deduplication(tmp_path: Path) -> None:
     app = make_app(tmp_path)
 
