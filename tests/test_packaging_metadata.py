@@ -165,3 +165,19 @@ def test_codex_install_guide_matches_shipped_example_config() -> None:
         "docs/install/codex.md drifted from examples/codex_config.example.toml. "
         "Keep the documented Waggle command, args, and env values aligned."
     )
+
+
+def test_version_consistency() -> None:
+    """Verify that all manifest versions are identical and in sync with pyproject.toml."""
+    import sys
+
+    sys.path.append(str(ROOT))
+    from scripts.sync_version import FILES, read_version
+
+    pyproject_version = read_version("pyproject.toml", "toml")
+
+    for rel_path, file_type in FILES.items():
+        if rel_path == "pyproject.toml":
+            continue
+        v = read_version(rel_path, file_type)
+        assert v == pyproject_version, f"Version mismatch in {rel_path}: expected {pyproject_version}, got {v}"

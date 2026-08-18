@@ -38,7 +38,10 @@ jobs:
       - name: Check markdown links
         run: python scripts/check_markdown_links.py
 
-  # â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      - name: Check version drift
+        run: python scripts/sync_version.py --check
+
+  # ── Tests ─────────────────────────────────────────────────────────────────
   test:
     name: Test (Python ${{ matrix.python-version }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -77,6 +80,15 @@ jobs:
           WAGGLE_MODEL: deterministic
           PYTHONUTF8: "1"   # prevents UnicodeEncodeError on Windows
         run: pytest -v --tb=long
+
+      - name: Build local wheel for Action smoke
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        run: python -m pip wheel --no-deps --no-build-isolation --wheel-dir dist .
+
+      # This proves the install path works, not that this exact version is live on PyPI.
+      - name: Local-wheel Action install smoke
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        run: python dist/waggle-context-action/tests/local_wheel_install_smoke.py dist/*.whl
 
   # ── Code-analysis tests ───────────────────────────────────────────────────
   code-analysis:
@@ -130,7 +142,7 @@ jobs:
       - name: Check distribution metadata
         run: |
           pip install twine
-          twine check dist/*
+          twine check dist/*.whl dist/*.tar.gz
 
   codex-plugin-runtime:
     name: Codex plugin runtime layout
@@ -232,4 +244,3 @@ jobs:
 
       - name: Check metadata version alignment
         run: python3 ../../../scripts/check_extension_metadata.py --verbose
-
