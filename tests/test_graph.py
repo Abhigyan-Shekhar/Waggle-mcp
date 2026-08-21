@@ -60,6 +60,93 @@ def make_graph(tmp_path: Path) -> MemoryGraph:
     return MemoryGraph(tmp_path / "memory.db", FakeEmbeddingModel())
 
 
+def test_add_node_persists_explicit_timestamps(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    stamp = datetime(2025, 1, 2, 3, 4, 5, tzinfo=UTC)
+
+    stored = graph.add_node(
+        node_id="event-1",
+        label="Event",
+        content="Deterministic event",
+        node_type=NodeType.NOTE,
+        created_at=stamp,
+        updated_at=stamp,
+    ).node
+
+    assert stored.created_at == stamp
+    assert stored.updated_at == stamp
+    assert graph.get_node("event-1").created_at == stamp
+    assert graph.get_node("event-1").updated_at == stamp
+
+
+def test_add_edge_persists_explicit_timestamp(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    stamp = datetime(2025, 1, 2, 3, 4, 5, tzinfo=UTC)
+    source = graph.add_node(label="Source", content="Source node", node_type=NodeType.ENTITY).node
+    target = graph.add_node(label="Target", content="Target node", node_type=NodeType.ENTITY).node
+
+    edge = graph.add_edge(
+        edge_id="edge-1",
+        source_id=source.id,
+        target_id=target.id,
+        relationship=RelationType.RELATES_TO,
+        created_at=stamp,
+    )
+
+    related = graph.get_related(node_id=source.id, max_depth=1)
+    assert edge.created_at == stamp
+    assert related.edges[0].created_at == stamp
+
+
+def test_add_edge_with_result_reports_whether_edge_was_created(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    source = graph.add_node(label="Source", content="Source node", node_type=NodeType.ENTITY).node
+    target = graph.add_node(label="Target", content="Target node", node_type=NodeType.ENTITY).node
+
+    first = graph.add_edge_with_result(
+        edge_id="edge-1",
+        source_id=source.id,
+        target_id=target.id,
+        relationship=RelationType.RELATES_TO,
+    )
+    second = graph.add_edge_with_result(
+        edge_id="edge-2",
+        source_id=source.id,
+        target_id=target.id,
+        relationship=RelationType.RELATES_TO,
+    )
+
+    assert first.created is True
+    assert second.created is False
+    assert second.edge.id == first.edge.id
+
+
+def test_update_node_persists_explicit_timestamp_and_metadata(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    created_at = datetime(2025, 1, 2, 3, 4, 5, tzinfo=UTC)
+    updated_at = datetime(2025, 1, 3, 4, 5, 6, tzinfo=UTC)
+    graph.add_node(
+        node_id="event-1",
+        label="Event",
+        content="Original event",
+        node_type=NodeType.NOTE,
+        metadata={"action": "opened"},
+        created_at=created_at,
+        updated_at=created_at,
+    )
+
+    updated = graph.update_node(
+        node_id="event-1",
+        content="Edited event",
+        metadata={"action": "edited"},
+        updated_at=updated_at,
+    )
+
+    assert updated.created_at == created_at
+    assert updated.updated_at == updated_at
+    assert updated.metadata == {"action": "edited"}
+
+
 def test_memory_graph_refuses_corrupted_database_before_mutating(tmp_path: Path) -> None:
     db_path = tmp_path / "memory.db"
     db_path.write_bytes(b"not a sqlite database")
@@ -338,6 +425,31 @@ def test_exact_duplicate_nodes_are_reused_and_tags_are_merged(tmp_path: Path) ->
     assert second.dedup_reason == "exact_content"
     assert second.node.tags == ["python", "backend"]
     assert graph.get_stats().total_nodes == 1
+
+
+def test_exact_duplicate_preserves_caller_supplied_updated_at(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    created_at = datetime(2025, 1, 2, 3, 4, 5, tzinfo=UTC)
+    updated_at = datetime(2025, 1, 3, 4, 5, 6, tzinfo=UTC)
+    first = graph.add_node(
+        label="Python Preference",
+        content="User prefers Python for backend work",
+        node_type=NodeType.PREFERENCE,
+        created_at=created_at,
+        updated_at=created_at,
+    )
+
+    second = graph.add_node(
+        label="Python Preference",
+        content="User prefers Python for backend work",
+        node_type=NodeType.PREFERENCE,
+        created_at=updated_at,
+        updated_at=updated_at,
+    )
+
+    assert second.created is False
+    assert second.node.updated_at == updated_at
+    assert graph.get_node(first.node.id).updated_at == updated_at
 
 
 def test_semantic_duplicate_nodes_reuse_existing_entry(tmp_path: Path) -> None:
@@ -1313,6 +1425,34 @@ def test_conflict_detection_creates_contradiction_edge(tmp_path: Path) -> None:
     related = graph.get_related(node_id=second.node.id, max_depth=1)
     assert any(edge.relationship == RelationType.CONTRADICTS for edge in related.edges)
     assert first.node.id in {node.id for node in related.nodes}
+
+
+def test_conflict_detection_preserves_caller_supplied_timestamp(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    created_at = datetime(2025, 1, 2, 3, 4, 5, tzinfo=UTC)
+    conflict_at = datetime(2025, 1, 3, 4, 5, 6, tzinfo=UTC)
+    first = graph.add_node(
+        label="REST Preference",
+        content="User prefers REST APIs for backend services",
+        node_type=NodeType.PREFERENCE,
+        created_at=created_at,
+        updated_at=created_at,
+    )
+    second = graph.add_node(
+        label="GraphQL Preference",
+        content="User prefers GraphQL APIs for backend services",
+        node_type=NodeType.PREFERENCE,
+        created_at=conflict_at,
+        updated_at=conflict_at,
+    )
+
+    related = graph.get_related(node_id=second.node.id, max_depth=1)
+    conflict_edge = next(edge for edge in related.edges if edge.relationship == RelationType.CONTRADICTS)
+    superseded = graph.get_node(first.node.id)
+
+    assert conflict_edge.created_at == conflict_at
+    assert superseded.updated_at == conflict_at
+    assert superseded.metadata["superseded_at"] == conflict_at.isoformat()
 
 
 def test_conflict_detection_skips_meta_policy_example_nodes(tmp_path: Path) -> None:

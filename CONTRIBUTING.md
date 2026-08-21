@@ -349,6 +349,40 @@ If ONNX dependencies are unavailable, model initialization may fail and Waggle w
 
 Use the default `pytorch` backend unless you specifically want ONNX Runtime inference.
 
+---
+
+## Releasing and Version Sync
+
+This repository maintains version numbers across multiple manifests and configuration files:
+- `pyproject.toml`
+- `apps/vscode-extension/package.json`
+- `apps/vscode-extension/package-lock.json`
+- `apps/mcp/claude-desktop-extension/package.json`
+- `apps/mcp/claude-desktop-extension/package-lock.json`
+- `apps/mcp/claude-desktop-extension/manifest.json`
+
+To keep these version numbers synchronized, use the helper script `scripts/sync_version.py`.
+
+### How to bump the version
+To bump the version across all files to `X.Y.Z`, run:
+```bash
+python scripts/sync_version.py --sync X.Y.Z
+```
+
+If you manually edit `pyproject.toml`'s version, you can propagate it to all other files by running:
+```bash
+python scripts/sync_version.py --sync
+```
+
+### Checking for version drift
+CI automatically validates that all version numbers match. To run this check locally, execute:
+```bash
+python scripts/sync_version.py --check
+```
+If there is any drift, the script will print the mismatched versions and exit with a non-zero status code.
+
+---
+
 ## How to Submit a PR
 
 1. **Open an issue first** for bugs, doc gaps, or feature proposals — especially larger changes.
