@@ -502,17 +502,21 @@ The AI agent reads `~/.gemini/antigravity/mcp_config.json` (macOS/Linux) or `%US
 
 Run `waggle-mcp doctor` to see exactly which config files exist and which ones have a waggle entry.
 
+### Claude web/mobile self-hosting
+
+Claude web and mobile cannot launch a local stdio MCP process. To use Waggle there, run Waggle on your own machine in HTTP mode and expose `/mcp` through a user-owned HTTPS tunnel or reverse proxy.
+
+See [Claude self-hosted connector setup](./docs/claude-self-hosted-connector.md).
+
 ### ChatGPT
 
-ChatGPT custom MCP connectors require a remote HTTPS server. Deploy Waggle in HTTP mode with the Neo4j backend, expose `/mcp` over HTTPS, then add that URL as a custom connector in ChatGPT (`Settings → Connectors → Advanced → Developer mode`).
+ChatGPT custom MCP connectors require a remote HTTPS server. Run Waggle in HTTP mode, expose `/mcp` over HTTPS, then add that URL as a custom connector in ChatGPT (`Settings → Connectors → Advanced → Developer mode`). SQLite is the simplest single-user self-hosted backend; use Neo4j for team or production deployments.
 
 ```bash
 WAGGLE_TRANSPORT=http \
-WAGGLE_BACKEND=neo4j \
-WAGGLE_DEFAULT_TENANT_ID=workspace-default \
-WAGGLE_NEO4J_URI=bolt://localhost:7687 \
-WAGGLE_NEO4J_USERNAME=neo4j \
-WAGGLE_NEO4J_PASSWORD=change-me \
+WAGGLE_BACKEND=sqlite \
+WAGGLE_DEFAULT_TENANT_ID=local-default \
+WAGGLE_DB_PATH=~/.waggle/waggle.db \
 waggle-mcp serve
 ```
 
@@ -752,11 +756,18 @@ waggle-mcp import-graph-backup --input-path my_memory.json
 | `waggle-mcp init` | Interactive setup wizard for one client. |
 | `waggle-mcp serve` | Run the MCP server (usually started by your client). |
 | `waggle-mcp demo` | Run the 60-second local demo with a pre-loaded example graph. |
+| `waggle-mcp bootstrap` | Seed project memory from README/docs/config/git metadata. |
+| `waggle-mcp stats` | Show local project-memory counts, scopes, and recent nodes. |
+| `waggle-mcp search "query"` | Search local project memory from the terminal. |
+| `waggle-mcp timeline` | Review recent memory events in time order. |
+| `waggle-mcp inspect-node <id>` | Inspect one memory node, metadata, evidence, and edges. |
 | `waggle-mcp edit-graph` | Launch Graph Studio in the browser. |
 | `waggle-mcp uninstall-hooks` | Remove the waggle-managed hooks block from Claude Code settings. |
 | `waggle-mcp export-context-bundle` | Export a portable Markdown/JSON context pack. |
 | `waggle-mcp export-markdown-vault` | Export the graph as an Obsidian-style vault. |
 | `waggle-mcp ingest-transcript-handoff` | Ingest a rollover transcript, export a handoff bundle, and emit a session `.abhi` checkpoint. |
+
+For the terminal-first project-memory workflow, see [docs/project-memory-cli.md](docs/project-memory-cli.md).
 
 ### `WAGGLE_STARTUP_MODE`
 
@@ -814,6 +825,7 @@ Controls the cosine similarity threshold for automatic node deduplication at wri
 ## Security & Privacy
 
 - Data stays local by default (`~/.waggle/waggle.db`). No telemetry, no cloud calls for local operation.
+- Anonymous telemetry is opt-in only; see [docs/telemetry.md](docs/telemetry.md) for the exact events, properties, and CLI controls.
 - Memory only leaves your machine if you configure a remote backend or explicitly export/push.
 - Local SQLite is not encrypted at rest — use OS disk encryption if the stored history is sensitive.
 - Before `.abhi` export, Waggle scans transcript text for likely secrets (API keys, JWTs, passwords). Export is refused if secrets are found unless you pass `--force`.
@@ -864,7 +876,7 @@ Run `waggle-mcp doctor` first — it usually identifies the actual failure mode.
 
 **`AuthenticationError: Invalid API key`**
 - Cause: HTTP transport requires a valid API key header.
-- Fix: send `X-API-Key: <your_key>` and generate one with `waggle-mcp keys create`; see `docs/reference.md`.
+- Fix: send either `X-API-Key: <your_key>` or `Authorization: Bearer <your_key>` and generate one with `waggle-mcp create-api-key`; see `docs/reference.md`.
 
 **Client cannot see tools**
 - Cause: the client is not connected to the correct MCP server.

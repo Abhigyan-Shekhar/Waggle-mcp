@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.machinery
 import logging
+import os
+import sys
 import threading
+import types
 from collections import OrderedDict
 from typing import Any
 
@@ -32,6 +36,84 @@ STATUS_WARMING_UP = "warming_up"
 STATUS_READY = "ready"
 STATUS_FAILED = "failed"
 STATUS_DISABLED = "disabled"  # fast / inspection mode
+
+
+class _TransformersMeanPoolEncoder:
+    def __init__(self, model_name: str, *, device: str, local_files_only: bool) -> None:
+        import importlib.metadata as metadata
+
+        entry_points = metadata.entry_points
+        packages_distributions = metadata.packages_distributions
+
+        def entry_points_without_torch_backends(*args: Any, **kwargs: Any) -> Any:
+            group = kwargs.get("group")
+            if group is None and args:
+                group = args[0]
+            if isinstance(group, str) and group.startswith("torch."):
+                return []
+            return entry_points(*args, **kwargs)
+
+        metadata.entry_points = entry_points_without_torch_backends
+        metadata.packages_distributions = dict
+        installed_sklearn = sys.modules.get("sklearn")
+        installed_sklearn_metrics = sys.modules.get("sklearn.metrics")
+        sklearn_stub = types.ModuleType("sklearn")
+        metrics_stub = types.ModuleType("sklearn.metrics")
+        sklearn_stub.__spec__ = importlib.machinery.ModuleSpec("sklearn", loader=None)
+        metrics_stub.__spec__ = importlib.machinery.ModuleSpec("sklearn.metrics", loader=None)
+        metrics_stub.roc_curve = lambda *args, **kwargs: ([], [], [])
+        sklearn_stub.metrics = metrics_stub
+        sys.modules.setdefault("sklearn", sklearn_stub)
+        sys.modules.setdefault("sklearn.metrics", metrics_stub)
+        try:
+            import torch
+            from transformers import AutoModel, AutoTokenizer
+        finally:
+            metadata.entry_points = entry_points
+            metadata.packages_distributions = packages_distributions
+            if installed_sklearn is None:
+                sys.modules.pop("sklearn", None)
+            else:
+                sys.modules["sklearn"] = installed_sklearn
+            if installed_sklearn_metrics is None:
+                sys.modules.pop("sklearn.metrics", None)
+            else:
+                sys.modules["sklearn.metrics"] = installed_sklearn_metrics
+
+        repo_id = model_name if "/" in model_name else f"sentence-transformers/{model_name}"
+        self._torch = torch
+        self._tokenizer = AutoTokenizer.from_pretrained(repo_id, local_files_only=local_files_only)
+        self._model = AutoModel.from_pretrained(repo_id, local_files_only=local_files_only)
+        self._device = device
+        self._model.to(device)
+        self._model.eval()
+
+    def encode(
+        self,
+        texts: str | list[str],
+        *,
+        normalize_embeddings: bool = True,
+        convert_to_numpy: bool = True,
+        batch_size: int = 32,
+    ) -> np.ndarray:
+        single = isinstance(texts, str)
+        values = [texts] if single else list(texts)
+        arrays: list[np.ndarray] = []
+        torch = self._torch
+        for start in range(0, len(values), batch_size):
+            batch = values[start : start + batch_size]
+            encoded = self._tokenizer(batch, padding=True, truncation=True, return_tensors="pt")
+            encoded = {key: value.to(self._device) for key, value in encoded.items()}
+            with torch.no_grad():
+                output = self._model(**encoded)
+            token_embeddings = output.last_hidden_state
+            mask = encoded["attention_mask"].unsqueeze(-1).expand(token_embeddings.size()).float()
+            pooled = torch.sum(token_embeddings * mask, dim=1) / torch.clamp(mask.sum(dim=1), min=1e-9)
+            if normalize_embeddings:
+                pooled = torch.nn.functional.normalize(pooled, p=2, dim=1)
+            arrays.append(pooled.cpu().numpy().astype(np.float32))
+        result = np.vstack(arrays) if arrays else np.empty((0, 0), dtype=np.float32)
+        return result[0] if single else result
 
 
 class EmbeddingModel:
@@ -332,15 +414,20 @@ class EmbeddingModel:
         )
 
     def _load_transformer_model(self) -> Any:
-        from sentence_transformers import SentenceTransformer
+        device = os.getenv("WAGGLE_EMBED_DEVICE", "").strip().lower()
+        if not device:
+            device = "cpu"
 
         if self.embedding_backend == "onnx":
+            from sentence_transformers import SentenceTransformer
+
             return SentenceTransformer(
                 self.model_name,
                 backend="onnx",
+                device=device,
             )
         try:
-            return SentenceTransformer(self.model_name, local_files_only=True)
+            return _TransformersMeanPoolEncoder(self.model_name, device=device, local_files_only=True)
         except Exception:
             # Model not cached locally - must download from HuggingFace.
             # This can take 30-120 s and requires a network connection.
@@ -358,7 +445,7 @@ class EmbeddingModel:
                     ),
                 },
             )
-            return SentenceTransformer(self.model_name)
+            return _TransformersMeanPoolEncoder(self.model_name, device=device, local_files_only=False)
 
     def _embed_deterministically(self, text: str) -> np.ndarray:
         vector = np.zeros(256, dtype=np.float32)

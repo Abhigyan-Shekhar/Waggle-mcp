@@ -23,6 +23,43 @@ def test_parser_accepts_explicit_serve_transport_override() -> None:
     assert args.transport == "stdio"
 
 
+def test_parser_accepts_claude_self_host_options() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(
+        [
+            "claude-self-host",
+            "--tenant-id",
+            "workspace-a",
+            "--db-path",
+            "/tmp/waggle.db",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "18080",
+            "--tunnel-url",
+            "https://waggle.example.test",
+            "--create-key",
+            "--key-name",
+            "claude-test",
+            "--scopes",
+            "graph:read",
+            "--tunnel-provider",
+            "cloudflare",
+        ]
+    )
+
+    assert args.command == "claude-self-host"
+    assert args.tenant_id == "workspace-a"
+    assert args.db_path == "/tmp/waggle.db"
+    assert args.host == "127.0.0.1"
+    assert args.port == 18080
+    assert args.tunnel_url == "https://waggle.example.test"
+    assert args.create_key is True
+    assert args.key_name == "claude-test"
+    assert args.scopes == "graph:read"
+    assert args.tunnel_provider == "cloudflare"
+
+
 @pytest.mark.parametrize("command_name", ["graph-studio", "open-studio"])
 def test_parser_exposes_graph_studio_aliases(command_name: str) -> None:
     parser = _build_parser()

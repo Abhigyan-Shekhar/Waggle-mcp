@@ -50,3 +50,9 @@ See [troubleshooting.md](./troubleshooting.md).
 ## Security and privacy
 
 The server runs locally over stdio. Memory stays on disk under your configured database path unless you export it.
+
+## Claude web/mobile
+
+Claude web and mobile cannot launch this local stdio server directly. If you need web/mobile access, use the self-hosted remote connector guide:
+
+[Claude self-hosted connector](../claude-self-hosted-connector.md)

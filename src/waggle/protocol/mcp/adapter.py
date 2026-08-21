@@ -13,6 +13,7 @@ from __future__ import annotations
 import anyio
 import mcp.types as types
 
+from waggle import __version__, telemetry
 from waggle.tools.context import WaggleRequestContext
 from waggle.tools.dispatcher import WaggleToolDispatcher
 from waggle.tools.results import WaggleToolResult
@@ -50,8 +51,10 @@ class WagglemcpAdapter:
         tools = [
             types.Tool(
                 name=d.name,
+                title=d.title,
                 description=d.description,
                 input_schema=d.input_schema,  # snake_case in SDK v2
+                annotations=types.ToolAnnotations(**(d.annotations or {})),
             )
             for d in self._dispatcher.list_tools()
         ]
@@ -73,6 +76,15 @@ class WagglemcpAdapter:
             params.arguments or {},
             waggle_ctx,
             graph,
+        )
+        telemetry.capture_tool_event(
+            params.name,
+            structured=waggle_result.structured,
+            is_error=waggle_result.is_error,
+            waggle_version=__version__,
+            transport=waggle_ctx.transport,
+            backend=self._dispatcher.config.backend,
+            embedding_mode=("deterministic" if self._dispatcher.config.model_name == "deterministic" else "local"),
         )
 
         return self._to_mcp_result(waggle_result)

@@ -39,7 +39,7 @@ conversation in memory, it maintains a structured knowledge graph and retrieves
 only what is relevant at each turn.
 
 **Step 1 — Observe.** After each turn,
-[`observe_conversation`](../src/waggle/graph/__init__.py) runs an extraction pass and
+[`observe_conversation`](../src/waggle/graph/transcript.py) runs an extraction pass and
 writes structured nodes — decisions, preferences, entities, facts — into a
 SQLite-backed knowledge graph. The raw transcript is also stored verbatim for
 evidence retrieval.
@@ -97,7 +97,7 @@ Type:    decision
 ```
 
 When the same fact resurfaces in turns 6 and 9, the deduplication layer
-([`_find_duplicate_node`](../src/waggle/graph/__init__.py)) recognises the semantic
+([`_find_duplicate_node`](../src/waggle/graph/mutation.py)) recognises the semantic
 equivalence via cosine similarity and merges the new observation into the
 existing node rather than creating a duplicate.
 
@@ -139,7 +139,7 @@ at the 1 200-token budget.
 
 ### 1. Deduplication
 
-[`_find_duplicate_node`](../src/waggle/graph/__init__.py) computes cosine similarity
+[`_find_duplicate_node`](../src/waggle/graph/mutation.py) computes cosine similarity
 between each incoming node embedding and all existing nodes of the same type.
 When the similarity exceeds `dedup_similarity_threshold` (default: **0.92**),
 the observation is merged into the existing node. No matter how many times a
@@ -235,5 +235,5 @@ Cost scales with conversation length  Cost is constant per turn
 | Hybrid retrieval and RRF fusion | [`src/waggle/retrieval/hybrid.py`](../src/waggle/retrieval/hybrid.py) |
 | Recursive context assembly and budgeting | [`src/waggle/recursive_context.py`](../src/waggle/recursive_context.py) |
 | Token efficiency benchmark harness | [`src/waggle/token_efficiency_benchmark.py`](../src/waggle/token_efficiency_benchmark.py) |
-| Graph observation and extraction flow | [`src/waggle/graph/__init__.py`](../src/waggle/graph/__init__.py) |
+| Graph observation and extraction flow | [`src/waggle/graph/transcript.py`](../src/waggle/graph/transcript.py) |
 | Token estimation implementation | [`src/waggle/context_bundle.py`](../src/waggle/context_bundle.py#L24) |

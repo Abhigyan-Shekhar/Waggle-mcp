@@ -203,7 +203,7 @@ _QUESTION_PREFIX_RE = re.compile(r"^(why|what|how|when|where|who|which|can|could
 _FILE_PATH_RE = re.compile(
     r"\b(?:[\w.-]+/)+[\w.-]+\.[A-Za-z0-9]+\b|\b[\w.-]+\.(?:py|ts|tsx|js|jsx|rs|go|java|kt|rb|php|md|json|yaml|yml|toml|sql)\b"
 )
-_ENTITY_RE = re.compile(r"\b(?:[A-Z]{2,}[A-Z0-9]*|[A-Z][a-z]+(?:[A-Z][A-Za-z0-9]+)+|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b")
+_ENTITY_RE = re.compile(r"\b(?:[A-Z]{2,}[A-Z0-9]*|[A-Z][a-z]+[A-Z][A-Za-z0-9]*|[A-Z][a-z]+(?:\s[A-Z][a-z]+)+)\b")
 _PREFERENCE_RE = re.compile(
     r"\b(?:"
     r"(?:i\s+)?(?:prefer|like|love|want|favo(?:u)?r|avoid)"
@@ -250,6 +250,25 @@ _ASSISTANT_MEMORY_PREFIX_RE = re.compile(
     re.IGNORECASE,
 )
 _LEADING_ACK_RE = re.compile(r"^\s*(?:understood|got it|okay|ok|sure)[,\s.-]+", re.IGNORECASE)
+_PERSONAL_PRONOUN_RE = re.compile(r"\b(?:i|i'm|im|i've|ive|me|my)\b", re.IGNORECASE)
+_PERSONAL_NARRATIVE_RE = re.compile(
+    r"\b(?:"
+    r"remember(?:ed|ing)?|memories?|nostalgic|used to|when i was|as a kid|childhood|growing up|grew up|"
+    r"high school|college|university|school|reunion|old friends?|family|parents?|mother|father|mom|dad|"
+    r"grand(?:mother|father|parent)s?|hometown|past experiences?|happy|sad|miss(?:ed)?|proud|surprised"
+    r")\b",
+    re.IGNORECASE,
+)
+_LOCATION_FACT_RE = re.compile(
+    r"\b(?P<subject>i|[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})\s+"
+    r"(?:"
+    r"(?:currently\s+)?lives?\s+in"
+    r"|(?:am|is|are)\s+based\s+in"
+    r"|(?:am|is|are)\s+from"
+    r")\s+"
+    r"(?P<location>[A-Z][A-Za-z0-9.'-]*(?:\s+[A-Z][A-Za-z0-9.'-]*){0,4})\b",
+    re.IGNORECASE,
+)
 _BACKEND_RE = re.compile(
     r"\b(?:using|use|uses|built with|build with)\s+(?P<tech>[A-Za-z][A-Za-z0-9.+-]*)\s+for\s+(?:the\s+)?backend\b"
     r"|\b(?P<tech_is>[A-Za-z][A-Za-z0-9.+-]*)\s+is\s+(?:the\s+)?backend\b",
@@ -914,7 +933,12 @@ def extract_conversation_candidates(
 
             node_type = _infer_observed_node_type(sentence)
             if node_type is not None:
-                label = sentence.strip() if node_type == NodeType.QUESTION else infer_label(sentence)
+                if node_type == NodeType.QUESTION:
+                    label = sentence.strip()
+                elif _is_personal_narrative(sentence):
+                    label = _personal_narrative_label(sentence)
+                else:
+                    label = infer_label(sentence)
                 content = sentence if node_type == NodeType.QUESTION else _normalize_statement(sentence)
                 _append_candidate(
                     candidates,
@@ -1065,6 +1089,8 @@ def _infer_observed_node_type(text: str) -> NodeType | None:
         return NodeType.CONCEPT
     if _TODO_RE.search(stripped):
         return NodeType.NOTE
+    if _is_personal_narrative(stripped):
+        return NodeType.NOTE
     entity_matches = extract_named_entities(stripped)
     if entity_matches or _FILE_PATH_RE.search(stripped):
         return NodeType.ENTITY
@@ -1085,6 +1111,23 @@ def _normalize_statement(sentence: str) -> str:
     if not normalized.endswith("."):
         normalized = f"{normalized}."
     return normalized
+
+
+def _is_personal_narrative(sentence: str) -> bool:
+    return bool(_PERSONAL_PRONOUN_RE.search(sentence) and _PERSONAL_NARRATIVE_RE.search(sentence))
+
+
+def _personal_narrative_label(sentence: str) -> str:
+    lowered = normalize_text(sentence)
+    if "high school" in lowered or "school" in lowered:
+        return "Personal school memory"
+    if "reunion" in lowered or "old friend" in lowered:
+        return "Personal reunion context"
+    if "family" in lowered or "mother" in lowered or "father" in lowered or "mom" in lowered or "dad" in lowered:
+        return "Personal family context"
+    if "miss" in lowered or "sad" in lowered or "happy" in lowered or "nostalgic" in lowered:
+        return "Personal emotional context"
+    return infer_label(sentence)
 
 
 def _label_for_choice_with_context(*, token: str, sentence: str) -> str:
@@ -1180,6 +1223,19 @@ def _extract_structured_observation_candidates(sentence: str, *, speaker: str) -
                 }
             )
             return candidates
+
+    location_match = _LOCATION_FACT_RE.search(sentence)
+    if location_match:
+        subject = location_match.group("subject").strip()
+        normalized_subject = "User" if subject.lower() == "i" else subject
+        candidates.append(
+            {
+                "label": f"{normalized_subject} location",
+                "content": _normalize_statement(sentence),
+                "node_type": NodeType.FACT,
+                "tags": [*tags, "personal-fact", "location"],
+            }
+        )
 
     backend_match = _BACKEND_RE.search(sentence)
     if backend_match:

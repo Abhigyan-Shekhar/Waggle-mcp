@@ -387,6 +387,45 @@ def test_post_response_ingests_durable_turns(tmp_path: Path) -> None:
         assert json.loads(output_lines[-1]) == {}
 
 
+def test_post_response_uses_resolved_session_scope(tmp_path: Path) -> None:
+    """post_response writes with the normalized session_id from resolve_scope."""
+    mod = _load_hook_module("post_response_resolved_session", "post_response.py")
+
+    payload = json.dumps(
+        {
+            "session_id": "  s1  ",
+            "project": "MCP",
+            "agent_id": "codex",
+            "transcript": [
+                {"role": "user", "content": "We decided to normalize hook session scope before writes."},
+                {"role": "assistant", "content": "Understood. I'll remember that hook scope decision."},
+            ],
+        }
+    )
+
+    with (
+        patch("sys.stdin", StringIO(payload)),
+        patch("builtins.print"),
+        patch("sys.exit", side_effect=SystemExit),
+        patch("waggle.graph.MemoryGraph.observe_conversation") as observe_mock,
+        patch.dict(
+            "os.environ",
+            {
+                "WAGGLE_DB_PATH": str(tmp_path / "hooks-test.db"),
+                "WAGGLE_MODEL": "deterministic",
+                "WAGGLE_BACKEND": "sqlite",
+                "WAGGLE_DEFAULT_TENANT_ID": "local-default",
+            },
+        ),
+        contextlib.suppress(SystemExit),
+    ):
+        mod.main()
+
+    observe_mock.assert_called_once()
+    _, kwargs = observe_mock.call_args
+    assert kwargs["session_id"] == "s1"
+
+
 def test_pre_response_restores_checkpoint_when_db_scope_is_empty(tmp_path: Path) -> None:
     """pre_response falls back to a session checkpoint only after scoped DB recall is empty."""
     mod = _load_hook_module("pre_response_restore", "pre_response.py")

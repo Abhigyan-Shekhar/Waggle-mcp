@@ -6,10 +6,10 @@ import json
 import logging
 import os
 import re
+import shlex
 import sys
 import tempfile
 import threading
-import warnings
 import webbrowser
 from contextlib import suppress
 from datetime import timedelta
@@ -18,14 +18,15 @@ from typing import Any
 
 import uvicorn
 
-from waggle import __version__
+from waggle import __version__, telemetry
 from waggle.abhi import (
     ABHI_MERGE_STRATEGIES,
     DEFAULT_ABHI_MERGE_STRATEGY,
     build_abhi_document,
     load_abhi_document,
 )
-from waggle.config import DEFAULT_DB_PATH, AppConfig
+from waggle.bootstrap import DEFAULT_MAX_FILE_BYTES, DEFAULT_MAX_FILES, bootstrap_repository
+from waggle.config import DEFAULT_DB_PATH, AppConfig, resolve_default_db_path
 from waggle.embeddings import EmbeddingModel
 from waggle.errors import ValidationFailure, WaggleError
 from waggle.github_event import ingest_github_event
@@ -75,6 +76,14 @@ except Exception:
 from .drive import _require_drive_sync
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _write_stdout_line(value: str) -> None:
+    stdout = sys.stdout
+    write = type(stdout).write
+    write(stdout, value)
+    write(stdout, "\n")
+
 
 _KNOWN_CONFIG_PATHS: list[tuple[str, str]] = [
     ("Claude Desktop (macOS/Linux)", "~/.config/claude/claude_desktop_config.json"),
@@ -286,6 +295,33 @@ def _build_parser() -> argparse.ArgumentParser:
     create_api_key.add_argument("--expires-in-days", type=int, default=0)
     create_api_key.add_argument("--created-by", default="")
     create_api_key.add_argument("--scopes", default="graph:read,graph:write,admin:read,admin:write")
+
+    claude_self_host = subparsers.add_parser(
+        "claude-self-host",
+        help="Print the self-hosted Claude web/mobile connector setup commands.",
+        description=(
+            "Print a guide for running Waggle locally over HTTP, creating an API key, "
+            "and connecting Claude web/mobile through a user-owned HTTPS tunnel."
+        ),
+    )
+    claude_self_host.add_argument("--tenant-id", default="local-default")
+    claude_self_host.add_argument("--db-path", default=resolve_default_db_path())
+    claude_self_host.add_argument("--host", default="127.0.0.1")
+    claude_self_host.add_argument("--port", type=int, default=8080)
+    claude_self_host.add_argument("--tunnel-url", default="https://<user-owned-tunnel-domain>")
+    claude_self_host.add_argument(
+        "--create-key",
+        action="store_true",
+        help="Deprecated compatibility flag; the guide prints the create-api-key command instead.",
+    )
+    claude_self_host.add_argument("--key-name", default="claude-self-hosted")
+    claude_self_host.add_argument("--scopes", default="graph:read,graph:write")
+    claude_self_host.add_argument(
+        "--tunnel-provider",
+        choices=["generic", "cloudflare", "ngrok", "tailscale"],
+        default="generic",
+        help="Include a tunnel command example for a common provider.",
+    )
 
     list_api_keys = subparsers.add_parser("list-api-keys", help="List API keys for a tenant.")
     list_api_keys.add_argument("--tenant-id", required=True)
@@ -787,6 +823,12 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Deprecated alias for --hooks none. Skip all hook installation.",
     )
+    setup.add_argument(
+        "--telemetry",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Explicitly enable or disable anonymous telemetry during setup. Default: leave current setting unchanged.",
+    )
 
     subparsers.add_parser("init", help="Interactive setup wizard — configure an MCP client to use waggle-mcp.")
     subparsers.add_parser(
@@ -828,6 +870,121 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use the real sentence-transformers model instead of deterministic mode.",
     )
+
+    bootstrap_cmd = subparsers.add_parser(
+        "bootstrap",
+        help="Seed project memory from high-signal repository files.",
+        description=(
+            "Scan README/docs/config/git metadata and store concise project-memory nodes so a fresh agent "
+            "can answer repository-context questions immediately. Source files are not scanned by default."
+        ),
+    )
+    bootstrap_cmd.add_argument(
+        "path", nargs="?", default=".", help="Repository path to bootstrap. Default: current directory."
+    )
+    bootstrap_cmd.add_argument("--project", default="", help="Project scope name. Default: repository folder name.")
+    bootstrap_cmd.add_argument("--agent-id", default="waggle-bootstrap")
+    bootstrap_cmd.add_argument("--session-id", default="repository-bootstrap")
+    bootstrap_cmd.add_argument("--db", default="", help="Database path. Default: WAGGLE_DB_PATH or ~/.waggle/waggle.db")
+    bootstrap_cmd.add_argument(
+        "--model", default="", help="Embedding model override. Use deterministic for fast local bootstrap."
+    )
+    bootstrap_cmd.add_argument("--max-files", type=int, default=DEFAULT_MAX_FILES)
+    bootstrap_cmd.add_argument("--max-file-bytes", type=int, default=DEFAULT_MAX_FILE_BYTES)
+    bootstrap_cmd.add_argument("--include-git", action=argparse.BooleanOptionalAction, default=True)
+    bootstrap_cmd.add_argument(
+        "--dry-run", action="store_true", help="Show what would be stored without writing memory."
+    )
+
+    search_cmd = subparsers.add_parser(
+        "search",
+        help="Search project memory from the terminal.",
+        description=(
+            "Run Waggle retrieval without opening an MCP client. Useful after 'waggle-mcp bootstrap' "
+            "or when checking whether project decisions were remembered."
+        ),
+    )
+    search_cmd.add_argument("query", help="Search query.")
+    search_cmd.add_argument("--project", default="", help="Project scope filter.")
+    search_cmd.add_argument("--agent-id", default="", help="Agent/client scope filter.")
+    search_cmd.add_argument("--session-id", default="", help="Session scope filter.")
+    search_cmd.add_argument("--db", default="", help="Database path. Default: WAGGLE_DB_PATH or ~/.waggle/waggle.db")
+    search_cmd.add_argument(
+        "--model", default="", help="Embedding model override. Use deterministic for fast local search."
+    )
+    search_cmd.add_argument("--max-nodes", type=int, default=8)
+    search_cmd.add_argument("--max-depth", type=int, default=2)
+    search_cmd.add_argument("--mode", choices=["graph", "verbatim", "hybrid"], default="hybrid")
+    search_cmd.add_argument("--json", "--as-json", dest="json_output", action="store_true")
+
+    stats_cmd = subparsers.add_parser(
+        "stats",
+        help="Show local project-memory statistics.",
+        description="Inspect node/edge counts, memory scopes, node types, and recent memories from the terminal.",
+    )
+    stats_cmd.add_argument("--db", default="", help="Database path. Default: WAGGLE_DB_PATH or ~/.waggle/waggle.db")
+    stats_cmd.add_argument(
+        "--model", default="", help="Embedding model override. Use deterministic for fast local stats."
+    )
+    stats_cmd.add_argument("--json", "--as-json", dest="json_output", action="store_true")
+
+    timeline_cmd = subparsers.add_parser(
+        "timeline",
+        help="Show recent memory events in time order.",
+        description=(
+            "Inspect recent memory changes, optionally focused around a query or node. "
+            "Use this to see what a local coding agent is likely to remember about a project."
+        ),
+    )
+    timeline_cmd.add_argument("--query", default="", help="Focus timeline around memories matching a query.")
+    timeline_cmd.add_argument("--node-id", default="", help="Focus timeline around one node and its related graph.")
+    timeline_cmd.add_argument("--db", default="", help="Database path. Default: WAGGLE_DB_PATH or ~/.waggle/waggle.db")
+    timeline_cmd.add_argument(
+        "--model", default="", help="Embedding model override. Use deterministic for fast local timeline."
+    )
+    timeline_cmd.add_argument("--limit", type=int, default=12)
+    timeline_cmd.add_argument("--max-depth", type=int, default=2)
+    timeline_cmd.add_argument(
+        "--events",
+        choices=["all", "created", "updated", "evidence", "edges"],
+        default="all",
+        help="Filter timeline event kinds. Default: all.",
+    )
+    timeline_cmd.add_argument("--include-evidence", action=argparse.BooleanOptionalAction, default=True)
+    timeline_cmd.add_argument("--json", "--as-json", dest="json_output", action="store_true")
+
+    inspect_node_cmd = subparsers.add_parser(
+        "inspect-node",
+        help="Inspect one memory node and its related graph context.",
+        description=(
+            "Show the full content, scope, metadata, evidence, related nodes, and edges for a memory node. "
+            "Use node IDs from 'waggle-mcp search' or 'waggle-mcp timeline'."
+        ),
+    )
+    inspect_node_cmd.add_argument("node_id", help="Memory node ID.")
+    inspect_node_cmd.add_argument(
+        "--db", default="", help="Database path. Default: WAGGLE_DB_PATH or ~/.waggle/waggle.db"
+    )
+    inspect_node_cmd.add_argument(
+        "--model", default="", help="Embedding model override. Use deterministic for fast local inspect."
+    )
+    inspect_node_cmd.add_argument("--max-depth", type=int, default=1)
+    inspect_node_cmd.add_argument("--full", action=argparse.BooleanOptionalAction, default=False)
+    inspect_node_cmd.add_argument("--json", "--as-json", dest="json_output", action="store_true")
+
+    telemetry_cmd = subparsers.add_parser(
+        "telemetry",
+        help="Manage opt-in anonymous usage telemetry.",
+        description=(
+            "Telemetry is disabled by default. These commands manage the local opt-in setting and "
+            "show the exact anonymous payload shape Waggle may send when enabled."
+        ),
+    )
+    telemetry_subcommands = telemetry_cmd.add_subparsers(dest="telemetry_command")
+    telemetry_subcommands.add_parser("status", help="Show whether anonymous telemetry is enabled.")
+    telemetry_subcommands.add_parser("enable", help="Enable anonymous telemetry for this installation.")
+    telemetry_subcommands.add_parser("disable", help="Disable anonymous telemetry for this installation.")
+    telemetry_subcommands.add_parser("show", help="Print an example sanitized telemetry payload.")
 
     subparsers.add_parser(
         "uninstall-hooks",
@@ -871,6 +1028,91 @@ def _run_graph_editor_command(config: AppConfig, args: argparse.Namespace) -> in
     return 0
 
 
+def _run_claude_self_host_guide(args: argparse.Namespace) -> int:
+    tenant_id = str(getattr(args, "tenant_id", "local-default") or "local-default").strip()
+    db_path = str(Path(str(getattr(args, "db_path", "") or resolve_default_db_path())).expanduser())
+    host = str(getattr(args, "host", "127.0.0.1") or "127.0.0.1").strip()
+    port = int(getattr(args, "port", 8080) or 8080)
+    local_base_url = f"http://{host}:{port}"
+    tunnel_url = str(getattr(args, "tunnel_url", "https://<user-owned-tunnel-domain>") or "").strip()
+    tunnel_url = tunnel_url.rstrip("/") or "https://<user-owned-tunnel-domain>"
+    tunnel_provider = str(getattr(args, "tunnel_provider", "generic") or "generic").strip()
+    key_name = str(getattr(args, "key_name", "claude-self-hosted") or "claude-self-hosted").strip()
+    scopes = _parse_api_key_scopes(str(getattr(args, "scopes", "graph:read,graph:write") or "graph:read,graph:write"))
+    selected_permissions = ",".join(scopes) or "graph:read,graph:write"
+    if bool(getattr(args, "create_key", False)):
+        print("`--create-key` is deprecated for this guide; use the create-api-key command below.")
+        print()
+
+    print("Waggle Claude self-hosting")
+    print()
+    print("1. Create an API key")
+    print()
+    print("```bash")
+    print("WAGGLE_BACKEND=sqlite \\")
+    print(f"WAGGLE_DEFAULT_TENANT_ID={shlex.quote(tenant_id)} \\")
+    print(f"WAGGLE_DB_PATH={shlex.quote(db_path)} \\")
+    print("waggle-mcp create-api-key \\")
+    print(f"  --tenant-id {shlex.quote(tenant_id)} \\")
+    print(f"  --name {shlex.quote(key_name)} \\")
+    _write_stdout_line(f"  --scopes {shlex.quote(selected_permissions)}")
+    print("```")
+    print()
+    print("2. Start the local HTTP server")
+    print()
+    print("```bash")
+    print("WAGGLE_TRANSPORT=http \\")
+    print("WAGGLE_BACKEND=sqlite \\")
+    print(f"WAGGLE_DEFAULT_TENANT_ID={shlex.quote(tenant_id)} \\")
+    print(f"WAGGLE_DB_PATH={shlex.quote(db_path)} \\")
+    print(f"WAGGLE_HTTP_HOST={shlex.quote(host)} \\")
+    print(f"WAGGLE_HTTP_PORT={port} \\")
+    print("WAGGLE_API_KEY_ENVIRONMENT=local \\")
+    print("waggle-mcp serve --transport http")
+    print("```")
+    print()
+    print("3. Health checks")
+    print()
+    print("```bash")
+    print(f"curl {shlex.quote(local_base_url + '/health/live')}")
+    print(f"curl {shlex.quote(local_base_url + '/health/ready')}")
+    print("```")
+    print()
+    print("4. Tunnel")
+    print()
+    tunnel_command = _claude_self_host_tunnel_command(tunnel_provider, local_base_url, port)
+    if tunnel_command:
+        print("```bash")
+        print(tunnel_command)
+        print("```")
+        print()
+    print("Tunnel routes:")
+    print()
+    print("```text")
+    print(f"{tunnel_url}/mcp -> {local_base_url}/mcp")
+    print(f"{tunnel_url}/health/live -> {local_base_url}/health/live")
+    print(f"{tunnel_url}/health/ready -> {local_base_url}/health/ready")
+    print("```")
+    print()
+    print("5. Claude connector")
+    print()
+    print(f"Server URL: {tunnel_url}/mcp")
+    print("Authorization: Bearer <raw_api_key from step 1>")
+    print()
+    print("Docs: docs/claude-self-hosted-connector.md")
+    return 0
+
+
+def _claude_self_host_tunnel_command(provider: str, local_base_url: str, port: int) -> str:
+    if provider == "cloudflare":
+        return f"cloudflared tunnel --url {shlex.quote(local_base_url)}"
+    if provider == "ngrok":
+        return f"ngrok http {shlex.quote(local_base_url)}"
+    if provider == "tailscale":
+        return f"tailscale funnel {port}"
+    return ""
+
+
 def _normalize_pull_strategy_args(
     args: argparse.Namespace,
 ) -> argparse.Namespace:
@@ -884,24 +1126,8 @@ def _normalize_pull_strategy_args(
     if raw_merge_strategy in _ABHI_IMPORT_STRATEGIES:
         if explicit_import_strategy is None:
             args.import_strategy = raw_merge_strategy
-            warning_message = (
-                f"`--merge-strategy {raw_merge_strategy}` is deprecated for "
-                "selecting the graph import strategy. Use "
-                f"`--import-strategy {raw_merge_strategy}` instead."
-            )
-        else:
-            warning_message = (
-                f"Legacy `--merge-strategy {raw_merge_strategy}` is deprecated "
-                "and has been ignored because `--import-strategy` was also "
-                "supplied."
-            )
 
         args.merge_strategy = DEFAULT_ABHI_MERGE_STRATEGY
-        warnings.warn(
-            warning_message,
-            FutureWarning,
-            stacklevel=2,
-        )
     else:
         args.merge_strategy = raw_merge_strategy or DEFAULT_ABHI_MERGE_STRATEGY
         if explicit_import_strategy is None:
@@ -953,19 +1179,14 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
                 "scopes": created.record.scopes,
             },
         )
-        print(
+        key_payload = {
+            "created": True,
+            "raw_api_key": created.raw_api_key,
+            "api_key": _serialize_api_key_record(created.record),
+        }
+        _write_stdout_line(
             json.dumps(
-                {
-                    "api_key_id": created.record.api_key_id,
-                    "tenant_id": created.record.tenant_id,
-                    "prefix": created.record.prefix,
-                    "name": created.record.name,
-                    "status": created.record.status,
-                    "expires_at": created.record.expires_at.isoformat() if created.record.expires_at else None,
-                    "created_by": created.record.created_by,
-                    "scopes": created.record.scopes,
-                    "raw_api_key": created.raw_api_key,
-                },
+                key_payload,
                 indent=2,
             )
         )
@@ -979,7 +1200,8 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         return 0
     if args.command == "revoke-api-key":
         tenant_backend = backend.for_tenant(getattr(args, "tenant_id", "") or config.default_tenant_id)
-        tenant_backend.revoke_api_key(args.api_key_id)
+        if not tenant_backend.revoke_api_key(args.api_key_id):
+            raise ValidationFailure(f"API key not found: {args.api_key_id}")
         tenant_backend.emit_audit_event(
             event_type="api_key.revoked",
             actor_type="admin",
@@ -988,7 +1210,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             resource_id=args.api_key_id,
             action="revoke",
         )
-        print(json.dumps({"revoked": args.api_key_id}))
+        print(json.dumps({"revoked": True}))
         return 0
     if args.command in {
         "retention-status",
@@ -1109,6 +1331,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             strict_export=bool(getattr(args, "strict_export", False)),
             include_deps=bool(getattr(args, "include_deps", False)),
         )
+        _capture_export_completed(config, exported)
         print(json.dumps(exported.model_dump(mode="json"), indent=2))
         return 0
     if args.command == "checkpoint-context":
@@ -1146,6 +1369,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             strict_export=bool(getattr(args, "strict_export", False)),
             include_deps=bool(getattr(args, "include_deps", False)),
         )
+        _capture_export_completed(config, exported)
         payload = exported.model_dump(mode="json")
         payload["checkpoint_scope"] = scope
         print(json.dumps(payload, indent=2))
@@ -1263,6 +1487,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             remote_name=str(getattr(args, "remote_name", "") or ""),
             encrypted=bool(passphrase),
         )
+        _capture_export_completed(config, exported)
         print(json.dumps(pushed.model_dump(mode="json"), indent=2))
         return 0
     if args.command == "pull":
@@ -1352,6 +1577,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             include_source_prompt=args.include_source_prompt,
             audience=args.audience,
         )
+        _capture_export_completed(config, exported)
         print(json.dumps(exported.model_dump(mode="json"), indent=2))
         return 0
     if args.command == "export-markdown-vault":
@@ -1361,6 +1587,7 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             agent_id=getattr(args, "agent_id", ""),
             session_id=getattr(args, "session_id", ""),
         )
+        _capture_export_completed(config, exported)
         print(json.dumps(exported.model_dump(mode="json"), indent=2))
         return 0
     if args.command == "import-markdown-vault":
@@ -1917,6 +2144,25 @@ def _prompt_path(question: str, default: str) -> str:
     raw = input(f"  [{default}]: ").strip()
     result = raw or default
     print(f"  {_c(_GREEN, '>')} {result}")
+    return result
+
+
+def _prompt_yes_no(question: str, *, default: bool = False, details: str = "") -> bool:
+    from .utils import _BOLD, _GREEN
+
+    print(f"\n{_c(_BOLD, question)}")
+    if details:
+        print(details.rstrip())
+    suffix = "[Y/n]" if default else "[y/N]"
+    try:
+        raw = input(f"  {suffix}: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        raw = ""
+    if not raw:
+        result = default
+    else:
+        result = raw in {"y", "yes", "true", "1", "on"}
+    print(f"  {_c(_GREEN, '>')} {'yes' if result else 'no'}")
     return result
 
 
@@ -2480,8 +2726,18 @@ def _run_demo(args: argparse.Namespace) -> int:
         print()
         print(f"  Cleanup: rm -rf {tmp_dir}")
         print()
+        telemetry.capture(
+            "demo_completed",
+            waggle_version=__version__,
+            properties={"success": True, "embedding_mode": "local" if with_embeddings else "deterministic"},
+        )
 
     except Exception as exc:
+        telemetry.capture(
+            "operation_failed",
+            waggle_version=__version__,
+            properties={"success": False, "error_category": "demo_failed"},
+        )
         _fail(f"Demo failed: {exc}")
         import traceback
 
@@ -2489,6 +2745,316 @@ def _run_demo(args: argparse.Namespace) -> int:
         return 1
 
     return 0
+
+
+def _run_bootstrap(config: AppConfig, args: argparse.Namespace) -> int:
+    from .utils import _BOLD, _CYAN
+
+    if getattr(args, "db", ""):
+        config.db_path = str(Path(args.db).expanduser().resolve())
+    if getattr(args, "model", ""):
+        config.model_name = str(args.model)
+    graph = _build_backend(config)
+    result = bootstrap_repository(
+        graph,
+        getattr(args, "path", "."),
+        project=str(getattr(args, "project", "") or ""),
+        agent_id=str(getattr(args, "agent_id", "") or "waggle-bootstrap"),
+        session_id=str(getattr(args, "session_id", "") or "repository-bootstrap"),
+        include_git=bool(getattr(args, "include_git", True)),
+        max_file_bytes=int(getattr(args, "max_file_bytes", DEFAULT_MAX_FILE_BYTES)),
+        max_files=int(getattr(args, "max_files", DEFAULT_MAX_FILES)),
+        dry_run=bool(getattr(args, "dry_run", False)),
+    )
+
+    print()
+    print(_c(_BOLD, "waggle-mcp bootstrap"))
+    print(_c(_CYAN, "─" * 40))
+    print(f"  repository: {result.root_path}")
+    print(f"  project:    {result.project}")
+    print(f"  database:   {config.db_path}")
+    print(f"  candidates: {len(result.candidates)}")
+    if getattr(args, "dry_run", False):
+        print("  mode:       dry-run")
+    else:
+        print(f"  created:    {result.nodes_created}")
+        print(f"  updated:    {result.nodes_updated}")
+    print()
+    for candidate in result.candidates[:20]:
+        print(f"  - {candidate.label} ({candidate.path})")
+    if len(result.candidates) > 20:
+        print(f"  ... {len(result.candidates) - 20} more")
+    print()
+
+    if not getattr(args, "dry_run", False) and result.nodes_created + result.nodes_updated > 0:
+        telemetry.capture(
+            "memory_stored",
+            waggle_version=__version__,
+            properties={
+                "success": True,
+                "backend": config.backend,
+                "embedding_mode": _telemetry_embedding_mode(config.model_name),
+                "result_count_bucket": _telemetry_count_bucket(result.nodes_created + result.nodes_updated),
+            },
+        )
+    return 0
+
+
+def _run_search(config: AppConfig, args: argparse.Namespace) -> int:
+    from .utils import _BOLD, _CYAN
+
+    if getattr(args, "db", ""):
+        config.db_path = str(Path(args.db).expanduser().resolve())
+    if getattr(args, "model", ""):
+        config.model_name = str(args.model)
+
+    query = str(getattr(args, "query", "") or "").strip()
+    if not query:
+        raise ValidationFailure("Search query cannot be empty.")
+
+    graph = _build_backend(config)
+    result = graph.query(
+        query=query,
+        max_nodes=int(getattr(args, "max_nodes", 8)),
+        max_depth=int(getattr(args, "max_depth", 2)),
+        project=str(getattr(args, "project", "") or ""),
+        agent_id=str(getattr(args, "agent_id", "") or ""),
+        session_id=str(getattr(args, "session_id", "") or ""),
+        retrieval_mode=str(getattr(args, "mode", "hybrid") or "hybrid"),
+    )
+
+    node_count = len(result.nodes)
+    replay_count = len(result.replay_hits)
+    hybrid_count = len(result.hybrid_hits)
+    if getattr(args, "json_output", False):
+        print(result.model_dump_json(indent=2))
+    else:
+        print()
+        print(_c(_BOLD, "waggle-mcp search"))
+        print(_c(_CYAN, "─" * 40))
+        print(f"  query:   {query}")
+        print(f"  mode:    {result.retrieval_mode}")
+        print(f"  nodes:   {node_count}")
+        print(f"  replay:  {replay_count}")
+        print()
+        for index, node in enumerate(result.nodes[: int(getattr(args, "max_nodes", 8))], start=1):
+            tags = f" #{' #'.join(node.tags[:4])}" if node.tags else ""
+            print(f"{index}. [{node.node_type.value}] {node.label}{tags}")
+            print(f"   {_snippet(node.content)}")
+        if result.replay_hits:
+            print()
+            print(_c(_CYAN, "Transcript hits"))
+            for index, hit in enumerate(result.replay_hits[:3], start=1):
+                role = getattr(hit, "role", "")
+                snippet = getattr(hit, "transcript_snippet", "") or getattr(hit, "transcript_text", "")
+                print(f"{index}. [{role}] {_snippet(snippet, limit=180)}")
+        if node_count == 0 and replay_count == 0 and hybrid_count == 0:
+            print("No matching memory found.")
+        print()
+
+    if node_count + replay_count + hybrid_count > 0:
+        telemetry.capture(
+            "memory_retrieved",
+            waggle_version=__version__,
+            properties={
+                "success": True,
+                "backend": config.backend,
+                "embedding_mode": _telemetry_embedding_mode(config.model_name),
+                "result_count_bucket": _telemetry_count_bucket(node_count + replay_count + hybrid_count),
+            },
+        )
+    return 0
+
+
+def _run_stats(config: AppConfig, args: argparse.Namespace) -> int:
+    from .utils import _BOLD, _CYAN
+
+    if getattr(args, "db", ""):
+        config.db_path = str(Path(args.db).expanduser().resolve())
+    if getattr(args, "model", ""):
+        config.model_name = str(args.model)
+
+    graph = _build_backend(config)
+    stats = graph.get_stats()
+    scopes = graph.list_context_scopes()
+    payload = {
+        "database": config.db_path,
+        "backend": config.backend,
+        "stats": stats.model_dump(mode="json"),
+        "scopes": scopes.model_dump(mode="json"),
+    }
+    if getattr(args, "json_output", False):
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+
+    print()
+    print(_c(_BOLD, "waggle-mcp stats"))
+    print(_c(_CYAN, "─" * 40))
+    print(f"  database:        {config.db_path}")
+    print(f"  backend:         {config.backend}")
+    print(f"  nodes:           {stats.total_nodes}")
+    print(f"  edges:           {stats.total_edges}")
+    print(f"  context windows: {stats.total_context_windows}")
+    print(f"  repos:           {stats.total_repos}")
+    print()
+    print(_c(_CYAN, "Node types"))
+    for node_type, count in sorted(stats.node_type_breakdown.items()):
+        if count:
+            print(f"  {node_type}: {count}")
+    if not any(stats.node_type_breakdown.values()):
+        print("  none")
+    print()
+    print(_c(_CYAN, "Scopes"))
+    print(f"  projects:  {', '.join(scopes.projects[:10]) if scopes.projects else 'none'}")
+    print(f"  agents:    {', '.join(scopes.agent_ids[:10]) if scopes.agent_ids else 'none'}")
+    print(f"  sessions:  {', '.join(scopes.session_ids[:10]) if scopes.session_ids else 'none'}")
+    print()
+    print(_c(_CYAN, "Recent memories"))
+    if stats.most_recent_nodes:
+        for node in stats.most_recent_nodes:
+            print(f"  - [{node.node_type.value}] {node.label}")
+    else:
+        print("  none")
+    print()
+    print(_c(_CYAN, "Connected memories"))
+    if stats.most_connected_nodes:
+        for node in stats.most_connected_nodes:
+            print(f"  - [{node.node_type.value}] {node.label} ({node.connection_count})")
+    else:
+        print("  none")
+    print()
+    return 0
+
+
+def _run_timeline(config: AppConfig, args: argparse.Namespace) -> int:
+    from .utils import _BOLD, _CYAN
+
+    if getattr(args, "db", ""):
+        config.db_path = str(Path(args.db).expanduser().resolve())
+    if getattr(args, "model", ""):
+        config.model_name = str(args.model)
+
+    graph = _build_backend(config)
+    requested_limit = int(getattr(args, "limit", 12))
+    event_filter = str(getattr(args, "events", "all") or "all")
+    candidate_limit = requested_limit if event_filter == "all" else max(100, requested_limit * 10)
+    result = graph.timeline(
+        node_id=str(getattr(args, "node_id", "") or ""),
+        query=str(getattr(args, "query", "") or ""),
+        limit=candidate_limit,
+        max_depth=int(getattr(args, "max_depth", 2)),
+        include_evidence=bool(getattr(args, "include_evidence", True)),
+    )
+    if event_filter != "all":
+        result.items = [item for item in result.items if _timeline_event_matches(item.kind, event_filter)][
+            :requested_limit
+        ]
+    if getattr(args, "json_output", False):
+        print(result.model_dump_json(indent=2))
+        return 0
+
+    print()
+    print(_c(_BOLD, "waggle-mcp timeline"))
+    print(_c(_CYAN, "─" * 40))
+    print(f"  database: {config.db_path}")
+    print(f"  scope:    {result.scope}")
+    print(f"  items:    {len(result.items)}")
+    print()
+    if not result.items:
+        print("No memory timeline items found.")
+        print()
+        return 0
+    for index, item in enumerate(result.items, start=1):
+        timestamp = item.timestamp.isoformat(timespec="seconds")
+        ref = item.node_id or item.edge_id or ""
+        suffix = f" ({ref[:8]})" if ref else ""
+        print(f"{index}. {timestamp} [{item.kind}] {item.label}{suffix}")
+        if item.summary:
+            print(f"   {_snippet(item.summary, limit=180)}")
+    print()
+    return 0
+
+
+def _run_inspect_node(config: AppConfig, args: argparse.Namespace) -> int:
+    from .utils import _BOLD, _CYAN
+
+    if getattr(args, "db", ""):
+        config.db_path = str(Path(args.db).expanduser().resolve())
+    if getattr(args, "model", ""):
+        config.model_name = str(args.model)
+
+    node_id = str(getattr(args, "node_id", "") or "").strip()
+    if not node_id:
+        raise ValidationFailure("Node ID cannot be empty.")
+
+    graph = _build_backend(config)
+    result = graph.get_node_history(node_id=node_id, max_depth=int(getattr(args, "max_depth", 1)))
+    if getattr(args, "json_output", False):
+        print(result.model_dump_json(indent=2))
+        return 0
+
+    node = result.node
+    print()
+    print(_c(_BOLD, "waggle-mcp inspect-node"))
+    print(_c(_CYAN, "─" * 40))
+    print(f"  id:       {node.id}")
+    print(f"  type:     {node.node_type.value}")
+    print(f"  label:    {node.label}")
+    print(f"  project:  {node.project or '-'}")
+    print(f"  agent:    {node.agent_id or '-'}")
+    print(f"  session:  {node.session_id or '-'}")
+    print(f"  updated:  {node.updated_at.isoformat(timespec='seconds')}")
+    if node.tags:
+        print(f"  tags:     {', '.join(node.tags)}")
+    print()
+    print(_c(_CYAN, "Content"))
+    print(node.content if bool(getattr(args, "full", False)) else _snippet(node.content, limit=900))
+    if node.metadata:
+        print()
+        print(_c(_CYAN, "Metadata"))
+        for key, value in sorted(node.metadata.items()):
+            print(f"  {key}: {value}")
+    if node.evidence_records:
+        print()
+        print(_c(_CYAN, "Evidence"))
+        for index, evidence in enumerate(node.evidence_records[:5], start=1):
+            source = evidence.source_role or "unknown"
+            print(f"  {index}. [{source} turn {evidence.turn_index}] {_snippet(evidence.source_text, limit=180)}")
+    print()
+    print(_c(_CYAN, "Related nodes"))
+    if result.related_nodes:
+        for related in result.related_nodes[:10]:
+            print(f"  - [{related.node_type.value}] {related.label} ({related.id[:8]})")
+    else:
+        print("  none")
+    print()
+    print(_c(_CYAN, "Edges"))
+    if result.edges:
+        for edge in result.edges[:10]:
+            print(f"  - {edge.source_id[:8]} --[{edge.relationship}]--> {edge.target_id[:8]}")
+    else:
+        print("  none")
+    print()
+    return 0
+
+
+def _timeline_event_matches(kind: str, event_filter: str) -> bool:
+    if event_filter == "created":
+        return kind == "node_created"
+    if event_filter == "updated":
+        return kind == "node_updated"
+    if event_filter == "evidence":
+        return kind == "evidence"
+    if event_filter == "edges":
+        return kind.startswith("edge_")
+    return True
+
+
+def _snippet(text: str, *, limit: int = 220) -> str:
+    normalized = " ".join(str(text).split())
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: max(0, limit - 3)].rstrip() + "..."
 
 
 def _run_setup(args: argparse.Namespace) -> int:
@@ -2512,6 +3078,10 @@ def _run_setup(args: argparse.Namespace) -> int:
     print(f"  model: {args.model}")
     if args.dry_run:
         print("  mode: dry-run")
+        if getattr(args, "telemetry", None) is True:
+            _ok("Would enable anonymous telemetry")
+        elif getattr(args, "telemetry", None) is False:
+            _ok("Would disable anonymous telemetry")
         for client in clients:
             _ok(f"Would configure {client}")
         if "Claude Code" in hook_tools:
@@ -2549,6 +3119,13 @@ def _run_setup(args: argparse.Namespace) -> int:
         _fail(f"Could not create database directory: {exc}")
         return 1
 
+    if getattr(args, "telemetry", None) is True:
+        telemetry_config = telemetry.enable()
+        _ok(f"Anonymous telemetry enabled for installation {telemetry_config.installation_id}")
+    elif getattr(args, "telemetry", None) is False:
+        telemetry_config = telemetry.disable()
+        _ok(f"Anonymous telemetry disabled for installation {telemetry_config.installation_id}")
+
     for client in clients:
         print(f"  {_c(_CYAN, chr(0x27A1))}  {_RESTART_HINTS[client]}")
     print()
@@ -2573,8 +3150,109 @@ def _run_setup(args: argparse.Namespace) -> int:
         doctor_exit = _run_doctor_command(doctor_config, args)
         if doctor_exit:
             print(_c(_CYAN, "Setup completed; doctor reported follow-up warnings above."))
+        telemetry.capture(
+            "setup_completed",
+            waggle_version=__version__,
+            properties={
+                "success": True,
+                "client": _telemetry_client_bucket(clients),
+                "embedding_mode": _telemetry_embedding_mode(args.model),
+            },
+        )
         return 0
+    telemetry.capture(
+        "setup_completed",
+        waggle_version=__version__,
+        properties={
+            "success": True,
+            "client": _telemetry_client_bucket(clients),
+            "embedding_mode": _telemetry_embedding_mode(args.model),
+        },
+    )
     return 0
+
+
+def _telemetry_client_bucket(clients: list[str]) -> str:
+    if len(clients) == 1:
+        return clients[0].lower().replace(" ", "_")
+    if clients:
+        return "multiple"
+    return "unknown"
+
+
+def _telemetry_embedding_mode(model_name: str) -> str:
+    return "deterministic" if model_name == "deterministic" else "local"
+
+
+def _telemetry_count_bucket(count: int) -> str:
+    if count <= 0:
+        return "0"
+    if count <= 5:
+        return "1-5"
+    if count <= 20:
+        return "6-20"
+    if count <= 100:
+        return "21-100"
+    return "101+"
+
+
+def _export_result_count(result: Any) -> int:
+    node_count = getattr(result, "node_count", None)
+    if isinstance(node_count, int):
+        return node_count
+    files_written = getattr(result, "files_written", None)
+    if isinstance(files_written, list):
+        return len(files_written)
+    return 0
+
+
+def _capture_export_completed(config: AppConfig, result: Any) -> None:
+    telemetry.capture(
+        "export_completed",
+        waggle_version=__version__,
+        properties={
+            "success": True,
+            "backend": config.backend,
+            "embedding_mode": _telemetry_embedding_mode(config.model_name),
+            "result_count_bucket": _telemetry_count_bucket(_export_result_count(result)),
+        },
+    )
+
+
+def _run_telemetry_command(args: argparse.Namespace) -> int:
+    subcommand = getattr(args, "telemetry_command", None) or "status"
+    if subcommand == "enable":
+        config = telemetry.enable()
+        print("Anonymous telemetry enabled.")
+        print(f"Installation ID: {config.installation_id}")
+        return 0
+    if subcommand == "disable":
+        config = telemetry.disable()
+        print("Anonymous telemetry disabled.")
+        print(f"Installation ID: {config.installation_id}")
+        return 0
+    if subcommand == "show":
+        payload = telemetry.preview_payload(
+            "memory_retrieved",
+            waggle_version=__version__,
+            properties={
+                "client": "codex",
+                "transport": "stdio",
+                "backend": "sqlite",
+                "embedding_mode": "local",
+                "success": True,
+                "duration_bucket": "100-500ms",
+                "result_count_bucket": "1-5",
+                "query": "never sent",
+                "file_path": "never sent",
+            },
+        )
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if subcommand == "status":
+        print(json.dumps(telemetry.status_payload(), indent=2, sort_keys=True))
+        return 0
+    raise ValidationFailure(f"Unsupported telemetry command: {subcommand}")
 
 
 def _run_init() -> int:
@@ -2617,6 +3295,22 @@ def _run_init() -> int:
     except OSError as exc:
         _fail(f"Could not create database directory: {exc}")
         return 1
+
+    enable_telemetry = _prompt_yes_no(
+        "Help improve Waggle by sharing anonymous usage metrics?",
+        default=False,
+        details=(
+            "  Collected: Waggle version, MCP client type, successful feature usage, "
+            "errors, and performance buckets.\n"
+            "  Never collected: conversations, memories, prompts, repository names, "
+            "file paths, source code, or personal information."
+        ),
+    )
+    telemetry_config = telemetry.enable() if enable_telemetry else telemetry.disable()
+    if enable_telemetry:
+        _ok(f"Anonymous telemetry enabled for installation {telemetry_config.installation_id}")
+    else:
+        _ok("Anonymous telemetry disabled")
 
     print(f"  {_c(_CYAN, chr(0x27A1))}  {_RESTART_HINTS[client]}")
     print()
@@ -2693,6 +3387,62 @@ def main() -> None:
         except Exception as exc:
             _emit_cli_error("internal_error", str(exc), {"type": type(exc).__name__})
             sys.exit(1)
+    if command == "telemetry":
+        try:
+            sys.exit(_run_telemetry_command(args))
+        except ValidationFailure as exc:
+            _emit_cli_error("validation_error", str(exc), {})
+            sys.exit(1)
+    if command == "bootstrap":
+        config = AppConfig.from_env()
+        try:
+            sys.exit(_run_bootstrap(config, args))
+        except ValidationFailure as exc:
+            _emit_cli_error("validation_error", str(exc), {})
+            sys.exit(1)
+        except Exception as exc:
+            _emit_cli_error("internal_error", str(exc), {"type": type(exc).__name__})
+            sys.exit(1)
+    if command == "search":
+        config = AppConfig.from_env()
+        try:
+            sys.exit(_run_search(config, args))
+        except ValidationFailure as exc:
+            _emit_cli_error("validation_error", str(exc), {})
+            sys.exit(1)
+        except Exception as exc:
+            _emit_cli_error("internal_error", str(exc), {"type": type(exc).__name__})
+            sys.exit(1)
+    if command == "stats":
+        config = AppConfig.from_env()
+        try:
+            sys.exit(_run_stats(config, args))
+        except ValidationFailure as exc:
+            _emit_cli_error("validation_error", str(exc), {})
+            sys.exit(1)
+        except Exception as exc:
+            _emit_cli_error("internal_error", str(exc), {"type": type(exc).__name__})
+            sys.exit(1)
+    if command == "timeline":
+        config = AppConfig.from_env()
+        try:
+            sys.exit(_run_timeline(config, args))
+        except ValidationFailure as exc:
+            _emit_cli_error("validation_error", str(exc), {})
+            sys.exit(1)
+        except Exception as exc:
+            _emit_cli_error("internal_error", str(exc), {"type": type(exc).__name__})
+            sys.exit(1)
+    if command == "inspect-node":
+        config = AppConfig.from_env()
+        try:
+            sys.exit(_run_inspect_node(config, args))
+        except ValidationFailure as exc:
+            _emit_cli_error("validation_error", str(exc), {})
+            sys.exit(1)
+        except Exception as exc:
+            _emit_cli_error("internal_error", str(exc), {"type": type(exc).__name__})
+            sys.exit(1)
     if command == "uninstall-hooks":
         sys.exit(_run_uninstall_hooks())
     if command == "init":
@@ -2700,6 +3450,8 @@ def main() -> None:
     if command == "features":
         print(_FEATURES_GUIDE)
         return
+    if command == "claude-self-host":
+        sys.exit(_run_claude_self_host_guide(args))
     if command == "doctor":
         config = AppConfig.from_env()
         sys.exit(_run_admin_command(config, args))
@@ -2715,6 +3467,17 @@ def main() -> None:
 
     configure_logging(config.log_level, stream=log_stream)
     LOGGER.info("waggle_startup")
+    if command == "serve":
+        telemetry.capture(
+            "server_started",
+            waggle_version=__version__,
+            properties={
+                "success": True,
+                "transport": config.transport,
+                "backend": config.backend,
+                "embedding_mode": _telemetry_embedding_mode(config.model_name),
+            },
+        )
     if command in {"edit-graph", "view-graph", "ui", "graph-studio", "open-studio"}:
         try:
             exit_code = _run_graph_editor_command(config, args)
@@ -2742,9 +3505,9 @@ def main() -> None:
             sys.exit(3)
         sys.exit(exit_code or 0)
         return
+    if config.backend == "sqlite":
+        Path(config.db_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
     if config.transport == "http":
         run_http(config)
         return
-    if config.backend == "sqlite":
-        Path(config.db_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
     asyncio.run(run_stdio(config))

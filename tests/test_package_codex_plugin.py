@@ -105,6 +105,27 @@ def test_package_release_reports_missing_root_manifest_cleanly(tmp_path: Path) -
     assert "Missing required bundle file: .codex-plugin/plugin.json" in str(exc_info.value)
 
 
+@pytest.mark.parametrize("asset_path", ["./../outside.png", "./assets/outside.png"])
+def test_package_release_rejects_manifest_assets_outside_root(tmp_path: Path, asset_path: str) -> None:
+    root = _make_fake_codex_plugin_tree(tmp_path / "repo")
+    outside = tmp_path / "outside.png"
+    outside.write_bytes(b"outside")
+    if asset_path.startswith("./assets/"):
+        (root / "assets").mkdir()
+        (root / "assets" / "outside.png").symlink_to(outside)
+    manifest = {
+        "name": "waggle",
+        "version": "9.9.9",
+        "mcpServers": "./.mcp.json",
+        "skills": "./skills/",
+        "interface": {"logo": asset_path},
+    }
+    (root / ".codex-plugin" / "plugin.json").write_text(json.dumps(manifest))
+
+    with pytest.raises(ValueError, match="escapes repository root"):
+        package_release(root, tmp_path / "dist", "v9.9.9")
+
+
 def test_validate_bundle_inputs_reports_plugin_version_drift(tmp_path: Path) -> None:
     root = _make_fake_codex_plugin_tree(tmp_path)
     (root / "plugins" / "waggle" / ".codex-plugin" / "plugin.json").write_text('{"name":"waggle","version":"9.9.8"}')

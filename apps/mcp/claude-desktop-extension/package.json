@@ -9,5 +9,8 @@
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "^2.1.2"
+  },
+  "overrides": {
+    "@inquirer/prompts": "^8.5.2"
   }
 }

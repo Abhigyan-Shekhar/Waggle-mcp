@@ -7,6 +7,7 @@ from waggle.auth import (
     api_key_prefix,
     generate_api_key,
     hash_api_key,
+    legacy_api_key_hash,
     normalize_api_key_environment,
     principal_from_record,
     verify_api_key,
@@ -79,8 +80,8 @@ def make_record():
     return raw_key, record
 
 
-def test_hash_api_key_same_input_same_hash():
-    assert hash_api_key("abc") == hash_api_key("abc")
+def test_hash_api_key_same_input_uses_unique_salt():
+    assert hash_api_key("abc") != hash_api_key("abc")
 
 
 def test_hash_api_key_different_inputs_different_hashes():
@@ -98,6 +99,19 @@ def test_verify_api_key_failure():
     hashed = hash_api_key("correct")
 
     assert verify_api_key("wrong", hashed) is False
+
+
+@pytest.mark.parametrize("expected_hash", [None, 123])
+def test_verify_api_key_rejects_non_string_hash(expected_hash):
+    assert verify_api_key("secret", expected_hash) is False
+
+
+def test_verify_api_key_accepts_legacy_sha256_record():
+    raw = "sk_test_legacy.secret"
+    legacy_hash = legacy_api_key_hash(raw)
+
+    assert verify_api_key(raw, legacy_hash) is True
+    assert verify_api_key("wrong", legacy_hash) is False
 
 
 @pytest.mark.parametrize(

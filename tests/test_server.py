@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import inspect
 import json
+import shlex
 from pathlib import Path
 from threading import Barrier, local
 from types import SimpleNamespace
@@ -14,6 +15,7 @@ import pytest
 
 import waggle
 import waggle.server as server_module
+from waggle import telemetry
 from waggle.config import AppConfig
 from waggle.errors import ValidationFailure
 from waggle.graph import MemoryGraph
@@ -25,9 +27,12 @@ from waggle.server import (
     _build_parser,
     _default_graph,
     _hook_tools_from_args,
+    _prompt_yes_no,
     _run_admin_command,
+    _run_claude_self_host_guide,
     _run_doctor,
     _run_graph_editor_command,
+    _run_init,
     _run_setup,
     _setup_clients_from_args,
     _write_antigravity,
@@ -144,6 +149,34 @@ def test_store_node_and_stats_tool(tmp_path: Path) -> None:
     assert stats_result.structuredContent["total_repos"] == 1
     assert stats_result.structuredContent["total_context_windows"] == 1
     assert "Context windows: 1" in stats_result.content[0].text
+
+
+def test_handle_tool_call_emits_safe_telemetry_boundary(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    captured: list[dict[str, object]] = []
+    app = make_app(tmp_path)
+    monkeypatch.setattr(
+        telemetry,
+        "capture_tool_event",
+        lambda tool_name, **kwargs: captured.append({"tool_name": tool_name, **kwargs}),
+    )
+
+    result = app.handle_tool_call(
+        "store_node",
+        {
+            "label": "Secret decision",
+            "content": "Sensitive memory text should not be telemetry.",
+            "node_type": NodeType.DECISION.value,
+        },
+    )
+
+    assert result.isError is False
+    assert captured
+    event = captured[0]
+    assert event["tool_name"] == "store_node"
+    assert event["is_error"] is False
+    assert event["transport"] == "stdio"
+    assert event["backend"] == "sqlite"
+    assert "arguments" not in event
 
 
 def test_tool_schemas_are_glama_friendly(tmp_path: Path) -> None:
@@ -742,22 +775,96 @@ def test_create_and_list_api_keys_cli_redacts_hash(tmp_path: Path, capsys: pytes
     create_payload = json.loads(capsys.readouterr().out)
 
     assert exit_code == 0
-    assert create_payload["prefix"].startswith("sk_test_")
-    assert create_payload["created_by"] == "ops@example.com"
-    assert create_payload["scopes"] == ["graph:read", "graph:write", "admin:read", "admin:write"]
-    assert "raw_api_key" in create_payload
+    assert create_payload["created"] is True
+    assert create_payload["raw_api_key"].startswith("sk_test_")
+    assert create_payload["api_key"]["prefix"] == create_payload["raw_api_key"].split(".", 1)[0]
+    assert create_payload["api_key"]["created_by"] == "ops@example.com"
+    assert create_payload["api_key"]["expires_at"] is not None
+    assert create_payload["api_key"]["scopes"] == ["graph:read", "graph:write", "admin:read", "admin:write"]
     assert "key_hash" not in create_payload
+    assert "key_hash" not in create_payload["api_key"]
+    assert (
+        app.graph.for_tenant("workspace-a").authenticate_api_key(create_payload["raw_api_key"]).api_key_id
+        == (create_payload["api_key"]["api_key_id"])
+    )
 
     list_args = SimpleNamespace(command="list-api-keys", tenant_id="workspace-a")
     exit_code = _run_admin_command(app.config, list_args)
     listed = json.loads(capsys.readouterr().out)
 
     assert exit_code == 0
-    assert listed[0]["prefix"] == create_payload["prefix"]
+    assert listed[0]["prefix"].startswith("sk_test_")
     assert listed[0]["created_by"] == "ops@example.com"
     assert listed[0]["expires_at"] is not None
     assert listed[0]["scopes"] == ["graph:read", "graph:write", "admin:read", "admin:write"]
     assert "key_hash" not in listed[0]
+
+
+def test_revoke_api_key_cli_rejects_unknown_key(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+    args = SimpleNamespace(command="revoke-api-key", tenant_id="workspace-a", api_key_id="missing")
+
+    with pytest.raises(ValidationFailure, match="API key not found"):
+        _run_admin_command(app.config, args)
+
+
+def test_claude_self_host_guide_prints_sqlite_setup(capsys: pytest.CaptureFixture[str]) -> None:
+    args = SimpleNamespace(
+        tenant_id="workspace-a",
+        db_path="/tmp/waggle.db",
+        host="127.0.0.1",
+        port=18080,
+        tunnel_url="https://waggle.example.test",
+        tunnel_provider="ngrok",
+    )
+
+    exit_code = _run_claude_self_host_guide(args)
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "WAGGLE_BACKEND=sqlite" in output
+    assert f"WAGGLE_DB_PATH={shlex.quote(str(Path('/tmp/waggle.db')))}" in output
+    assert "waggle-mcp create-api-key" in output
+    assert "--scopes graph:read,graph:write" in output
+    assert "waggle-mcp serve --transport http" in output
+    assert "ngrok http http://127.0.0.1:18080" in output
+    assert "https://waggle.example.test/mcp -> http://127.0.0.1:18080/mcp" in output
+    assert "Server URL: https://waggle.example.test/mcp" in output
+    assert "Docs: docs/claude-self-hosted-connector.md" in output
+
+
+def test_claude_self_host_guide_can_create_api_key(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WAGGLE_STARTUP_MODE", "fast")
+    db_path = tmp_path / "self-host.db"
+    args = SimpleNamespace(
+        tenant_id="workspace-a",
+        db_path=str(db_path),
+        host="127.0.0.1",
+        port=18080,
+        tunnel_url="https://waggle.example.test",
+        tunnel_provider="generic",
+        create_key=True,
+        key_name="claude-test",
+        scopes="graph:read",
+    )
+
+    exit_code = _run_claude_self_host_guide(args)
+    output = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "`--create-key` is deprecated for this guide" in output
+    assert "waggle-mcp create-api-key" in output
+    assert "--scopes graph:read" in output
+    assert "X-API-Key: sk_local_" not in output
+    assert "Authorization: Bearer sk_local_" not in output
+    assert "Docs: docs/claude-self-hosted-connector.md" in output
+    graph = MemoryGraph(db_path, FakeEmbeddingModel())
+    keys = graph.for_tenant("workspace-a").list_api_keys("workspace-a")
+    assert keys == []
 
 
 def test_create_api_key_cli_uses_configured_live_prefix(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -775,8 +882,14 @@ def test_create_api_key_cli_uses_configured_live_prefix(tmp_path: Path, capsys: 
     create_payload = json.loads(capsys.readouterr().out)
 
     assert exit_code == 0
-    assert create_payload["prefix"].startswith("sk_live_")
-    assert create_payload["raw_api_key"].startswith(create_payload["prefix"])
+    assert create_payload["created"] is True
+    assert create_payload["raw_api_key"].startswith("sk_live_")
+    assert create_payload["api_key"]["prefix"] == create_payload["raw_api_key"].split(".", 1)[0]
+    listed = app.graph.for_tenant("workspace-a").list_api_keys("workspace-a")
+    assert listed[0].prefix.startswith("sk_live_")
+    assert app.graph.for_tenant("workspace-a").authenticate_api_key(create_payload["raw_api_key"]).prefix == (
+        listed[0].prefix
+    )
 
 
 def test_retention_admin_commands_update_and_prune(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -836,6 +949,12 @@ def test_audit_events_are_queryable_from_admin_cli(tmp_path: Path, capsys: pytes
     exit_code = _run_admin_command(app.config, create_args)
     assert exit_code == 0
     create_payload = json.loads(capsys.readouterr().out)
+    assert create_payload["created"] is True
+    assert create_payload["raw_api_key"].startswith("sk_test_")
+    created_key = app.graph.for_tenant("workspace-a").list_api_keys("workspace-a")[0]
+    assert app.graph.for_tenant("workspace-a").authenticate_api_key(create_payload["raw_api_key"]).api_key_id == (
+        created_key.api_key_id
+    )
 
     audit_args = SimpleNamespace(
         command="list-audit-events",
@@ -843,7 +962,7 @@ def test_audit_events_are_queryable_from_admin_cli(tmp_path: Path, capsys: pytes
         limit=20,
         event_type="api_key.created",
         actor_id="",
-        resource_id=create_payload["api_key_id"],
+        resource_id=created_key.api_key_id,
         resource_type="api_key",
         status="",
     )
@@ -852,8 +971,8 @@ def test_audit_events_are_queryable_from_admin_cli(tmp_path: Path, capsys: pytes
 
     assert exit_code == 0
     assert events[0]["event_type"] == "api_key.created"
-    assert events[0]["resource_id"] == create_payload["api_key_id"]
-    assert events[0]["metadata"]["prefix"] == create_payload["prefix"]
+    assert events[0]["resource_id"] == created_key.api_key_id
+    assert events[0]["metadata"]["prefix"] == created_key.prefix
 
 
 def test_run_graph_editor_command_opens_browser_and_starts_uvicorn(
@@ -1525,7 +1644,15 @@ def test_debug_retrieval_tool(tmp_path: Path) -> None:
     assert result.structuredContent["hybrid_top_hits"]
 
 
-def test_export_context_bundle_cli_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_export_context_bundle_cli_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    captured_telemetry: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        telemetry,
+        "capture",
+        lambda event_name, **kwargs: captured_telemetry.append({"event_name": event_name, **kwargs}),
+    )
     app = make_app(tmp_path)
     app.graph.add_node(
         label="CLI Export Decision",
@@ -1555,9 +1682,29 @@ def test_export_context_bundle_cli_command(tmp_path: Path, capsys: pytest.Captur
     assert payload["mode"] == "graph"
     assert Path(payload["markdown_path"]).exists()
     assert Path(payload["json_path"]).exists()
+    assert captured_telemetry == [
+        {
+            "event_name": "export_completed",
+            "waggle_version": waggle.__version__,
+            "properties": {
+                "success": True,
+                "backend": "sqlite",
+                "embedding_mode": "local",
+                "result_count_bucket": "1-5",
+            },
+        }
+    ]
 
 
-def test_checkpoint_context_cli_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_checkpoint_context_cli_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    captured_telemetry: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        telemetry,
+        "capture",
+        lambda event_name, **kwargs: captured_telemetry.append({"event_name": event_name, **kwargs}),
+    )
     app = make_app(tmp_path)
     app.graph.add_node(
         label="Checkpoint Decision",
@@ -1588,6 +1735,13 @@ def test_checkpoint_context_cli_command(tmp_path: Path, capsys: pytest.CaptureFi
 
     assert exit_code == 0
     assert payload["checkpoint_scope"] == "session"
+    assert captured_telemetry[0]["event_name"] == "export_completed"
+    assert captured_telemetry[0]["properties"] == {
+        "success": True,
+        "backend": "sqlite",
+        "embedding_mode": "local",
+        "result_count_bucket": "1-5",
+    }
 
 
 def test_clear_session_project_and_all_tools_require_confirm_and_delete_data(tmp_path: Path) -> None:
@@ -1628,7 +1782,15 @@ def test_clear_session_project_and_all_tools_require_confirm_and_delete_data(tmp
     assert app.graph.get_stats().total_nodes == 0
 
 
-def test_markdown_vault_tool_and_cli_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_markdown_vault_tool_and_cli_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    captured_telemetry: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        telemetry,
+        "capture",
+        lambda event_name, **kwargs: captured_telemetry.append({"event_name": event_name, **kwargs}),
+    )
     app = make_app(tmp_path)
     app.graph.add_node(
         label="Vault Decision",
@@ -1652,6 +1814,18 @@ def test_markdown_vault_tool_and_cli_command(tmp_path: Path, capsys: pytest.Capt
 
     assert exit_code == 0
     assert payload["files_written"]
+    assert captured_telemetry == [
+        {
+            "event_name": "export_completed",
+            "waggle_version": waggle.__version__,
+            "properties": {
+                "success": True,
+                "backend": "sqlite",
+                "embedding_mode": "local",
+                "result_count_bucket": "1-5",
+            },
+        }
+    ]
 
 
 def test_runtime_feature_parity_check_passes_for_current_memory_graph() -> None:
@@ -1743,9 +1917,36 @@ def test_observe_conversation_tool(tmp_path: Path) -> None:
     )
 
     assert result.isError is False
+    assert result.structuredContent["turn_id"]
+    assert result.structuredContent["verbatim_stored"] is True
+    assert result.structuredContent["nodes_extracted"] == result.structuredContent["created_count"]
+    assert result.structuredContent["edges_inferred"] >= 0
+    assert result.structuredContent["extraction_errors"] == []
     assert result.structuredContent["created_count"] >= 2
     assert any(node["evidence_records"] for node in result.structuredContent["stored_nodes"])
     assert "Conversation Observation" in result.content[0].text
+
+
+def test_observe_conversation_tool_reports_verbatim_storage_without_nodes(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+
+    result = app.handle_tool_call(
+        "observe_conversation",
+        {
+            "user_message": "Diagnostic verbatim-only write probe.",
+            "assistant_response": "OK.",
+            "project": "MCP",
+            "agent_id": "codex",
+            "session_id": "s1",
+        },
+    )
+
+    assert result.isError is False
+    assert result.structuredContent["turn_id"]
+    assert result.structuredContent["verbatim_stored"] is True
+    assert result.structuredContent["nodes_extracted"] == 0
+    assert result.structuredContent["stored_nodes"] == []
+    assert "Verbatim stored: True" in result.content[0].text
 
 
 def test_observe_conversation_tool_reports_database_conflicts(tmp_path: Path) -> None:
@@ -1987,6 +2188,18 @@ def test_setup_client_arg_normalization() -> None:
     assert _setup_clients_from_args("codex,gemini,antigravity") == ["Codex", "Gemini CLI", "Antigravity"]
 
 
+def test_prompt_yes_no_defaults_to_no(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("builtins.input", lambda prompt: "")
+
+    assert _prompt_yes_no("Enable telemetry?", default=False) is False
+
+
+def test_prompt_yes_no_accepts_yes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("builtins.input", lambda prompt: "yes")
+
+    assert _prompt_yes_no("Enable telemetry?", default=False) is True
+
+
 def test_write_gemini_config_preserves_existing_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
@@ -2041,6 +2254,24 @@ def test_run_setup_writes_codex_config_and_agents(monkeypatch: pytest.MonkeyPatc
     assert "[mcp_servers.waggle]" in config_text
     assert 'WAGGLE_MODEL = "deterministic"' in config_text
     assert AUTOMATIC_MEMORY_RULE_TEXT.strip() in (tmp_path / "AGENTS.md").read_text()
+
+
+def test_run_init_prompts_telemetry_default_no(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(telemetry, "CONFIG_PATH", tmp_path / "telemetry.json")
+    monkeypatch.setattr(telemetry, "QUEUE_PATH", tmp_path / "telemetry-queue.jsonl")
+    answers = iter(["1", str(tmp_path / "memory.db"), ""])
+    monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
+
+    result = _run_init()
+
+    assert result == 0
+    payload = json.loads((tmp_path / "telemetry.json").read_text(encoding="utf-8"))
+    assert payload["enabled"] is False
+    assert "installation_id" not in payload
 
 
 def test_write_codex_config_updates_existing_file_without_duplicates(

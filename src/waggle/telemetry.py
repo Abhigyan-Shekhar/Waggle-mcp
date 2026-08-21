@@ -1,0 +1,434 @@
+from __future__ import annotations
+
+import json
+import os
+import platform
+import queue
+import threading
+import uuid
+from contextlib import suppress
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+from urllib.request import Request, urlopen
+
+CONFIG_PATH = Path.home() / ".waggle" / "telemetry.json"
+QUEUE_PATH = Path.home() / ".waggle" / "telemetry-queue.jsonl"
+ENDPOINT = "https://analytics.waggle.dev/v1/events"
+REQUEST_TIMEOUT_SECONDS = 0.75
+MAX_QUEUE_EVENTS = 100
+MAX_QUEUE_AGE = timedelta(days=7)
+MAX_BATCH_SIZE = 20
+
+_QUEUE_FILE_LOCK = threading.RLock()
+_WORK_QUEUE: queue.Queue[dict[str, Any]] = queue.Queue()
+_WORKER_LOCK = threading.Lock()
+_WORKER_THREAD: threading.Thread | None = None
+
+ALLOWED_EVENTS = {
+    "setup_completed",
+    "server_started",
+    "memory_stored",
+    "memory_retrieved",
+    "context_primed",
+    "demo_completed",
+    "export_completed",
+    "operation_failed",
+}
+
+QUALIFYING_ACTIVE_EVENTS = {
+    "memory_stored",
+    "memory_retrieved",
+    "context_primed",
+    "conversation_observed",
+    "graph_queried",
+    "memory_exported",
+}
+
+ALLOWED_PROPERTIES = {
+    "waggle_version",
+    "python_version",
+    "os",
+    "architecture",
+    "client",
+    "transport",
+    "backend",
+    "embedding_mode",
+    "success",
+    "duration_bucket",
+    "result_count_bucket",
+    "error_category",
+}
+
+FORBIDDEN_PROPERTY_NAMES = {
+    "query",
+    "prompt",
+    "memory_text",
+    "node_content",
+    "content",
+    "file_path",
+    "path",
+    "repository_name",
+    "repo_name",
+    "project",
+    "project_name",
+    "tenant",
+    "tenant_name",
+    "session_transcript",
+    "transcript",
+    "exception_message",
+    "stack",
+    "stack_trace",
+    "traceback",
+}
+
+
+@dataclass(frozen=True)
+class TelemetryConfig:
+    enabled: bool
+    installation_id: str
+    overridden_by_env: bool = False
+
+
+def load_config() -> TelemetryConfig:
+    env_value = _normalized_env_value()
+    installation_id = ""
+    enabled = False
+
+    if CONFIG_PATH.exists():
+        try:
+            data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            data = {}
+        if isinstance(data, dict):
+            enabled = bool(data.get("enabled", False))
+            raw_installation_id = data.get("installation_id")
+            if isinstance(raw_installation_id, str) and raw_installation_id.strip():
+                installation_id = raw_installation_id.strip()
+
+    if env_value == "0":
+        return TelemetryConfig(enabled=False, installation_id=installation_id, overridden_by_env=True)
+    if env_value == "1":
+        return TelemetryConfig(
+            enabled=True,
+            installation_id=installation_id or str(uuid.uuid4()),
+            overridden_by_env=True,
+        )
+    if enabled and not installation_id:
+        installation_id = str(uuid.uuid4())
+    return TelemetryConfig(enabled=enabled, installation_id=installation_id)
+
+
+def save_config(config: TelemetryConfig) -> None:
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    payload: dict[str, Any] = {"enabled": bool(config.enabled)}
+    installation_id = config.installation_id or (str(uuid.uuid4()) if config.enabled else "")
+    if installation_id:
+        payload["installation_id"] = installation_id
+    CONFIG_PATH.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def enable() -> TelemetryConfig:
+    current = load_config()
+    config = TelemetryConfig(enabled=True, installation_id=current.installation_id or str(uuid.uuid4()))
+    save_config(config)
+    return config
+
+
+def disable() -> TelemetryConfig:
+    current = load_config()
+    config = TelemetryConfig(enabled=False, installation_id=current.installation_id)
+    save_config(config)
+    return config
+
+
+def status_payload() -> dict[str, Any]:
+    config = load_config()
+    return {
+        "enabled": config.enabled,
+        "installation_id": config.installation_id,
+        "config_path": str(CONFIG_PATH),
+        "queue_path": str(QUEUE_PATH),
+        "endpoint": ENDPOINT,
+        "overridden_by_env": config.overridden_by_env,
+    }
+
+
+def preview_payload(
+    event: str = "memory_retrieved",
+    *,
+    waggle_version: str,
+    properties: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    config = load_config()
+    return _build_payload(event, config.installation_id, waggle_version=waggle_version, properties=properties)
+
+
+def capture(
+    event: str,
+    *,
+    waggle_version: str,
+    properties: dict[str, Any] | None = None,
+) -> None:
+    config = load_config()
+    if not config.enabled:
+        return
+    if not CONFIG_PATH.exists():
+        save_config(TelemetryConfig(enabled=True, installation_id=config.installation_id))
+
+    try:
+        payload = _build_payload(event, config.installation_id, waggle_version=waggle_version, properties=properties)
+    except Exception:
+        return
+    _ensure_worker()
+    _WORK_QUEUE.put(payload)
+
+
+def capture_tool_event(
+    tool_name: str,
+    *,
+    structured: dict[str, Any] | list[Any],
+    is_error: bool,
+    waggle_version: str,
+    transport: str,
+    backend: str,
+    embedding_mode: str,
+) -> None:
+    event = _event_for_tool(tool_name, structured=structured, is_error=is_error)
+    if event is None:
+        return
+    properties: dict[str, Any] = {
+        "success": not is_error,
+        "transport": transport,
+        "backend": backend,
+        "embedding_mode": embedding_mode,
+    }
+    count = _result_count_for_tool(tool_name, structured)
+    if count is not None:
+        properties["result_count_bucket"] = bucket_count(count)
+    if is_error:
+        properties["error_category"] = _safe_error_category(structured)
+    capture(event, waggle_version=waggle_version, properties=properties)
+
+
+def flush() -> int:
+    config = load_config()
+    if not config.enabled or not QUEUE_PATH.exists():
+        return 0
+
+    with _QUEUE_FILE_LOCK:
+        try:
+            queued = _read_queue()
+            if not queued:
+                _replace_queue([])
+                return 0
+            batch = queued[:MAX_BATCH_SIZE]
+            _send_batch(batch)
+            delivered = len(batch)
+            _replace_queue(queued[delivered:])
+            return delivered
+        except Exception:
+            return 0
+
+
+def bucket_count(count: int) -> str:
+    if count <= 0:
+        return "0"
+    if count <= 5:
+        return "1-5"
+    if count <= 20:
+        return "6-20"
+    if count <= 100:
+        return "21-100"
+    return "101+"
+
+
+def _event_for_tool(tool_name: str, *, structured: dict[str, Any] | list[Any], is_error: bool) -> str | None:
+    if is_error:
+        return "operation_failed"
+
+    normalized = tool_name.strip()
+    if normalized in {
+        "store_node",
+        "store_edge",
+        "observe_conversation",
+        "decompose_and_store",
+        "import_graph_backup",
+        "import_abhi",
+        "pull",
+    }:
+        return "memory_stored"
+    if normalized in {"query_graph", "get_related", "get_node_history"}:
+        return "memory_retrieved" if (_result_count_for_tool(normalized, structured) or 0) > 0 else None
+    if normalized in {"prime_context", "build_context"}:
+        return "context_primed" if (_result_count_for_tool(normalized, structured) or 0) > 0 else None
+    if normalized in {"export_abhi", "commit", "export_graph_backup", "export_context_bundle"}:
+        return "export_completed"
+    return None
+
+
+def _result_count_for_tool(tool_name: str, structured: dict[str, Any] | list[Any]) -> int | None:
+    if isinstance(structured, list):
+        return len(structured)
+    if not isinstance(structured, dict):
+        return None
+
+    for key in (
+        "created_count",
+        "nodes_extracted",
+        "nodes_created",
+        "nodes_updated",
+        "node_count",
+        "total_nodes",
+        "total_nodes_in_graph",
+    ):
+        value = structured.get(key)
+        if isinstance(value, int):
+            return value
+
+    total = 0
+    found = False
+    for key in ("nodes", "related_nodes", "replay_hits", "fusion_hits", "hybrid_hits", "stored_nodes"):
+        value = structured.get(key)
+        if isinstance(value, list):
+            total += len(value)
+            found = True
+    if found:
+        return total
+
+    if tool_name in {"store_node", "store_edge"} and structured:
+        return 1
+    return None
+
+
+def _safe_error_category(structured: dict[str, Any] | list[Any]) -> str:
+    if not isinstance(structured, dict):
+        return "unknown"
+    value = structured.get("error_code") or structured.get("error_type") or "unknown"
+    if not isinstance(value, str):
+        return "unknown"
+    normalized = value.strip().lower().replace(" ", "_")
+    return normalized[:64] or "unknown"
+
+
+def _build_payload(
+    event: str,
+    installation_id: str,
+    *,
+    waggle_version: str,
+    properties: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if event not in ALLOWED_EVENTS:
+        raise ValueError(f"Unsupported telemetry event: {event}")
+
+    safe_properties = {
+        "waggle_version": waggle_version,
+        "python_version": platform.python_version(),
+        "os": platform.system().lower(),
+        "architecture": platform.machine().lower(),
+    }
+    safe_properties.update(_sanitize_properties(properties or {}))
+
+    return {
+        "event": event,
+        "installation_id": installation_id,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "properties": safe_properties,
+    }
+
+
+def _sanitize_properties(properties: dict[str, Any]) -> dict[str, Any]:
+    sanitized: dict[str, Any] = {}
+    for key, value in properties.items():
+        if key in FORBIDDEN_PROPERTY_NAMES or key not in ALLOWED_PROPERTIES:
+            continue
+        if isinstance(value, bool | int | float | str):
+            sanitized[key] = value
+    return sanitized
+
+
+def _append_event(payload: dict[str, Any]) -> None:
+    with _QUEUE_FILE_LOCK:
+        QUEUE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with QUEUE_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+
+
+def _read_queue() -> list[dict[str, Any]]:
+    with _QUEUE_FILE_LOCK:
+        if not QUEUE_PATH.exists():
+            return []
+        cutoff = datetime.now(UTC) - MAX_QUEUE_AGE
+        events: list[dict[str, Any]] = []
+        for line in QUEUE_PATH.read_text(encoding="utf-8").splitlines():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            timestamp = event.get("timestamp")
+            if isinstance(timestamp, str):
+                try:
+                    if datetime.fromisoformat(timestamp) < cutoff:
+                        continue
+                except (TypeError, ValueError):
+                    continue
+            events.append(event)
+        return events[-MAX_QUEUE_EVENTS:]
+
+
+def _replace_queue(events: list[dict[str, Any]]) -> None:
+    with _QUEUE_FILE_LOCK:
+        QUEUE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        if not events:
+            with suppress(FileNotFoundError):
+                QUEUE_PATH.unlink()
+            return
+        text = "".join(json.dumps(event, sort_keys=True) + "\n" for event in events[-MAX_QUEUE_EVENTS:])
+        QUEUE_PATH.write_text(text, encoding="utf-8")
+
+
+def _ensure_worker() -> None:
+    global _WORKER_THREAD
+    with _WORKER_LOCK:
+        if _WORKER_THREAD is not None and _WORKER_THREAD.is_alive():
+            return
+        _WORKER_THREAD = threading.Thread(target=_worker_loop, name="waggle-telemetry", daemon=True)
+        _WORKER_THREAD.start()
+
+
+def _worker_loop() -> None:
+    while True:
+        payload = _WORK_QUEUE.get()
+        try:
+            _append_event(payload)
+            flush()
+        except Exception:
+            pass
+        finally:
+            _WORK_QUEUE.task_done()
+
+
+def _send_batch(batch: list[dict[str, Any]]) -> None:
+    request = Request(
+        ENDPOINT,
+        data=json.dumps({"events": batch}).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS):
+        pass
+
+
+def _normalized_env_value() -> str | None:
+    value = os.getenv("WAGGLE_TELEMETRY")
+    if value is None:
+        return None
+    value = value.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return "1"
+    if value in {"0", "false", "no", "off"}:
+        return "0"
+    return None

@@ -1,6 +1,8 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import contextlib
+import importlib.metadata
 import json
 import logging
 import sqlite3
@@ -20,7 +22,23 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-import networkx as nx
+_entry_points = importlib.metadata.entry_points
+
+
+def _entry_points_without_networkx_backends(*args, **kwargs):
+    group = kwargs.get("group")
+    if group is None and args:
+        group = args[0]
+    if group in {"networkx.backends", "networkx.backend_info"}:
+        return []
+    return _entry_points(*args, **kwargs)
+
+
+importlib.metadata.entry_points = _entry_points_without_networkx_backends
+try:
+    import networkx as nx
+finally:
+    importlib.metadata.entry_points = _entry_points
 import numpy as np
 
 from waggle.abhi import (
@@ -39,7 +57,14 @@ from waggle.abhi import (
     validate_abhi_signature,
     write_abhi_document,
 )
-from waggle.auth import api_key_prefix, generate_api_key, hash_api_key, verify_api_key
+from waggle.auth import (
+    api_key_prefix,
+    generate_api_key,
+    hash_api_key,
+    is_legacy_api_key_hash,
+    legacy_api_key_hash,
+    verify_api_key,
+)
 from waggle.connection_pool import DEFAULT_POOL_SIZE, SQLiteConnectionPool
 from waggle.context_bundle import build_context_bundle, build_query_summary, export_context_bundle_files
 from waggle.embeddings import EmbeddingModel
@@ -545,7 +570,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         self._sqlite_vec_loaded = True
         if _HAS_SQLITE_VEC:
             try:
-                with self._connect() as conn:
+                with contextlib.closing(self._connect()) as conn:
                     conn.execute("SELECT vec_version()")
             except Exception as e:
                 LOGGER.warning(
@@ -696,7 +721,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         with ProcessLock(lock_path), self._lock:
             self._validate_existing_database_integrity()
 
-            with self._connect() as connection:
+            with contextlib.closing(self._connect()) as connection, connection:
                 # Bootstrap WAL: if db file exists but is in rollback mode, migrate it
                 try:
                     journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
@@ -1042,12 +1067,13 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             for row in rows
         ]
 
-    def revoke_api_key(self, api_key_id: str) -> None:
+    def revoke_api_key(self, api_key_id: str) -> bool:
         with self._lock, self._pool.checkout() as connection:
-            connection.execute(
+            cursor = connection.execute(
                 "UPDATE api_keys SET status = 'revoked', revoked_at = ? WHERE api_key_id = ?",
                 (utc_now().isoformat(), api_key_id),
             )
+            return cursor.rowcount > 0
 
     def get_retention_policy(
         self,
@@ -1313,33 +1339,39 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         return run
 
     def authenticate_api_key(self, raw_api_key: str) -> ApiKeyRecord:
-        key_hash = hash_api_key(raw_api_key)
+        prefix = api_key_prefix(raw_api_key)
+        legacy_hash = legacy_api_key_hash(raw_api_key)
         with self._lock, self._pool.checkout() as connection:
-            row = connection.execute(
+            rows = connection.execute(
                 """
                 SELECT api_key_id, tenant_id, key_hash, prefix, name, status, created_at, expires_at, revoked_at, last_used_at, created_by, scopes
                 FROM api_keys
-                WHERE key_hash = ?
-                LIMIT 1
+                WHERE prefix = ? OR key_hash = ?
                 """,
-                (key_hash,),
-            ).fetchone()
-            if row is None or not verify_api_key(raw_api_key, row["key_hash"]):
+                (prefix, legacy_hash),
+            ).fetchall()
+            row = next((candidate for candidate in rows if verify_api_key(raw_api_key, candidate["key_hash"])), None)
+            if row is None:
                 raise AuthenticationError("Invalid API key.")
             if row["status"] != "active":
                 raise AuthenticationError("Invalid API key.")
             expires_at = _parse_datetime(row["expires_at"]) if row["expires_at"] else None
             if expires_at is not None and expires_at <= utc_now():
                 raise AuthenticationError("API key expired.")
+            key_hash = row["key_hash"]
+            stored_prefix = row["prefix"] or ""
+            if is_legacy_api_key_hash(key_hash):
+                key_hash = hash_api_key(raw_api_key)
+                stored_prefix = prefix
             connection.execute(
-                "UPDATE api_keys SET last_used_at = ? WHERE api_key_id = ?",
-                (utc_now().isoformat(), row["api_key_id"]),
+                "UPDATE api_keys SET key_hash = ?, prefix = ?, last_used_at = ? WHERE api_key_id = ?",
+                (key_hash, stored_prefix, utc_now().isoformat(), row["api_key_id"]),
             )
         return ApiKeyRecord(
             api_key_id=row["api_key_id"],
             tenant_id=row["tenant_id"],
-            key_hash=row["key_hash"],
-            prefix=row["prefix"] or "",
+            key_hash=key_hash,
+            prefix=stored_prefix,
             name=row["name"] or "",
             status=row["status"],
             created_at=_parse_datetime(row["created_at"]),

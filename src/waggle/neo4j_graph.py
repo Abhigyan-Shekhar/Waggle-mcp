@@ -27,7 +27,14 @@ from waggle.abhi import (
     validate_abhi_document,
     write_abhi_document,
 )
-from waggle.auth import api_key_prefix, generate_api_key, hash_api_key, verify_api_key
+from waggle.auth import (
+    api_key_prefix,
+    generate_api_key,
+    hash_api_key,
+    is_legacy_api_key_hash,
+    legacy_api_key_hash,
+    verify_api_key,
+)
 from waggle.context_bundle import (
     build_context_bundle,
     build_query_summary,
@@ -704,16 +711,18 @@ class Neo4jMemoryGraph:
                 for row in rows
             ]
 
-    def revoke_api_key(self, api_key_id: str) -> None:
+    def revoke_api_key(self, api_key_id: str) -> bool:
         with self._lock, self._session() as session:
-            session.run(
+            record = session.run(
                 """
                 MATCH (a:GraphApiKey {api_key_id: $api_key_id})
                 SET a.status = 'revoked', a.revoked_at = $revoked_at
+                RETURN count(a) AS updated
                 """,
                 api_key_id=api_key_id,
                 revoked_at=utc_now().isoformat(),
-            ).consume()
+            ).single()
+        return bool(record and record["updated"])
 
     def get_retention_policy(
         self,
@@ -968,39 +977,51 @@ class Neo4jMemoryGraph:
         return run
 
     def authenticate_api_key(self, raw_api_key: str) -> ApiKeyRecord:
-        key_hash = hash_api_key(raw_api_key)
+        prefix = api_key_prefix(raw_api_key)
+        legacy_hash = legacy_api_key_hash(raw_api_key)
         with self._lock, self._session() as session:
-            row = session.run(
+            rows = session.run(
                 """
-                MATCH (a:GraphApiKey {key_hash: $key_hash})
+                MATCH (a:GraphApiKey)
+                WHERE a.prefix = $prefix OR a.key_hash = $legacy_hash
                 RETURN a.api_key_id AS api_key_id, a.tenant_id AS tenant_id, a.key_hash AS key_hash,
                        a.prefix AS prefix, a.name AS name, a.status AS status, a.created_at AS created_at,
                        a.expires_at AS expires_at, a.revoked_at AS revoked_at, a.last_used_at AS last_used_at,
                        a.created_by AS created_by, a.scopes AS scopes
-                LIMIT 1
                 """,
-                key_hash=key_hash,
-            ).single()
-            if row is None or not verify_api_key(raw_api_key, row["key_hash"]):
+                prefix=prefix,
+                legacy_hash=legacy_hash,
+            )
+            row = next((candidate for candidate in rows if verify_api_key(raw_api_key, candidate["key_hash"])), None)
+            if row is None:
                 raise AuthenticationError("Invalid API key.")
             if row["status"] != "active":
                 raise AuthenticationError("Invalid API key.")
             expires_at = _parse_datetime(row["expires_at"]) if row["expires_at"] else None
             if expires_at is not None and expires_at <= utc_now():
                 raise AuthenticationError("API key expired.")
+            key_hash = row["key_hash"]
+            stored_prefix = row["prefix"] or ""
+            if is_legacy_api_key_hash(key_hash):
+                key_hash = hash_api_key(raw_api_key)
+                stored_prefix = prefix
             session.run(
                 """
                 MATCH (a:GraphApiKey {api_key_id: $api_key_id})
-                SET a.last_used_at = $last_used_at
+                SET a.key_hash = $key_hash,
+                    a.prefix = $prefix,
+                    a.last_used_at = $last_used_at
                 """,
                 api_key_id=row["api_key_id"],
+                key_hash=key_hash,
+                prefix=stored_prefix,
                 last_used_at=utc_now().isoformat(),
             ).consume()
         return ApiKeyRecord(
             api_key_id=row["api_key_id"],
             tenant_id=row["tenant_id"],
-            key_hash=row["key_hash"],
-            prefix=row["prefix"] or "",
+            key_hash=key_hash,
+            prefix=stored_prefix,
             name=row["name"] or "",
             status=row["status"],
             created_at=_parse_datetime(row["created_at"]),
