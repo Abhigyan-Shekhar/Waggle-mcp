@@ -39,7 +39,9 @@ With the extension's binary install, `command` is the cached executable path und
 
 ## pipx fallback
 
-Set `waggle.installMethod` to `pipx` in VS Code settings if you already use `pipx install waggle-mcp`.
+Set `waggle.installMethod` to `pipx` in VS Code settings if you already use
+`pipx install waggle-mcp`. Run `pipx ensurepath` and restart the terminal and
+VS Code once so the pipx app directory is available on `PATH`.
 
 ## `waggle.mcpConfigScope`
 

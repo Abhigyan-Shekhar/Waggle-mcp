@@ -12,6 +12,12 @@ For direct Codex CLI or source-based MCP setup:
 
 ```bash
 pipx install waggle-mcp
+pipx ensurepath
+```
+
+Restart the terminal after the first `pipx ensurepath`, then run:
+
+```bash
 waggle-mcp setup --yes
 ```
 
