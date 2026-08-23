@@ -96,7 +96,7 @@ Recommended:
 - Codex: install the self-hosted Codex MCP plugin from the GitHub Release marketplace bundle
 - MCP clients: use [docs/install](./docs/install/README.md) and Smithery metadata in `smithery.yaml`
 - Claude: use [docs/install/claude-code.md](./docs/install/claude-code.md) or [docs/install/claude-desktop.md](./docs/install/claude-desktop.md)
-- Developers: `pipx install waggle-mcp`
+- Developers: follow [Quick Start](#quick-start) to run `pipx install waggle-mcp`, `pipx ensurepath`, and restart the terminal before setup
 
 ### Start here
 
@@ -531,11 +531,12 @@ Do not expose Waggle publicly without authentication.
 ```bash
 # macOS/Linux
 pipx ensurepath
-exec zsh -l
+# Close and reopen your terminal, then run:
 command -v waggle-mcp
 
 # Windows PowerShell
 pipx ensurepath
+# Close and reopen PowerShell, then run:
 Get-Command waggle-mcp
 ```
 

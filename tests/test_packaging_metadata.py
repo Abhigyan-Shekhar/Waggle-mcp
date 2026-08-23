@@ -33,8 +33,22 @@ def test_install_docs_put_pipx_app_directory_on_path() -> None:
 
     for doc_path in install_docs:
         contents = doc_path.read_text()
-        if "pipx install waggle-mcp" in contents:
-            assert "pipx ensurepath" in contents, f"Missing pipx PATH setup in {doc_path.relative_to(ROOT)}"
+        fenced_blocks = re.findall(r"```[^\n]*\n.*?\n```", contents, re.DOTALL)
+        prose = re.sub(r"```[^\n]*\n.*?\n```", "", contents, flags=re.DOTALL)
+        prose_blocks: list[str] = []
+        for block in re.split(r"\n\s*\n", prose):
+            if "pipx install waggle-mcp" not in block:
+                continue
+            if any(line.lstrip().startswith("|") for line in block.splitlines()):
+                prose_blocks.extend(line for line in block.splitlines() if "pipx install waggle-mcp" in line)
+            else:
+                prose_blocks.append(block)
+
+        install_flows = [block for block in [*fenced_blocks, *prose_blocks] if "pipx install waggle-mcp" in block]
+        for install_flow in install_flows:
+            assert "pipx ensurepath" in install_flow, (
+                f"Missing pipx PATH setup in an install flow in {doc_path.relative_to(ROOT)}"
+            )
 
 
 def test_dockerfile_uses_module_entrypoint_for_arg_passthrough() -> None:
