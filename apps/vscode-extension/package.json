@@ -43,7 +43,7 @@
   ],
   "main": "./dist/extension.js",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1"
+    "@modelcontextprotocol/sdk": "^1.30.0"
   },
   "contributes": {
     "commands": [
@@ -177,10 +177,10 @@
     "package": "vsce package"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.1.1",
     "@types/vscode": "^1.96.0",
-    "esbuild": "^0.28.1",
-    "typescript": "^5.7.2",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
     "@vscode/vsce": "^3.2.2"
   },
   "overrides": {
