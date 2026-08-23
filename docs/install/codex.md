@@ -36,6 +36,12 @@ For more details on how these rules govern agent behavior, see the [Automatic Me
 
 ## Codex app plugin
 
+Waggle can be installed in Codex as a self-hosted local MCP plugin. The current
+release does not require a paid hosted backend, Apple Developer ID
+notarization, or Windows Authenticode certificate. Users download the
+marketplace bundle from GitHub Releases, add the extracted directory to Codex,
+and run the bundled MCP server locally on their own machine.
+
 ## First-run OS warnings (unsigned binary)
 
 The bundled Waggle runtime binary is intentionally unsigned for the current
@@ -87,31 +93,54 @@ binary is stale or missing, reinstall or upgrade the Waggle Codex plugin.
 
 Tagged Waggle releases publish two Codex plugin assets. The current Codex
 marketplace artifacts are published on the
-[`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17):
+[`v0.1.24` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.24):
 
-- `waggle-codex-marketplace-v0.1.17.zip`: a complete local marketplace root that
+- `waggle-codex-marketplace-v0.1.24.zip`: a complete local marketplace root that
   can be added with `codex plugin marketplace add`
 - `waggle-codex-plugin-<tag>.zip`: the bare `plugins/waggle` plugin folder
 - `waggle-codex-release-<tag>.json`: release metadata for audit and support
 
-> `v0.1.16` was a partial release and should not be used as a Codex
-> marketplace install source. Use `v0.1.17` instead.
+> `v0.1.16` and `v0.1.19` were partial releases and should not be used as Codex
+> marketplace install sources. Use `v0.1.24` instead.
 
 The Codex plugin version is intentionally separate from the GitHub release tag.
-The plugin manifest currently reports `0.1.1`; `v0.1.17` is the GitHub release
-tag for the public marketplace bundle after earlier private-repository trial
-releases.
+The plugin manifest reports `0.1.3`; `v0.1.24` is the GitHub release tag for
+the marketplace bundle containing the Codex memory skills.
 
 For the easiest install path, download and extract the marketplace bundle
-from the [`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17),
+from the [`v0.1.24` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.24),
 then run:
 
 ```bash
-codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.17
+codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.24
 ```
 
 After that, refresh the plugin directory in Codex and install `Waggle` from the
 added marketplace.
+
+The equivalent CLI install is:
+
+```bash
+codex plugin add waggle@waggle
+```
+
+Start a new Codex task after installation so the bundled MCP server and skills
+are loaded. The plugin supplies these explicit Codex workflows:
+
+- `$waggle-prime`
+- `$waggle-recall <topic>`
+- `$waggle-checkpoint`
+- `$waggle-memory`
+
+The general `waggle-memory` skill primes project context at the beginning of
+meaningful work, retrieves scoped history before context-dependent answers, and
+uses `observe_conversation` only when forgetting an outcome would likely cause
+duplicated work, a wrong future decision, or violation of an established
+constraint. It does not store something merely because it happened, including
+greetings, raw command logs, speculative chatter, secrets, or aborted work. No
+lifecycle hooks are bundled: current Codex hooks require separate trust, and
+selective model-judged memory is safer in the skill workflow than in a hidden
+stop hook.
 
 The v1 marketplace bundle intentionally contains all supported platform
 runtimes. Do not choose a platform-specific bundle unless a future Codex
@@ -136,6 +165,20 @@ To upgrade, install the newer marketplace bundle from the GitHub release and
 refresh the plugin directory in Codex. Waggle memory is stored outside the
 plugin bundle at `WAGGLE_DB_PATH`, so supported upgrades must preserve local
 memory data.
+
+To inspect memory, ask Codex to use `get_stats`, `list_context_scopes`,
+`query_graph`, or `get_node_history`. Ask it to use `commit` for a portable
+`.abhi` export. To delete memory, preview `clear_session`, `clear_project`, or
+`clear_all` with `dry_run: true`, then explicitly confirm the destructive call.
+
+To uninstall the plugin and remove the marketplace registration:
+
+```bash
+codex plugin remove waggle@waggle
+codex plugin marketplace remove waggle
+```
+
+Uninstalling does not delete `~/.waggle/waggle.db`.
 
 ## Manual config
 

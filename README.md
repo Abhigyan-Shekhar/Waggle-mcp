@@ -1,3 +1,5 @@
+<!-- mcp-name: io.github.Abhigyan-Shekhar/Waggle-mcp -->
+
 <p align="center">
   <strong>waggle-mcp</strong>
 </p>
@@ -85,9 +87,27 @@ Waggle is a local MCP server that gives coding agents persistent graph memory.
 Recommended:
 
 - VS Code: install the live `Waggle: Local Memory for AI Agents` extension from the Marketplace for one-click setup
+- Codex: install the self-hosted Codex MCP plugin from the GitHub Release marketplace bundle
 - MCP clients: use [docs/install](./docs/install/README.md) and Smithery metadata in `smithery.yaml`
 - Claude: use [docs/install/claude-code.md](./docs/install/claude-code.md) or [docs/install/claude-desktop.md](./docs/install/claude-desktop.md)
 - Developers: `pipx install waggle-mcp`
+
+### Start here
+
+Choose the distribution that matches your client:
+
+| Client | Install path | Verify |
+| --- | --- | --- |
+| VS Code | Search for **Waggle: Local Memory for AI Agents** in the VS Code Marketplace, then run `Waggle: Enable for this Workspace`. | Run `Waggle: Doctor` from the Command Palette. |
+| Codex | Download the [v0.1.24 Codex marketplace bundle](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.24), then run `codex plugin marketplace add <bundle-directory>` and `codex plugin add waggle@waggle`. | Start a new Codex task and ask it to run `get_stats`. |
+| Claude, Cursor, Gemini CLI, or another local MCP client | `pipx install waggle-mcp && waggle-mcp setup --yes` | Run `waggle-mcp doctor`, then restart the client. |
+| Docker deployments | Pull `ghcr.io/abhigyan-shekhar/waggle-mcp:latest`. | Run the image's built-in `doctor` command. |
+
+Waggle is local-first: its default SQLite database is `~/.waggle/waggle.db`, and it does not require an account, API key, or cloud connection. Memory is exported, synced, or sent to a remote backend only when you explicitly configure that behavior.
+
+### Codex marketplace discovery
+
+Waggle can be installed today from its release marketplace bundle. This is a custom Codex marketplace source, so users add it once before installing `waggle@waggle`. A community directory submission is under review; until it is approved, use the GitHub Release as the canonical discovery and download page.
 
 Benchmark:
 
@@ -399,13 +419,44 @@ Claude Code also supports **automatic memory hooks** — see the [Hooks](#automa
 
 ### Codex
 
-The easiest install path is the Codex app plugin via the marketplace bundle
-published on the [`v0.1.17` release](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.17)
-— download `waggle-codex-marketplace-v0.1.17.zip`, extract it, then run
-`codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.17` and
-install `Waggle` from the added marketplace. `v0.1.16` was a partial release
-and is not a viable Codex marketplace install source. See
-[`docs/install/codex.md`](docs/install/codex.md) for full details.
+Waggle is portable, local project memory for coding agents. The Codex plugin
+packages the existing Waggle MCP server plus skills that teach Codex when to
+retrieve and checkpoint durable project knowledge.
+
+Prerequisites: Codex CLI or the Codex desktop app, Node.js, and a supported
+64-bit macOS, Linux, or Windows system. The release bundle includes Waggle's
+Python runtime, so plugin users do not need Python, `pipx`, a Waggle account, or
+an API key.
+
+```bash
+curl -L https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.24/waggle-codex-marketplace-v0.1.24.zip -o waggle-codex-marketplace-v0.1.24.zip
+curl -L https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/download/v0.1.24/waggle-codex-marketplace-v0.1.24.zip.sha256 -o waggle-codex-marketplace-v0.1.24.zip.sha256
+shasum -a 256 -c waggle-codex-marketplace-v0.1.24.zip.sha256
+unzip waggle-codex-marketplace-v0.1.24.zip
+codex plugin marketplace add "$(pwd)/waggle-codex-marketplace-v0.1.24"
+codex plugin add waggle@waggle
+```
+
+Start a new Codex task after installation. The launcher selects the bundled
+executable for the host platform and uses SQLite at `~/.waggle/waggle.db`. It
+opens no network listener and does not upload memory. The compact runtime uses
+Waggle's deterministic offline embedding mode so startup does not download a
+model; install the Python package when full sentence-transformer retrieval is
+required.
+
+For the current unsigned release, macOS Gatekeeper or Windows SmartScreen may
+show a first-run warning. Verify the checksum or GitHub attestation before
+approving the binary. See [`docs/install/codex.md`](docs/install/codex.md) for
+full details.
+
+The bundled `waggle-memory` skill primes context for meaningful work and checks
+project history before context-dependent answers. It stores an outcome only
+when forgetting it would likely cause duplicated work, a wrong future decision,
+or violation of an established constraint. It does not store something merely
+because it happened. Automatic lifecycle hooks are intentionally not included.
+
+Explicit workflows are available as `$waggle-prime`, `$waggle-recall`,
+`$waggle-checkpoint`, and `$waggle-memory`.
 
 For direct Codex CLI usage instead, add Waggle to `~/.codex/config.toml`:
 

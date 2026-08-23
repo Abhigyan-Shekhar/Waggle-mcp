@@ -2,7 +2,7 @@
   "name": "waggle-memory",
   "displayName": "Waggle: Local Memory for AI Agents",
   "description": "Local graph memory for coding agents using MCP.",
-  "version": "0.1.0",
+  "version": "0.1.25",
   "publisher": "Abhigyan-Shekhar",
   "license": "Apache-2.0",
   "homepage": "https://github.com/Abhigyan-Shekhar/Waggle-mcp",
@@ -128,7 +128,10 @@
         "waggle.installMethod": {
           "type": "string",
           "default": "binary",
-          "enum": ["pipx", "binary"],
+          "enum": [
+            "pipx",
+            "binary"
+          ],
           "description": "Install method: bundled binary download or pipx."
         },
         "waggle.binaryReleaseRepo": {
@@ -154,7 +157,10 @@
         "waggle.mcpConfigScope": {
           "type": "string",
           "default": "servers",
-          "enum": ["servers", "mcpServers"],
+          "enum": [
+            "servers",
+            "mcpServers"
+          ],
           "description": "Root key to use when writing .vscode/mcp.json."
         }
       }
