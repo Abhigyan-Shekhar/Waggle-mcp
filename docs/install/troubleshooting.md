@@ -2,7 +2,20 @@
 
 ## `waggle-mcp: command not found`
 
-Install with `pipx install waggle-mcp`, then run `pipx ensurepath` and restart your shell.
+The package may already be installed while pipx's app directory is missing from
+your shell's `PATH`. On zsh, repair and verify it with:
+
+```bash
+pipx ensurepath
+exec zsh -l
+command -v waggle-mcp
+waggle-mcp doctor
+```
+
+For another shell, close and reopen the terminal instead of running
+`exec zsh -l`. If `pipx list` shows `waggle-mcp` but `command -v waggle-mcp`
+is still empty, run `pipx reinstall waggle-mcp` to recreate its app link.
+Updating pipx itself is not normally required for this error.
 
 ## Python or `pipx` issues
 
