@@ -13,6 +13,13 @@ from typing import Any
 _SUBMODULES = ["utils", "drive", "mcp", "routes", "cli"]
 
 
+def main() -> None:
+    """Console entry point with a lightweight path for standalone commands."""
+    from waggle.server.cli import main as cli_main
+
+    cli_main()
+
+
 class _ServerModuleProxy(types.ModuleType):
     def _get_submodule(self, name: str) -> types.ModuleType:
         loaded = self.__dict__.setdefault("_submodules_loaded", {})

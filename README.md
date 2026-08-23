@@ -768,11 +768,18 @@ waggle-mcp import-graph-backup --input-path my_memory.json
 | `waggle-mcp init` | Interactive setup wizard for one client. |
 | `waggle-mcp serve` | Run the MCP server (usually started by your client). |
 | `waggle-mcp demo` | Run the 60-second local demo with a pre-loaded example graph. |
+| `waggle-mcp bootstrap` | Seed project memory from README/docs/config/git metadata. |
+| `waggle-mcp stats` | Show local project-memory counts, scopes, and recent nodes. |
+| `waggle-mcp search "query"` | Search local project memory from the terminal. |
+| `waggle-mcp timeline` | Review recent memory events in time order. |
+| `waggle-mcp inspect-node <id>` | Inspect one memory node, metadata, evidence, and edges. |
 | `waggle-mcp edit-graph` | Launch Graph Studio in the browser. |
 | `waggle-mcp uninstall-hooks` | Remove the waggle-managed hooks block from Claude Code settings. |
 | `waggle-mcp export-context-bundle` | Export a portable Markdown/JSON context pack. |
 | `waggle-mcp export-markdown-vault` | Export the graph as an Obsidian-style vault. |
 | `waggle-mcp ingest-transcript-handoff` | Ingest a rollover transcript, export a handoff bundle, and emit a session `.abhi` checkpoint. |
+
+For the terminal-first project-memory workflow, see [docs/project-memory-cli.md](docs/project-memory-cli.md).
 
 ### `WAGGLE_STARTUP_MODE`
 
@@ -830,6 +837,7 @@ Controls the cosine similarity threshold for automatic node deduplication at wri
 ## Security & Privacy
 
 - Data stays local by default (`~/.waggle/waggle.db`). No telemetry, no cloud calls for local operation.
+- Anonymous telemetry is opt-in only; see [docs/telemetry.md](docs/telemetry.md) for the exact events, properties, and CLI controls.
 - Memory only leaves your machine if you configure a remote backend or explicitly export/push.
 - Local SQLite is not encrypted at rest — use OS disk encryption if the stored history is sensitive.
 - Before `.abhi` export, Waggle scans transcript text for likely secrets (API keys, JWTs, passwords). Export is refused if secrets are found unless you pass `--force`.

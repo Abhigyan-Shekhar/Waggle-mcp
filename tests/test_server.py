@@ -14,6 +14,7 @@ import pytest
 
 import waggle
 import waggle.server as server_module
+from waggle import telemetry
 from waggle.config import AppConfig
 from waggle.errors import ValidationFailure
 from waggle.graph import MemoryGraph
@@ -25,9 +26,12 @@ from waggle.server import (
     _build_parser,
     _default_graph,
     _hook_tools_from_args,
+    _prompt_yes_no,
     _run_admin_command,
+    _run_bootstrap,
     _run_doctor,
     _run_graph_editor_command,
+    _run_init,
     _run_setup,
     _setup_clients_from_args,
     _write_antigravity,
@@ -144,6 +148,34 @@ def test_store_node_and_stats_tool(tmp_path: Path) -> None:
     assert stats_result.structuredContent["total_repos"] == 1
     assert stats_result.structuredContent["total_context_windows"] == 1
     assert "Context windows: 1" in stats_result.content[0].text
+
+
+def test_handle_tool_call_emits_safe_telemetry_boundary(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    captured: list[dict[str, object]] = []
+    app = make_app(tmp_path)
+    monkeypatch.setattr(
+        telemetry,
+        "capture_tool_event",
+        lambda tool_name, **kwargs: captured.append({"tool_name": tool_name, **kwargs}),
+    )
+
+    result = app.handle_tool_call(
+        "store_node",
+        {
+            "label": "Secret decision",
+            "content": "Sensitive memory text should not be telemetry.",
+            "node_type": NodeType.DECISION.value,
+        },
+    )
+
+    assert result.isError is False
+    assert captured
+    event = captured[0]
+    assert event["tool_name"] == "store_node"
+    assert event["is_error"] is False
+    assert event["transport"] == "stdio"
+    assert event["backend"] == "sqlite"
+    assert "arguments" not in event
 
 
 def test_tool_schemas_are_glama_friendly(tmp_path: Path) -> None:
@@ -1525,7 +1557,15 @@ def test_debug_retrieval_tool(tmp_path: Path) -> None:
     assert result.structuredContent["hybrid_top_hits"]
 
 
-def test_export_context_bundle_cli_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_export_context_bundle_cli_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    captured_telemetry: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        telemetry,
+        "capture",
+        lambda event_name, **kwargs: captured_telemetry.append({"event_name": event_name, **kwargs}),
+    )
     app = make_app(tmp_path)
     app.graph.add_node(
         label="CLI Export Decision",
@@ -1555,9 +1595,29 @@ def test_export_context_bundle_cli_command(tmp_path: Path, capsys: pytest.Captur
     assert payload["mode"] == "graph"
     assert Path(payload["markdown_path"]).exists()
     assert Path(payload["json_path"]).exists()
+    assert captured_telemetry == [
+        {
+            "event_name": "export_completed",
+            "waggle_version": waggle.__version__,
+            "properties": {
+                "success": True,
+                "backend": "sqlite",
+                "embedding_mode": "local",
+                "result_count_bucket": "1-5",
+            },
+        }
+    ]
 
 
-def test_checkpoint_context_cli_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_checkpoint_context_cli_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    captured_telemetry: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        telemetry,
+        "capture",
+        lambda event_name, **kwargs: captured_telemetry.append({"event_name": event_name, **kwargs}),
+    )
     app = make_app(tmp_path)
     app.graph.add_node(
         label="Checkpoint Decision",
@@ -1588,6 +1648,13 @@ def test_checkpoint_context_cli_command(tmp_path: Path, capsys: pytest.CaptureFi
 
     assert exit_code == 0
     assert payload["checkpoint_scope"] == "session"
+    assert captured_telemetry[0]["event_name"] == "export_completed"
+    assert captured_telemetry[0]["properties"] == {
+        "success": True,
+        "backend": "sqlite",
+        "embedding_mode": "local",
+        "result_count_bucket": "1-5",
+    }
 
 
 def test_clear_session_project_and_all_tools_require_confirm_and_delete_data(tmp_path: Path) -> None:
@@ -1628,7 +1695,15 @@ def test_clear_session_project_and_all_tools_require_confirm_and_delete_data(tmp
     assert app.graph.get_stats().total_nodes == 0
 
 
-def test_markdown_vault_tool_and_cli_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_markdown_vault_tool_and_cli_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    captured_telemetry: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        telemetry,
+        "capture",
+        lambda event_name, **kwargs: captured_telemetry.append({"event_name": event_name, **kwargs}),
+    )
     app = make_app(tmp_path)
     app.graph.add_node(
         label="Vault Decision",
@@ -1652,6 +1727,18 @@ def test_markdown_vault_tool_and_cli_command(tmp_path: Path, capsys: pytest.Capt
 
     assert exit_code == 0
     assert payload["files_written"]
+    assert captured_telemetry == [
+        {
+            "event_name": "export_completed",
+            "waggle_version": waggle.__version__,
+            "properties": {
+                "success": True,
+                "backend": "sqlite",
+                "embedding_mode": "local",
+                "result_count_bucket": "1-5",
+            },
+        }
+    ]
 
 
 def test_runtime_feature_parity_check_passes_for_current_memory_graph() -> None:
@@ -1987,6 +2074,18 @@ def test_setup_client_arg_normalization() -> None:
     assert _setup_clients_from_args("codex,gemini,antigravity") == ["Codex", "Gemini CLI", "Antigravity"]
 
 
+def test_prompt_yes_no_defaults_to_no(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("builtins.input", lambda prompt: "")
+
+    assert _prompt_yes_no("Enable telemetry?", default=False) is False
+
+
+def test_prompt_yes_no_accepts_yes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("builtins.input", lambda prompt: "yes")
+
+    assert _prompt_yes_no("Enable telemetry?", default=False) is True
+
+
 def test_write_gemini_config_preserves_existing_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
@@ -2041,6 +2140,70 @@ def test_run_setup_writes_codex_config_and_agents(monkeypatch: pytest.MonkeyPatc
     assert "[mcp_servers.waggle]" in config_text
     assert 'WAGGLE_MODEL = "deterministic"' in config_text
     assert AUTOMATIC_MEMORY_RULE_TEXT.strip() in (tmp_path / "AGENTS.md").read_text()
+
+
+def test_run_init_prompts_telemetry_default_no(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(telemetry, "CONFIG_PATH", tmp_path / "telemetry.json")
+    monkeypatch.setattr(telemetry, "QUEUE_PATH", tmp_path / "telemetry-queue.jsonl")
+    answers = iter(["1", str(tmp_path / "memory.db"), ""])
+    monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
+
+    result = _run_init()
+
+    assert result == 0
+    payload = json.loads((tmp_path / "telemetry.json").read_text(encoding="utf-8"))
+    assert payload["enabled"] is False
+    assert payload["installation_id"]
+
+
+def test_server_entrypoint_routes_telemetry_through_cli(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(telemetry, "CONFIG_PATH", tmp_path / "telemetry.json")
+    monkeypatch.setattr(telemetry, "QUEUE_PATH", tmp_path / "telemetry-queue.jsonl")
+    monkeypatch.setattr("sys.argv", ["waggle-mcp", "telemetry", "status"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        server_module.main()
+
+    assert exc_info.value.code == 0
+    assert json.loads(capsys.readouterr().out)["enabled"] is False
+
+
+def test_run_bootstrap_returns_failure_when_all_candidate_writes_fail(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    class FailingGraph:
+        def add_node(self, **kwargs: object) -> None:
+            raise RuntimeError("write failed")
+
+    (tmp_path / "README.md").write_text("# Demo\n", encoding="utf-8")
+    config = AppConfig.from_env()
+    config.db_path = str(tmp_path / "waggle.db")
+    args = SimpleNamespace(
+        path=str(tmp_path),
+        project="",
+        agent_id="",
+        session_id="",
+        include_git=False,
+        max_file_bytes=1024,
+        max_files=10,
+        dry_run=False,
+        db="",
+        model="",
+    )
+    monkeypatch.setattr(server_module, "_build_backend", lambda config: FailingGraph())
+    monkeypatch.setattr(telemetry, "capture", lambda *args, **kwargs: None)
+
+    exit_code = _run_bootstrap(config, args)
+
+    output = capsys.readouterr().out
+    assert exit_code == 1
+    assert "failed:     1" in output
 
 
 def test_write_codex_config_updates_existing_file_without_duplicates(
