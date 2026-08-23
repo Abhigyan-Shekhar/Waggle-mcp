@@ -43,10 +43,16 @@ This repository is the public Waggle product repo: Apache-2.0 licensed, availabl
 ## Quick Start
 
 ```bash
+# macOS: install pipx if needed
+brew install pipx
+
 # Install globally (no venv needed)
 pipx install waggle-mcp
 
-# One-line setup — detects your MCP clients and writes config
+# Add pipx apps to PATH
+pipx ensurepath
+
+# Restart your terminal, then run:
 waggle-mcp setup --yes
 
 # Verify everything is healthy
@@ -90,7 +96,7 @@ Recommended:
 - Codex: install the self-hosted Codex MCP plugin from the GitHub Release marketplace bundle
 - MCP clients: use [docs/install](./docs/install/README.md) and Smithery metadata in `smithery.yaml`
 - Claude: use [docs/install/claude-code.md](./docs/install/claude-code.md) or [docs/install/claude-desktop.md](./docs/install/claude-desktop.md)
-- Developers: `pipx install waggle-mcp`
+- Developers: follow [Quick Start](#quick-start) to run `pipx install waggle-mcp`, `pipx ensurepath`, and restart the terminal before setup
 
 ### Start here
 
@@ -100,7 +106,7 @@ Choose the distribution that matches your client:
 | --- | --- | --- |
 | VS Code | Search for **Waggle: Local Memory for AI Agents** in the VS Code Marketplace, then run `Waggle: Enable for this Workspace`. | Run `Waggle: Doctor` from the Command Palette. |
 | Codex | Download the [v0.1.24 Codex marketplace bundle](https://github.com/Abhigyan-Shekhar/Waggle-mcp/releases/tag/v0.1.24), then run `codex plugin marketplace add <bundle-directory>` and `codex plugin add waggle@waggle`. | Start a new Codex task and ask it to run `get_stats`. |
-| Claude, Cursor, Gemini CLI, or another local MCP client | `pipx install waggle-mcp && waggle-mcp setup --yes` | Run `waggle-mcp doctor`, then restart the client. |
+| Claude, Cursor, Gemini CLI, or another local MCP client | `pipx install waggle-mcp`, then run `pipx ensurepath`, restart your terminal, and run `waggle-mcp setup --yes` | Run `waggle-mcp doctor`, then restart the client. |
 | Docker deployments | Pull `ghcr.io/abhigyan-shekhar/waggle-mcp:latest`. | Run the image's built-in `doctor` command. |
 
 Waggle is local-first: its default SQLite database is `~/.waggle/waggle.db`, and it does not require an account, API key, or cloud connection. Memory is exported, synced, or sent to a remote backend only when you explicitly configure that behavior.
@@ -129,6 +135,8 @@ Claude distribution:
 
 ```bash
 pipx install waggle-mcp
+pipx ensurepath
+# Restart your terminal, then run:
 claude mcp add --transport stdio waggle -- waggle-mcp serve --transport stdio
 ```
 
@@ -369,7 +377,7 @@ Agent: [calls store_node() + store_edge(new_node → old_node, "contradicts")]
 
 ## Setting Up as an MCP Server
 
-> **One-time install:** `pipx install waggle-mcp` — no API key, no cloud account, no Docker required for local use.
+> **One-time install:** `pipx install waggle-mcp`, then run `pipx ensurepath` and restart your terminal before using `waggle-mcp`. No API key, no cloud account, no Docker required for local use.
 
 Shared JSON config for clients that accept `mcpServers` JSON:
 
@@ -521,7 +529,15 @@ Do not expose Waggle publicly without authentication.
 ### `waggle-mcp` not on PATH?
 
 ```bash
-pipx ensurepath   # then restart your terminal
+# macOS/Linux
+pipx ensurepath
+# Close and reopen your terminal, then run:
+command -v waggle-mcp
+
+# Windows PowerShell
+pipx ensurepath
+# Close and reopen PowerShell, then run:
+Get-Command waggle-mcp
 ```
 
 ---
