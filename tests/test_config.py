@@ -36,6 +36,7 @@ def test_embedding_backend_rejects_invalid_value(monkeypatch):
         AppConfig.from_env()
 
 
+
 @pytest.mark.parametrize(
     ("field_name", "error_message"),
     [
@@ -164,5 +165,15 @@ def test_from_env_rejects_invalid_boolean(monkeypatch):
     with pytest.raises(
         ValidationFailure,
         match=r"WAGGLE_RETENTION_ENABLED.*boolean",
+    ):
+        AppConfig.from_env()
+
+
+def test_from_env_rejects_invalid_tiered_retrieval_boolean(monkeypatch):
+    monkeypatch.setenv("WAGGLE_TIERED_RETRIEVAL", "maybe")
+
+    with pytest.raises(
+        ValidationFailure,
+        match=r"WAGGLE_TIERED_RETRIEVAL.*boolean",
     ):
         AppConfig.from_env()
