@@ -197,7 +197,7 @@ class AppConfig:
             ),
             startup_mode=os.environ.get("WAGGLE_STARTUP_MODE", STARTUP_MODE_NORMAL).strip().lower(),
             api_key_environment=os.environ.get("WAGGLE_API_KEY_ENVIRONMENT", "test").strip().lower(),
-            tiered_retrieval=_parse_bool(os.environ.get("WAGGLE_TIERED_RETRIEVAL", "false")),
+            tiered_retrieval=_parse_bool("WAGGLE_TIERED_RETRIEVAL", os.environ.get("WAGGLE_TIERED_RETRIEVAL", "false")),
             tiered_retrieval_top_k_windows=_parse_int(
                 "WAGGLE_TIERED_TOP_K_WINDOWS", os.environ.get("WAGGLE_TIERED_TOP_K_WINDOWS", "3")
             ),
