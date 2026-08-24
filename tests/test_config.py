@@ -163,6 +163,6 @@ def test_from_env_rejects_invalid_boolean(monkeypatch):
 
     with pytest.raises(
         ValidationFailure,
-        match="WAGGLE_RETENTION_ENABLED.*boolean",
+        match=r"WAGGLE_RETENTION_ENABLED.*boolean",
     ):
         AppConfig.from_env()
