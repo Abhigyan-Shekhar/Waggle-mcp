@@ -36,7 +36,6 @@ def test_embedding_backend_rejects_invalid_value(monkeypatch):
         AppConfig.from_env()
 
 
-
 @pytest.mark.parametrize(
     ("field_name", "error_message"),
     [
@@ -158,6 +157,7 @@ def test_resolve_default_db_path_configured(tmp_path, monkeypatch):
     config_content = f'[mcp_servers.waggle.env]\nWAGGLE_DB_PATH = "{target_path.as_posix()}"'
     config_file.write_text(config_content, encoding="utf-8")
     assert resolve_default_db_path() == str(target_path)
+
 
 def test_from_env_rejects_invalid_boolean(monkeypatch):
     monkeypatch.setenv("WAGGLE_RETENTION_ENABLED", "maybe")

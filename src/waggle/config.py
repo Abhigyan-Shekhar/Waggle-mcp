@@ -71,9 +71,8 @@ def _parse_bool(name: str, value: str) -> bool:
         return True
     if normalized == "false":
         return False
-    raise ValidationFailure(
-        f"{name} must be a boolean, got '{value}'."
-    )
+    raise ValidationFailure(f"{name} must be a boolean, got '{value}'.")
+
 
 @dataclass(slots=True)
 class AppConfig:
@@ -177,7 +176,9 @@ class AppConfig:
             hybrid_recency_weight=_parse_float(
                 "WAGGLE_HYBRID_RECENCY_WEIGHT", os.environ.get("WAGGLE_HYBRID_RECENCY_WEIGHT", "1.0")
             ),
-            hybrid_rerank_enabled=_parse_bool("WAGGLE_HYBRID_RERANK_ENABLED", os.environ.get("WAGGLE_HYBRID_RERANK_ENABLED", "false")),
+            hybrid_rerank_enabled=_parse_bool(
+                "WAGGLE_HYBRID_RERANK_ENABLED", os.environ.get("WAGGLE_HYBRID_RERANK_ENABLED", "false")
+            ),
             hybrid_rerank_model=os.environ.get("WAGGLE_HYBRID_RERANK_MODEL", "claude-3-5-sonnet-latest").strip(),
             hybrid_rerank_top_k_in=_parse_int(
                 "WAGGLE_HYBRID_RERANK_TOP_K_IN", os.environ.get("WAGGLE_HYBRID_RERANK_TOP_K_IN", "20")
@@ -190,7 +191,9 @@ class AppConfig:
             neo4j_username=os.environ.get("WAGGLE_NEO4J_USERNAME", "").strip(),
             neo4j_password=os.environ.get("WAGGLE_NEO4J_PASSWORD", ""),
             neo4j_database=os.environ.get("WAGGLE_NEO4J_DATABASE", "").strip(),
-            retention_enabled=_parse_bool("WAGGLE_RETENTION_ENABLED", os.environ.get("WAGGLE_RETENTION_ENABLED", "false")),
+            retention_enabled=_parse_bool(
+                "WAGGLE_RETENTION_ENABLED", os.environ.get("WAGGLE_RETENTION_ENABLED", "false")
+            ),
             retention_days=_parse_int("WAGGLE_RETENTION_DAYS", os.environ.get("WAGGLE_RETENTION_DAYS", "90")),
             retention_prune_interval_hours=_parse_int(
                 "WAGGLE_RETENTION_PRUNE_INTERVAL_HOURS", os.environ.get("WAGGLE_RETENTION_PRUNE_INTERVAL_HOURS", "24")
@@ -275,5 +278,3 @@ class AppConfig:
     @property
     def is_strict_mode(self) -> bool:
         return self.startup_mode == STARTUP_MODE_STRICT
-
-
