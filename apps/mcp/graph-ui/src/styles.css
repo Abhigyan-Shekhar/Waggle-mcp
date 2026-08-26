@@ -81,50 +81,42 @@ body {
 
 .workspace-brand {
   display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 0 8px 26px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0 8px 24px;
   text-align: left;
 }
 
-.workspace-brand strong {
+.brand-logo {
   display: block;
-  color: #15231d;
-  font-size: 18px;
-  letter-spacing: -0.02em;
+  object-fit: contain;
 }
 
-.workspace-brand small,
+.brand-logo-full {
+  width: 158px;
+  height: auto;
+}
+
+.brand-logo-icon {
+  display: none;
+  width: 42px;
+  height: 42px;
+}
+
+.brand-subtitle {
+  display: block;
+  margin: -3px 0 0 49px;
+  color: #838a84;
+  font-size: 11px;
+}
+
 .graph-studio-link small {
   display: block;
   margin-top: 1px;
   color: #838a84;
   font-size: 11px;
 }
-
-.brand-mark {
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 3px;
-  padding-bottom: 8px;
-  border-radius: 11px;
-  background: #183c2d;
-  box-shadow: 0 8px 20px rgba(24, 60, 45, 0.18);
-}
-
-.brand-mark i {
-  display: block;
-  width: 4px;
-  border-radius: 4px;
-  background: #dff1e4;
-}
-
-.brand-mark i:nth-child(1) { height: 8px; transform: rotate(-18deg); }
-.brand-mark i:nth-child(2) { height: 14px; }
-.brand-mark i:nth-child(3) { height: 8px; transform: rotate(18deg); }
 
 .workspace-sidebar nav { display: grid; gap: 5px; }
 
@@ -287,8 +279,10 @@ body {
 @media (max-width: 900px) {
   .workspace-shell { grid-template-columns: 76px minmax(0, 1fr); }
   .workspace-sidebar { padding-inline: 12px; }
-  .workspace-brand { justify-content: center; padding-inline: 0; }
-  .workspace-brand > span:last-child, .workspace-sidebar nav button:not(.active)::after, .workspace-sidebar nav button { font-size: 0; }
+  .workspace-brand { align-items: center; padding-inline: 0; }
+  .brand-logo-full, .brand-subtitle { display: none; }
+  .brand-logo-icon { display: block; }
+  .workspace-sidebar nav button:not(.active)::after, .workspace-sidebar nav button { font-size: 0; }
   .workspace-sidebar nav button, .graph-studio-link { justify-content: center; padding-inline: 8px; }
   .workspace-nav-icon { font-size: 17px; }
   .nav-count { position: absolute; margin: -25px 0 0 24px; font-size: 9px; }

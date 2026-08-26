@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import waggleIcon from "../../../../assets/waggle-icon.png";
+import waggleLogo from "../../../../assets/waggle-logo.png";
 import { apiRequest, buildScopeQuery } from "./lib/api";
 import { readBootConfig } from "./lib/boot-config";
 import {
@@ -359,9 +361,15 @@ export function Workspace() {
   return (
     <div className="workspace-shell">
       <aside className="workspace-sidebar">
-        <button className="workspace-brand" onClick={() => navigate("overview")} type="button">
-          <span className="brand-mark"><i /><i /><i /></span>
-          <span><strong>Waggle</strong><small>Shared memory</small></span>
+        <button
+          aria-label="Waggle — Shared memory"
+          className="workspace-brand"
+          onClick={() => navigate("overview")}
+          type="button"
+        >
+          <img alt="Waggle" className="brand-logo brand-logo-full" src={waggleLogo} />
+          <img alt="" aria-hidden="true" className="brand-logo brand-logo-icon" src={waggleIcon} />
+          <small className="brand-subtitle">Shared memory</small>
         </button>
         <nav aria-label="Workspace navigation">
           {NAV_ITEMS.map((item) => (
