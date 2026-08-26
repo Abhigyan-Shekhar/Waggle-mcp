@@ -22,6 +22,147 @@
 
 ---
 
+## Waggle WebMCP Challenge Demo
+
+**Shared project memory, governed by humans.**
+
+Agent memory is often invisible to the people who depend on it: an agent can
+retrieve stale context, silently replace a decision, or lose the reason a fact
+changed. Waggle makes that memory a shared workspace. ChatGPT reads the same
+authoritative project memory the human sees, agents propose corrections, and a
+human decides exactly what becomes the new truth.
+
+**[Open the live Workspace](https://waggle-webmcp.onrender.com/)** ·
+**[Open Graph Studio](https://waggle-webmcp.onrender.com/graph)** ·
+**[Challenge branch](https://github.com/Abhigyan-Shekhar/Waggle-mcp/tree/codex/waggle-webmcp)**
+
+> **Challenge Demo:** The hosted experience is a seeded, isolated judge mode.
+> It demonstrates Waggle's governance loop without setup; it is not a claim
+> that the Render deployment itself uses local-first storage. The production
+> demo uses ephemeral SQLite and may take 50 seconds or more to wake on
+> Render's free tier. If state disappears after a restart or redeploy, the
+> deterministic fixture is recreated automatically.
+
+### See Waggle in action
+
+1. Open the [Workspace](https://waggle-webmcp.onrender.com/) and select
+   **See Waggle in Action**. Starting or restarting the guide resets only your
+   isolated browser session to the deterministic fixture.
+2. Use each **Copy Prompt** action in the guide and send the prompt to ChatGPT.
+   The guide advances only when the corresponding real WebMCP invocation or
+   human-review event succeeds.
+3. At the proposal step, edit the replacement to
+   **“Use SQLite by default; Neo4j remains optional.”** and approve it. Waggle
+   freezes that exact human-approved payload.
+4. Ask ChatGPT to apply the approved proposal, recall the decision again, then
+   follow **Explore lineage in Graph Studio** to inspect the real `updates`
+   edge and provenance.
+5. Use **Restart demo** to reproduce the flow or **Exit demo** to leave the
+   guide without resetting the workspace.
+
+Exact judge prompts:
+
+```text
+Catch me up on this project using Waggle.
+What did we decide about the storage architecture?
+That conflicts with our local-first requirement. Propose a better memory, but don't change anything directly.
+Apply the memory change I approved.
+What storage architecture did we decide on?
+```
+
+The public project identifier used by the registered tools is
+`waggle-webmcp`.
+
+### Human + agent loop
+
+```mermaid
+sequenceDiagram
+    participant H as Human
+    participant C as ChatGPT
+    participant W as Waggle Workspace
+    participant M as Governed Memory
+
+    H->>C: Ask for project context
+    C->>W: get_project_brief / recall_memory
+    W->>M: Read current authority
+    M-->>C: Memory + provenance
+    H->>C: Ask for a correction proposal
+    C->>W: propose_memory_change
+    W-->>H: Pending proposal; memory unchanged
+    H->>W: Edit & Approve exact payload
+    H->>C: Apply the change I approved
+    C->>W: apply_approved_memory_change
+    W->>M: Create new authority + updates lineage
+    H->>C: Recall the decision again
+    C->>W: recall_memory
+    M-->>C: Human-approved authoritative value
+```
+
+### Four WebMCP tools
+
+| Tool | Input | Contract |
+|---|---|---|
+| `get_project_brief` | `project_id` | Returns a compact brief assembled from the authoritative goal, decisions, constraints, current state, and open questions visible in the Workspace. |
+| `recall_memory` | `project_id`, `query`, optional `limit` | Searches Waggle's existing scoped graph retrieval and returns only current authoritative memories, with direct supersession provenance when present. |
+| `propose_memory_change` | `project_id`, `memory_id`, `proposed_content`, optional `reason` and `evidence_ids` | Creates a pending, idempotent proposal for human review. It does not modify authoritative memory. |
+| `apply_approved_memory_change` | `proposal_id` | Applies only an already approved proposal. The tool cannot provide replacement content or bypass the human boundary. |
+
+### Governance semantics
+
+- **Human approval is the write boundary.** An agent may suggest a replacement,
+  but only a human can approve or edit-and-approve it.
+- **The approved payload is immutable.** Application accepts only the proposal
+  ID, so the agent cannot alter what the human reviewed.
+- **Stale proposals fail closed.** A proposal fingerprints its target version.
+  If that memory changes before review or application, Waggle marks the
+  proposal stale instead of overwriting newer truth.
+- **History is preserved.** Application creates a new authoritative memory and
+  a native `updates` edge to the previous, superseded memory. Normal recall
+  excludes superseded and expired values.
+- **Provenance remains inspectable.** Proposal author, human reviewer, review
+  note, timestamps, evidence IDs, resulting memory ID, activity events, and the
+  supersession edge remain available in Workspace and Graph Studio.
+- **Hosted sessions are isolated.** An opaque `HttpOnly; Secure; SameSite=None`
+  cookie maps each browser session to its own tenant and physical project.
+  Exact-origin credentialed CORS prevents another origin from reading it, and
+  reset affects only the current session.
+
+### Challenge contribution boundary
+
+Waggle existed before this challenge. The pre-existing foundation includes
+Waggle Core, `MemoryGraph`, graph and hybrid retrieval, the MCP server, local
+SQLite storage, optional Neo4j support, evidence/provenance records, and the
+Graph Studio foundation.
+
+The challenge work begins at
+[`159f66f`](https://github.com/Abhigyan-Shekhar/Waggle-mcp/commit/159f66f)
+and adds the WebMCP adapter and four-tool flow, structured project briefs,
+authoritative recall, a durable proposal repository, the human approval
+boundary, stale-safe application, native supersession provenance, the governed
+Workspace, activity trail, isolated seeded judge mode, Guided Demo, focused
+lineage views, and the hosted split deployment.
+
+Challenge checkpoints:
+
+- [`159f66f`](https://github.com/Abhigyan-Shekhar/Waggle-mcp/commit/159f66f) — project brief vertical slice
+- [`d5e0cda`](https://github.com/Abhigyan-Shekhar/Waggle-mcp/commit/d5e0cda) — authoritative memory recall
+- [`0e85254`](https://github.com/Abhigyan-Shekhar/Waggle-mcp/commit/0e85254) — memory change proposals
+- [`3312a33`](https://github.com/Abhigyan-Shekhar/Waggle-mcp/commit/3312a33) — stale-safe human approval lifecycle
+- [`00b63c0`](https://github.com/Abhigyan-Shekhar/Waggle-mcp/commit/00b63c0) — governed memory Workspace
+- [`af199b2`](https://github.com/Abhigyan-Shekhar/Waggle-mcp/commit/af199b2) — isolated seeded judge mode
+- [`b868516`](https://github.com/Abhigyan-Shekhar/Waggle-mcp/commit/b868516) — hosted frontend/backend split
+- [`1ba1a8e`](https://github.com/Abhigyan-Shekhar/Waggle-mcp/commit/1ba1a8e) — memory-first workspace and Guided Demo
+- [`8237f0d`](https://github.com/Abhigyan-Shekhar/Waggle-mcp/commit/8237f0d) — guided experience polish
+- [`324011f`](https://github.com/Abhigyan-Shekhar/Waggle-mcp/commit/324011f) — recorded public acceptance run
+
+The public deployment, session-isolation checks, API acceptance record, and
+remaining real-ChatGPT acceptance gate are documented in
+[`WEBMCP_STATUS.md`](WEBMCP_STATUS.md). Operational reproduction steps live in
+the [judge runbook](docs/webmcp-judge-runbook.md). The repository is released
+under the [Apache License 2.0](LICENSE).
+
+---
+
 ## Core
 
 This repository is the public Waggle product repo: Apache-2.0 licensed, available on GitHub and PyPI, and focused on the local-first memory engine.
