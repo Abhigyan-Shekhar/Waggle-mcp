@@ -79,7 +79,7 @@ def _seed_records() -> list[tuple[str, str, str, NodeType, list[str]]]:
         ("storage", "Storage architecture", "Use Neo4j as the primary storage engine.", NodeType.DECISION, ["hero", "storage", "architecture"]),
         ("local-first", "Local-first product direction", "Waggle should preserve a local-first default.", NodeType.DECISION, ["local-first", "architecture"]),
         ("human-review", "Human approval boundary", "Human approval is required before an agent-proposed correction becomes authoritative.", NodeType.DECISION, ["governance"]),
-        ("one-origin", "Hosted demo topology", "Serve the workspace, WebMCP tools, and API from one origin.", NodeType.DECISION, ["deployment"]),
+        ("one-origin", "Hosted demo topology", "Host the static workspace and Waggle API separately on free services with exact-origin CORS.", NodeType.DECISION, ["deployment"]),
         ("lineage", "Correction lineage", "Every applied correction must preserve the memory it supersedes.", NodeType.DECISION, ["governance", "provenance"]),
         ("constraint-agent", "Agent write constraint", "Agents must not directly overwrite authoritative memory.", NodeType.NOTE, ["constraint", "governance"]),
         ("constraint-stale", "Stale-state constraint", "Stale proposals must never overwrite newer truth.", NodeType.NOTE, ["constraint", "safety"]),

@@ -3,13 +3,19 @@
 ## Deployment contract
 
 Deploy the repository's `render.yaml` Blueprint from the challenge branch. It
-runs the existing Docker image as one public ASGI service, stores SQLite state
-on `/data`, and enables `WAGGLE_DEMO_MODE=true` with secure cookies.
+runs the built workspace as a free static site and the existing Docker image as
+a separate free ASGI backend. The backend enables `WAGGLE_DEMO_MODE=true`, uses
+the deterministic embedding model, and permits credentialed requests only from
+the exact frontend origin.
 
-Do not add a second frontend origin, a shared Neo4j demo database, an API key,
-or a login step. Browser isolation is performed server-side: the opaque cookie
-selects a private tenant and physical project while every public WebMCP payload
-continues to use the alias `waggle-webmcp`.
+Do not add another frontend origin, a shared Neo4j demo database, an API key, or
+a login step. Browser isolation is performed server-side: the opaque
+SameSite=None cookie selects a private tenant and physical project while every
+public WebMCP payload continues to use the alias `waggle-webmcp`.
+
+The free backend has ephemeral storage. State survives ordinary refreshes while
+the instance is running, but may be lost on restart or redeploy; a missing
+session workspace reseeds deterministically on its next request.
 
 ## Public URL acceptance
 
@@ -17,7 +23,7 @@ Run these checks after Render reports the deploy healthy:
 
 1. Open the HTTPS root URL in a new private browser window.
 2. Confirm the workspace loads without setup and shows `Challenge Demo`.
-3. Confirm the browser receives an HttpOnly, Secure, SameSite=Lax
+3. Confirm the API response issues an HttpOnly, Secure, SameSite=None
    `waggle_demo_session` cookie.
 4. Refresh and confirm the same 25-memory workspace remains.
 5. Open another private browser window and confirm it receives a different
@@ -25,11 +31,11 @@ Run these checks after Render reports the deploy healthy:
 6. Create or approve a change in window A and confirm it does not appear in B.
 7. Select `Reset Demo` in A and confirm A returns to the original fixture while
    B is unchanged.
-8. Open `/workspace`, `/graph`, and a built asset directly; each must return
-   successfully from the same origin.
-9. Check `/health/live` and `/health/ready` return healthy responses.
-10. Restart the service and confirm the persistent disk preserves existing
-    browser workspaces. A session whose data is absent must reseed automatically.
+8. Open `/workspace`, `/graph`, and a built asset on the frontend; each must
+   return successfully through the static-site rewrite.
+9. Check `/health/live` and `/health/ready` on the API origin.
+10. After a backend restart, confirm an absent session workspace reseeds to the
+    same deterministic fixture.
 
 ## Real ChatGPT acceptance
 

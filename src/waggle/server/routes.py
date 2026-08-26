@@ -123,9 +123,10 @@ class _RequestBodySizeMiddleware:
 class _DemoSessionMiddleware:
     """Attach an opaque, HTTP-only browser session to challenge requests."""
 
-    def __init__(self, app: ASGIApp, *, secure: bool) -> None:
+    def __init__(self, app: ASGIApp, *, secure: bool, cross_origin: bool = False) -> None:
         self.app = app
         self.secure = secure
+        self.cross_origin = cross_origin
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -155,7 +156,9 @@ class _DemoSessionMiddleware:
                 morsel["path"] = "/"
                 morsel["max-age"] = str(DEMO_COOKIE_MAX_AGE)
                 morsel["httponly"] = True
-                morsel["samesite"] = "Lax"
+                # A separately hosted workspace reaches this API cross-site. Such
+                # credentialed requests require SameSite=None (and therefore Secure).
+                morsel["samesite"] = "None" if self.cross_origin else "Lax"
                 if self.secure:
                     morsel["secure"] = True
                 response_headers = list(message.get("headers", []))
@@ -1397,7 +1400,11 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
     )
     app: ASGIApp = raw_app
     if config.demo_mode:
-        app = _DemoSessionMiddleware(app, secure=config.demo_cookie_secure)
+        app = _DemoSessionMiddleware(
+            app,
+            secure=config.demo_cookie_secure or bool(config.demo_frontend_origin),
+            cross_origin=bool(config.demo_frontend_origin),
+        )
     if config.demo_frontend_origin:
         app = CORSMiddleware(
             app,

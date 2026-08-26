@@ -969,6 +969,7 @@ def test_split_demo_backend_allows_only_configured_frontend_with_credentials(tmp
     app = create_http_application(app_server, config)
 
     with TestClient(app) as client:
+        session = client.get("/api/graph?project=waggle-webmcp")
         allowed = client.options(
             "/api/webmcp/project-brief",
             headers={
@@ -986,6 +987,8 @@ def test_split_demo_backend_allows_only_configured_frontend_with_credentials(tmp
         )
 
     assert allowed.status_code == 200
+    assert "SameSite=None" in session.headers["set-cookie"]
+    assert "Secure" in session.headers["set-cookie"]
     assert allowed.headers["access-control-allow-origin"] == "https://waggle-webmcp.onrender.com"
     assert allowed.headers["access-control-allow-credentials"] == "true"
     assert denied.status_code == 400

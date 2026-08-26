@@ -11,6 +11,8 @@ services:
         value: http
       - key: WAGGLE_BACKEND
         value: sqlite
+      - key: WAGGLE_MODEL
+        value: deterministic
       - key: WAGGLE_DB_PATH
         value: /data/waggle-webmcp-demo.db
       - key: WAGGLE_HTTP_HOST
