@@ -373,7 +373,7 @@ export function Workspace() {
           ))}
         </nav>
         <div className="sidebar-spacer" />
-        <a className="graph-studio-link" href={`/graph?project=${encodeURIComponent(project)}`}>
+        <a className="graph-studio-link" href={`${boot.apiBaseUrl || ""}/graph?project=${encodeURIComponent(project)}`}>
           <ShellIcon>⌘</ShellIcon>
           <span>Graph Studio<small>Explore lineage</small></span>
           <b>↗</b>

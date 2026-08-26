@@ -70,6 +70,13 @@ def make_demo_http_config(tmp_path: Path) -> AppConfig:
     return replace(make_http_config(tmp_path), demo_mode=True, demo_cookie_secure=False)
 
 
+def make_split_demo_http_config(tmp_path: Path) -> AppConfig:
+    return replace(
+        make_demo_http_config(tmp_path),
+        demo_frontend_origin="https://waggle-webmcp.onrender.com",
+    )
+
+
 def seed_project(graph: MemoryGraph, project: str = "waggle-webmcp") -> None:
     graph.add_node(
         label="Project goal",
@@ -953,3 +960,33 @@ def test_demo_webmcp_project_alias_cannot_escape_physical_namespace(tmp_path: Pa
     for response in (other_project, guessed_physical, graph_escape):
         assert response.status_code == 400
         assert "must be 'waggle-webmcp'" in response.json()["message"]
+
+
+def test_split_demo_backend_allows_only_configured_frontend_with_credentials(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    config = make_split_demo_http_config(tmp_path)
+    app_server = WaggleServer(graph=graph, config=config)
+    app = create_http_application(app_server, config)
+
+    with TestClient(app) as client:
+        allowed = client.options(
+            "/api/webmcp/project-brief",
+            headers={
+                "Origin": "https://waggle-webmcp.onrender.com",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+        denied = client.options(
+            "/api/webmcp/project-brief",
+            headers={
+                "Origin": "https://example.invalid",
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+
+    assert allowed.status_code == 200
+    assert allowed.headers["access-control-allow-origin"] == "https://waggle-webmcp.onrender.com"
+    assert allowed.headers["access-control-allow-credentials"] == "true"
+    assert denied.status_code == 400
+    assert "access-control-allow-origin" not in denied.headers

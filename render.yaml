@@ -1,14 +1,11 @@
 services:
   - type: web
-    name: waggle-webmcp-demo
+    name: waggle-webmcp-api
     runtime: docker
-    plan: starter
-    autoDeploy: true
+    plan: free
+    branch: codex/waggle-webmcp
+    autoDeploy: false
     healthCheckPath: /health/ready
-    disk:
-      name: waggle-webmcp-demo-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: WAGGLE_TRANSPORT
         value: http
@@ -22,7 +19,21 @@ services:
         value: true
       - key: WAGGLE_DEMO_COOKIE_SECURE
         value: true
+      - key: WAGGLE_DEMO_FRONTEND_ORIGIN
+        value: https://waggle-webmcp.onrender.com
       - key: WAGGLE_API_KEY_ENVIRONMENT
         value: live
       - key: WAGGLE_LOG_LEVEL
         value: INFO
+  - type: web
+    name: waggle-webmcp
+    runtime: static
+    plan: free
+    branch: codex/waggle-webmcp
+    autoDeploy: false
+    buildCommand: npm ci --prefix apps/mcp/graph-ui && npm run build --prefix apps/mcp/graph-ui
+    staticPublishPath: src/waggle/static/graph
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

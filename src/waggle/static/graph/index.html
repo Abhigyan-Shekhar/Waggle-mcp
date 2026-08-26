@@ -3,14 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Waggle Graph Studio</title>
+    <title>Waggle — Shared Memory</title>
     <script type="module" crossorigin src="/app.js"></script>
     <link rel="stylesheet" crossorigin href="/app.css">
   </head>
   <body>
     <div id="root"></div>
     <script>
-      window.__WAGGLE_GRAPH_CONFIG__ = window.__WAGGLE_GRAPH_CONFIG__ || {};
+      window.__WAGGLE_GRAPH_CONFIG__ = window.__WAGGLE_GRAPH_CONFIG__ || {
+        schemaVersion: 1,
+        mode: "edit",
+        sampleMode: false,
+        demoMode: true,
+        apiBaseUrl: window.location.hostname === "waggle-webmcp.onrender.com"
+          ? "https://waggle-webmcp-api.onrender.com"
+          : "",
+        scope: {
+          project: "waggle-webmcp",
+          agent_id: "",
+          session_id: "",
+        },
+      };
     </script>
   </body>
 </html>

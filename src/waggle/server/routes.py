@@ -15,6 +15,7 @@ from typing import Any
 
 from starlette.applications import Starlette
 from starlette.datastructures import Headers
+from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from starlette.routing import Mount, Route
@@ -1397,4 +1398,12 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
     app: ASGIApp = raw_app
     if config.demo_mode:
         app = _DemoSessionMiddleware(app, secure=config.demo_cookie_secure)
+    if config.demo_frontend_origin:
+        app = CORSMiddleware(
+            app,
+            allow_origins=[config.demo_frontend_origin],
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type"],
+        )
     return _RequestBodySizeMiddleware(app, max_bytes=config.max_payload_bytes)

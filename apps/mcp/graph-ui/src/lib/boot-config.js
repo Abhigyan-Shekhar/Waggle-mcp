@@ -5,6 +5,7 @@ const DEFAULT_BOOT_CONFIG = Object.freeze({
   mode: "edit",
   sampleMode: false,
   demoMode: false,
+  apiBaseUrl: "",
   scope: {
     project: "",
     agent_id: "",
@@ -131,6 +132,7 @@ export function validateBootConfig(rawConfig) {
     mode: normalizeMode(rawConfig.mode, diagnostics),
     sampleMode: normalizeSampleMode(rawConfig.sampleMode, diagnostics),
     demoMode: normalizeDemoMode(rawConfig.demoMode, diagnostics),
+    apiBaseUrl: normalizeString(rawConfig.apiBaseUrl, "apiBaseUrl", diagnostics).replace(/\/$/, ""),
     scope: normalizeScope(rawConfig, diagnostics),
     diagnostics,
   };

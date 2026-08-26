@@ -1,10 +1,17 @@
 export async function apiRequest(path, options = {}) {
-  const response = await fetch(path, {
+  const configuredBase = String(
+    (typeof window !== "undefined" && window.__WAGGLE_GRAPH_CONFIG__?.apiBaseUrl) || "",
+  ).replace(/\/$/, "");
+  const requestUrl = configuredBase && path.startsWith("/")
+    ? `${configuredBase}${path}`
+    : path;
+  const response = await fetch(requestUrl, {
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {})
     },
-    ...options
+    ...options,
+    ...(configuredBase ? { credentials: "include" } : {}),
   });
   if (!response.ok) {
     let message = `${response.status} ${response.statusText}`;
