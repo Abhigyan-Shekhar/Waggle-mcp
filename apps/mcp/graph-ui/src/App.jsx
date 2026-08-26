@@ -1181,7 +1181,7 @@ export function GraphStudio() {
                   const pairId = `${record.session_id || "default"}:pair:${Math.floor((record.turn_index || 0) / 2)}`;
                   const pair = transcriptPairs.find((item) => item.id === pairId);
                   return (
-                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
+                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4" data-testid="transcript-card">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <div className="text-sm font-semibold text-white">{record.role}</div>
