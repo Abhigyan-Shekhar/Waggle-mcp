@@ -39,7 +39,14 @@ Run these checks after Render reports the deploy healthy:
 
 ## Real ChatGPT acceptance
 
-From the public workspace URL, run the exact judge story in ChatGPT:
+Use the latest ChatGPT desktop app. Select ChatGPT Work or Codex with GPT-5.6
+Sol or Terra; Luna currently has Site tools disabled. Open the public workspace
+in ChatGPT's built-in browser, then select **Site tools → Available site tools**
+in its address bar. If the control is disabled, enable **Settings → Browser →
+Permissions → Enable site tools** and reload the page. Do not look for Waggle in
+the plugin catalog: WebMCP tools belong to the open page.
+
+After the browser lists the tools, run the exact judge story in ChatGPT:
 
 1. Discover `get_project_brief`, `recall_memory`,
    `propose_memory_change`, and `apply_approved_memory_change`.

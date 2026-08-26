@@ -23,6 +23,7 @@ import {
   reduceDemoState,
   saveDemoState,
 } from "./lib/demo-state";
+import { resolveSiteToolsStatus } from "./lib/site-tools-status";
 import {
   registerApplyApprovedMemoryChangeTool,
   registerGetProjectBriefTool,
@@ -227,6 +228,7 @@ export function Workspace() {
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
   const [demo, setDemo] = useState(() => loadDemoState(window.sessionStorage, project));
+  const [siteToolsStatus, setSiteToolsStatus] = useState({ kind: "checking", registeredCount: 0 });
 
   const showToast = (message) => {
     setToast(message);
@@ -350,7 +352,12 @@ export function Workspace() {
           showToast(result.already_applied ? "This approved change was already applied." : "Approved change applied to authoritative memory.");
         },
       }),
-    ]).catch((error) => showToast(`WebMCP: ${error.message}`));
+    ])
+      .then((results) => setSiteToolsStatus(resolveSiteToolsStatus(results)))
+      .catch((error) => {
+        setSiteToolsStatus({ kind: "error", registeredCount: 0 });
+        showToast(`WebMCP: ${error.message}`);
+      });
   }, [boot.sampleMode]);
 
   const navigate = (nextView, memoryId = "") => {
@@ -463,7 +470,14 @@ export function Workspace() {
           <span>Graph Studio<small>Explore lineage</small></span>
           <ArrowRight size={14} />
         </a>
-        <div className="connection-state"><span /> WebMCP ready</div>
+        <div className={`connection-state connection-state-${siteToolsStatus.kind}`}>
+          <span />
+          {siteToolsStatus.kind === "ready"
+            ? `${siteToolsStatus.registeredCount} Site tools ready`
+            : siteToolsStatus.kind === "checking"
+              ? "Checking Site tools…"
+              : "Open in ChatGPT browser"}
+        </div>
       </aside>
 
       <main className="workspace-main">
@@ -578,6 +592,7 @@ export function Workspace() {
         onCopyPrompt={(prompt) => copyPrompt(prompt).catch((error) => showToast(error.message))}
         onExit={exitDemo}
         onRestart={() => startDemo().catch((error) => showToast(error.message))}
+        siteToolsStatus={siteToolsStatus}
         state={demo}
       />
 

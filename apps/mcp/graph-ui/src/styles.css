@@ -391,6 +391,18 @@ body {
 .guided-step { margin-top: 30px; }
 .guided-step h2 { margin: 7px 0 0; color: #183426; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 18px; font-weight: 650; letter-spacing: -.03em; overflow-wrap: anywhere; }
 .guided-step p { margin: 7px 0 0; color: #737d76; font-size: 12px; }
+.guided-preflight { margin-top: 20px; padding: 15px; border: 1px solid #d9ded8; border-radius: 12px; background: #f5f8f4; }
+.guided-preflight h3 { margin: 5px 0 0; color: #244333; font-family: Georgia, serif; font-size: 16px; font-weight: 500; }
+.guided-preflight > p { margin: 9px 0 0; color: #667169; font-size: 10px; line-height: 1.55; }
+.guided-preflight-status { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 9px 10px; border-radius: 8px; color: #42614f; background: #eaf3ed; font-size: 10px; font-weight: 700; }
+.guided-preflight-status > span { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #4d9a69; box-shadow: 0 0 0 3px rgba(77, 154, 105, .12); }
+.guided-preflight-unavailable .guided-preflight-status, .guided-preflight-error .guided-preflight-status { color: #725d34; background: #fff7e7; }
+.guided-preflight-unavailable .guided-preflight-status > span, .guided-preflight-error .guided-preflight-status > span { background: #b98934; box-shadow: 0 0 0 3px rgba(185, 137, 52, .13); }
+.guided-preflight ul { display: grid; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
+.guided-preflight li { display: flex; align-items: center; gap: 7px; min-width: 0; color: #526159; font-size: 9px; }
+.guided-preflight li svg { flex: 0 0 auto; color: #4d8062; }
+.guided-preflight code { overflow-wrap: anywhere; }
+.guided-preflight .guided-preflight-help { padding-top: 10px; border-top: 1px solid #e4decf; color: #725d34; }
 .guided-prompt { margin-top: 22px; overflow: hidden; border: 1px solid #dcded8; border-radius: 12px; background: rgba(255, 255, 255, .66); }
 .guided-prompt > span { display: block; padding: 12px 13px 0; color: #768078; font-size: 9px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
 .guided-prompt blockquote { margin: 0; padding: 14px 13px 17px; color: #34423a; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.55; }

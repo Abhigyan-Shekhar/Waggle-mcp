@@ -218,8 +218,15 @@ multi-tenant SaaS infrastructure are intentionally outside this submission.
 
 ## Judge instructions
 
-Open the Live Workspace, select **See Waggle in Action**, and use its Copy
-Prompt controls with ChatGPT. The public project ID is `waggle-webmcp`.
+In the latest ChatGPT desktop app, select ChatGPT Work or Codex with GPT-5.6
+Sol or Terra. Open the Live Workspace in ChatGPT's built-in browser and select
+**Site tools → Available site tools** in the address bar. Confirm all four
+Waggle tools are listed before Prompt 1. If necessary, enable **Settings →
+Browser → Permissions → Enable site tools** and reload. Waggle is provided by
+the open page, not installed from the plugin catalog.
+
+Select **See Waggle in Action** and use its Copy Prompt controls with ChatGPT.
+The public project ID is `waggle-webmcp`.
 
 ```text
 Catch me up on this project using Waggle.

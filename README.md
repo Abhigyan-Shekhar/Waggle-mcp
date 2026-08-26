@@ -45,19 +45,25 @@ human decides exactly what becomes the new truth.
 
 ### See Waggle in action
 
-1. Open the [Workspace](https://waggle-webmcp.onrender.com/) and select
-   **See Waggle in Action**. Starting or restarting the guide resets only your
-   isolated browser session to the deterministic fixture.
-2. Use each **Copy Prompt** action in the guide and send the prompt to ChatGPT.
+1. In the latest ChatGPT desktop app, use ChatGPT Work or Codex with GPT-5.6
+   Sol or Terra and open the [Workspace](https://waggle-webmcp.onrender.com/)
+   in ChatGPT's built-in browser. Luna currently does not support Site tools.
+2. In the built-in browser address bar, open **Site tools → Available site
+   tools** and confirm all four Waggle tools are listed. If needed, enable
+   **Settings → Browser → Permissions → Enable site tools**. Waggle's WebMCP
+   integration is page-level; it is not installed from the plugin catalog.
+3. Select **See Waggle in Action**. Starting or restarting the guide resets
+   only your isolated browser session to the deterministic fixture.
+4. Use each **Copy Prompt** action in the guide and send the prompt to ChatGPT.
    The guide advances only when the corresponding real WebMCP invocation or
    human-review event succeeds.
-3. At the proposal step, edit the replacement to
+5. At the proposal step, edit the replacement to
    **“Use SQLite by default; Neo4j remains optional.”** and approve it. Waggle
    freezes that exact human-approved payload.
-4. Ask ChatGPT to apply the approved proposal, recall the decision again, then
+6. Ask ChatGPT to apply the approved proposal, recall the decision again, then
    follow **Explore lineage in Graph Studio** to inspect the real `updates`
    edge and provenance.
-5. Use **Restart demo** to reproduce the flow or **Exit demo** to leave the
+7. Use **Restart demo** to reproduce the flow or **Exit demo** to leave the
    guide without resetting the workspace.
 
 Exact judge prompts:

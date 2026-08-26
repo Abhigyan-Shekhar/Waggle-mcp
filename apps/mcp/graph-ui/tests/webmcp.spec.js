@@ -256,7 +256,12 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   expect(resetCount).toBe(1);
   await expect(page.getByRole("complementary", { name: "Guided Demo" })).toBeVisible();
   await expect(page.getByText("Step 1 of 6")).toBeVisible();
-  await expect(page.getByText("get_project_brief", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "get_project_brief" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Check Site tools before Prompt 1" })).toBeVisible();
+  await expect(page.getByText("ChatGPT desktop app's built-in browser", { exact: false })).toBeVisible();
+  await expect(page.getByText("4 Site tools registered on this page", { exact: true })).toBeVisible();
+  await expect(page.getByText("GPT-5.6 Sol or Terra", { exact: false })).toBeVisible();
+  await expect(page.getByText("apply_approved_memory_change", { exact: true })).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(() => window.__registeredSiteTools.map((tool) => tool.name)),
@@ -383,4 +388,17 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   await expect(
     page.getByText("Use SQLite by default; Neo4j remains optional and auditable."),
   ).toBeVisible();
+
+  await page.addInitScript(() => {
+    delete document.modelContext;
+  });
+  await page.evaluate(() => window.sessionStorage.clear());
+  await page.goto("/");
+  await page.getByRole("button", { name: "See Waggle in Action" }).click();
+  await expect(page.getByText("Site tools are unavailable in this browser", { exact: true })).toBeVisible();
+  await expect(page.getByText("Settings → Browser → Permissions → Enable site tools", { exact: false })).toBeVisible();
+  await expect(page.locator(".guided-preflight-help")).toContainText(
+    "Waggle is a page-level Site tool, not a plugin or connector.",
+  );
+  await expect(page.getByText("Open in ChatGPT browser", { exact: true })).toBeVisible();
 });

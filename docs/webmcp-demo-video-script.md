@@ -15,7 +15,10 @@ content.
 Before recording:
 
 - warm `https://waggle-webmcp-api.onrender.com/health/ready` and wait for HTTP 200;
-- open `https://waggle-webmcp.onrender.com/` in the same browser session ChatGPT will use;
+- update the ChatGPT desktop app and select ChatGPT Work or Codex with GPT-5.6 Sol or Terra;
+- open `https://waggle-webmcp.onrender.com/` in ChatGPT's built-in browser;
+- select **Site tools → Available site tools** in the address bar and confirm all four Waggle tools are listed before Prompt 1;
+- confirm **Settings → Browser → Permissions → Enable site tools** is enabled; do not use Luna or look for Waggle in the plugin catalog;
 - select **Restart demo** and confirm the original Neo4j storage decision is authoritative;
 - keep ChatGPT and Waggle in adjacent tabs or side-by-side windows;
 - use 100% browser zoom and a viewport where the Workspace, guide rail, and proposal controls are readable;

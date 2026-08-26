@@ -86,18 +86,24 @@
 - This validates deployed WebMCP discovery and invocation in the Codex browser.
   The consumer ChatGPT surface remains a separate compatibility check and is
   not claimed as complete.
+- Two consumer ChatGPT Prompt 1 attempts returned a generic "Waggle is not
+  available" response rather than a `get_project_brief` invocation. They are
+  recorded as failed discovery attempts, not acceptance evidence. The Guided
+  Demo and judge-facing instructions now require verifying all four page-level
+  Site tools in ChatGPT's built-in browser before sending Prompt 1.
 
 ## Next task
 
 - Repeat the public flow twice in the consumer ChatGPT surface using the exact
-  judge prompts, record any surface-specific discovery issue, then capture the
-  final video and submission gallery.
+  judge prompts after confirming **Site tools → Available site tools**, record
+  any surface-specific discovery issue, then capture the final video and
+  submission gallery.
 
 ## Tests passing
 
 - Python focused integration suite: 25 passed.
 - Ruff checks for the WebMCP backend and tests: passed.
-- Frontend unit suite: 24 passed.
+- Frontend unit suite: 26 passed.
 - Production Vite bundle: built successfully.
 - Chromium workspace and Graph Studio browser suite: 14 passed.
 
