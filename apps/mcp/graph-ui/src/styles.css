@@ -166,6 +166,9 @@ body {
 .eyebrow { color: #7b837d; font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
 .human-control, .live-pill { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid #d4ddd4; border-radius: 999px; color: #3d5e4d; background: rgba(255, 255, 255, 0.7); font-size: 11px; font-weight: 650; }
+.challenge-demo { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid #d6c793; border-radius: 999px; color: #72581f; background: #fff8df; font-size: 11px; font-weight: 700; }
+.challenge-demo i { width: 7px; height: 7px; border-radius: 50%; background: #bd8930; box-shadow: 0 0 0 4px rgba(189,137,48,.12); }
+.reset-demo-button { padding: 8px 11px; border: 1px solid #d6c793; border-radius: 10px; color: #70541b; background: #fffaf0; font-size: 11px; font-weight: 650; }
 .human-control i { width: 7px; height: 7px; border: 2px solid #3d7557; border-radius: 50%; }
 .refresh-button { display: inline-flex; gap: 6px; align-items: center; padding: 8px 11px; border: 1px solid var(--workspace-line); border-radius: 10px; color: #5e6761; background: rgba(255, 255, 255, 0.65); font-size: 12px; }
 .workspace-content { max-width: 1260px; margin: 0 auto; padding: 42px 44px 70px; }

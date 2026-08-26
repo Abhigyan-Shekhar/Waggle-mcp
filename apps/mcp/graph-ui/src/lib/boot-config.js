@@ -4,6 +4,7 @@ const DEFAULT_BOOT_CONFIG = Object.freeze({
   schemaVersion: BOOT_CONFIG_SCHEMA_VERSION,
   mode: "edit",
   sampleMode: false,
+  demoMode: false,
   scope: {
     project: "",
     agent_id: "",
@@ -52,6 +53,17 @@ function normalizeSampleMode(value, diagnostics) {
   }
 
   diagnostics.push("sampleMode must be a boolean; using false.");
+  return false;
+}
+
+function normalizeDemoMode(value, diagnostics) {
+  if (value === undefined || value === null) {
+    return false;
+  }
+  if (typeof value === "boolean") {
+    return value;
+  }
+  diagnostics.push("demoMode must be a boolean; using false.");
   return false;
 }
 
@@ -118,6 +130,7 @@ export function validateBootConfig(rawConfig) {
     schemaVersion: BOOT_CONFIG_SCHEMA_VERSION,
     mode: normalizeMode(rawConfig.mode, diagnostics),
     sampleMode: normalizeSampleMode(rawConfig.sampleMode, diagnostics),
+    demoMode: normalizeDemoMode(rawConfig.demoMode, diagnostics),
     scope: normalizeScope(rawConfig, diagnostics),
     diagnostics,
   };

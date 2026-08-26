@@ -11,6 +11,7 @@ def render_graph_editor_html(
     agent_id: str = "",
     session_id: str = "",
     title: str = "Waggle",
+    demo_mode: bool = False,
 ) -> str:
     page_mode = "view" if mode.strip().lower() == "view" else "edit"
     assets_dir = Path(__file__).resolve().parent / "static" / "graph"
@@ -23,6 +24,7 @@ def render_graph_editor_html(
             "schemaVersion": 1,
             "mode": page_mode,
             "sampleMode": False,
+            "demoMode": bool(demo_mode),
             "scope": {
                 "project": project,
                 "agent_id": agent_id,

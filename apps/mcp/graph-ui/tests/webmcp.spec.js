@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("registers and executes Waggle WebMCP tools from the live page", async ({ page }) => {
+  let resetCount = 0;
   const brief = {
     project: { id: "waggle-webmcp", name: "Waggle WebMCP" },
     goal: "Build governed shared memory.",
@@ -53,6 +54,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
       schemaVersion: 1,
       mode: "edit",
       sampleMode: false,
+      demoMode: true,
       scope: {
         project: "waggle-webmcp",
         agent_id: "",
@@ -87,6 +89,16 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(brief),
+    });
+  });
+  await page.route("**/api/webmcp/demo/reset", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    expect(route.request().postDataJSON()).toEqual({});
+    resetCount += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ status: "reset", seeded_memory_count: 25 }),
     });
   });
   await page.route("**/api/admin/audit-events**", async (route) => {
@@ -183,6 +195,10 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   });
 
   await page.goto("/");
+  await expect(page.getByText("Challenge Demo")).toBeVisible();
+  await page.getByRole("button", { name: "Reset Demo" }).click();
+  await expect(page.getByText("Demo reset to the original governed-memory fixture.")).toBeVisible();
+  expect(resetCount).toBe(1);
   await expect
     .poll(() =>
       page.evaluate(() => window.__registeredSiteTools.map((tool) => tool.name)),

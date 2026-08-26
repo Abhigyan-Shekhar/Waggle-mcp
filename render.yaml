@@ -1,30 +1,28 @@
 services:
   - type: web
-    name: waggle-mcp
+    name: waggle-webmcp-demo
     runtime: docker
     plan: starter
     autoDeploy: true
     healthCheckPath: /health/ready
+    disk:
+      name: waggle-webmcp-demo-data
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: WAGGLE_TRANSPORT
         value: http
       - key: WAGGLE_BACKEND
-        value: neo4j
+        value: sqlite
+      - key: WAGGLE_DB_PATH
+        value: /data/waggle-webmcp-demo.db
       - key: WAGGLE_HTTP_HOST
         value: 0.0.0.0
-      - key: WAGGLE_DEFAULT_TENANT_ID
-        value: local-default
+      - key: WAGGLE_DEMO_MODE
+        value: true
+      - key: WAGGLE_DEMO_COOKIE_SECURE
+        value: true
       - key: WAGGLE_API_KEY_ENVIRONMENT
         value: live
       - key: WAGGLE_LOG_LEVEL
         value: INFO
-      # Set these in the Render dashboard (or as Blueprint secrets) to point at your Neo4j instance.
-      - key: WAGGLE_NEO4J_URI
-        sync: false
-      - key: WAGGLE_NEO4J_USERNAME
-        sync: false
-      - key: WAGGLE_NEO4J_PASSWORD
-        sync: false
-      # Optional: pick an explicit Neo4j database (Aura defaults to "neo4j").
-      - key: WAGGLE_NEO4J_DATABASE
-        value: neo4j

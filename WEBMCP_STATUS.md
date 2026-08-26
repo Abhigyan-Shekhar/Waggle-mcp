@@ -33,20 +33,39 @@
   governed-memory views and Graph Studio remains available at `/graph`.
 - WebMCP activity, proposal creation, human review, application, and corrected
   memory refresh update the workspace without a page reload.
+- Phase 6 isolated judge mode completed locally: a fresh browser receives an
+  opaque secure session cookie and an automatically seeded 25-memory workspace.
+- Every browser session maps the public `waggle-webmcp` alias to a distinct
+  tenant and physical project namespace; graph state, proposals, and audit
+  events are isolated together.
+- The deterministic fixture centers on the authoritative decision "Use Neo4j
+  as the primary storage engine." and supports the complete recall, proposal,
+  human approval, application, and corrected-recall story.
+- Server-side reset clears and reseeds only the current browser's workspace in
+  one SQLite transaction. Refresh preserves state; reset restores exact IDs and
+  content; a second browser remains unaffected.
+- The existing workspace now exposes only the required `Challenge Demo`
+  indicator and `Reset Demo` control. The Phase 5 information architecture is
+  otherwise frozen.
+- The Render Blueprint now deploys one Docker/ASGI origin with a persistent
+  SQLite volume and secure demo mode enabled. The Apache-2.0 `LICENSE` remains
+  present at repository root.
 
 ## Current blocker
 
-- Public hosting and real ChatGPT WebMCP discovery remain unverified until the
-  Phase 6 judge deployment exists.
+- The Blueprint has not been applied to a public Render service from this task,
+  so the final HTTPS URL, real ChatGPT discovery, and live invocation remain
+  external acceptance items.
 
 ## Next task
 
-- Build Phase 6 seeded, zero-login judge mode with deterministic reset and
-  isolated demo state, then immediately validate discovery in real ChatGPT.
+- Deploy this branch from `render.yaml`, run the public checks in
+  `docs/webmcp-judge-runbook.md`, and immediately validate all four tools in a
+  real ChatGPT WebMCP session.
 
 ## Tests passing
 
-- Python focused integration suite: 20 passed.
+- Python focused integration suite: 21 passed.
 - Ruff checks for the WebMCP backend and tests: passed.
 - Frontend unit suite: 16 passed.
 - Production Vite bundle: built successfully.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -63,6 +64,10 @@ def make_http_config(tmp_path: Path) -> AppConfig:
         neo4j_password="",
         neo4j_database="",
     )
+
+
+def make_demo_http_config(tmp_path: Path) -> AppConfig:
+    return replace(make_http_config(tmp_path), demo_mode=True, demo_cookie_secure=False)
 
 
 def seed_project(graph: MemoryGraph, project: str = "waggle-webmcp") -> None:
@@ -765,3 +770,186 @@ def test_proposal_repository_migrates_phase3_state_machine(tmp_path: Path) -> No
             "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'webmcp_memory_proposals'"
         ).fetchone()[0]
     assert "'stale'" in table_sql
+
+
+def test_fresh_demo_browser_gets_securely_scoped_deterministic_seed(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    config = make_demo_http_config(tmp_path)
+    app_server = WaggleServer(graph=graph, config=config)
+    app = create_http_application(app_server, config)
+
+    with TestClient(app) as client:
+        landing = client.get("/")
+        workspace = client.get("/workspace")
+        graph_studio = client.get("/graph?project=waggle-webmcp")
+        graph_asset = client.get("/graph-assets/app.js")
+        live = client.get("/health/live")
+        ready = client.get("/health/ready")
+        snapshot = client.get("/api/graph?project=waggle-webmcp")
+        brief = client.post("/api/webmcp/project-brief", json={"project_id": "waggle-webmcp"})
+
+    cookie = landing.headers["set-cookie"]
+    assert "waggle_demo_session=" in cookie
+    assert "HttpOnly" in cookie
+    assert "SameSite=Lax" in cookie
+    assert '"demoMode": true' in landing.text
+    assert workspace.status_code == 200
+    assert graph_studio.status_code == 200
+    assert graph_asset.status_code == 200
+    assert "Challenge Demo" in graph_asset.text
+    assert live.status_code == 200
+    assert ready.status_code == 200
+    assert snapshot.status_code == 200
+    assert snapshot.json()["tenant_id"] == "challenge-demo"
+    assert len(snapshot.json()["nodes"]) == 25
+    assert {node["project"] for node in snapshot.json()["nodes"]} == {"waggle-webmcp"}
+    hero = next(node for node in snapshot.json()["nodes"] if node["label"] == "Storage architecture")
+    assert hero["content"] == "Use Neo4j as the primary storage engine."
+    assert brief.json()["project"] == {"id": "waggle-webmcp", "name": "Waggle WebMCP"}
+
+
+def test_demo_cookie_preserves_state_and_all_four_webmcp_tools_use_isolated_scope(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    config = make_demo_http_config(tmp_path)
+    app_server = WaggleServer(graph=graph, config=config)
+    app = create_http_application(app_server, config)
+
+    with TestClient(app) as client:
+        client.get("/")
+        brief = client.post("/api/webmcp/project-brief", json={"project_id": "waggle-webmcp"})
+        snapshot = client.get("/api/graph?project=waggle-webmcp").json()
+        hero = next(node for node in snapshot["nodes"] if node["label"] == "Storage architecture")
+        recall_before = client.post(
+            "/api/webmcp/recall-memory",
+            json={"project_id": "waggle-webmcp", "query": "storage architecture", "limit": 5},
+        )
+        proposal = client.post(
+            "/api/webmcp/proposals",
+            json={
+                "project_id": "waggle-webmcp",
+                "memory_id": hero["id"],
+                "proposed_content": "Use SQLite as the default storage engine.",
+                "reason": "Preserve the local-first default.",
+                "evidence_ids": [],
+            },
+        )
+        proposal_id = proposal.json()["proposal_id"]
+        approved = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/review",
+            json={"action": "approve", "approved_content": "Use SQLite by default; Neo4j remains optional."},
+        )
+        applied = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/apply",
+            json={"project_id": "waggle-webmcp"},
+        )
+        recalled_after = client.post(
+            "/api/webmcp/recall-memory",
+            json={"project_id": "waggle-webmcp", "query": "storage architecture", "limit": 5},
+        )
+        refreshed = client.get("/api/webmcp/proposals?project_id=waggle-webmcp")
+
+    assert brief.status_code == 200
+    assert any(memory["content"] == "Use Neo4j as the primary storage engine." for memory in recall_before.json()["memories"])
+    assert proposal.status_code == 201
+    assert proposal.json()["project_id"] == "waggle-webmcp"
+    assert approved.json()["approved_content"] == "Use SQLite by default; Neo4j remains optional."
+    assert applied.json()["authoritative_memory"]["content"] == "Use SQLite by default; Neo4j remains optional."
+    assert any(memory["content"] == "Use SQLite by default; Neo4j remains optional." for memory in recalled_after.json()["memories"])
+    assert refreshed.json()["proposals"][0]["status"] == "applied"
+
+
+def test_demo_sessions_are_independent_and_reset_cannot_affect_another_browser(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    config = make_demo_http_config(tmp_path)
+    app_server = WaggleServer(graph=graph, config=config)
+    app = create_http_application(app_server, config)
+
+    with TestClient(app) as client:
+        client.get("/")
+        cookie_a = client.cookies.get("waggle_demo_session")
+        client.cookies.clear()
+        client.get("/")
+        cookie_b = client.cookies.get("waggle_demo_session")
+
+        def use_session(cookie: str) -> None:
+            client.cookies.clear()
+            client.cookies.set("waggle_demo_session", cookie)
+
+        use_session(cookie_a)
+        snapshot_a = client.get("/api/graph?project=waggle-webmcp").json()
+        use_session(cookie_b)
+        snapshot_b = client.get("/api/graph?project=waggle-webmcp").json()
+        hero_a = next(node for node in snapshot_a["nodes"] if node["label"] == "Storage architecture")
+        hero_b = next(node for node in snapshot_b["nodes"] if node["label"] == "Storage architecture")
+        use_session(cookie_a)
+        proposal_a = client.post(
+            "/api/webmcp/proposals",
+            json={
+                "project_id": "waggle-webmcp",
+                "memory_id": hero_a["id"],
+                "proposed_content": "Use SQLite as the default storage engine.",
+                "reason": "Local-first architecture.",
+                "evidence_ids": [],
+            },
+        )
+        use_session(cookie_b)
+        proposals_b_before = client.get("/api/webmcp/proposals?project_id=waggle-webmcp")
+        cross_session_target = client.post(
+            "/api/webmcp/proposals",
+            json={
+                "project_id": "waggle-webmcp",
+                "memory_id": hero_a["id"],
+                "proposed_content": "Attempt cross-session mutation.",
+                "reason": "Should fail.",
+                "evidence_ids": [],
+            },
+        )
+        proposal_b = client.post(
+            "/api/webmcp/proposals",
+            json={
+                "project_id": "waggle-webmcp",
+                "memory_id": hero_b["id"],
+                "proposed_content": "Judge B proposal survives Judge A reset.",
+                "reason": "Isolation proof.",
+                "evidence_ids": [],
+            },
+        )
+        use_session(cookie_a)
+        reset_a = client.post("/api/webmcp/demo/reset", json={})
+        proposals_a_after = client.get("/api/webmcp/proposals?project_id=waggle-webmcp")
+        use_session(cookie_b)
+        proposals_b_after = client.get("/api/webmcp/proposals?project_id=waggle-webmcp")
+        use_session(cookie_a)
+        reset_snapshot_a = client.get("/api/graph?project=waggle-webmcp").json()
+
+    assert hero_a["id"] != hero_b["id"]
+    assert proposal_a.status_code == 201
+    assert proposals_b_before.json()["proposals"] == []
+    assert cross_session_target.status_code == 400
+    assert proposal_b.status_code == 201
+    assert reset_a.json()["authoritative_memory_count"] == 24
+    assert proposals_a_after.json()["proposals"] == []
+    assert proposals_b_after.json()["proposals"][0]["proposal_id"] == proposal_b.json()["proposal_id"]
+    reset_hero = next(node for node in reset_snapshot_a["nodes"] if node["label"] == "Storage architecture")
+    assert reset_hero["id"] == hero_a["id"]
+    assert reset_hero["content"] == "Use Neo4j as the primary storage engine."
+
+
+def test_demo_webmcp_project_alias_cannot_escape_physical_namespace(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    config = make_demo_http_config(tmp_path)
+    app_server = WaggleServer(graph=graph, config=config)
+    app = create_http_application(app_server, config)
+
+    with TestClient(app) as client:
+        client.get("/")
+        other_project = client.post("/api/webmcp/project-brief", json={"project_id": "other-project"})
+        guessed_physical = client.post(
+            "/api/webmcp/recall-memory",
+            json={"project_id": "demo_guessed_waggle-webmcp", "query": "storage"},
+        )
+        graph_escape = client.get("/api/graph?project=other-project")
+
+    for response in (other_project, guessed_physical, graph_escape):
+        assert response.status_code == 400
+        assert "must be 'waggle-webmcp'" in response.json()["message"]

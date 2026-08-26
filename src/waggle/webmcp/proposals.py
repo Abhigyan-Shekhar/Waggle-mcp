@@ -253,6 +253,22 @@ class ProposalRepository:
                 ).fetchall()
         return [_serialize_proposal(row) for row in rows]
 
+    def clear_project(
+        self,
+        *,
+        tenant_id: str,
+        project_id: str,
+        connection: sqlite3.Connection,
+    ) -> int:
+        """Delete proposal workflow state inside an existing graph transaction."""
+
+        with self._lock:
+            cursor = connection.execute(
+                "DELETE FROM webmcp_memory_proposals WHERE tenant_id = ? AND project_id = ?",
+                (tenant_id, project_id),
+            )
+        return max(0, int(cursor.rowcount))
+
     def review_pending(
         self,
         *,

@@ -27,6 +27,8 @@ const ACTIVITY_LABELS = {
   "proposal.stale": "Proposal became stale",
   "proposal.applied": "Approved memory change applied",
   "memory.superseded": "Previous memory preserved in history",
+  "demo.workspace.seeded": "Challenge workspace prepared",
+  "demo.reset": "Human reset the challenge demo",
 };
 
 function pathView(pathname) {
@@ -324,6 +326,15 @@ export function Workspace() {
     showToast(action === "reject" ? "Proposal rejected." : "The exact human-approved value is now frozen.");
   };
 
+  const resetDemo = async () => {
+    await apiRequest("/api/webmcp/demo/reset", { method: "POST", body: "{}" });
+    setSelectedMemoryId("");
+    setEditingProposalId("");
+    await loadWorkspace();
+    addLiveActivity({ event_type: "demo.reset", actor_id: "local-human" });
+    showToast("Demo reset to the original governed-memory fixture.");
+  };
+
   const nodes = snapshot.nodes || [];
   const edges = snapshot.edges || [];
   const authoritativeNodes = nodes.filter((node) => !isSuperseded(node, edges));
@@ -377,7 +388,14 @@ export function Workspace() {
             <strong>{brief?.project?.name || "Waggle WebMCP"}</strong>
           </div>
           <div className="topbar-actions">
+            {boot.demoMode ? (
+              <span
+                className="challenge-demo"
+                title="This hosted workspace is an isolated seeded demonstration of Waggle's WebMCP governance experience."
+              ><i /> Challenge Demo</span>
+            ) : null}
             <span className="human-control"><i /> Human controlled</span>
+            {boot.demoMode ? <button className="reset-demo-button" onClick={() => resetDemo().catch((error) => showToast(error.message))} type="button">Reset Demo</button> : null}
             <button className="refresh-button" onClick={() => loadWorkspace().catch((error) => showToast(error.message))} type="button">↻ <span>Refresh</span></button>
           </div>
         </header>
