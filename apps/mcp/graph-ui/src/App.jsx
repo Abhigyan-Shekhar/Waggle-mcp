@@ -4,6 +4,7 @@ import Cytoscape from "cytoscape";
 import coseBilkent from "cytoscape-cose-bilkent";
 import { apiRequest, buildScopeQuery } from "./lib/api";
 import { readBootConfig } from "./lib/boot-config";
+import { registerGetProjectBriefTool } from "./lib/webmcp";
 import ScrollToTop from "./ScrollToTop";
 import {
   buildExtractionHealth,
@@ -179,6 +180,7 @@ export function App() {
   const lastEdgeTapRef = useRef({ id: "", at: 0 });
   const dragStateRef = useRef(null);
   const [scope, setScope] = useState(boot.scope);
+  const scopeRef = useRef(boot.scope);
   const [snapshot, setSnapshot] = useState(boot.sampleMode ? SAMPLE_GRAPH_SNAPSHOT : { tenant_id: "", nodes: [], edges: [], ui: {} });
   const [transcriptRecords, setTranscriptRecords] = useState(boot.sampleMode ? SAMPLE_TRANSCRIPTS : []);
   const [filters, setFilters] = useState({ search: "", tags: [], sessions: [], sources: [], agents: [], projects: [], dateRange: "all" });
@@ -250,6 +252,20 @@ export function App() {
   useEffect(() => {
     loadSnapshot(boot.scope).catch((error) => setToast(error.message));
   }, []);
+
+  useEffect(() => {
+    scopeRef.current = scope;
+  }, [scope]);
+
+  useEffect(() => {
+    if (boot.sampleMode) {
+      return;
+    }
+    registerGetProjectBriefTool({
+      getScope: () => scopeRef.current,
+      onActivity: () => setToast("Agent requested the project brief."),
+    }).catch((error) => setToast(`WebMCP: ${error.message}`));
+  }, [boot.sampleMode]);
 
   const pushHistory = async () => {
     const restorePayload = buildRestorePayload(graph, scope);

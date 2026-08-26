@@ -40,6 +40,7 @@ from waggle.models import (
     RelationType,
 )
 from waggle.protocol.mcp.http import MCPHttpApp as MCPHttpAppV2
+from waggle.webmcp import compile_project_brief
 
 from .mcp import WaggleServer
 from .utils import (
@@ -299,6 +300,23 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 "relation_types": [relation.value for relation in RelationType],
             }
         )
+
+    async def webmcp_project_brief(request: Request) -> Response:
+        payload = await request.json()
+        project_id = payload.get("project_id")
+        if not isinstance(project_id, str):
+            raise ValidationFailure("project_id must be a string.")
+        graph, _ = _require_http_scope(request, "graph:read")
+        brief = compile_project_brief(graph, project_id=project_id)
+        _emit_http_audit(
+            request,
+            event_type="webmcp.project_brief.read",
+            resource_type="project_brief",
+            resource_id=project_id.strip(),
+            action="read",
+            metadata={"tool": "get_project_brief"},
+        )
+        return JSONResponse(brief)
 
     async def graph_transcripts(request: Request) -> Response:
         scope = _scope_from_request(request)
@@ -1097,6 +1115,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             Route("/metrics", metrics_endpoint),
             Route("/graph", graph_editor),
             Route("/api/graph", graph_snapshot, methods=["GET"]),
+            Route("/api/webmcp/project-brief", webmcp_project_brief, methods=["POST"]),
             Route("/api/graph/transcripts", graph_transcripts, methods=["GET"]),
             Route("/api/graph/retrieval-debug", graph_retrieval_debug, methods=["POST"]),
             Route("/api/graph/abhi", graph_abhi_preview, methods=["GET"]),
