@@ -22,22 +22,27 @@
 - Exact duplicate proposals are idempotent, distinct changes remain allowed, and
   pending proposal cards appear live in the temporary Graph Studio shell and
   survive reload.
+- Phase 4 governance lifecycle completed: humans can reject, approve, or
+  edit-and-approve an immutable payload; stale target fingerprints block review
+  and application; and approved application atomically creates native `updates`
+  lineage plus proposal and audit provenance.
+- `apply_approved_memory_change` accepts only a proposal ID, is idempotent, and
+  cannot supply or alter human-approved content.
 
 ## Current blocker
 
-- None for the Phase 3 proposal vertical slice.
+- None for the Phase 4 governance lifecycle.
 
 ## Next task
 
-- Begin Phase 4 with the human edit/reject/approve lifecycle. Freeze approved
-  content, enforce the stored target fingerprint against stale approvals, and
-  keep application idempotent before exposing `apply_approved_memory_change`.
+- Begin the Workspace-first UX phase while preserving the now-verified governance
+  services and keeping Graph Studio available as a dedicated route or tab.
 
 ## Tests passing
 
-- Python focused integration suite: 15 passed.
+- Python focused integration suite: 16 passed.
 - Ruff checks for the WebMCP backend and tests: passed.
-- Frontend unit suite: 15 passed.
+- Frontend unit suite: 16 passed.
 - Production Vite bundle: built successfully.
 - Playwright WebMCP browser test: 1 passed.
 

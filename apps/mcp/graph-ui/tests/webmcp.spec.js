@@ -30,6 +30,12 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
     evidence_ids: [],
     proposed_by: { type: "agent", id: "webmcp" },
     created_at: "2026-08-26T00:00:00+00:00",
+    reviewed_at: null,
+    reviewed_by: "",
+    review_note: "",
+    approved_content: null,
+    applied_at: null,
+    result_memory_id: null,
   };
   let persistedProposals = [];
 
@@ -87,6 +93,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
     });
   });
   await page.route("**/api/webmcp/proposals**", async (route) => {
+    const url = new URL(route.request().url());
     if (route.request().method() === "GET") {
       await route.fulfill({
         status: 200,
@@ -94,6 +101,52 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
         body: JSON.stringify({
           project_id: "waggle-webmcp",
           proposals: persistedProposals,
+        }),
+      });
+      return;
+    }
+    if (url.pathname.endsWith("/review")) {
+      expect(route.request().postDataJSON()).toEqual({
+        action: "approve",
+        approved_content: "Use SQLite by default; Neo4j remains optional and auditable.",
+      });
+      persistedProposals = [
+        {
+          ...proposal,
+          status: "approved",
+          reviewed_at: "2026-08-26T00:01:00+00:00",
+          reviewed_by: "local-human",
+          approved_content: "Use SQLite by default; Neo4j remains optional and auditable.",
+        },
+      ];
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(persistedProposals[0]),
+      });
+      return;
+    }
+    if (url.pathname.endsWith("/apply")) {
+      expect(route.request().postDataJSON()).toEqual({ project_id: "waggle-webmcp" });
+      const appliedProposal = {
+        ...persistedProposals[0],
+        status: "applied",
+        applied_at: "2026-08-26T00:02:00+00:00",
+        result_memory_id: "memory-v4",
+      };
+      persistedProposals = [appliedProposal];
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          proposal_id: proposal.proposal_id,
+          status: "applied",
+          authoritative_memory: {
+            memory_id: "memory-v4",
+            content: appliedProposal.approved_content,
+          },
+          already_applied: false,
+          proposal: appliedProposal,
         }),
       });
       return;
@@ -122,6 +175,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
       "get_project_brief",
       "recall_memory",
       "propose_memory_change",
+      "apply_approved_memory_change",
     ]);
 
   const briefResult = await page.evaluate(() =>
@@ -167,7 +221,30 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
     page.getByText("Agent proposed a memory change for human review."),
   ).toBeVisible();
 
+  await page.getByRole("button", { name: "Edit & Approve" }).click();
+  await page.getByLabel("Human-approved content").fill(
+    "Use SQLite by default; Neo4j remains optional and auditable.",
+  );
+  await page.getByRole("button", { name: "Confirm edit & approve" }).click();
+  await expect(page.getByText("✓ Human approved")).toBeVisible();
+  await expect(page.getByText("Awaiting application")).toBeVisible();
+
+  const appliedResult = await page.evaluate(() =>
+    window.__registeredSiteTools
+      .find((tool) => tool.name === "apply_approved_memory_change")
+      .execute({ proposal_id: "proposal_123" }),
+  );
+  expect(appliedResult.already_applied).toBe(false);
+  expect(appliedResult.authoritative_memory.content).toBe(
+    "Use SQLite by default; Neo4j remains optional and auditable.",
+  );
+  await expect(page.getByText("✓ Applied")).toBeVisible();
+  await expect(page.getByText("Corrected by local-human")).toBeVisible();
+
   await page.reload();
   await expect(page.getByText("Proposed memory change")).toBeVisible();
-  await expect(page.getByText("Preserve local-first architecture.")).toBeVisible();
+  await expect(page.getByText("✓ Applied")).toBeVisible();
+  await expect(
+    page.getByText("Use SQLite by default; Neo4j remains optional and auditable."),
+  ).toBeVisible();
 });

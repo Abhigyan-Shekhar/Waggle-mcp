@@ -250,3 +250,60 @@ export function registerProposeMemoryChangeTool({
     },
   });
 }
+
+export function registerApplyApprovedMemoryChangeTool({
+  modelContext = document.modelContext,
+  getScope = () => ({}),
+  onActivity = () => {},
+} = {}) {
+  if (typeof modelContext?.registerTool !== "function") {
+    return Promise.resolve(false);
+  }
+
+  return registerOnce(modelContext, {
+    name: "apply_approved_memory_change",
+    description:
+      "Apply a memory change that has already been explicitly approved by a human in Waggle. This tool cannot alter the approved content or bypass human review.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        proposal_id: {
+          type: "string",
+          minLength: 1,
+          maxLength: 512,
+          description: "The approved Waggle proposal to apply exactly as reviewed.",
+        },
+      },
+      required: ["proposal_id"],
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    execute: async (input) => {
+      const proposalId = input?.proposal_id;
+      if (typeof proposalId !== "string" || proposalId.trim() === "") {
+        throw new Error("INVALID_INPUT: proposal_id is required.");
+      }
+      const projectId = String(getScope()?.project || "").trim();
+      if (!projectId) {
+        throw new Error("PROJECT_NOT_IN_WORKSPACE: open the proposal's project before applying it.");
+      }
+      const result = await apiRequest(
+        `/api/webmcp/proposals/${encodeURIComponent(proposalId.trim())}/apply`,
+        {
+          method: "POST",
+          body: JSON.stringify({ project_id: projectId }),
+        },
+      );
+      onActivity({
+        tool: "apply_approved_memory_change",
+        project_id: projectId,
+        result,
+      });
+      return result;
+    },
+  });
+}

@@ -40,7 +40,14 @@ from waggle.models import (
     RelationType,
 )
 from waggle.protocol.mcp.http import MCPHttpApp as MCPHttpAppV2
-from waggle.webmcp import ProposalRepository, compile_project_brief, propose_memory_change, recall_authoritative_memory
+from waggle.webmcp import (
+    ProposalRepository,
+    apply_approved_memory_change,
+    compile_project_brief,
+    propose_memory_change,
+    recall_authoritative_memory,
+    review_memory_change,
+)
 
 from .mcp import WaggleServer
 from .utils import (
@@ -374,7 +381,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         )
         _emit_http_audit(
             request,
-            event_type="webmcp.memory_change.proposed",
+            event_type="proposal.created" if created else "proposal.deduplicated",
             resource_type="memory_change_proposal",
             resource_id=proposal["proposal_id"],
             action="create" if created else "deduplicate",
@@ -387,6 +394,49 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         )
         return JSONResponse(proposal, status_code=201 if created else 200)
 
+    async def webmcp_review_proposal(request: Request) -> Response:
+        proposal_id = request.path_params["proposal_id"]
+        payload = await request.json()
+        action = payload.get("action")
+        approved_content = payload.get("approved_content")
+        review_note = payload.get("review_note", "")
+        if not isinstance(action, str):
+            raise ValidationFailure("action must be a string.")
+        if approved_content is not None and not isinstance(approved_content, str):
+            raise ValidationFailure("approved_content must be a string when provided.")
+        if not isinstance(review_note, str):
+            raise ValidationFailure("review_note must be a string.")
+        graph, principal = _require_http_scope(request, "graph:write")
+        reviewed = review_memory_change(
+            graph,
+            proposal_repository,
+            proposal_id=proposal_id,
+            action=action,
+            approved_content=approved_content,
+            review_note=review_note,
+            reviewed_by=(principal.name or principal.api_key_id) if principal is not None else "local-human",
+        )
+        return JSONResponse(reviewed)
+
+    async def webmcp_apply_proposal(request: Request) -> Response:
+        proposal_id = request.path_params["proposal_id"]
+        payload = await request.json()
+        unexpected = set(payload) - {"project_id"}
+        if unexpected:
+            raise ValidationFailure("Apply accepts only project_id; approved content cannot be supplied or changed.")
+        project_id = payload.get("project_id")
+        if not isinstance(project_id, str):
+            raise ValidationFailure("project_id must be a string.")
+        graph, principal = _require_http_scope(request, "graph:write")
+        applied = apply_approved_memory_change(
+            graph,
+            proposal_repository,
+            proposal_id=proposal_id,
+            project_id=project_id,
+            applied_by=(principal.name or principal.api_key_id) if principal is not None else "webmcp",
+        )
+        return JSONResponse(applied)
+
     async def webmcp_list_proposals(request: Request) -> Response:
         project_id = request.query_params.get("project_id", "")
         if not project_id.strip():
@@ -395,7 +445,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         proposals = proposal_repository.list_for_project(
             tenant_id=str(graph.tenant_id),
             project_id=project_id.strip(),
-            status="pending",
+            status="",
             limit=50,
         )
         return JSONResponse({"project_id": project_id.strip(), "proposals": proposals})
@@ -1201,6 +1251,16 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             Route("/api/webmcp/recall-memory", webmcp_recall_memory, methods=["POST"]),
             Route("/api/webmcp/proposals", webmcp_list_proposals, methods=["GET"]),
             Route("/api/webmcp/proposals", webmcp_propose_memory_change, methods=["POST"]),
+            Route(
+                "/api/webmcp/proposals/{proposal_id:str}/review",
+                webmcp_review_proposal,
+                methods=["POST"],
+            ),
+            Route(
+                "/api/webmcp/proposals/{proposal_id:str}/apply",
+                webmcp_apply_proposal,
+                methods=["POST"],
+            ),
             Route("/api/graph/transcripts", graph_transcripts, methods=["GET"]),
             Route("/api/graph/retrieval-debug", graph_retrieval_debug, methods=["POST"]),
             Route("/api/graph/abhi", graph_abhi_preview, methods=["GET"]),

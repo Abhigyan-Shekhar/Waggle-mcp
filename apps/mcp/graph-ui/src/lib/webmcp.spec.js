@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  registerApplyApprovedMemoryChangeTool,
   registerGetProjectBriefTool,
   registerProposeMemoryChangeTool,
   registerRecallMemoryTool,
@@ -238,6 +239,61 @@ describe("propose_memory_change WebMCP registration", () => {
       tool: "propose_memory_change",
       project_id: "waggle-webmcp",
       proposal,
+    });
+  });
+});
+
+describe("apply_approved_memory_change WebMCP registration", () => {
+  it("accepts only proposal_id and returns the immutable applied result", async () => {
+    let definition;
+    const activity = vi.fn();
+    const result = {
+      proposal_id: "proposal_123",
+      status: "applied",
+      authoritative_memory: { memory_id: "memory-v4", content: "Human-approved value." },
+      already_applied: false,
+      proposal: { proposal_id: "proposal_123", status: "applied" },
+    };
+    const modelContext = {
+      registerTool: vi.fn((tool) => (definition = tool)),
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        headers: { get: () => "application/json" },
+        json: async () => result,
+      })),
+    );
+
+    const options = {
+      modelContext,
+      getScope: () => ({ project: "waggle-webmcp" }),
+      onActivity: activity,
+    };
+    await Promise.all([
+      registerApplyApprovedMemoryChangeTool(options),
+      registerApplyApprovedMemoryChangeTool(options),
+    ]);
+
+    expect(modelContext.registerTool).toHaveBeenCalledOnce();
+    expect(definition.description).toContain("cannot alter the approved content or bypass human review");
+    expect(definition.inputSchema.required).toEqual(["proposal_id"]);
+    expect(definition.inputSchema.properties).toEqual({
+      proposal_id: expect.any(Object),
+    });
+    await expect(definition.execute({ proposal_id: "proposal_123" })).resolves.toEqual(result);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/webmcp/proposals/proposal_123/apply",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ project_id: "waggle-webmcp" }),
+      }),
+    );
+    expect(activity).toHaveBeenCalledWith({
+      tool: "apply_approved_memory_change",
+      project_id: "waggle-webmcp",
+      result,
     });
   });
 });

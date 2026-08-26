@@ -5,6 +5,7 @@ import coseBilkent from "cytoscape-cose-bilkent";
 import { apiRequest, buildScopeQuery } from "./lib/api";
 import { readBootConfig } from "./lib/boot-config";
 import {
+  registerApplyApprovedMemoryChangeTool,
   registerGetProjectBriefTool,
   registerProposeMemoryChangeTool,
   registerRecallMemoryTool,
@@ -210,6 +211,8 @@ export function App() {
   const [abhiDiff, setAbhiDiff] = useState(null);
   const [showMisses, setShowMisses] = useState(false);
   const [proposals, setProposals] = useState([]);
+  const [editingProposalId, setEditingProposalId] = useState("");
+  const [editedProposalContent, setEditedProposalContent] = useState("");
 
   const graph = useMemo(() => normalizeGraph(snapshot, importedNodeIds), [snapshot, importedNodeIds]);
   const visibleGraph = useMemo(() => filterGraph(graph, filters), [graph, filters]);
@@ -235,6 +238,28 @@ export function App() {
     setStatus(message);
     window.clearTimeout(setToast.timer);
     setToast.timer = window.setTimeout(() => setStatus(""), 2400);
+  };
+
+  const replaceProposal = (proposal) => {
+    setProposals((current) => [
+      proposal,
+      ...current.filter((item) => item.proposal_id !== proposal.proposal_id),
+    ]);
+  };
+
+  const reviewProposal = async (proposal, action, approvedContent) => {
+    const payload = { action };
+    if (approvedContent !== undefined) {
+      payload.approved_content = approvedContent;
+    }
+    const reviewed = await apiRequest(
+      `/api/webmcp/proposals/${encodeURIComponent(proposal.proposal_id)}/review`,
+      { method: "POST", body: JSON.stringify(payload) },
+    );
+    replaceProposal(reviewed);
+    setEditingProposalId("");
+    setEditedProposalContent("");
+    setToast(action === "reject" ? "Proposal rejected." : "Human-approved payload frozen.");
   };
 
   const loadSnapshot = async (nextScope = scope) => {
@@ -284,11 +309,16 @@ export function App() {
       registerProposeMemoryChangeTool({
         getScope: () => scopeRef.current,
         onActivity: ({ proposal }) => {
-          setProposals((current) => [
-            proposal,
-            ...current.filter((item) => item.proposal_id !== proposal.proposal_id),
-          ]);
+          replaceProposal(proposal);
           setToast("Agent proposed a memory change for human review.");
+        },
+      }),
+      registerApplyApprovedMemoryChangeTool({
+        getScope: () => scopeRef.current,
+        onActivity: ({ result }) => {
+          replaceProposal(result.proposal);
+          loadSnapshot(scopeRef.current).catch((error) => setToast(error.message));
+          setToast(result.already_applied ? "Approved change was already applied." : "Human-approved change applied.");
         },
       }),
     ]).catch((error) => setToast(`WebMCP: ${error.message}`));
@@ -1466,7 +1496,7 @@ export function App() {
           </Section>
 
           <Section
-            title="Pending proposals"
+            title="Governance proposals"
             extra={<span className="text-xs text-graph-muted">{proposals.length}</span>}
           >
             {proposals.length ? (
@@ -1480,7 +1510,11 @@ export function App() {
                     <div className="flex items-center justify-between gap-2">
                       <div className="font-medium text-white">Proposed memory change</div>
                       <span className="rounded-full border border-amber-200/20 px-2 py-0.5 text-[11px] uppercase tracking-wide text-amber-100">
-                        Pending human review
+                        {proposal.status === "pending"
+                          ? "Pending human review"
+                          : proposal.status === "approved"
+                            ? "Human approved"
+                            : proposal.status}
                       </span>
                     </div>
                     <div className="mt-3 text-xs uppercase tracking-wide text-graph-muted">Current</div>
@@ -1492,6 +1526,88 @@ export function App() {
                         <div className="mt-3 text-xs uppercase tracking-wide text-graph-muted">Reason</div>
                         <div className="mt-1 text-graph-muted">{proposal.reason}</div>
                       </>
+                    ) : null}
+                    <div className="mt-3 text-xs text-graph-muted">
+                      Proposed by {proposal.proposed_by?.id === "webmcp" ? "ChatGPT" : proposal.proposed_by?.id || "agent"}
+                    </div>
+                    {proposal.status === "pending" && !readOnly ? (
+                      editingProposalId === proposal.proposal_id ? (
+                        <div className="mt-4 grid gap-2">
+                          <textarea
+                            aria-label="Human-approved content"
+                            className="min-h-28 rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white"
+                            onChange={(event) => setEditedProposalContent(event.target.value)}
+                            value={editedProposalContent}
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button
+                              className="rounded-xl border border-white/10 px-3 py-2 text-xs"
+                              onClick={() => setEditingProposalId("")}
+                              type="button"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              className="rounded-xl bg-white px-3 py-2 text-xs font-medium text-black"
+                              onClick={() => reviewProposal(proposal, "approve", editedProposalContent).catch((error) => setToast(error.message))}
+                              type="button"
+                            >
+                              Confirm edit & approve
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-4 flex flex-wrap justify-end gap-2">
+                          <button
+                            className="rounded-xl border border-red-300/20 px-3 py-2 text-xs text-red-100"
+                            onClick={() => reviewProposal(proposal, "reject").catch((error) => setToast(error.message))}
+                            type="button"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            className="rounded-xl border border-white/10 px-3 py-2 text-xs"
+                            onClick={() => {
+                              setEditingProposalId(proposal.proposal_id);
+                              setEditedProposalContent(proposal.proposed_content);
+                            }}
+                            type="button"
+                          >
+                            Edit & Approve
+                          </button>
+                          <button
+                            className="rounded-xl bg-white px-3 py-2 text-xs font-medium text-black"
+                            onClick={() => reviewProposal(proposal, "approve").catch((error) => setToast(error.message))}
+                            type="button"
+                          >
+                            Approve
+                          </button>
+                        </div>
+                      )
+                    ) : null}
+                    {proposal.status === "approved" ? (
+                      <div className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] p-3">
+                        <div className="font-medium text-emerald-100">✓ Human approved</div>
+                        <div className="mt-2 text-xs uppercase tracking-wide text-graph-muted">Approved value</div>
+                        <div className="mt-1 text-white">{proposal.approved_content}</div>
+                        <div className="mt-2 text-xs text-graph-muted">Awaiting application</div>
+                      </div>
+                    ) : null}
+                    {proposal.status === "rejected" ? (
+                      <div className="mt-4 text-sm text-red-200">Rejected by {proposal.reviewed_by || "human"}</div>
+                    ) : null}
+                    {proposal.status === "stale" ? (
+                      <div className="mt-4 text-sm text-amber-100">Stale — the target memory changed.</div>
+                    ) : null}
+                    {proposal.status === "applied" ? (
+                      <div className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] p-3">
+                        <div className="font-medium text-emerald-100">✓ Applied</div>
+                        <div className="mt-2 text-xs uppercase tracking-wide text-graph-muted">Previous</div>
+                        <div className="mt-1 text-white">{proposal.target.current_content}</div>
+                        <div className="mt-2 text-xs uppercase tracking-wide text-graph-muted">Current</div>
+                        <div className="mt-1 text-white">{proposal.approved_content}</div>
+                        <div className="mt-2 text-xs text-graph-muted">Corrected by {proposal.reviewed_by || "human"}</div>
+                      </div>
                     ) : null}
                   </article>
                 ))}

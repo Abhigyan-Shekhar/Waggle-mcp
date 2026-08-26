@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -10,7 +11,7 @@ from waggle.config import AppConfig
 from waggle.graph import MemoryGraph
 from waggle.models import NodeType, RelationType
 from waggle.server import WaggleServer, create_http_application
-from waggle.webmcp import compile_project_brief, recall_authoritative_memory
+from waggle.webmcp import ProposalRepository, compile_project_brief, recall_authoritative_memory
 
 
 class FakeEmbeddingModel:
@@ -448,3 +449,301 @@ def test_proposal_validates_content_and_evidence_scope(tmp_path: Path) -> None:
     assert "different project" in cross_project.json()["message"]
     assert missing.status_code == 400
     assert "does not exist" in missing.json()["message"]
+
+
+def seed_governance_target(graph: MemoryGraph, project: str = "waggle-webmcp"):
+    graph.enable_dedup = False
+    return graph.add_node(
+        label="Storage architecture",
+        content="Use Neo4j for storage.",
+        node_type=NodeType.DECISION,
+        project=project,
+    ).node
+
+
+def create_proposal(client: TestClient, memory_id: str, *, project: str = "waggle-webmcp"):
+    return client.post(
+        "/api/webmcp/proposals",
+        json={
+            "project_id": project,
+            "memory_id": memory_id,
+            "proposed_content": "Use SQLite for storage.",
+            "reason": "Preserve local-first architecture.",
+        },
+    )
+
+
+def test_governance_demo_edit_approve_apply_and_recall(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    target = seed_governance_target(graph)
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+
+    before = recall_authoritative_memory(
+        graph,
+        project_id="waggle-webmcp",
+        query="storage architecture",
+    )
+    assert [memory["content"] for memory in before["memories"]] == ["Use Neo4j for storage."]
+
+    approved_content = "Use SQLite by default; Neo4j remains optional."
+    with TestClient(app) as client:
+        proposed = create_proposal(client, target.id)
+        proposal_id = proposed.json()["proposal_id"]
+        after_proposal = client.post(
+            "/api/webmcp/recall-memory",
+            json={"project_id": "waggle-webmcp", "query": "storage architecture"},
+        )
+        reviewed = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/review",
+            json={"action": "approve", "approved_content": approved_content},
+        )
+        immutable = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/review",
+            json={"action": "approve", "approved_content": "Agent tries to replace the human value."},
+        )
+        before_apply = client.post(
+            "/api/webmcp/recall-memory",
+            json={"project_id": "waggle-webmcp", "query": "storage architecture"},
+        )
+        applied = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/apply",
+            json={"project_id": "waggle-webmcp"},
+        )
+        applied_again = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/apply",
+            json={"project_id": "waggle-webmcp"},
+        )
+        approve_applied = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/review",
+            json={"action": "approve", "approved_content": "Forbidden replacement."},
+        )
+
+    assert proposed.status_code == 201
+    assert after_proposal.json()["memories"][0]["content"] == "Use Neo4j for storage."
+    assert reviewed.status_code == 200
+    assert reviewed.json()["status"] == "approved"
+    assert reviewed.json()["approved_content"] == approved_content
+    assert reviewed.json()["proposed_content"] == "Use SQLite for storage."
+    assert immutable.status_code == 409
+    assert immutable.json()["error"] == "PROPOSAL_NOT_PENDING"
+    assert before_apply.json()["memories"][0]["content"] == "Use Neo4j for storage."
+
+    assert applied.status_code == 200
+    applied_payload = applied.json()
+    result_id = applied_payload["authoritative_memory"]["memory_id"]
+    assert applied_payload["authoritative_memory"]["content"] == approved_content
+    assert applied_payload["authoritative_memory"]["supersedes"] == target.id
+    assert applied_payload["already_applied"] is False
+    assert applied_payload["proposal"]["result_memory_id"] == result_id
+    assert applied_again.status_code == 200
+    assert applied_again.json()["already_applied"] is True
+    assert applied_again.json()["authoritative_memory"]["memory_id"] == result_id
+    assert approve_applied.status_code == 409
+    assert approve_applied.json()["error"] == "PROPOSAL_NOT_PENDING"
+
+    after = recall_authoritative_memory(
+        graph,
+        project_id="waggle-webmcp",
+        query="storage architecture",
+    )
+    assert [memory["content"] for memory in after["memories"]] == [approved_content]
+    assert "Use Neo4j for storage." not in [memory["content"] for memory in after["memories"]]
+    brief = compile_project_brief(graph, project_id="waggle-webmcp")
+    assert [memory["content"] for memory in brief["decisions"]] == [approved_content]
+
+    historical = graph.get_node(target.id)
+    authoritative = graph.get_node(result_id)
+    assert historical.valid_to is not None
+    assert authoritative.valid_to is None
+    assert authoritative.metadata["governance"]["proposal_id"] == proposal_id
+    assert authoritative.metadata["governance"]["reviewed_by"] == "local-human"
+    history = graph.get_related(node_id=result_id, max_depth=1)
+    assert any(
+        edge.source_id == result_id
+        and edge.target_id == target.id
+        and edge.relationship == RelationType.UPDATES.value
+        for edge in history.edges
+    )
+    event_types = {event.event_type for event in graph.list_audit_events(limit=100)}
+    assert {
+        "proposal.created",
+        "proposal.edited_and_approved",
+        "proposal.applied",
+        "memory.superseded",
+    } <= event_types
+
+
+def test_pending_and_rejected_proposals_cannot_be_applied(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    target = seed_governance_target(graph)
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+
+    with TestClient(app) as client:
+        proposal_id = create_proposal(client, target.id).json()["proposal_id"]
+        pending_apply = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/apply",
+            json={"project_id": "waggle-webmcp"},
+        )
+        rejected = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/review",
+            json={"action": "reject", "review_note": "Not the direction we want."},
+        )
+        rejected_apply = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/apply",
+            json={"project_id": "waggle-webmcp"},
+        )
+        approve_rejected = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/review",
+            json={"action": "approve"},
+        )
+
+    assert pending_apply.status_code == 409
+    assert pending_apply.json()["error"] == "PROPOSAL_NOT_APPROVED"
+    assert rejected.status_code == 200
+    assert rejected.json()["status"] == "rejected"
+    assert rejected.json()["review_note"] == "Not the direction we want."
+    assert rejected_apply.status_code == 409
+    assert rejected_apply.json()["error"] == "PROPOSAL_NOT_APPROVED"
+    assert approve_rejected.status_code == 409
+    assert approve_rejected.json()["error"] == "PROPOSAL_NOT_PENDING"
+    assert graph.get_node(target.id).valid_to is None
+    assert "proposal.rejected" in {event.event_type for event in graph.list_audit_events(limit=100)}
+
+
+def test_pending_proposal_becomes_stale_at_review(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    target = seed_governance_target(graph)
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+
+    with TestClient(app) as client:
+        proposal_id = create_proposal(client, target.id).json()["proposal_id"]
+        newer = graph.add_node(
+            label=target.label,
+            content="Use PostgreSQL for storage.",
+            node_type=NodeType.DECISION,
+            project="waggle-webmcp",
+            force_new=True,
+        ).node
+        graph.add_edge(source_id=newer.id, target_id=target.id, relationship=RelationType.UPDATES)
+        review = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/review",
+            json={"action": "approve"},
+        )
+        review_again = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/review",
+            json={"action": "approve"},
+        )
+        listed = client.get("/api/webmcp/proposals?project_id=waggle-webmcp")
+
+    assert review.status_code == 409
+    assert review.json()["error"] == "PROPOSAL_STALE"
+    assert review_again.status_code == 409
+    assert review_again.json()["error"] == "PROPOSAL_NOT_PENDING"
+    assert listed.json()["proposals"][0]["status"] == "stale"
+    assert "proposal.stale" in {event.event_type for event in graph.list_audit_events(limit=100)}
+
+
+def test_approved_proposal_becomes_stale_before_apply(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    target = seed_governance_target(graph)
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+
+    with TestClient(app) as client:
+        proposal_id = create_proposal(client, target.id).json()["proposal_id"]
+        approved = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/review",
+            json={"action": "approve"},
+        )
+        newer = graph.add_node(
+            label=target.label,
+            content="Use PostgreSQL for storage.",
+            node_type=NodeType.DECISION,
+            project="waggle-webmcp",
+            force_new=True,
+        ).node
+        graph.add_edge(source_id=newer.id, target_id=target.id, relationship=RelationType.UPDATES)
+        apply = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/apply",
+            json={"project_id": "waggle-webmcp"},
+        )
+        listed = client.get("/api/webmcp/proposals?project_id=waggle-webmcp")
+
+    assert approved.status_code == 200
+    assert approved.json()["approved_content"] == "Use SQLite for storage."
+    assert "proposal.approved" in {event.event_type for event in graph.list_audit_events(limit=100)}
+    assert apply.status_code == 409
+    assert apply.json()["error"] == "PROPOSAL_STALE"
+    assert listed.json()["proposals"][0]["status"] == "stale"
+    recall = recall_authoritative_memory(
+        graph,
+        project_id="waggle-webmcp",
+        query="storage architecture",
+    )
+    assert [memory["content"] for memory in recall["memories"]] == ["Use PostgreSQL for storage."]
+
+
+def test_apply_rejects_cross_project_scope_and_content_override(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    target = seed_governance_target(graph)
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+
+    with TestClient(app) as client:
+        proposal_id = create_proposal(client, target.id).json()["proposal_id"]
+        client.post(f"/api/webmcp/proposals/{proposal_id}/review", json={"action": "approve"})
+        cross_project = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/apply",
+            json={"project_id": "other-project"},
+        )
+        override = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/apply",
+            json={"project_id": "waggle-webmcp", "content": "Bypass human approval."},
+        )
+
+    assert cross_project.status_code == 400
+    assert "in this project" in cross_project.json()["message"]
+    assert override.status_code == 400
+    assert "approved content cannot be supplied" in override.json()["message"]
+    assert graph.get_node(target.id).valid_to is None
+
+
+def test_proposal_repository_migrates_phase3_state_machine(tmp_path: Path) -> None:
+    db_path = tmp_path / "phase3-proposals.db"
+    with sqlite3.connect(db_path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE webmcp_memory_proposals (
+                proposal_id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, project_id TEXT NOT NULL,
+                target_memory_id TEXT NOT NULL, target_memory_version TEXT NOT NULL,
+                current_content TEXT NOT NULL, proposed_content TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '',
+                evidence_ids_json TEXT NOT NULL DEFAULT '[]', proposed_by_type TEXT NOT NULL,
+                proposed_by_id TEXT NOT NULL DEFAULT '', dedupe_key TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','applied')),
+                created_at TEXT NOT NULL, reviewed_at TEXT DEFAULT NULL, reviewed_by TEXT DEFAULT '',
+                approved_content TEXT DEFAULT NULL, applied_at TEXT DEFAULT NULL, result_memory_id TEXT DEFAULT NULL
+            );
+            INSERT INTO webmcp_memory_proposals (
+                proposal_id, tenant_id, project_id, target_memory_id, target_memory_version,
+                current_content, proposed_content, proposed_by_type, dedupe_key, created_at
+            ) VALUES (
+                'proposal_legacy', 'local-default', 'waggle-webmcp', 'memory-v3', 'fingerprint',
+                'Old value', 'New value', 'agent', 'dedupe', '2026-08-26T00:00:00+00:00'
+            );
+            """
+        )
+
+    repository = ProposalRepository(db_path)
+    proposal = repository.get(tenant_id="local-default", proposal_id="proposal_legacy")
+
+    assert proposal is not None
+    assert proposal["status"] == "pending"
+    assert proposal["review_note"] == ""
+    with sqlite3.connect(db_path) as connection:
+        table_sql = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'webmcp_memory_proposals'"
+        ).fetchone()[0]
+    assert "'stale'" in table_sql

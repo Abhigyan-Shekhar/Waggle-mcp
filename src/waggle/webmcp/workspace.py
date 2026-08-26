@@ -13,7 +13,8 @@ from datetime import UTC, datetime
 from pathlib import PurePath
 from typing import Any
 
-from waggle.errors import ValidationFailure
+from waggle.errors import ValidationFailure, WaggleError
+from waggle.models import RelationType
 
 from .proposals import ProposalRepository
 
@@ -378,3 +379,301 @@ def propose_memory_change(
         proposed_by_id=actor_id,
         dedupe_key=dedupe_key,
     )
+
+
+def _proposal_error(code: str, message: str, *, status_code: int = 409) -> WaggleError:
+    return WaggleError(code, message, status_code=status_code)
+
+
+def _load_node_from_connection(graph: Any, connection: Any, memory_id: str) -> Any | None:
+    row = graph._fetch_node_row(connection, memory_id)
+    return graph._row_to_node(row) if row is not None else None
+
+
+def _proposal_target_is_current(graph: Any, connection: Any, proposal: dict[str, Any]) -> tuple[bool, Any | None]:
+    target = _load_node_from_connection(graph, connection, proposal["target"]["memory_id"])
+    if target is None or not _node_belongs_to_project(target, proposal["project_id"]):
+        return False, target
+    if not _node_is_current_authority(target, now=datetime.now(UTC)):
+        return False, target
+    incoming_update = connection.execute(
+        """
+        SELECT 1 FROM edges
+        WHERE tenant_id = ? AND target_id = ? AND relationship = ?
+        LIMIT 1
+        """,
+        (str(graph.tenant_id), str(target.id), RelationType.UPDATES.value),
+    ).fetchone()
+    if incoming_update is not None:
+        return False, target
+    return _target_version(target) == proposal["target"]["version"], target
+
+
+def review_memory_change(
+    graph: Any,
+    repository: ProposalRepository,
+    *,
+    proposal_id: str,
+    action: str,
+    approved_content: str | None = None,
+    review_note: str = "",
+    reviewed_by: str = "local-human",
+) -> dict[str, Any]:
+    """Apply an immutable human review decision without mutating graph memory."""
+
+    proposal_key = str(proposal_id or "").strip()
+    normalized_action = str(action or "").strip().lower()
+    if not proposal_key:
+        raise ValidationFailure("proposal_id is required.")
+    if normalized_action not in {"approve", "reject"}:
+        raise ValidationFailure("action must be either 'approve' or 'reject'.")
+    reviewer = str(reviewed_by or "local-human").strip() or "local-human"
+    note = str(review_note or "").strip()
+    if len(note) > _MAX_REASON_LENGTH:
+        raise ValidationFailure(f"review_note must be at most {_MAX_REASON_LENGTH} characters.")
+
+    stale = False
+    with graph._lock, graph._pool.checkout() as connection:
+        proposal = repository.get(
+            tenant_id=str(graph.tenant_id),
+            proposal_id=proposal_key,
+            connection=connection,
+        )
+        if proposal is None:
+            raise ValidationFailure("proposal_id does not identify an existing proposal.")
+        if proposal["status"] != "pending":
+            raise _proposal_error(
+                "PROPOSAL_NOT_PENDING",
+                f"Proposal cannot be reviewed from status '{proposal['status']}'.",
+            )
+        is_current, _ = _proposal_target_is_current(graph, connection, proposal)
+        if not is_current:
+            repository.mark_stale(
+                tenant_id=str(graph.tenant_id),
+                proposal_id=proposal_key,
+                connection=connection,
+            )
+            graph.emit_audit_event(
+                event_type="proposal.stale",
+                actor_type="human",
+                actor_id=reviewer,
+                resource_type="memory_change_proposal",
+                resource_id=proposal_key,
+                action="stale",
+                metadata={"target_memory_id": proposal["target"]["memory_id"], "phase": "review"},
+                connection=connection,
+            )
+            stale = True
+        else:
+            approved_value: str | None = None
+            if normalized_action == "approve":
+                approved_value = (
+                    str(approved_content).strip() if approved_content is not None else proposal["proposed_content"]
+                )
+                if not approved_value:
+                    raise ValidationFailure("approved_content must not be empty.")
+                if len(approved_value) > _MAX_PROPOSED_CONTENT_LENGTH:
+                    raise ValidationFailure(
+                        f"approved_content must be at most {_MAX_PROPOSED_CONTENT_LENGTH} characters."
+                    )
+            reviewed = repository.review_pending(
+                tenant_id=str(graph.tenant_id),
+                proposal_id=proposal_key,
+                action=normalized_action,
+                reviewed_by=reviewer,
+                approved_content=approved_value,
+                review_note=note,
+                connection=connection,
+            )
+            if reviewed is None:  # pragma: no cover - serialized by the graph lock
+                raise _proposal_error("PROPOSAL_NOT_PENDING", "Proposal is no longer pending.")
+            event_type = "proposal.rejected"
+            if normalized_action == "approve":
+                event_type = (
+                    "proposal.edited_and_approved"
+                    if approved_value != proposal["proposed_content"]
+                    else "proposal.approved"
+                )
+            graph.emit_audit_event(
+                event_type=event_type,
+                actor_type="human",
+                actor_id=reviewer,
+                resource_type="memory_change_proposal",
+                resource_id=proposal_key,
+                action=normalized_action,
+                metadata={"target_memory_id": proposal["target"]["memory_id"]},
+                connection=connection,
+            )
+
+    if stale:
+        raise _proposal_error(
+            "PROPOSAL_STALE",
+            "The target memory changed after this proposal was created.",
+        )
+    return reviewed
+
+
+def _applied_response(proposal: dict[str, Any], node: Any, *, already_applied: bool) -> dict[str, Any]:
+    return {
+        "proposal_id": proposal["proposal_id"],
+        "status": "applied",
+        "authoritative_memory": _authoritative_memory_payload(
+            node,
+            supersedes=proposal["target"]["memory_id"],
+        ),
+        "already_applied": already_applied,
+        "proposal": proposal,
+    }
+
+
+def apply_approved_memory_change(
+    graph: Any,
+    repository: ProposalRepository,
+    *,
+    proposal_id: str,
+    project_id: str,
+    applied_by: str = "webmcp",
+) -> dict[str, Any]:
+    """Atomically apply the exact human-approved payload through native update lineage."""
+
+    proposal_key = str(proposal_id or "").strip()
+    project = _validate_project_id(project_id)
+    if not proposal_key:
+        raise ValidationFailure("proposal_id is required.")
+
+    stale = False
+    with graph._lock, graph._pool.checkout() as connection:
+        proposal = repository.get(
+            tenant_id=str(graph.tenant_id),
+            proposal_id=proposal_key,
+            connection=connection,
+        )
+        if proposal is None or proposal["project_id"] != project:
+            raise ValidationFailure("proposal_id does not identify a proposal in this project.")
+        if proposal["status"] == "applied":
+            result = _load_node_from_connection(graph, connection, str(proposal["result_memory_id"] or ""))
+            if result is None:
+                raise _proposal_error("APPLIED_MEMORY_MISSING", "The applied proposal result memory is missing.")
+            return _applied_response(proposal, result, already_applied=True)
+        if proposal["status"] == "stale":
+            raise _proposal_error("PROPOSAL_STALE", "The target memory changed after this proposal was created.")
+        if proposal["status"] != "approved":
+            raise _proposal_error(
+                "PROPOSAL_NOT_APPROVED",
+                f"Proposal cannot be applied from status '{proposal['status']}'.",
+            )
+
+        is_current, target = _proposal_target_is_current(graph, connection, proposal)
+        if not is_current or target is None:
+            repository.mark_stale(
+                tenant_id=str(graph.tenant_id),
+                proposal_id=proposal_key,
+                connection=connection,
+            )
+            graph.emit_audit_event(
+                event_type="proposal.stale",
+                actor_type="agent",
+                actor_id=applied_by,
+                resource_type="memory_change_proposal",
+                resource_id=proposal_key,
+                action="stale",
+                metadata={"target_memory_id": proposal["target"]["memory_id"], "phase": "apply"},
+                connection=connection,
+            )
+            stale = True
+        else:
+            approved_value = str(proposal["approved_content"] or "")
+            if not approved_value:  # pragma: no cover - review prevents empty approval
+                raise _proposal_error("PROPOSAL_NOT_APPROVED", "Proposal has no immutable approved content.")
+            metadata = dict(target.metadata)
+            for key in (
+                "superseded_by",
+                "superseded_at",
+                "superseded_relationship",
+                "logically_superseded",
+                "logically_superseded_by",
+                "head_rejected_reason",
+            ):
+                metadata.pop(key, None)
+            metadata.update(
+                {
+                    "authority": "authoritative",
+                    "source_type": "human_approved_proposal",
+                    "governance": {
+                        "proposal_id": proposal_key,
+                        "proposed_by": proposal["proposed_by"],
+                        "reviewed_by": proposal["reviewed_by"],
+                        "reviewed_at": proposal["reviewed_at"],
+                        "reason": proposal["reason"],
+                        "evidence_ids": proposal["evidence_ids"],
+                        "approved_content_sha256": hashlib.sha256(approved_value.encode("utf-8")).hexdigest(),
+                    },
+                }
+            )
+            created = graph.add_node(
+                label=target.label,
+                content=approved_value,
+                node_type=target.node_type,
+                tags=list(target.tags),
+                source_prompt=target.source_prompt,
+                source_turn_pair_id=target.source_turn_pair_id,
+                agent_id=target.agent_id,
+                project=target.project,
+                session_id=target.session_id,
+                evidence_records=list(target.evidence_records),
+                valid_from=datetime.now(UTC),
+                subject_key=target.subject_key,
+                relation_key=target.relation_key,
+                value_normalized=approved_value if target.value_normalized else "",
+                fact_kind=target.fact_kind,
+                scope_key=target.scope_key,
+                slot_key=target.slot_key,
+                observed_at=datetime.now(UTC),
+                claim_confidence=target.claim_confidence,
+                context_window_id=target.context_window_id,
+                metadata=metadata,
+                connection=connection,
+                force_new=True,
+            ).node
+            graph.add_edge(
+                source_id=created.id,
+                target_id=target.id,
+                relationship=RelationType.UPDATES,
+                metadata={"proposal_id": proposal_key, "reviewed_by": proposal["reviewed_by"]},
+                connection=connection,
+            )
+            applied = repository.mark_applied(
+                tenant_id=str(graph.tenant_id),
+                proposal_id=proposal_key,
+                result_memory_id=created.id,
+                connection=connection,
+            )
+            if applied is None:  # pragma: no cover - serialized by the graph lock
+                raise _proposal_error("PROPOSAL_NOT_APPROVED", "Proposal is no longer approved.")
+            graph.emit_audit_event(
+                event_type="proposal.applied",
+                actor_type="agent",
+                actor_id=applied_by,
+                resource_type="memory_change_proposal",
+                resource_id=proposal_key,
+                action="apply",
+                metadata={"target_memory_id": target.id, "result_memory_id": created.id},
+                connection=connection,
+            )
+            graph.emit_audit_event(
+                event_type="memory.superseded",
+                actor_type="agent",
+                actor_id=applied_by,
+                resource_type="node",
+                resource_id=target.id,
+                action="supersede",
+                metadata={"proposal_id": proposal_key, "result_memory_id": created.id},
+                connection=connection,
+            )
+
+    if stale:
+        raise _proposal_error(
+            "PROPOSAL_STALE",
+            "The target memory changed after this proposal was created.",
+        )
+    return _applied_response(applied, created, already_applied=False)
