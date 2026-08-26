@@ -42,9 +42,72 @@ def _parse_datetime(value: Any) -> datetime | None:
     return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
 
 
-def _is_active(node: dict[str, Any], *, now: datetime) -> bool:
-    valid_to = _parse_datetime(node.get("valid_to"))
-    return valid_to is None or valid_to > now
+def _node_value(node: Any, field: str, default: Any = None) -> Any:
+    if isinstance(node, dict):
+        return node.get(field, default)
+    return getattr(node, field, default)
+
+
+def authority_status(
+    node: Any,
+    *,
+    now: datetime,
+    superseded_by_update: bool = False,
+) -> str:
+    """Return the canonical authority status shared by recall and the UI."""
+
+    metadata = _node_value(node, "metadata", {})
+    metadata = metadata if isinstance(metadata, dict) else {}
+    diagnostics = metadata.get("state_induction_v2")
+    diagnostics = diagnostics if isinstance(diagnostics, dict) else {}
+    knowledge_status = str(metadata.get("knowledge_status") or diagnostics.get("knowledge_status") or "").upper()
+    if metadata.get("head_rejected_reason") or knowledge_status == "REJECTED":
+        return "rejected"
+    if knowledge_status == "HISTORICAL":
+        return "historical"
+    if (
+        superseded_by_update
+        or metadata.get("superseded_by")
+        or metadata.get("logically_superseded")
+        or knowledge_status == "SUPERSEDED"
+    ):
+        return "superseded"
+
+    valid_from = _parse_datetime(_node_value(node, "valid_from"))
+    valid_to = _parse_datetime(_node_value(node, "valid_to"))
+    if valid_from is not None and valid_from > now:
+        return "future"
+    if valid_to is not None and valid_to <= now:
+        return "expired"
+    return "authoritative"
+
+
+def project_authority_snapshot(
+    snapshot: dict[str, Any],
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Annotate graph nodes with the same authority projection used by recall."""
+
+    effective_now = now or datetime.now(UTC)
+    superseded_ids = {
+        str(edge.get("target_id"))
+        for edge in snapshot.get("edges", [])
+        if str(edge.get("relationship")) == RelationType.UPDATES.value
+    }
+    projected = dict(snapshot)
+    projected["nodes"] = [
+        {
+            **node,
+            "authority_status": authority_status(
+                node,
+                now=effective_now,
+                superseded_by_update=str(node.get("id")) in superseded_ids,
+            ),
+        }
+        for node in snapshot.get("nodes", [])
+    ]
+    return projected
 
 
 def _updated_sort_key(node: dict[str, Any]) -> datetime:
@@ -71,7 +134,7 @@ def _memory_payload(node: dict[str, Any]) -> dict[str, Any]:
         "memory_id": str(node.get("id", "")),
         "type": str(node.get("node_type", "note")),
         "content": str(node.get("content", "")),
-        "authority": str(metadata.get("authority") or "authoritative"),
+        "authority": str(node.get("authority_status") or metadata.get("authority") or "unknown"),
         "source": str(metadata.get("source_type") or node.get("agent_id") or "waggle"),
         "created_at": node.get("created_at"),
         "updated_at": node.get("updated_at"),
@@ -127,7 +190,8 @@ def compile_project_brief(
 
     snapshot = graph.get_graph_snapshot(project=project, agent_id=agent_id, session_id=session_id)
     now = datetime.now(UTC)
-    nodes = [node for node in snapshot.get("nodes", []) if _is_active(node, now=now)]
+    snapshot = project_authority_snapshot(snapshot, now=now)
+    nodes = [node for node in snapshot.get("nodes", []) if node["authority_status"] == "authoritative"]
     nodes.sort(key=_updated_sort_key, reverse=True)
 
     goals = [node for node in nodes if _is_goal(node)]
@@ -164,21 +228,7 @@ def compile_project_brief(
 
 
 def _node_is_current_authority(node: Any, *, now: datetime) -> bool:
-    valid_from = _parse_datetime(getattr(node, "valid_from", None))
-    valid_to = _parse_datetime(getattr(node, "valid_to", None))
-    if (valid_from is not None and valid_from > now) or (valid_to is not None and valid_to <= now):
-        return False
-    metadata = getattr(node, "metadata", None)
-    metadata = metadata if isinstance(metadata, dict) else {}
-    diagnostics = metadata.get("state_induction_v2")
-    diagnostics = diagnostics if isinstance(diagnostics, dict) else {}
-    knowledge_status = str(metadata.get("knowledge_status") or diagnostics.get("knowledge_status") or "").upper()
-    return not (
-        metadata.get("superseded_by")
-        or metadata.get("logically_superseded")
-        or metadata.get("head_rejected_reason")
-        or knowledge_status in {"HISTORICAL", "SUPERSEDED", "REJECTED"}
-    )
+    return authority_status(node, now=now) == "authoritative"
 
 
 def _authoritative_memory_payload(node: Any, *, supersedes: str | None) -> dict[str, Any]:
@@ -230,8 +280,6 @@ def recall_authoritative_memory(
         include_invalidated=False,
     )
     now = datetime.now(UTC)
-    current_nodes = [node for node in result.nodes if _node_is_current_authority(node, now=now)]
-
     update_targets: dict[str, list[str]] = {}
     superseded_ids: set[str] = set()
     for edge in result.edges:
@@ -241,7 +289,16 @@ def recall_authoritative_memory(
         update_targets.setdefault(str(edge.source_id), []).append(str(edge.target_id))
         superseded_ids.add(str(edge.target_id))
 
-    authoritative = [node for node in current_nodes if str(node.id) not in superseded_ids]
+    authoritative = [
+        node
+        for node in result.nodes
+        if authority_status(
+            node,
+            now=now,
+            superseded_by_update=str(node.id) in superseded_ids,
+        )
+        == "authoritative"
+    ]
     memories = [
         _authoritative_memory_payload(
             node,

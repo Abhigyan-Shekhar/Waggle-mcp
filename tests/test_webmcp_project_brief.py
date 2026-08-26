@@ -12,7 +12,12 @@ from waggle.config import AppConfig
 from waggle.graph import MemoryGraph
 from waggle.models import NodeType, RelationType
 from waggle.server import WaggleServer, create_http_application
-from waggle.webmcp import ProposalRepository, compile_project_brief, recall_authoritative_memory
+from waggle.webmcp import (
+    ProposalRepository,
+    compile_project_brief,
+    project_authority_snapshot,
+    recall_authoritative_memory,
+)
 
 
 class FakeEmbeddingModel:
@@ -260,6 +265,64 @@ def test_recall_projects_current_authority_over_update_chain(tmp_path: Path) -> 
     assert "unrelated remote" not in str(recall)
     assert "files for storage" not in str(recall)
     assert "future storage" not in str(recall)
+
+
+def test_workspace_authority_projection_matches_recall_semantics(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    v1_id, v2_id, v3_id = seed_decision_chain(graph)
+    future = graph.add_node(
+        label="Future",
+        content="Future value.",
+        node_type=NodeType.FACT,
+        project="waggle-webmcp",
+        valid_from=datetime.now(UTC) + timedelta(days=1),
+    ).node
+    expired = graph.add_node(
+        label="Expired",
+        content="Expired value.",
+        node_type=NodeType.FACT,
+        project="waggle-webmcp",
+        valid_to=datetime.now(UTC) - timedelta(days=1),
+    ).node
+    historical = graph.add_node(
+        label="Historical",
+        content="Historical value.",
+        node_type=NodeType.FACT,
+        project="waggle-webmcp",
+        metadata={"knowledge_status": "HISTORICAL"},
+    ).node
+    rejected = graph.add_node(
+        label="Rejected",
+        content="Rejected value.",
+        node_type=NodeType.FACT,
+        project="waggle-webmcp",
+        metadata={"head_rejected_reason": "contradicted"},
+    ).node
+    logical = graph.add_node(
+        label="Logical supersession",
+        content="Logically superseded value.",
+        node_type=NodeType.FACT,
+        project="waggle-webmcp",
+        metadata={"logically_superseded": True},
+    ).node
+
+    projected = project_authority_snapshot(graph.get_graph_snapshot(project="waggle-webmcp"))
+    statuses = {node["id"]: node["authority_status"] for node in projected["nodes"]}
+
+    assert statuses[v1_id] == "superseded"
+    assert statuses[v2_id] == "superseded"
+    assert statuses[v3_id] == "authoritative"
+    assert statuses[future.id] == "future"
+    assert statuses[expired.id] == "expired"
+    assert statuses[historical.id] == "historical"
+    assert statuses[rejected.id] == "rejected"
+    assert statuses[logical.id] == "superseded"
+
+    brief = compile_project_brief(graph, project_id="waggle-webmcp")
+    assert [decision["memory_id"] for decision in brief["decisions"]] == [v3_id]
+    assert not {future.id, expired.id, historical.id, rejected.id, logical.id}.intersection(
+        brief["supporting_memory_ids"]
+    )
 
 
 def test_recall_http_matches_shared_service_and_empty_recall_is_valid(tmp_path: Path) -> None:
@@ -810,8 +873,10 @@ def test_fresh_demo_browser_gets_securely_scoped_deterministic_seed(tmp_path: Pa
     assert snapshot.json()["tenant_id"] == "challenge-demo"
     assert len(snapshot.json()["nodes"]) == 25
     assert {node["project"] for node in snapshot.json()["nodes"]} == {"waggle-webmcp"}
+    assert all("authority_status" in node for node in snapshot.json()["nodes"])
     hero = next(node for node in snapshot.json()["nodes"] if node["label"] == "Storage architecture")
     assert hero["content"] == "Use Neo4j as the primary storage engine."
+    assert hero["authority_status"] == "authoritative"
     assert brief.json()["project"] == {"id": "waggle-webmcp", "name": "Waggle WebMCP"}
 
 

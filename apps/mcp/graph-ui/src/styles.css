@@ -219,7 +219,7 @@ body {
 .workspace-status { display: inline-flex; padding: 5px 9px; border-radius: 999px; color: #536058; background: #edf0ed; font-size: 9px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
 .workspace-status-authoritative, .workspace-status-applied, .workspace-status-approved { color: #316045; background: #e3f0e7; }
 .workspace-status-pending_review { color: #74551f; background: #f8edce; }
-.workspace-status-superseded, .workspace-status-rejected, .workspace-status-stale { color: #766d65; background: #eeeae6; }
+.workspace-status-superseded, .workspace-status-rejected, .workspace-status-stale, .workspace-status-historical, .workspace-status-expired, .workspace-status-future, .workspace-status-unknown { color: #766d65; background: #eeeae6; }
 .proposal-comparison, .proposal-transformation { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 22px; }
 .proposal-transformation { grid-template-columns: 1fr 28px 1fr; align-items: stretch; }
 .transformation-arrow { display: grid; place-items: center; color: #5d896e; font-size: 20px; }

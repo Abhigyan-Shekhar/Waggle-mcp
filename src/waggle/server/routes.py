@@ -51,6 +51,7 @@ from waggle.webmcp import (
     apply_approved_memory_change,
     compile_project_brief,
     ensure_demo_seed,
+    project_authority_snapshot,
     propose_memory_change,
     publicize_demo_payload,
     recall_authoritative_memory,
@@ -377,6 +378,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             snapshot = graph.get_graph_snapshot(include_source_prompt=include_source_prompt, **scope)
         except TypeError:
             snapshot = graph.get_graph_snapshot(**scope)
+        snapshot = project_authority_snapshot(snapshot)
         _emit_http_audit(
             request,
             event_type="graph.snapshot.read",

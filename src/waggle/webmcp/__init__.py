@@ -15,7 +15,9 @@ from .demo import (
 from .proposals import ProposalRepository
 from .workspace import (
     apply_approved_memory_change,
+    authority_status,
     compile_project_brief,
+    project_authority_snapshot,
     propose_memory_change,
     recall_authoritative_memory,
     review_memory_change,
@@ -28,8 +30,10 @@ __all__ = [
     "DemoScope",
     "ProposalRepository",
     "apply_approved_memory_change",
+    "authority_status",
     "compile_project_brief",
     "ensure_demo_seed",
+    "project_authority_snapshot",
     "propose_memory_change",
     "publicize_demo_payload",
     "recall_authoritative_memory",

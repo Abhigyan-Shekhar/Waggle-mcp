@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import waggleIcon from "../../../../assets/waggle-icon.png";
 import waggleLogo from "../../../../assets/waggle-logo.png";
 import { apiRequest, buildScopeQuery } from "./lib/api";
+import { decisionOverview, isAuthoritativeNode, nodeAuthorityStatus } from "./lib/authority";
 import { readBootConfig } from "./lib/boot-config";
 import {
   registerApplyApprovedMemoryChangeTool,
@@ -49,10 +50,6 @@ function actorLabel(value) {
   if (!value || value === "webmcp" || value === "local-http") return "ChatGPT";
   if (value === "local-human") return "Human";
   return value;
-}
-
-function isSuperseded(node, edges) {
-  return Boolean(node.valid_to) || edges.some((edge) => edge.relationship === "updates" && edge.target_id === node.id);
 }
 
 function ShellIcon({ children }) {
@@ -339,19 +336,20 @@ export function Workspace() {
 
   const nodes = snapshot.nodes || [];
   const edges = snapshot.edges || [];
-  const authoritativeNodes = nodes.filter((node) => !isSuperseded(node, edges));
+  const authoritativeNodes = nodes.filter(isAuthoritativeNode);
   const pendingCount = proposals.filter((proposal) => proposal.status === "pending").length;
-  const decisionCount = authoritativeNodes.filter((node) => node.node_type === "decision").length;
+  const { count: decisionCount } = decisionOverview(authoritativeNodes, 5);
   const types = [...new Set(nodes.map((node) => node.node_type).filter(Boolean))].sort();
+  const statuses = [...new Set(nodes.map(nodeAuthorityStatus))].sort();
   const filteredMemories = nodes.filter((node) => {
-    const status = isSuperseded(node, edges) ? "superseded" : "authoritative";
+    const status = nodeAuthorityStatus(node);
     const haystack = `${node.label || ""} ${node.content || ""} ${(node.tags || []).join(" ")}`.toLowerCase();
     return (!search.trim() || haystack.includes(search.trim().toLowerCase()))
       && (typeFilter === "all" || node.node_type === typeFilter)
       && (statusFilter === "all" || status === statusFilter);
   });
   const selectedMemory = nodes.find((node) => node.id === selectedMemoryId) || null;
-  const selectedStatus = selectedMemory && isSuperseded(selectedMemory, edges) ? "superseded" : "authoritative";
+  const selectedStatus = selectedMemory ? nodeAuthorityStatus(selectedMemory) : "unknown";
   const supersedesEdge = selectedMemory ? edges.find((edge) => edge.relationship === "updates" && edge.source_id === selectedMemory.id) : null;
   const supersededByEdge = selectedMemory ? edges.find((edge) => edge.relationship === "updates" && edge.target_id === selectedMemory.id) : null;
   const nodeById = Object.fromEntries(nodes.map((node) => [node.id, node]));
@@ -417,7 +415,7 @@ export function Workspace() {
                 <div>
                   <div className="eyebrow">Waggle</div>
                   <h1>Memory humans and agents share.</h1>
-                  <p>One governed source of truth for every conversation, decision, and correction.</p>
+                  <p>Both you and ChatGPT operate on the same governed project memory under the same authority rules.</p>
                 </div>
                 <div className="hero-signal" aria-hidden="true"><span /><span /><span /></div>
               </section>
@@ -478,12 +476,12 @@ export function Workspace() {
               <div className="memory-toolbar">
                 <input aria-label="Search memories" placeholder="Search memories…" value={search} onChange={(event) => setSearch(event.target.value)} />
                 <select aria-label="Memory type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}><option value="all">All types</option>{types.map((type) => <option key={type} value={type}>{type}</option>)}</select>
-                <select aria-label="Memory status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All states</option><option value="authoritative">Authoritative</option><option value="superseded">Superseded</option></select>
+                <select aria-label="Memory status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="all">All states</option>{statuses.map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}</select>
               </div>
               <div className="memories-layout">
                 <section className="memory-list workspace-panel">
                   {filteredMemories.length ? filteredMemories.map((node) => {
-                    const status = isSuperseded(node, edges) ? "superseded" : "authoritative";
+                    const status = nodeAuthorityStatus(node);
                     return <button className={selectedMemoryId === node.id ? "selected" : ""} key={node.id} onClick={() => setSelectedMemoryId(node.id)} type="button"><div><span className="memory-type">{node.node_type}</span><StatusBadge status={status} /></div><strong>{node.label}</strong><p>{node.content}</p><small>{node.project || project} · {formatTime(node.updated_at || node.created_at)}</small></button>;
                   }) : <EmptyState>No memories match these filters.</EmptyState>}
                 </section>
