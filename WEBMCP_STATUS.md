@@ -57,8 +57,8 @@
 
 ## Current validation
 
-- Public acceptance run: `2026-08-26T18:05:29Z` against
-  `https://waggle-webmcp.onrender.com` at branch commit `16ca0f9`.
+- Public acceptance run: `2026-08-26` against
+  `https://waggle-webmcp.onrender.com` at branch commit `7ba0f71`.
 - `/health/live`, `/health/ready`, `/`, every `/workspace` route, `/graph`, and
   the production JavaScript asset returned successfully.
 - The public fixture returned 25 nodes and 10 edges. Graph Studio loaded those
@@ -74,19 +74,28 @@
   recall, proposal, edited human approval, approved application, and corrected
   recall. The resulting graph contained the native `updates` edge with proposal
   and reviewer provenance, and the activity feed contained the full sequence.
-- The available Codex in-app browser does not expose `document.modelContext`.
-  Real ChatGPT discovery and invocation therefore remain an external acceptance
-  gate and were not simulated or claimed as complete.
+- The Codex in-app browser discovered all four tools from the deployed page and
+  invoked them through its native WebMCP capability: `get_project_brief`,
+  `recall_memory`, `propose_memory_change`, and
+  `apply_approved_memory_change`.
+- A complete browser-level WebMCP run passed on the public deployment. The guide
+  advanced only after the real tool calls and human Edit & Approve action; final
+  recall returned "Use SQLite by default; Neo4j remains optional." as an
+  authoritative `human_approved_proposal` memory, and focused Graph Studio
+  displayed its native `updates` lineage.
+- This validates deployed WebMCP discovery and invocation in the Codex browser.
+  The consumer ChatGPT surface remains a separate compatibility check and is
+  not claimed as complete.
 
 ## Next task
 
-- Open the public workspace inside actual ChatGPT, verify discovery of all four
-  tools, and complete 2–3 flawless Guided Demo runs using the exact judge
-  prompts. Record the ChatGPT surface and any discovery error here.
+- Repeat the public flow twice in the consumer ChatGPT surface using the exact
+  judge prompts, record any surface-specific discovery issue, then capture the
+  final video and submission gallery.
 
 ## Tests passing
 
-- Python focused integration suite: 22 passed.
+- Python focused integration suite: 25 passed.
 - Ruff checks for the WebMCP backend and tests: passed.
 - Frontend unit suite: 24 passed.
 - Production Vite bundle: built successfully.
@@ -95,9 +104,10 @@
 ## Known issues
 
 - The repository contained substantial unrelated modified and untracked files before this work began. WebMCP changes must remain isolated and must not overwrite them.
-- Automated browser coverage uses a `document.modelContext` compatibility shim.
-  Discovery and invocation in a real hosted ChatGPT WebMCP session still need a
-  manual compatibility test once a public deployment is available.
+- Automated Playwright coverage still uses a `document.modelContext`
+  compatibility shim, while a separate public Codex-browser acceptance run has
+  now exercised native WebMCP discovery and invocation. Consumer ChatGPT still
+  needs its own final compatibility run.
 - The existing frontend bundle emits Vite's chunk-size warning; this change does
   not introduce a separate lazy-loaded WebMCP chunk.
 - Render's free backend spins down after inactivity, so its first request can

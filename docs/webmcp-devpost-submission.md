@@ -3,6 +3,8 @@
 This document is the paste-ready source of truth for the challenge submission.
 Do not describe the real ChatGPT acceptance run or YouTube video as complete
 until those gates are recorded in `WEBMCP_STATUS.md` and independently checked.
+Native discovery and the complete four-tool flow have passed in the public
+Codex in-app browser; treat consumer ChatGPT as a separate final gate.
 
 ## Project identity
 

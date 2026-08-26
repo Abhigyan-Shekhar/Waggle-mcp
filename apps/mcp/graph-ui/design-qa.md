@@ -2,7 +2,7 @@
 
 ## Comparison setup
 
-- Source visual truth: `/Users/amlan/.codex/generated_images/01a03ed3-8a3d-7fd3-9d4c-65e1f977f0b1/exec-2381363d-e1fb-4b61-9d14-4bb40be9534c.png`
+- Source visual truth: internal Option 2 concept reference (not committed); the implementation evidence is stored below.
 - Final implementation capture: `design-qa-assets/option2-implementation-final.jpg`
 - Full-view comparison: `design-qa-assets/option2-side-by-side-final.png`
 - Focused upper-workspace comparison: `design-qa-assets/option2-focused-upper-final.png`
