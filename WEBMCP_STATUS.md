@@ -44,9 +44,9 @@
 - Server-side reset clears and reseeds only the current browser's workspace in
   one SQLite transaction. Refresh preserves state; reset restores exact IDs and
   content; a second browser remains unaffected.
-- The existing workspace now exposes only the required `Challenge Demo`
-  indicator and `Reset Demo` control. The Phase 5 information architecture is
-  otherwise frozen.
+- The public workspace now leads with Current Context, Key Decisions, Recent
+  Memories, Pending Human Review, and a live graph preview. A persistent
+  six-step Guided Demo advances only from real WebMCP and human-review events.
 - The free Render deployment is split into a static frontend at
   `https://waggle-webmcp.onrender.com` and a Docker/ASGI backend at
   `https://waggle-webmcp-api.onrender.com` with exact-origin credentialed CORS.
@@ -57,21 +57,38 @@
 
 ## Current validation
 
-- Both free Render services have been created. Final end-to-end browser and
-  WebMCP discovery checks are in progress against the public frontend URL.
-- Real ChatGPT discovery and invocation remain an external acceptance item if
-  the available browser surface does not expose `document.modelContext`.
+- Public acceptance run: `2026-08-26T18:05:29Z` against
+  `https://waggle-webmcp.onrender.com` at branch commit `16ca0f9`.
+- `/health/live`, `/health/ready`, `/`, every `/workspace` route, `/graph`, and
+  the production JavaScript asset returned successfully.
+- The public fixture returned 25 nodes and 10 edges. Graph Studio loaded those
+  25 nodes from the same browser session, exposed the focused Storage
+  architecture view, showed its three real edges, and offered `Show full graph`.
+- The credentialed CORS response allows only the exact frontend origin. An
+  unrelated origin was rejected, and the demo cookie was issued as HttpOnly,
+  Secure, and SameSite=None.
+- Two independent HTTP sessions received distinct deterministic memory IDs.
+  Cross-session mutation was rejected; resetting session A removed only A's
+  proposal while session B remained unchanged. Both test sessions were reset.
+- A complete public API acceptance flow passed: project brief, authoritative
+  recall, proposal, edited human approval, approved application, and corrected
+  recall. The resulting graph contained the native `updates` edge with proposal
+  and reviewer provenance, and the activity feed contained the full sequence.
+- The available Codex in-app browser does not expose `document.modelContext`.
+  Real ChatGPT discovery and invocation therefore remain an external acceptance
+  gate and were not simulated or claimed as complete.
 
 ## Next task
 
-- Complete the live checks in `docs/webmcp-judge-runbook.md`, then validate all
-  four tools in a real ChatGPT WebMCP session.
+- Open the public workspace inside actual ChatGPT, verify discovery of all four
+  tools, and complete 2–3 flawless Guided Demo runs using the exact judge
+  prompts. Record the ChatGPT surface and any discovery error here.
 
 ## Tests passing
 
-- Python focused integration suite: 21 passed.
+- Python focused integration suite: 22 passed.
 - Ruff checks for the WebMCP backend and tests: passed.
-- Frontend unit suite: 16 passed.
+- Frontend unit suite: 24 passed.
 - Production Vite bundle: built successfully.
 - Chromium workspace and Graph Studio browser suite: 14 passed.
 
