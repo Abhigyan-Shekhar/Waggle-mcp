@@ -158,6 +158,24 @@ def test_project_brief_http_route_rejects_invalid_input(tmp_path: Path) -> None:
     assert response.json()["message"] == "project_id must be a string."
 
 
+def test_workspace_is_landing_surface_and_graph_studio_remains_available(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+
+    with TestClient(app) as client:
+        landing = client.get("/?project=waggle-webmcp")
+        workspace = client.get("/workspace/proposals?project=waggle-webmcp")
+        graph_studio = client.get("/graph?project=waggle-webmcp")
+
+    assert landing.status_code == 200
+    assert "<title>Waggle — Shared Memory</title>" in landing.text
+    assert workspace.status_code == 200
+    assert '"project": "waggle-webmcp"' in workspace.text
+    assert graph_studio.status_code == 200
+    assert "<title>Waggle Graph Studio</title>" in graph_studio.text
+
+
 def seed_decision_chain(graph: MemoryGraph, project: str = "waggle-webmcp") -> tuple[str, str, str]:
     graph.enable_dedup = False
     v1 = graph.add_node(

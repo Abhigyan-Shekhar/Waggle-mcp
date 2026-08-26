@@ -38,6 +38,15 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
     result_memory_id: null,
   };
   let persistedProposals = [];
+  const auditEvents = [
+    {
+      event_id: "audit-brief",
+      event_type: "webmcp.project_brief.read",
+      actor_id: "webmcp",
+      created_at: "2026-08-26T14:31:00+00:00",
+      metadata: {},
+    },
+  ];
 
   await page.addInitScript(() => {
     window.__WAGGLE_GRAPH_CONFIG__ = {
@@ -78,6 +87,13 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(brief),
+    });
+  });
+  await page.route("**/api/admin/audit-events**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(auditEvents),
     });
   });
   await page.route("**/api/webmcp/recall-memory", async (route) => {
@@ -184,7 +200,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
       .execute({ project_id: "waggle-webmcp" }),
   );
   expect(briefResult).toEqual(brief);
-  await expect(page.getByText("Agent requested the project brief.")).toBeVisible();
+  await expect(page.getByText("Project brief shared with ChatGPT.")).toBeVisible();
 
   const recallResult = await page.evaluate(() =>
     window.__registeredSiteTools
@@ -197,7 +213,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   );
   expect(recallResult).toEqual(recall);
   await expect(
-    page.getByText("Agent recalled 1 authoritative memories."),
+    page.getByText("ChatGPT recalled 1 authoritative memory."),
   ).toBeVisible();
 
   const proposalResult = await page.evaluate(() =>
@@ -211,14 +227,14 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
       }),
   );
   expect(proposalResult).toEqual(proposal);
-  await expect(page.getByText("Proposed memory change")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Memory correction" })).toBeVisible();
   await expect(page.getByText("Use Neo4j for storage.")).toBeVisible();
   await expect(
     page.getByText("Use SQLite by default; Neo4j remains optional."),
   ).toBeVisible();
-  await expect(page.getByText("Pending human review")).toBeVisible();
+  await expect(page.getByText("pending review", { exact: true })).toBeVisible();
   await expect(
-    page.getByText("Agent proposed a memory change for human review."),
+    page.getByText("A new proposal is ready for human review."),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Edit & Approve" }).click();
@@ -226,8 +242,8 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
     "Use SQLite by default; Neo4j remains optional and auditable.",
   );
   await page.getByRole("button", { name: "Confirm edit & approve" }).click();
-  await expect(page.getByText("✓ Human approved")).toBeVisible();
-  await expect(page.getByText("Awaiting application")).toBeVisible();
+  await expect(page.getByText("Human approved", { exact: true })).toBeVisible();
+  await expect(page.getByText("Awaiting application by ChatGPT")).toBeVisible();
 
   const appliedResult = await page.evaluate(() =>
     window.__registeredSiteTools
@@ -238,12 +254,13 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   expect(appliedResult.authoritative_memory.content).toBe(
     "Use SQLite by default; Neo4j remains optional and auditable.",
   );
-  await expect(page.getByText("✓ Applied")).toBeVisible();
-  await expect(page.getByText("Corrected by local-human")).toBeVisible();
+  await expect(page.locator(".workspace-status-applied")).toBeVisible();
+  await expect(page.getByText("Authoritative", { exact: true })).toBeVisible();
 
   await page.reload();
-  await expect(page.getByText("Proposed memory change")).toBeVisible();
-  await expect(page.getByText("✓ Applied")).toBeVisible();
+  await page.goto("/workspace/proposals");
+  await expect(page.getByRole("heading", { name: "Memory correction" })).toBeVisible();
+  await expect(page.locator(".workspace-status-applied")).toBeVisible();
   await expect(
     page.getByText("Use SQLite by default; Neo4j remains optional and auditable."),
   ).toBeVisible();

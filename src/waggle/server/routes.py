@@ -275,6 +275,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 project=scope["project"],
                 agent_id=scope["agent_id"],
                 session_id=scope["session_id"],
+                title="Waggle Graph Studio" if request.url.path == "/graph" else "Waggle — Shared Memory",
             )
         )
 
@@ -1242,6 +1243,11 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     raw_app = Starlette(
         routes=[
+            Route("/", graph_editor),
+            Route("/workspace", graph_editor),
+            Route("/workspace/memories", graph_editor),
+            Route("/workspace/proposals", graph_editor),
+            Route("/workspace/activity", graph_editor),
             Route("/health/live", live),
             Route("/health/ready", ready),
             Route("/metrics", metrics_endpoint),

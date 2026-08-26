@@ -27,6 +27,7 @@ import {
 } from "./lib/graph-utils";
 import { SAMPLE_GRAPH_SNAPSHOT, SAMPLE_RETRIEVAL, SAMPLE_TRANSCRIPTS } from "./sample-data";
 import { VirtualList } from "./VirtualList";
+import { Workspace } from "./Workspace";
 
 Cytoscape.use(coseBilkent);
 
@@ -176,7 +177,7 @@ function readFileBase64(file) {
   });
 }
 
-export function App() {
+export function GraphStudio() {
   const boot = useMemo(() => readBootConfig(), []);
   const mode = boot.mode;
   const readOnly = mode === "view";
@@ -1683,4 +1684,8 @@ export function App() {
     </div>
     
   );
+}
+
+export function App() {
+  return window.location.pathname === "/graph" ? <GraphStudio /> : <Workspace />;
 }

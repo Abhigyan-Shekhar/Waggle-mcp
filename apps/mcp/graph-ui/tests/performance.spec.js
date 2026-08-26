@@ -56,7 +56,7 @@ test.describe("Graph UI - Virtualization Performance", () => {
         session_id: "perf-session"
       };
     });
-    await page.goto("/");
+    await page.goto("/graph");
   });
 
   test("should render only a small subset of the 1000 transcripts in the DOM", async ({ page }) => {

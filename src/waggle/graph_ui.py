@@ -10,6 +10,7 @@ def render_graph_editor_html(
     project: str = "",
     agent_id: str = "",
     session_id: str = "",
+    title: str = "Waggle",
 ) -> str:
     page_mode = "view" if mode.strip().lower() == "view" else "edit"
     assets_dir = Path(__file__).resolve().parent / "static" / "graph"
@@ -37,7 +38,7 @@ def render_graph_editor_html(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Waggle Graph Studio</title>
+  <title>{title}</title>
   <link rel="stylesheet" href="/graph-assets/app.css?v={asset_version}">
 </head>
 <body>

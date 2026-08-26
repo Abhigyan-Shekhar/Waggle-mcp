@@ -28,29 +28,33 @@
   lineage plus proposal and audit provenance.
 - `apply_approved_memory_change` accepts only a proposal ID, is idempotent, and
   cannot supply or alter human-approved content.
+- Phase 5 workspace UX completed: `/` and `/workspace` now lead with a calm
+  project overview, while Memories, Proposals, and Activity provide focused
+  governed-memory views and Graph Studio remains available at `/graph`.
+- WebMCP activity, proposal creation, human review, application, and corrected
+  memory refresh update the workspace without a page reload.
 
 ## Current blocker
 
-- None for the Phase 4 governance lifecycle.
+- Public hosting and real ChatGPT WebMCP discovery remain unverified until the
+  Phase 6 judge deployment exists.
 
 ## Next task
 
-- Begin the Workspace-first UX phase while preserving the now-verified governance
-  services and keeping Graph Studio available as a dedicated route or tab.
+- Build Phase 6 seeded, zero-login judge mode with deterministic reset and
+  isolated demo state, then immediately validate discovery in real ChatGPT.
 
 ## Tests passing
 
-- Python focused integration suite: 16 passed.
+- Python focused integration suite: 20 passed.
 - Ruff checks for the WebMCP backend and tests: passed.
 - Frontend unit suite: 16 passed.
 - Production Vite bundle: built successfully.
-- Playwright WebMCP browser test: 1 passed.
+- Chromium workspace and Graph Studio browser suite: 14 passed.
 
 ## Known issues
 
 - The repository contained substantial unrelated modified and untracked files before this work began. WebMCP changes must remain isolated and must not overwrite them.
-- The current Graph Studio is only the Phase 1 host page; it is not the final
-  workspace-first challenge experience.
 - Automated browser coverage uses a `document.modelContext` compatibility shim.
   Discovery and invocation in a real hosted ChatGPT WebMCP session still need a
   manual compatibility test once a public deployment is available.
