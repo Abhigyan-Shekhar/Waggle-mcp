@@ -6,6 +6,7 @@ import { apiRequest, buildScopeQuery } from "./lib/api";
 import { readBootConfig } from "./lib/boot-config";
 import {
   registerGetProjectBriefTool,
+  registerProposeMemoryChangeTool,
   registerRecallMemoryTool,
 } from "./lib/webmcp";
 import ScrollToTop from "./ScrollToTop";
@@ -208,6 +209,7 @@ export function App() {
   const [importPreview, setImportPreview] = useState(null);
   const [abhiDiff, setAbhiDiff] = useState(null);
   const [showMisses, setShowMisses] = useState(false);
+  const [proposals, setProposals] = useState([]);
 
   const graph = useMemo(() => normalizeGraph(snapshot, importedNodeIds), [snapshot, importedNodeIds]);
   const visibleGraph = useMemo(() => filterGraph(graph, filters), [graph, filters]);
@@ -239,14 +241,19 @@ export function App() {
     if (boot.sampleMode) {
       return;
     }
-    const [graphData, transcriptData] = await Promise.all([
+    const proposalRequest = nextScope.project
+      ? apiRequest(`/api/webmcp/proposals?project_id=${encodeURIComponent(nextScope.project)}`)
+      : Promise.resolve({ proposals: [] });
+    const [graphData, transcriptData, proposalData] = await Promise.all([
       apiRequest(`/api/graph${buildScopeQuery(nextScope)}${buildScopeQuery(nextScope) ? "&" : "?"}include_source_prompt=true`),
-      apiRequest(`/api/graph/transcripts${buildScopeQuery(nextScope)}`)
+      apiRequest(`/api/graph/transcripts${buildScopeQuery(nextScope)}`),
+      proposalRequest,
     ]);
     setSnapshot(graphData);
     setTranscriptRecords(transcriptData.records || []);
     setTranscriptOffset(transcriptData.pagination?.offset ?? 0);
     setTranscriptTotalCount(transcriptData.pagination?.total_count ?? 0);
+    setProposals(proposalData.proposals || []);
     setSelectedNodeId("");
     setSelectedEdgeId("");
     setHoverNodeId("");
@@ -273,6 +280,16 @@ export function App() {
         getScope: () => scopeRef.current,
         onActivity: ({ result_count: resultCount }) =>
           setToast(`Agent recalled ${resultCount} authoritative memories.`),
+      }),
+      registerProposeMemoryChangeTool({
+        getScope: () => scopeRef.current,
+        onActivity: ({ proposal }) => {
+          setProposals((current) => [
+            proposal,
+            ...current.filter((item) => item.proposal_id !== proposal.proposal_id),
+          ]);
+          setToast("Agent proposed a memory change for human review.");
+        },
       }),
     ]).catch((error) => setToast(`WebMCP: ${error.message}`));
   }, [boot.sampleMode]);
@@ -1445,6 +1462,42 @@ export function App() {
               <p className="text-sm leading-6 text-graph-muted">
                 Click a graph node for provenance and evidence, or a transcript turn-pair to inspect its verbatim messages and derived nodes.
               </p>
+            )}
+          </Section>
+
+          <Section
+            title="Pending proposals"
+            extra={<span className="text-xs text-graph-muted">{proposals.length}</span>}
+          >
+            {proposals.length ? (
+              <div className="grid gap-3">
+                {proposals.slice(0, 5).map((proposal) => (
+                  <article
+                    className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm"
+                    data-proposal-id={proposal.proposal_id}
+                    key={proposal.proposal_id}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-medium text-white">Proposed memory change</div>
+                      <span className="rounded-full border border-amber-200/20 px-2 py-0.5 text-[11px] uppercase tracking-wide text-amber-100">
+                        Pending human review
+                      </span>
+                    </div>
+                    <div className="mt-3 text-xs uppercase tracking-wide text-graph-muted">Current</div>
+                    <div className="mt-1 text-white">{proposal.target.current_content}</div>
+                    <div className="mt-3 text-xs uppercase tracking-wide text-graph-muted">Proposed</div>
+                    <div className="mt-1 text-white">{proposal.proposed_content}</div>
+                    {proposal.reason ? (
+                      <>
+                        <div className="mt-3 text-xs uppercase tracking-wide text-graph-muted">Reason</div>
+                        <div className="mt-1 text-graph-muted">{proposal.reason}</div>
+                      </>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-graph-muted">No pending memory changes.</p>
             )}
           </Section>
 

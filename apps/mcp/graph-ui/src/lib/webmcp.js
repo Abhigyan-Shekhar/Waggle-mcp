@@ -152,3 +152,101 @@ export function registerRecallMemoryTool({
     },
   });
 }
+
+export function registerProposeMemoryChangeTool({
+  modelContext = document.modelContext,
+  getScope = () => ({}),
+  onActivity = () => {},
+} = {}) {
+  if (typeof modelContext?.registerTool !== "function") {
+    return Promise.resolve(false);
+  }
+
+  return registerOnce(modelContext, {
+    name: "propose_memory_change",
+    description:
+      "Propose a change to an existing authoritative Waggle memory for human review. This does not modify the authoritative memory.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_id: {
+          type: "string",
+          minLength: 1,
+          maxLength: 512,
+          description: "The exact Waggle project identifier containing the memory.",
+        },
+        memory_id: {
+          type: "string",
+          minLength: 1,
+          maxLength: 512,
+          description: "The current authoritative memory to propose changing.",
+        },
+        proposed_content: {
+          type: "string",
+          minLength: 1,
+          maxLength: 20000,
+          description: "The replacement content proposed for human review.",
+        },
+        reason: {
+          type: "string",
+          maxLength: 4000,
+          description: "Why the memory should change.",
+        },
+        evidence_ids: {
+          type: "array",
+          maxItems: 20,
+          uniqueItems: true,
+          items: { type: "string", minLength: 1, maxLength: 512 },
+          description: "Optional same-project memories supporting the proposal.",
+        },
+      },
+      required: ["project_id", "memory_id", "proposed_content"],
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    execute: async (input) => {
+      const projectId = input?.project_id;
+      const memoryId = input?.memory_id;
+      const proposedContent = input?.proposed_content;
+      const reason = input?.reason ?? "";
+      const evidenceIds = input?.evidence_ids ?? [];
+      if (typeof projectId !== "string" || projectId.trim() === "") {
+        throw new Error("INVALID_INPUT: project_id is required.");
+      }
+      if (typeof memoryId !== "string" || memoryId.trim() === "") {
+        throw new Error("INVALID_INPUT: memory_id is required.");
+      }
+      if (typeof proposedContent !== "string" || proposedContent.trim() === "") {
+        throw new Error("INVALID_INPUT: proposed_content is required.");
+      }
+      if (typeof reason !== "string") {
+        throw new Error("INVALID_INPUT: reason must be a string.");
+      }
+      if (!Array.isArray(evidenceIds) || evidenceIds.some((item) => typeof item !== "string")) {
+        throw new Error("INVALID_INPUT: evidence_ids must be an array of strings.");
+      }
+
+      assertWorkspaceProject(projectId.trim(), getScope);
+      const result = await apiRequest("/api/webmcp/proposals", {
+        method: "POST",
+        body: JSON.stringify({
+          project_id: projectId.trim(),
+          memory_id: memoryId.trim(),
+          proposed_content: proposedContent.trim(),
+          reason: reason.trim(),
+          evidence_ids: evidenceIds.map((item) => item.trim()),
+        }),
+      });
+      onActivity({
+        tool: "propose_memory_change",
+        project_id: projectId.trim(),
+        proposal: result,
+      });
+      return result;
+    },
+  });
+}

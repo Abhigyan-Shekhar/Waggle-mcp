@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("registers and executes read-only Waggle tools from the live page", async ({ page }) => {
+test("registers and executes Waggle WebMCP tools from the live page", async ({ page }) => {
   const brief = {
     project: { id: "waggle-webmcp", name: "Waggle WebMCP" },
     goal: "Build governed shared memory.",
@@ -16,6 +16,22 @@ test("registers and executes read-only Waggle tools from the live page", async (
     project_id: "waggle-webmcp",
     memories: [{ memory_id: "memory-v3", status: "authoritative" }],
   };
+  const proposal = {
+    proposal_id: "proposal_123",
+    status: "pending",
+    project_id: "waggle-webmcp",
+    target: {
+      memory_id: "memory-v3",
+      current_content: "Use Neo4j for storage.",
+      version: "target-fingerprint",
+    },
+    proposed_content: "Use SQLite by default; Neo4j remains optional.",
+    reason: "Preserve local-first architecture.",
+    evidence_ids: [],
+    proposed_by: { type: "agent", id: "webmcp" },
+    created_at: "2026-08-26T00:00:00+00:00",
+  };
+  let persistedProposals = [];
 
   await page.addInitScript(() => {
     window.__WAGGLE_GRAPH_CONFIG__ = {
@@ -70,13 +86,43 @@ test("registers and executes read-only Waggle tools from the live page", async (
       body: JSON.stringify(recall),
     });
   });
+  await page.route("**/api/webmcp/proposals**", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          project_id: "waggle-webmcp",
+          proposals: persistedProposals,
+        }),
+      });
+      return;
+    }
+    expect(route.request().postDataJSON()).toEqual({
+      project_id: "waggle-webmcp",
+      memory_id: "memory-v3",
+      proposed_content: "Use SQLite by default; Neo4j remains optional.",
+      reason: "Preserve local-first architecture.",
+      evidence_ids: [],
+    });
+    persistedProposals = [proposal];
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify(proposal),
+    });
+  });
 
   await page.goto("/");
   await expect
     .poll(() =>
       page.evaluate(() => window.__registeredSiteTools.map((tool) => tool.name)),
     )
-    .toEqual(["get_project_brief", "recall_memory"]);
+    .toEqual([
+      "get_project_brief",
+      "recall_memory",
+      "propose_memory_change",
+    ]);
 
   const briefResult = await page.evaluate(() =>
     window.__registeredSiteTools
@@ -99,4 +145,29 @@ test("registers and executes read-only Waggle tools from the live page", async (
   await expect(
     page.getByText("Agent recalled 1 authoritative memories."),
   ).toBeVisible();
+
+  const proposalResult = await page.evaluate(() =>
+    window.__registeredSiteTools
+      .find((tool) => tool.name === "propose_memory_change")
+      .execute({
+        project_id: "waggle-webmcp",
+        memory_id: "memory-v3",
+        proposed_content: "Use SQLite by default; Neo4j remains optional.",
+        reason: "Preserve local-first architecture.",
+      }),
+  );
+  expect(proposalResult).toEqual(proposal);
+  await expect(page.getByText("Proposed memory change")).toBeVisible();
+  await expect(page.getByText("Use Neo4j for storage.")).toBeVisible();
+  await expect(
+    page.getByText("Use SQLite by default; Neo4j remains optional."),
+  ).toBeVisible();
+  await expect(page.getByText("Pending human review")).toBeVisible();
+  await expect(
+    page.getByText("Agent proposed a memory change for human review."),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByText("Proposed memory change")).toBeVisible();
+  await expect(page.getByText("Preserve local-first architecture.")).toBeVisible();
 });

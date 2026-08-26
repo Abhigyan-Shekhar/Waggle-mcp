@@ -40,7 +40,7 @@ from waggle.models import (
     RelationType,
 )
 from waggle.protocol.mcp.http import MCPHttpApp as MCPHttpAppV2
-from waggle.webmcp import compile_project_brief, recall_authoritative_memory
+from waggle.webmcp import ProposalRepository, compile_project_brief, propose_memory_change, recall_authoritative_memory
 
 from .mcp import WaggleServer
 from .utils import (
@@ -103,6 +103,7 @@ class _RequestBodySizeMiddleware:
 
 def create_http_application(app_server: WaggleServer, config: AppConfig) -> Starlette:
     service = MCPHttpAppV2(app_server._root_graph, config, app_server.metrics)
+    proposal_repository = ProposalRepository(config.db_path)
 
     async def waggle_error_handler(request: Request, exc: WaggleError) -> Response:
         if isinstance(exc, AuthenticationError):
@@ -343,6 +344,61 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             metadata={"tool": "recall_memory", "result_count": len(recall["memories"])},
         )
         return JSONResponse(recall)
+
+    async def webmcp_propose_memory_change(request: Request) -> Response:
+        payload = await request.json()
+        project_id = payload.get("project_id")
+        memory_id = payload.get("memory_id")
+        proposed_content = payload.get("proposed_content")
+        reason = payload.get("reason", "")
+        evidence_ids = payload.get("evidence_ids", [])
+        if not isinstance(project_id, str):
+            raise ValidationFailure("project_id must be a string.")
+        if not isinstance(memory_id, str):
+            raise ValidationFailure("memory_id must be a string.")
+        if not isinstance(proposed_content, str):
+            raise ValidationFailure("proposed_content must be a string.")
+        if not isinstance(reason, str):
+            raise ValidationFailure("reason must be a string.")
+        graph, principal = _require_http_scope(request, "graph:write")
+        proposal, created = propose_memory_change(
+            graph,
+            proposal_repository,
+            project_id=project_id,
+            memory_id=memory_id,
+            proposed_content=proposed_content,
+            reason=reason,
+            evidence_ids=evidence_ids,
+            proposed_by_type="agent",
+            proposed_by_id=(principal.name or principal.api_key_id) if principal is not None else "webmcp",
+        )
+        _emit_http_audit(
+            request,
+            event_type="webmcp.memory_change.proposed",
+            resource_type="memory_change_proposal",
+            resource_id=proposal["proposal_id"],
+            action="create" if created else "deduplicate",
+            metadata={
+                "tool": "propose_memory_change",
+                "project_id": proposal["project_id"],
+                "target_memory_id": proposal["target"]["memory_id"],
+                "created": created,
+            },
+        )
+        return JSONResponse(proposal, status_code=201 if created else 200)
+
+    async def webmcp_list_proposals(request: Request) -> Response:
+        project_id = request.query_params.get("project_id", "")
+        if not project_id.strip():
+            raise ValidationFailure("project_id is required.")
+        graph, _ = _require_http_scope(request, "graph:read")
+        proposals = proposal_repository.list_for_project(
+            tenant_id=str(graph.tenant_id),
+            project_id=project_id.strip(),
+            status="pending",
+            limit=50,
+        )
+        return JSONResponse({"project_id": project_id.strip(), "proposals": proposals})
 
     async def graph_transcripts(request: Request) -> Response:
         scope = _scope_from_request(request)
@@ -1143,6 +1199,8 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             Route("/api/graph", graph_snapshot, methods=["GET"]),
             Route("/api/webmcp/project-brief", webmcp_project_brief, methods=["POST"]),
             Route("/api/webmcp/recall-memory", webmcp_recall_memory, methods=["POST"]),
+            Route("/api/webmcp/proposals", webmcp_list_proposals, methods=["GET"]),
+            Route("/api/webmcp/proposals", webmcp_propose_memory_change, methods=["POST"]),
             Route("/api/graph/transcripts", graph_transcripts, methods=["GET"]),
             Route("/api/graph/retrieval-debug", graph_retrieval_debug, methods=["POST"]),
             Route("/api/graph/abhi", graph_abhi_preview, methods=["GET"]),

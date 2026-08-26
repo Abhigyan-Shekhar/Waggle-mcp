@@ -16,22 +16,28 @@
   supersession provenance.
 - The reusable governance fixture `Decision v1 -> Decision v2 -> Decision v3`
   proves normal recall returns only v3.
+- Phase 3 proposal workflow completed: `propose_memory_change` persists pending
+  application state with a target fingerprint and provenance without modifying
+  authoritative graph memory.
+- Exact duplicate proposals are idempotent, distinct changes remain allowed, and
+  pending proposal cards appear live in the temporary Graph Studio shell and
+  survive reload.
 
 ## Current blocker
 
-- None for the Phase 2 read-only vertical slice.
+- None for the Phase 3 proposal vertical slice.
 
 ## Next task
 
-- Begin Phase 3 with proposal persistence and `propose_memory_change`. Keep
-  pending proposals outside ordinary authoritative memory retrieval, and build
-  the human edit/reject/approve UI before adding an apply tool.
+- Begin Phase 4 with the human edit/reject/approve lifecycle. Freeze approved
+  content, enforce the stored target fingerprint against stale approvals, and
+  keep application idempotent before exposing `apply_approved_memory_change`.
 
 ## Tests passing
 
-- Python focused integration suite: 11 passed.
+- Python focused integration suite: 15 passed.
 - Ruff checks for the WebMCP backend and tests: passed.
-- Frontend unit suite: 14 passed.
+- Frontend unit suite: 15 passed.
 - Production Vite bundle: built successfully.
 - Playwright WebMCP browser test: 1 passed.
 

@@ -278,3 +278,173 @@ def test_recall_http_bounds_limit_and_rejects_malformed_project_id(tmp_path: Pat
     assert oversized.json()["message"] == "limit must be between 1 and 10."
     assert malformed.status_code == 400
     assert malformed.json()["message"] == "project_id contains invalid control characters."
+
+
+def test_proposal_persists_without_changing_authoritative_memory(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    v1_id, _, v3_id = seed_decision_chain(graph)
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+    before_recall = recall_authoritative_memory(
+        graph,
+        project_id="waggle-webmcp",
+        query="storage architecture",
+    )
+    before_brief = compile_project_brief(graph, project_id="waggle-webmcp")
+    request_payload = {
+        "project_id": "waggle-webmcp",
+        "memory_id": v3_id,
+        "proposed_content": "Use an encrypted SQLite database by default; Neo4j remains optional.",
+        "reason": "Preserve local-first storage while making encryption explicit.",
+        "evidence_ids": [v1_id],
+    }
+
+    with TestClient(app) as client:
+        created = client.post("/api/webmcp/proposals", json=request_payload)
+        duplicate = client.post("/api/webmcp/proposals", json=request_payload)
+
+    assert created.status_code == 201
+    proposal = created.json()
+    assert duplicate.status_code == 200
+    assert duplicate.json()["proposal_id"] == proposal["proposal_id"]
+    assert proposal["status"] == "pending"
+    assert proposal["target"]["memory_id"] == v3_id
+    assert proposal["target"]["current_content"] == "Use SQLite by default; Neo4j remains optional."
+    assert len(proposal["target"]["version"]) == 64
+    assert proposal["evidence_ids"] == [v1_id]
+    assert proposal["proposed_by"] == {"type": "agent", "id": "webmcp"}
+
+    after_recall = recall_authoritative_memory(
+        graph,
+        project_id="waggle-webmcp",
+        query="storage architecture",
+    )
+    after_brief = compile_project_brief(graph, project_id="waggle-webmcp")
+    assert after_recall == before_recall
+    assert after_brief["decisions"] == before_brief["decisions"]
+    assert request_payload["proposed_content"] not in str(graph.get_graph_snapshot(project="waggle-webmcp"))
+
+    reloaded_app = create_http_application(app_server, app_server.config)
+    with TestClient(reloaded_app) as client:
+        listed = client.get("/api/webmcp/proposals?project_id=waggle-webmcp")
+    assert listed.status_code == 200
+    assert listed.json()["proposals"] == [proposal]
+
+
+def test_proposal_allows_distinct_changes_to_same_target(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    _, _, v3_id = seed_decision_chain(graph)
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+
+    with TestClient(app) as client:
+        first = client.post(
+            "/api/webmcp/proposals",
+            json={
+                "project_id": "waggle-webmcp",
+                "memory_id": v3_id,
+                "proposed_content": "Use encrypted SQLite by default.",
+            },
+        )
+        second = client.post(
+            "/api/webmcp/proposals",
+            json={
+                "project_id": "waggle-webmcp",
+                "memory_id": v3_id,
+                "proposed_content": "Use SQLite with daily backups by default.",
+            },
+        )
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.json()["proposal_id"] != second.json()["proposal_id"]
+
+
+def test_proposal_rejects_non_authoritative_and_cross_project_targets(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    v1_id, v2_id, _ = seed_decision_chain(graph)
+    expired = graph.add_node(
+        label="Expired target",
+        content="An expired target memory.",
+        node_type=NodeType.DECISION,
+        project="waggle-webmcp",
+        valid_to=datetime.now(UTC) - timedelta(minutes=1),
+    ).node
+    other = graph.add_node(
+        label="Other target",
+        content="A different project's memory.",
+        node_type=NodeType.DECISION,
+        project="other-project",
+    ).node
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+
+    def propose(client: TestClient, memory_id: str):
+        return client.post(
+            "/api/webmcp/proposals",
+            json={
+                "project_id": "waggle-webmcp",
+                "memory_id": memory_id,
+                "proposed_content": "A proposed replacement.",
+            },
+        )
+
+    with TestClient(app) as client:
+        responses = [
+            propose(client, v1_id),
+            propose(client, v2_id),
+            propose(client, expired.id),
+            propose(client, other.id),
+            propose(client, "missing-memory"),
+        ]
+
+    assert all(response.status_code == 400 for response in responses)
+    assert "current authoritative" in responses[0].json()["message"]
+    assert "current authoritative" in responses[1].json()["message"]
+    assert "current authoritative" in responses[2].json()["message"]
+    assert "in this project" in responses[3].json()["message"]
+    assert "existing memory" in responses[4].json()["message"]
+
+
+def test_proposal_validates_content_and_evidence_scope(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    _, _, v3_id = seed_decision_chain(graph)
+    other = graph.add_node(
+        label="Other evidence",
+        content="Evidence from another project.",
+        node_type=NodeType.NOTE,
+        project="other-project",
+    ).node
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+
+    with TestClient(app) as client:
+        empty = client.post(
+            "/api/webmcp/proposals",
+            json={"project_id": "waggle-webmcp", "memory_id": v3_id, "proposed_content": "   "},
+        )
+        cross_project = client.post(
+            "/api/webmcp/proposals",
+            json={
+                "project_id": "waggle-webmcp",
+                "memory_id": v3_id,
+                "proposed_content": "A valid proposal.",
+                "evidence_ids": [other.id],
+            },
+        )
+        missing = client.post(
+            "/api/webmcp/proposals",
+            json={
+                "project_id": "waggle-webmcp",
+                "memory_id": v3_id,
+                "proposed_content": "A valid proposal.",
+                "evidence_ids": ["missing-evidence"],
+            },
+        )
+
+    assert empty.status_code == 400
+    assert empty.json()["message"] == "proposed_content is required."
+    assert cross_project.status_code == 400
+    assert "different project" in cross_project.json()["message"]
+    assert missing.status_code == 400
+    assert "does not exist" in missing.json()["message"]

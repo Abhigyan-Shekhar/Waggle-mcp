@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   registerGetProjectBriefTool,
+  registerProposeMemoryChangeTool,
   registerRecallMemoryTool,
 } from "./webmcp";
 
@@ -160,5 +161,83 @@ describe("recall_memory WebMCP registration", () => {
     await expect(
       definition.execute({ project_id: "project-b", query: "storage" }),
     ).rejects.toThrow("PROJECT_NOT_IN_WORKSPACE");
+  });
+});
+
+describe("propose_memory_change WebMCP registration", () => {
+  it("registers as an idempotent workflow mutation and returns the persisted proposal", async () => {
+    let definition;
+    const activity = vi.fn();
+    const modelContext = {
+      registerTool: vi.fn((tool) => (definition = tool)),
+    };
+    const proposal = {
+      proposal_id: "proposal_123",
+      status: "pending",
+      project_id: "waggle-webmcp",
+      target: {
+        memory_id: "memory-v3",
+        current_content: "Use Neo4j.",
+        version: "fingerprint",
+      },
+      proposed_content: "Use SQLite by default.",
+      reason: "Preserve local-first architecture.",
+      evidence_ids: [],
+      proposed_by: { type: "agent", id: "webmcp" },
+      created_at: "2026-08-26T00:00:00+00:00",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        headers: { get: () => "application/json" },
+        json: async () => proposal,
+      })),
+    );
+
+    const options = {
+      modelContext,
+      getScope: () => ({ project: "waggle-webmcp" }),
+      onActivity: activity,
+    };
+    await Promise.all([
+      registerProposeMemoryChangeTool(options),
+      registerProposeMemoryChangeTool(options),
+    ]);
+
+    expect(modelContext.registerTool).toHaveBeenCalledOnce();
+    expect(definition.name).toBe("propose_memory_change");
+    expect(definition.description).toContain("does not modify the authoritative memory");
+    expect(definition.annotations).toEqual({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    });
+    await expect(
+      definition.execute({
+        project_id: "waggle-webmcp",
+        memory_id: "memory-v3",
+        proposed_content: "Use SQLite by default.",
+        reason: "Preserve local-first architecture.",
+      }),
+    ).resolves.toEqual(proposal);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/webmcp/proposals",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          project_id: "waggle-webmcp",
+          memory_id: "memory-v3",
+          proposed_content: "Use SQLite by default.",
+          reason: "Preserve local-first architecture.",
+          evidence_ids: [],
+        }),
+      }),
+    );
+    expect(activity).toHaveBeenCalledWith({
+      tool: "propose_memory_change",
+      project_id: "waggle-webmcp",
+      proposal,
+    });
   });
 });

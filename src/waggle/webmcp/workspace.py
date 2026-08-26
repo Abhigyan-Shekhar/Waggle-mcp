@@ -7,15 +7,22 @@ for the browser workspace and its WebMCP tools.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, datetime
 from pathlib import PurePath
 from typing import Any
 
 from waggle.errors import ValidationFailure
 
+from .proposals import ProposalRepository
+
 _MAX_PROJECT_ID_LENGTH = 512
 _MAX_RECALL_QUERY_LENGTH = 4_000
 _MAX_RECALL_LIMIT = 10
+_MAX_PROPOSED_CONTENT_LENGTH = 20_000
+_MAX_REASON_LENGTH = 4_000
+_MAX_EVIDENCE_IDS = 20
 _DEFAULT_SECTION_LIMIT = 6
 _CONSTRAINT_TAGS = {"constraint", "guardrail", "requirement", "policy"}
 _GOAL_TAGS = {"goal", "project-goal", "project_goal"}
@@ -246,3 +253,128 @@ def recall_authoritative_memory(
         "project_id": project,
         "memories": memories,
     }
+
+
+def _node_belongs_to_project(node: Any, project_id: str) -> bool:
+    normalized = project_id.strip().lower()
+    tags = {str(tag).strip().lower() for tag in getattr(node, "tags", [])}
+    return (
+        str(getattr(node, "project", "")).strip().lower() == normalized
+        or normalized in tags
+        or f"project:{normalized}" in tags
+    )
+
+
+def _load_current_authoritative_node(graph: Any, *, project_id: str, memory_id: str) -> Any:
+    try:
+        node = graph.get_node(memory_id)
+    except ValueError as exc:
+        raise ValidationFailure("memory_id does not identify an existing memory.") from exc
+    if not _node_belongs_to_project(node, project_id):
+        raise ValidationFailure("memory_id does not identify a memory in this project.")
+    now = datetime.now(UTC)
+    if not _node_is_current_authority(node, now=now):
+        raise ValidationFailure("memory_id does not identify a current authoritative memory.")
+    related = graph.get_related(node_id=memory_id, max_depth=1)
+    if any(
+        str(edge.relationship.value if hasattr(edge.relationship, "value") else edge.relationship) == "updates"
+        and str(edge.target_id) == memory_id
+        for edge in related.edges
+    ):
+        raise ValidationFailure("memory_id does not identify a current authoritative memory.")
+    return node
+
+
+def _target_version(node: Any) -> str:
+    payload = {
+        "memory_id": str(node.id),
+        "project": str(node.project),
+        "label": str(node.label),
+        "content": str(node.content),
+        "node_type": str(node.node_type.value if hasattr(node.node_type, "value") else node.node_type),
+        "tags": list(node.tags),
+        "metadata": dict(node.metadata),
+        "valid_from": node.valid_from.isoformat() if node.valid_from else None,
+        "valid_to": node.valid_to.isoformat() if node.valid_to else None,
+        "updated_at": node.updated_at.isoformat(),
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def propose_memory_change(
+    graph: Any,
+    repository: ProposalRepository,
+    *,
+    project_id: str,
+    memory_id: str,
+    proposed_content: str,
+    reason: str = "",
+    evidence_ids: list[str] | None = None,
+    proposed_by_type: str = "agent",
+    proposed_by_id: str = "webmcp",
+) -> tuple[dict[str, Any], bool]:
+    """Persist a pending proposal without changing authoritative graph state."""
+
+    project = _validate_project_id(project_id)
+    target_id = str(memory_id or "").strip()
+    if not target_id or len(target_id) > 512:
+        raise ValidationFailure("memory_id must be a non-empty string of at most 512 characters.")
+    content = str(proposed_content or "").strip()
+    if not content:
+        raise ValidationFailure("proposed_content is required.")
+    if len(content) > _MAX_PROPOSED_CONTENT_LENGTH:
+        raise ValidationFailure(f"proposed_content must be at most {_MAX_PROPOSED_CONTENT_LENGTH} characters.")
+    reason_text = str(reason or "").strip()
+    if len(reason_text) > _MAX_REASON_LENGTH:
+        raise ValidationFailure(f"reason must be at most {_MAX_REASON_LENGTH} characters.")
+    if evidence_ids is None:
+        normalized_evidence: list[str] = []
+    elif not isinstance(evidence_ids, list) or any(not isinstance(item, str) for item in evidence_ids):
+        raise ValidationFailure("evidence_ids must be an array of memory ID strings.")
+    else:
+        normalized_evidence = list(dict.fromkeys(item.strip() for item in evidence_ids if item.strip()))
+    if len(normalized_evidence) > _MAX_EVIDENCE_IDS:
+        raise ValidationFailure(f"evidence_ids may contain at most {_MAX_EVIDENCE_IDS} items.")
+
+    target = _load_current_authoritative_node(graph, project_id=project, memory_id=target_id)
+    now = datetime.now(UTC)
+    for evidence_id in normalized_evidence:
+        try:
+            evidence = graph.get_node(evidence_id)
+        except ValueError as exc:
+            raise ValidationFailure(f"Evidence memory does not exist: {evidence_id}") from exc
+        if not _node_belongs_to_project(evidence, project):
+            raise ValidationFailure(f"Evidence memory belongs to a different project: {evidence_id}")
+        valid_from = _parse_datetime(getattr(evidence, "valid_from", None))
+        if valid_from is not None and valid_from > now:
+            raise ValidationFailure(f"Evidence memory is not yet historically valid: {evidence_id}")
+
+    version = _target_version(target)
+    actor_type = str(proposed_by_type or "agent").strip() or "agent"
+    actor_id = str(proposed_by_id or "").strip()
+    dedupe_payload = json.dumps(
+        {
+            "actor_type": actor_type,
+            "actor_id": actor_id,
+            "target_memory_id": target_id,
+            "target_memory_version": version,
+            "proposed_content": content,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    dedupe_key = hashlib.sha256(dedupe_payload.encode("utf-8")).hexdigest()
+    return repository.create_or_get_pending(
+        tenant_id=str(graph.tenant_id),
+        project_id=project,
+        target_memory_id=target_id,
+        target_memory_version=version,
+        current_content=str(target.content),
+        proposed_content=content,
+        reason=reason_text,
+        evidence_ids=normalized_evidence,
+        proposed_by_type=actor_type,
+        proposed_by_id=actor_id,
+        dedupe_key=dedupe_key,
+    )
