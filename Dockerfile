@@ -14,13 +14,13 @@ WORKDIR /build
 # 1) Copy only dependency metadata first so Docker layer caching is preserved
 COPY pyproject.toml README.md LICENSE ./
 
-# 2) Install dependencies before copying source code
+# 2) Copy the package source required by the editable metadata build.
+COPY src ./src
+
+# 3) Install dependencies.
 RUN pip install --upgrade pip && \
     pip install torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install ".[neo4j]"
-
-# 3) Copy source code (changes here won't bust the dep layer)
-COPY src ./src
 
 # 4) Pre-download the embedding model so it is baked into the image layer
 RUN HF_HOME=/root/.cache/huggingface \
