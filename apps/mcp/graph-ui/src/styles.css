@@ -332,10 +332,10 @@ body {
 .workspace-nav-icon svg { display: block; }
 
 .overview-canvas { gap: 16px; }
-.overview-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 4px 4px 2px; }
-.overview-intro h1 { max-width: 720px; margin: 7px 0 0; color: #14241c; font-family: Georgia, "Times New Roman", serif; font-size: clamp(36px, 4.1vw, 58px); font-weight: 500; letter-spacing: -.05em; line-height: 1.02; }
+.overview-intro { padding: 4px 4px 2px; }
+.overview-intro h1 { max-width: 760px; margin: 7px 0 0; color: #14241c; font-family: Georgia, "Times New Roman", serif; font-size: clamp(36px, 3.2vw, 46px); font-weight: 500; letter-spacing: -.05em; line-height: 1.02; }
 .overview-intro p { margin: 11px 0 0; color: var(--workspace-muted); font-size: 14px; }
-.see-waggle-button { min-height: 43px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; flex: 0 0 auto; padding: 0 17px; border-radius: 10px; color: #fff; background: #276749; box-shadow: 0 9px 22px rgba(39, 103, 73, .16); font-size: 12px; font-weight: 700; transition: 160ms ease; }
+.see-waggle-button { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; margin-top: 16px; padding: 0 16px; border-radius: 9px; color: #fff; background: #276749; box-shadow: 0 9px 22px rgba(39, 103, 73, .16); font-size: 11px; font-weight: 700; transition: 160ms ease; }
 .see-waggle-button:hover { transform: translateY(-1px); background: #1f573d; }
 
 .context-decision-grid, .overview-lower-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr); gap: 12px; }

@@ -36,8 +36,8 @@ export function WorkspaceOverview({
           <div className="eyebrow">Waggle WebMCP</div>
           <h1>Shared project memory, governed by humans.</h1>
           <p>ChatGPT operates on the same governed memory you see here.</p>
+          <button className="see-waggle-button" onClick={onStartDemo} type="button"><Play size={17} /> See Waggle in Action</button>
         </div>
-        <button className="see-waggle-button" onClick={onStartDemo} type="button"><Play size={17} /> See Waggle in Action</button>
       </section>
 
       <div className="context-decision-grid">
@@ -48,7 +48,7 @@ export function WorkspaceOverview({
           </div>
           <div className="context-copy">
             <div><span>Goal</span><p>{brief?.goal || "No project goal recorded yet."}</p></div>
-            <div><span>Current state</span><p>{brief?.current_state?.map((item) => item.content).filter(Boolean).join(" ") || "No current-state memory recorded yet."}</p></div>
+            <div><span>Current state</span><p>{brief?.current_state?.slice(0, 3).map((item) => item.content).filter(Boolean).join(" ") || "No current-state memory recorded yet."}</p></div>
           </div>
         </section>
 

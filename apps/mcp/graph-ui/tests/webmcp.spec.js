@@ -44,7 +44,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
       },
     ],
     edges: [
-      { source_id: "memory-current", target_id: "memory-v3", relationship: "supports" },
+      { id: "edge-current-storage", source_id: "memory-current", target_id: "memory-v3", relationship: "supports" },
     ],
     ui: {},
   };
@@ -211,7 +211,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
       ];
       graph.edges = [
         ...graph.edges,
-        { source_id: "memory-v4", target_id: "memory-v3", relationship: "updates" },
+        { id: "edge-storage-update", source_id: "memory-v4", target_id: "memory-v3", relationship: "updates" },
       ];
       await route.fulfill({
         status: 200,
@@ -299,6 +299,18 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   await page.reload();
   await expect(page.getByText("Step 3 of 6")).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__registeredSiteTools.length)).toBe(4);
+
+  await page.getByRole("button", { name: "Reset Demo" }).click();
+  expect(resetCount).toBe(2);
+  await expect(page.getByText("Step 1 of 6")).toBeVisible();
+  await page.evaluate(() => window.__registeredSiteTools.find((tool) => tool.name === "get_project_brief").execute({ project_id: "waggle-webmcp" }));
+  await expect(page.getByText("Step 2 of 6")).toBeVisible();
+  await page.evaluate(() => window.__registeredSiteTools.find((tool) => tool.name === "recall_memory").execute({
+    project_id: "waggle-webmcp",
+    query: "storage architecture",
+    limit: 5,
+  }));
+  await expect(page.getByText("Step 3 of 6")).toBeVisible();
 
   const proposalResult = await page.evaluate(() =>
     window.__registeredSiteTools

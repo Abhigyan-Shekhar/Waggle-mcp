@@ -10,8 +10,8 @@ import {
   Network,
   RefreshCw,
 } from "lucide-react";
-import waggleIcon from "../../../../assets/waggle-icon.png";
-import waggleLogo from "../../../../assets/waggle-logo.png";
+import waggleIcon from "../../../../assets/waggle-icon-ui.png?inline";
+import waggleLogo from "../../../../assets/waggle-logo-ui.png?inline";
 import { GuidedDemo } from "./components/GuidedDemo";
 import { WorkspaceOverview } from "./components/WorkspaceOverview";
 import { apiRequest, buildScopeQuery } from "./lib/api";
@@ -480,7 +480,7 @@ export function Workspace() {
               ><i /> Challenge Demo</span>
             ) : null}
             <span className="human-control"><i /> Human controlled</span>
-            {boot.demoMode ? <button className="reset-demo-button" onClick={() => resetDemo().catch((error) => showToast(error.message))} type="button">Reset Demo</button> : null}
+            {boot.demoMode ? <button className="reset-demo-button" onClick={() => (demo.active ? startDemo() : resetDemo()).catch((error) => showToast(error.message))} type="button">Reset Demo</button> : null}
             <button className="refresh-button" onClick={() => loadWorkspace().catch((error) => showToast(error.message))} type="button"><RefreshCw size={14} /> <span>Refresh</span></button>
           </div>
         </header>
