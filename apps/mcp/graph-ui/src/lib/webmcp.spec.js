@@ -149,6 +149,7 @@ describe("recall_memory WebMCP registration", () => {
       tool: "recall_memory",
       project_id: "waggle-webmcp",
       result_count: 1,
+      result: payload,
     });
   });
 
