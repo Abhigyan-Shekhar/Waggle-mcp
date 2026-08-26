@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { registerGetProjectBriefTool } from "./webmcp";
+import {
+  registerGetProjectBriefTool,
+  registerRecallMemoryTool,
+} from "./webmcp";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -83,6 +86,79 @@ describe("get_project_brief WebMCP registration", () => {
 
     await expect(
       definition.execute({ project_id: "project-b" }),
+    ).rejects.toThrow("PROJECT_NOT_IN_WORKSPACE");
+  });
+});
+
+describe("recall_memory WebMCP registration", () => {
+  it("registers once, stays read-only, and returns the HTTP result unchanged", async () => {
+    const definitions = [];
+    const modelContext = {
+      registerTool: vi.fn((tool) => definitions.push(tool)),
+    };
+    const activity = vi.fn();
+    const payload = {
+      query: "storage architecture",
+      project_id: "waggle-webmcp",
+      memories: [{ memory_id: "memory-v3", status: "authoritative" }],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        headers: { get: () => "application/json" },
+        json: async () => payload,
+      })),
+    );
+
+    const options = {
+      modelContext,
+      getScope: () => ({ project: "waggle-webmcp" }),
+      onActivity: activity,
+    };
+    await Promise.all([
+      registerGetProjectBriefTool(options),
+      registerRecallMemoryTool(options),
+      registerRecallMemoryTool(options),
+    ]);
+
+    expect(modelContext.registerTool).toHaveBeenCalledTimes(2);
+    const definition = definitions.find((tool) => tool.name === "recall_memory");
+    expect(definition.annotations).toEqual({ readOnlyHint: true });
+    await expect(
+      definition.execute({
+        project_id: "waggle-webmcp",
+        query: "storage architecture",
+        limit: 5,
+      }),
+    ).resolves.toEqual(payload);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/webmcp/recall-memory",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          project_id: "waggle-webmcp",
+          query: "storage architecture",
+          limit: 5,
+        }),
+      }),
+    );
+    expect(activity).toHaveBeenCalledWith({
+      tool: "recall_memory",
+      project_id: "waggle-webmcp",
+      result_count: 1,
+    });
+  });
+
+  it("rejects cross-workspace recall before making a request", async () => {
+    let definition;
+    await registerRecallMemoryTool({
+      modelContext: { registerTool: (tool) => (definition = tool) },
+      getScope: () => ({ project: "project-a" }),
+    });
+
+    await expect(
+      definition.execute({ project_id: "project-b", query: "storage" }),
     ).rejects.toThrow("PROJECT_NOT_IN_WORKSPACE");
   });
 });

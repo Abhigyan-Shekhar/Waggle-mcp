@@ -8,9 +8,9 @@ from starlette.testclient import TestClient
 
 from waggle.config import AppConfig
 from waggle.graph import MemoryGraph
-from waggle.models import NodeType
+from waggle.models import NodeType, RelationType
 from waggle.server import WaggleServer, create_http_application
-from waggle.webmcp import compile_project_brief
+from waggle.webmcp import compile_project_brief, recall_authoritative_memory
 
 
 class FakeEmbeddingModel:
@@ -155,3 +155,126 @@ def test_project_brief_http_route_rejects_invalid_input(tmp_path: Path) -> None:
 
     assert response.status_code == 400
     assert response.json()["message"] == "project_id must be a string."
+
+
+def seed_decision_chain(graph: MemoryGraph, project: str = "waggle-webmcp") -> tuple[str, str, str]:
+    graph.enable_dedup = False
+    v1 = graph.add_node(
+        label="Storage architecture v1",
+        content="Use Neo4j for storage.",
+        node_type=NodeType.DECISION,
+        project=project,
+    ).node
+    v2 = graph.add_node(
+        label="Storage architecture v2",
+        content="Use SQLite for storage.",
+        node_type=NodeType.DECISION,
+        project=project,
+    ).node
+    graph.add_edge(source_id=v2.id, target_id=v1.id, relationship=RelationType.UPDATES)
+    v3 = graph.add_node(
+        label="Storage architecture v3",
+        content="Use SQLite by default; Neo4j remains optional.",
+        node_type=NodeType.DECISION,
+        project=project,
+    ).node
+    graph.add_edge(source_id=v3.id, target_id=v2.id, relationship=RelationType.UPDATES)
+    return v1.id, v2.id, v3.id
+
+
+def test_recall_projects_current_authority_over_update_chain(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    v1_id, v2_id, v3_id = seed_decision_chain(graph)
+    graph.add_node(
+        label="Expired storage note",
+        content="Use files for storage.",
+        node_type=NodeType.DECISION,
+        project="waggle-webmcp",
+        valid_to=datetime.now(UTC) - timedelta(minutes=1),
+    )
+    graph.add_node(
+        label="Future storage note",
+        content="Use a future storage architecture.",
+        node_type=NodeType.DECISION,
+        project="waggle-webmcp",
+        valid_from=datetime.now(UTC) + timedelta(days=1),
+    )
+    graph.add_node(
+        label="Other project storage",
+        content="Use an unrelated remote database.",
+        node_type=NodeType.DECISION,
+        project="other-project",
+    )
+
+    recall = recall_authoritative_memory(
+        graph,
+        project_id="waggle-webmcp",
+        query="What storage architecture did we decide on?",
+        limit=5,
+    )
+
+    assert [memory["memory_id"] for memory in recall["memories"]] == [v3_id]
+    assert recall["memories"][0] == {
+        "memory_id": v3_id,
+        "type": "decision",
+        "content": "Use SQLite by default; Neo4j remains optional.",
+        "status": "authoritative",
+        "created_at": recall["memories"][0]["created_at"],
+        "updated_at": recall["memories"][0]["updated_at"],
+        "source": "waggle",
+        "supersedes": v2_id,
+    }
+    assert v1_id not in str(recall)
+    assert v2_id not in [memory["memory_id"] for memory in recall["memories"]]
+    assert "unrelated remote" not in str(recall)
+    assert "files for storage" not in str(recall)
+    assert "future storage" not in str(recall)
+
+
+def test_recall_http_matches_shared_service_and_empty_recall_is_valid(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    seed_decision_chain(graph)
+    expected = recall_authoritative_memory(
+        graph,
+        project_id="waggle-webmcp",
+        query="storage architecture",
+        limit=5,
+    )
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/webmcp/recall-memory",
+            json={"project_id": "waggle-webmcp", "query": "storage architecture", "limit": 5},
+        )
+        empty = client.post(
+            "/api/webmcp/recall-memory",
+            json={"project_id": "empty-project", "query": "anything", "limit": 5},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == expected
+    assert empty.status_code == 200
+    assert empty.json() == {"query": "anything", "project_id": "empty-project", "memories": []}
+
+
+def test_recall_http_bounds_limit_and_rejects_malformed_project_id(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+
+    with TestClient(app) as client:
+        oversized = client.post(
+            "/api/webmcp/recall-memory",
+            json={"project_id": "waggle-webmcp", "query": "storage", "limit": 11},
+        )
+        malformed = client.post(
+            "/api/webmcp/recall-memory",
+            json={"project_id": "waggle\u0000webmcp", "query": "storage", "limit": 5},
+        )
+
+    assert oversized.status_code == 400
+    assert oversized.json()["message"] == "limit must be between 1 and 10."
+    assert malformed.status_code == 400
+    assert malformed.json()["message"] == "project_id contains invalid control characters."

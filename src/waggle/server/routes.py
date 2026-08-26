@@ -40,7 +40,7 @@ from waggle.models import (
     RelationType,
 )
 from waggle.protocol.mcp.http import MCPHttpApp as MCPHttpAppV2
-from waggle.webmcp import compile_project_brief
+from waggle.webmcp import compile_project_brief, recall_authoritative_memory
 
 from .mcp import WaggleServer
 from .utils import (
@@ -317,6 +317,32 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             metadata={"tool": "get_project_brief"},
         )
         return JSONResponse(brief)
+
+    async def webmcp_recall_memory(request: Request) -> Response:
+        payload = await request.json()
+        project_id = payload.get("project_id")
+        query = payload.get("query")
+        limit = payload.get("limit", 5)
+        if not isinstance(project_id, str):
+            raise ValidationFailure("project_id must be a string.")
+        if not isinstance(query, str):
+            raise ValidationFailure("query must be a string.")
+        graph, _ = _require_http_scope(request, "graph:read")
+        recall = recall_authoritative_memory(
+            graph,
+            project_id=project_id,
+            query=query,
+            limit=limit,
+        )
+        _emit_http_audit(
+            request,
+            event_type="webmcp.memory.recalled",
+            resource_type="memory_recall",
+            resource_id=project_id.strip(),
+            action="read",
+            metadata={"tool": "recall_memory", "result_count": len(recall["memories"])},
+        )
+        return JSONResponse(recall)
 
     async def graph_transcripts(request: Request) -> Response:
         scope = _scope_from_request(request)
@@ -1116,6 +1142,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             Route("/graph", graph_editor),
             Route("/api/graph", graph_snapshot, methods=["GET"]),
             Route("/api/webmcp/project-brief", webmcp_project_brief, methods=["POST"]),
+            Route("/api/webmcp/recall-memory", webmcp_recall_memory, methods=["POST"]),
             Route("/api/graph/transcripts", graph_transcripts, methods=["GET"]),
             Route("/api/graph/retrieval-debug", graph_retrieval_debug, methods=["POST"]),
             Route("/api/graph/abhi", graph_abhi_preview, methods=["GET"]),

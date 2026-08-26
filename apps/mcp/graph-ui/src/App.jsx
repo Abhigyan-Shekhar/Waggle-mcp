@@ -4,7 +4,10 @@ import Cytoscape from "cytoscape";
 import coseBilkent from "cytoscape-cose-bilkent";
 import { apiRequest, buildScopeQuery } from "./lib/api";
 import { readBootConfig } from "./lib/boot-config";
-import { registerGetProjectBriefTool } from "./lib/webmcp";
+import {
+  registerGetProjectBriefTool,
+  registerRecallMemoryTool,
+} from "./lib/webmcp";
 import ScrollToTop from "./ScrollToTop";
 import {
   buildExtractionHealth,
@@ -261,10 +264,17 @@ export function App() {
     if (boot.sampleMode) {
       return;
     }
-    registerGetProjectBriefTool({
-      getScope: () => scopeRef.current,
-      onActivity: () => setToast("Agent requested the project brief."),
-    }).catch((error) => setToast(`WebMCP: ${error.message}`));
+    Promise.all([
+      registerGetProjectBriefTool({
+        getScope: () => scopeRef.current,
+        onActivity: () => setToast("Agent requested the project brief."),
+      }),
+      registerRecallMemoryTool({
+        getScope: () => scopeRef.current,
+        onActivity: ({ result_count: resultCount }) =>
+          setToast(`Agent recalled ${resultCount} authoritative memories.`),
+      }),
+    ]).catch((error) => setToast(`WebMCP: ${error.message}`));
   }, [boot.sampleMode]);
 
   const pushHistory = async () => {

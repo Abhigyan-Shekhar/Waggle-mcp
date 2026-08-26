@@ -11,21 +11,27 @@
 - Unsupported browsers retain the normal Graph Studio experience.
 - Read authorization, project scoping, validity filtering, provenance IDs, and
   audit logging are preserved in the WebMCP path.
+- Phase 2 authoritative recall completed: `recall_memory` uses Waggle's existing
+  scoped graph retrieval, projects only current authority, and exposes direct
+  supersession provenance.
+- The reusable governance fixture `Decision v1 -> Decision v2 -> Decision v3`
+  proves normal recall returns only v3.
 
 ## Current blocker
 
-- None for the Phase 1 vertical slice.
+- None for the Phase 2 read-only vertical slice.
 
 ## Next task
 
-- Begin Phase 2 with a similarly narrow, read-only `recall_memory` tool, then
-  introduce the workspace shell and human governance flows in later phases.
+- Begin Phase 3 with proposal persistence and `propose_memory_change`. Keep
+  pending proposals outside ordinary authoritative memory retrieval, and build
+  the human edit/reject/approve UI before adding an apply tool.
 
 ## Tests passing
 
-- Python focused integration suite: 8 passed.
+- Python focused integration suite: 11 passed.
 - Ruff checks for the WebMCP backend and tests: passed.
-- Frontend unit suite: 12 passed.
+- Frontend unit suite: 14 passed.
 - Production Vite bundle: built successfully.
 - Playwright WebMCP browser test: 1 passed.
 

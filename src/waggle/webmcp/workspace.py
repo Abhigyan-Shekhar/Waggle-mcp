@@ -14,6 +14,8 @@ from typing import Any
 from waggle.errors import ValidationFailure
 
 _MAX_PROJECT_ID_LENGTH = 512
+_MAX_RECALL_QUERY_LENGTH = 4_000
+_MAX_RECALL_LIMIT = 10
 _DEFAULT_SECTION_LIMIT = 6
 _CONSTRAINT_TAGS = {"constraint", "guardrail", "requirement", "policy"}
 _GOAL_TAGS = {"goal", "project-goal", "project_goal"}
@@ -69,6 +71,17 @@ def _memory_payload(node: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _validate_project_id(project_id: str) -> str:
+    project = str(project_id or "").strip()
+    if not project:
+        raise ValidationFailure("project_id is required.")
+    if len(project) > _MAX_PROJECT_ID_LENGTH:
+        raise ValidationFailure(f"project_id must be at most {_MAX_PROJECT_ID_LENGTH} characters.")
+    if any(ord(character) < 32 or ord(character) == 127 for character in project):
+        raise ValidationFailure("project_id contains invalid control characters.")
+    return project
+
+
 def _has_any_tag(node: dict[str, Any], expected: set[str]) -> bool:
     tags = {str(tag).strip().lower() for tag in node.get("tags", [])}
     return bool(tags & expected)
@@ -100,11 +113,7 @@ def compile_project_brief(
 ) -> dict[str, Any]:
     """Compile a compact authoritative project brief from scoped Waggle nodes."""
 
-    project = str(project_id or "").strip()
-    if not project:
-        raise ValidationFailure("project_id is required.")
-    if len(project) > _MAX_PROJECT_ID_LENGTH:
-        raise ValidationFailure(f"project_id must be at most {_MAX_PROJECT_ID_LENGTH} characters.")
+    project = _validate_project_id(project_id)
     if section_limit < 1 or section_limit > 25:
         raise ValidationFailure("section_limit must be between 1 and 25.")
 
@@ -143,4 +152,97 @@ def compile_project_brief(
         "recent_changes": [_memory_payload(node) for node in nodes[:section_limit]],
         "supporting_memory_ids": supporting_memory_ids,
         "generated_at": now.isoformat(),
+    }
+
+
+def _node_is_current_authority(node: Any, *, now: datetime) -> bool:
+    valid_from = _parse_datetime(getattr(node, "valid_from", None))
+    valid_to = _parse_datetime(getattr(node, "valid_to", None))
+    if (valid_from is not None and valid_from > now) or (valid_to is not None and valid_to <= now):
+        return False
+    metadata = getattr(node, "metadata", None)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    diagnostics = metadata.get("state_induction_v2")
+    diagnostics = diagnostics if isinstance(diagnostics, dict) else {}
+    knowledge_status = str(metadata.get("knowledge_status") or diagnostics.get("knowledge_status") or "").upper()
+    return not (
+        metadata.get("superseded_by")
+        or metadata.get("logically_superseded")
+        or metadata.get("head_rejected_reason")
+        or knowledge_status in {"HISTORICAL", "SUPERSEDED", "REJECTED"}
+    )
+
+
+def _authoritative_memory_payload(node: Any, *, supersedes: str | None) -> dict[str, Any]:
+    metadata = getattr(node, "metadata", None)
+    metadata = metadata if isinstance(metadata, dict) else {}
+    return {
+        "memory_id": str(node.id),
+        "type": str(node.node_type.value if hasattr(node.node_type, "value") else node.node_type),
+        "content": str(node.content),
+        "status": "authoritative",
+        "created_at": node.created_at.isoformat(),
+        "updated_at": node.updated_at.isoformat(),
+        "source": str(metadata.get("source_type") or node.agent_id or "waggle"),
+        "supersedes": supersedes,
+    }
+
+
+def recall_authoritative_memory(
+    graph: Any,
+    *,
+    project_id: str,
+    query: str,
+    limit: int = 5,
+    agent_id: str = "",
+    session_id: str = "",
+) -> dict[str, Any]:
+    """Recall current authoritative memories through Waggle's existing retrieval."""
+
+    project = _validate_project_id(project_id)
+    query_text = str(query or "").strip()
+    if not query_text:
+        raise ValidationFailure("query is required.")
+    if len(query_text) > _MAX_RECALL_QUERY_LENGTH:
+        raise ValidationFailure(f"query must be at most {_MAX_RECALL_QUERY_LENGTH} characters.")
+    if isinstance(limit, bool) or not isinstance(limit, int):
+        raise ValidationFailure("limit must be an integer.")
+    if limit < 1 or limit > _MAX_RECALL_LIMIT:
+        raise ValidationFailure(f"limit must be between 1 and {_MAX_RECALL_LIMIT}.")
+
+    result = graph.query(
+        query=query_text,
+        project=project,
+        agent_id=agent_id,
+        session_id=session_id,
+        max_nodes=min(50, max(20, limit * 4)),
+        max_depth=1,
+        expand_depth=1,
+        retrieval_mode="graph",
+        include_invalidated=False,
+    )
+    now = datetime.now(UTC)
+    current_nodes = [node for node in result.nodes if _node_is_current_authority(node, now=now)]
+
+    update_targets: dict[str, list[str]] = {}
+    superseded_ids: set[str] = set()
+    for edge in result.edges:
+        relationship = str(edge.relationship.value if hasattr(edge.relationship, "value") else edge.relationship)
+        if relationship != "updates":
+            continue
+        update_targets.setdefault(str(edge.source_id), []).append(str(edge.target_id))
+        superseded_ids.add(str(edge.target_id))
+
+    authoritative = [node for node in current_nodes if str(node.id) not in superseded_ids]
+    memories = [
+        _authoritative_memory_payload(
+            node,
+            supersedes=(update_targets.get(str(node.id)) or [None])[0],
+        )
+        for node in authoritative[:limit]
+    ]
+    return {
+        "query": query_text,
+        "project_id": project,
+        "memories": memories,
     }
