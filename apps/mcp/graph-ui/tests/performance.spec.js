@@ -69,6 +69,7 @@ test.describe("Graph UI - Virtualization Performance", () => {
     // Verify list responsiveness through the transcript-card UI contract rather
     // than coupling this performance check to Tailwind's escaped class names.
     const cardLocators = page.getByTestId("transcript-card");
+    await expect(cardLocators.first()).toBeVisible();
     const totalVisibleCards = await cardLocators.count();
 
     console.log(`Total visible transcript cards: ${totalVisibleCards}`);
