@@ -22,7 +22,10 @@ export function GuidedDemo({ state, graphHref, onCopyPrompt, onExit, onRestart, 
   const humanStep = step.tool === "human_review";
 
   return (
-    <aside aria-label="Guided Demo" className="guided-demo">
+    <aside
+      aria-label="Guided Demo"
+      className={`guided-demo${humanStep && !state.completed ? " guided-demo-human" : ""}`}
+    >
       <div className="guided-demo-header">
         <div><span className="guided-live-dot" /> Guided Demo</div>
         <button aria-label="Exit demo" onClick={onExit} type="button"><X size={16} /> Exit demo</button>

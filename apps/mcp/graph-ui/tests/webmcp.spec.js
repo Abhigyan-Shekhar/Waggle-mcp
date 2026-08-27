@@ -317,6 +317,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   }));
   await expect(page.getByText("Step 3 of 6")).toBeVisible();
 
+  await page.setViewportSize({ width: 551, height: 767 });
   const proposalResult = await page.evaluate(() =>
     window.__registeredSiteTools
       .find((tool) => tool.name === "propose_memory_change")
@@ -339,6 +340,13 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   ).toBeVisible();
   await expect(page.getByText("Step 4 of 6")).toBeVisible();
   await expect(page.getByText("human_review", { exact: true })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Guided Demo" })).toHaveClass(/guided-demo-human/);
+
+  const mobileGuide = await page.getByRole("complementary", { name: "Guided Demo" }).boundingBox();
+  const mobileApproval = await page.getByRole("button", { name: "Edit & Approve" }).boundingBox();
+  expect(mobileGuide).not.toBeNull();
+  expect(mobileApproval).not.toBeNull();
+  expect(mobileGuide.y + mobileGuide.height).toBeLessThan(mobileApproval.y);
 
   await page.getByRole("button", { name: "Edit & Approve" }).click();
   await page.getByLabel("Human-approved content").fill(
@@ -346,6 +354,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   );
   await page.getByRole("button", { name: "Confirm edit & approve" }).click();
   await expect(page.getByText("Human approved", { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 720 });
   await expect(page.getByText("Ask ChatGPT: Apply the change I approved.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Copy apply prompt" })).toBeVisible();
   await expect(page.getByText("Step 5 of 6")).toBeVisible();

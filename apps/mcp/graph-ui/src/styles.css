@@ -454,4 +454,16 @@ body {
   .shared-memory-note > small { display: none; }
   .guided-demo { right: 10px; bottom: 78px; width: calc(100vw - 20px); height: min(620px, calc(100vh - 98px)); }
   .guided-demo-header { min-height: 60px; }
+  .guided-demo.guided-demo-human { top: 10px; bottom: auto; height: auto; max-height: calc(100vh - 88px); }
+  .guided-demo-human .guided-demo-header { min-height: 48px; }
+  .guided-demo-human .guided-demo-body { overflow: visible; padding: 12px 20px 14px; }
+  .guided-demo-human .guided-progress { gap: 5px; margin-top: 7px; }
+  .guided-demo-human .guided-step { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; }
+  .guided-demo-human .guided-step .eyebrow { display: none; }
+  .guided-demo-human .guided-step h2 { margin: 0; font-size: 12px; }
+  .guided-demo-human .guided-step p { margin: 0; font-size: 10px; }
+  .guided-demo-human .guided-wait, .guided-demo-human .guided-demo-footer { display: none; }
+  .guided-demo-human .guided-prompt { margin-top: 12px; }
+  .guided-demo-human .guided-prompt > span { padding-top: 10px; }
+  .guided-demo-human .guided-prompt blockquote { padding-block: 10px 12px; }
 }
