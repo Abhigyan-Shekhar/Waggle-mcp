@@ -39,9 +39,9 @@ Run these checks after Render reports the deploy healthy:
 
 ## Real ChatGPT acceptance
 
-Use the latest ChatGPT desktop app. Select ChatGPT Work or Codex with GPT-5.6
-Sol or Terra; Luna currently has Site tools disabled. Open the public workspace
-in ChatGPT's built-in browser, then select **Site tools → Available site tools**
+Use ChatGPT's built-in browser with a model and account configuration that
+supports Site tools. Open the public workspace, then select
+**Site tools → Available site tools**
 in its address bar. If the control is disabled, enable **Settings → Browser →
 Permissions → Enable site tools** and reload the page. Do not look for Waggle in
 the plugin catalog: WebMCP tools belong to the open page.

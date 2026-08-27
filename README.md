@@ -55,9 +55,9 @@ human decides exactly what becomes the new truth.
 
 ### See Waggle in action
 
-1. In the latest ChatGPT desktop app, use ChatGPT Work or Codex with GPT-5.6
-   Sol or Terra and open the [Workspace](https://waggle-webmcp.onrender.com/)
-   in ChatGPT's built-in browser. Luna currently does not support Site tools.
+1. Open the [Workspace](https://waggle-webmcp.onrender.com/) in ChatGPT's
+   built-in browser with a model and account configuration that supports Site
+   tools.
 2. In the built-in browser address bar, open **Site tools → Available site
    tools** and confirm all four Waggle tools are listed. If needed, enable
    **Settings → Browser → Permissions → Enable site tools**. Waggle's WebMCP

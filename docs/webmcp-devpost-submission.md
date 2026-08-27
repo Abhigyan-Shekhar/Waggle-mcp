@@ -218,9 +218,9 @@ multi-tenant SaaS infrastructure are intentionally outside this submission.
 
 ## Judge instructions
 
-In the latest ChatGPT desktop app, select ChatGPT Work or Codex with GPT-5.6
-Sol or Terra. Open the Live Workspace in ChatGPT's built-in browser and select
-**Site tools → Available site tools** in the address bar. Confirm all four
+Use ChatGPT's built-in browser with a model and account configuration that
+supports Site tools. Open the Live Workspace and select **Site tools →
+Available site tools** in the address bar. Confirm all four
 Waggle tools are listed before Prompt 1. If necessary, enable **Settings →
 Browser → Permissions → Enable site tools** and reload. Waggle is provided by
 the open page, not installed from the plugin catalog.
@@ -252,8 +252,8 @@ Then inspect Activity and follow **Explore lineage in Graph Studio**.
   data; the deterministic fixture is recreated on the next request.
 - The hosted instance demonstrates an isolated judge workflow. It does not
   claim that Render itself is local-first storage.
-- The final submission must not claim real ChatGPT acceptance until all four
-  tools are discovered and the complete flow passes there at least twice.
+- Consumer ChatGPT acceptance was verified with two complete native Site-tool
+  runs against the public deployment.
 
 ## Asset capture checklist
 

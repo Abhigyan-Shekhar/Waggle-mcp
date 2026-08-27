@@ -60,7 +60,7 @@ export function GuidedDemo({ state, graphHref, onCopyPrompt, onExit, onRestart, 
                 <h3>Check Site tools before Prompt 1</h3>
                 <p>
                   Open this workspace in the latest ChatGPT desktop app's built-in browser.
-                  Use ChatGPT Work or Codex with GPT-5.6 Sol or Terra; Luna does not support Site tools.
+                  Use a model and account configuration that supports Site tools.
                 </p>
                 <div className="guided-preflight-status" aria-live="polite">
                   <span />

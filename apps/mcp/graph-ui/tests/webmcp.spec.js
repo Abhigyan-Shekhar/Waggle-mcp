@@ -260,7 +260,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   await expect(page.getByRole("heading", { name: "Check Site tools before Prompt 1" })).toBeVisible();
   await expect(page.getByText("ChatGPT desktop app's built-in browser", { exact: false })).toBeVisible();
   await expect(page.getByText("4 Site tools registered on this page", { exact: true })).toBeVisible();
-  await expect(page.getByText("GPT-5.6 Sol or Terra", { exact: false })).toBeVisible();
+  await expect(page.getByText("model and account configuration that supports Site tools", { exact: false })).toBeVisible();
   await expect(page.getByText("apply_approved_memory_change", { exact: true })).toBeVisible();
   await expect
     .poll(() =>
