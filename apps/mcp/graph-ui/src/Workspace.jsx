@@ -1,10 +1,30 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import waggleIcon from "../../../../assets/waggle-icon.png";
-import waggleLogo from "../../../../assets/waggle-logo.png";
+import {
+  Activity as ActivityIcon,
+  ArrowRight,
+  Clipboard,
+  Database,
+  FileCheck2,
+  Home,
+  Network,
+  RefreshCw,
+} from "lucide-react";
+import waggleIcon from "../../../../assets/waggle-icon-ui.png?inline";
+import waggleLogo from "../../../../assets/waggle-logo-ui.png?inline";
+import { GuidedDemo } from "./components/GuidedDemo";
+import { WorkspaceOverview } from "./components/WorkspaceOverview";
 import { apiRequest, buildScopeQuery } from "./lib/api";
-import { decisionOverview, isAuthoritativeNode, nodeAuthorityStatus } from "./lib/authority";
+import { nodeAuthorityStatus } from "./lib/authority";
 import { readBootConfig } from "./lib/boot-config";
+import {
+  clearDemoState,
+  createDemoState,
+  loadDemoState,
+  reduceDemoState,
+  saveDemoState,
+} from "./lib/demo-state";
+import { resolveSiteToolsStatus } from "./lib/site-tools-status";
 import {
   registerApplyApprovedMemoryChangeTool,
   registerGetProjectBriefTool,
@@ -13,10 +33,10 @@ import {
 } from "./lib/webmcp";
 
 const NAV_ITEMS = [
-  { id: "overview", label: "Overview" },
-  { id: "memories", label: "Memories" },
-  { id: "proposals", label: "Proposals" },
-  { id: "activity", label: "Activity" },
+  { id: "overview", label: "Overview", icon: Home },
+  { id: "memories", label: "Memories", icon: Database },
+  { id: "proposals", label: "Proposals", icon: FileCheck2 },
+  { id: "activity", label: "Activity", icon: ActivityIcon },
 ];
 
 const ACTIVITY_LABELS = {
@@ -52,8 +72,8 @@ function actorLabel(value) {
   return value;
 }
 
-function ShellIcon({ children }) {
-  return <span className="workspace-nav-icon" aria-hidden="true">{children}</span>;
+function ShellIcon({ icon: Icon }) {
+  return <span className="workspace-nav-icon" aria-hidden="true"><Icon size={17} strokeWidth={1.8} /></span>;
 }
 
 function StatusBadge({ status }) {
@@ -88,7 +108,7 @@ function EmptyState({ children }) {
   return <div className="workspace-empty">{children}</div>;
 }
 
-function ProposalCard({ proposal, readOnly, editing, editedContent, onEdit, onEditedContent, onCancelEdit, onReview }) {
+function ProposalCard({ proposal, readOnly, editing, editedContent, onEdit, onEditedContent, onCancelEdit, onReview, onCopyApplyPrompt }) {
   const pending = proposal.status === "pending";
   return (
     <motion.article layout className={`proposal-card proposal-${proposal.status}`} data-proposal-id={proposal.proposal_id}>
@@ -118,7 +138,10 @@ function ProposalCard({ proposal, readOnly, editing, editedContent, onEdit, onEd
         <div className="approved-panel">
           <span>Approved value</span>
           <p>{proposal.approved_content}</p>
-          <div className="awaiting"><span /> Awaiting application by ChatGPT</div>
+          <div className="approved-next-action">
+            <div><span className="awaiting-dot" /> Ask ChatGPT: Apply the change I approved.</div>
+            <button aria-label="Copy apply prompt" onClick={onCopyApplyPrompt} type="button"><Clipboard size={14} /> Copy prompt</button>
+          </div>
         </div>
       ) : (
         <div className="proposal-comparison">
@@ -201,6 +224,8 @@ export function Workspace() {
   const [editedProposalContent, setEditedProposalContent] = useState("");
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
+  const [demo, setDemo] = useState(() => loadDemoState(window.sessionStorage, project));
+  const [siteToolsStatus, setSiteToolsStatus] = useState({ kind: "checking", registeredCount: 0 });
 
   const showToast = (message) => {
     setToast(message);
@@ -263,6 +288,11 @@ export function Workspace() {
   }, [boot.sampleMode]);
 
   useEffect(() => {
+    if (demo.active) saveDemoState(window.sessionStorage, demo);
+    else clearDemoState(window.sessionStorage, project);
+  }, [demo, project]);
+
+  useEffect(() => {
     if (boot.sampleMode) return;
     Promise.all([
       registerGetProjectBriefTool({
@@ -270,13 +300,23 @@ export function Workspace() {
         onActivity: ({ result }) => {
           setBrief(result);
           addLiveActivity({ event_type: "webmcp.project_brief.read", label: "ChatGPT requested project brief" });
+          setDemo((current) => reduceDemoState(current, { type: "webmcp.project_brief.read" }));
           showToast("Project brief shared with ChatGPT.");
         },
       }),
       registerRecallMemoryTool({
         getScope: () => scopeRef.current,
-        onActivity: ({ result_count: resultCount }) => {
+        onActivity: ({ result_count: resultCount, result }) => {
           addLiveActivity({ event_type: "webmcp.memory.recalled", label: `ChatGPT recalled ${resultCount} ${resultCount === 1 ? "memory" : "memories"}` });
+          const recalledIds = result?.memories?.map((memory) => memory.memory_id || memory.id).filter(Boolean) || [];
+          const storageMemoryId = result?.memories?.find((memory) => /storage|sqlite|neo4j/i.test(
+            `${memory.label || ""} ${memory.content || ""}`,
+          ))?.memory_id || (/(storage|sqlite|neo4j)/i.test(result?.query || "") ? recalledIds[0] : "");
+          setDemo((current) => reduceDemoState(current, {
+            type: "webmcp.memory.recalled",
+            memoryIds: recalledIds,
+            storageMemoryId,
+          }));
           showToast(`ChatGPT recalled ${resultCount} authoritative ${resultCount === 1 ? "memory" : "memories"}.`);
         },
       }),
@@ -285,6 +325,11 @@ export function Workspace() {
         onActivity: ({ proposal }) => {
           replaceProposal(proposal);
           addLiveActivity({ event_type: "proposal.created", label: "ChatGPT proposed memory change" });
+          setDemo((current) => reduceDemoState(current, {
+            type: "proposal.created",
+            proposalId: proposal.proposal_id,
+            memoryId: proposal.target?.memory_id || "",
+          }));
           setView("proposals");
           window.history.replaceState({}, "", "/workspace/proposals");
           showToast("A new proposal is ready for human review.");
@@ -295,17 +340,28 @@ export function Workspace() {
         onActivity: ({ result }) => {
           replaceProposal(result.proposal);
           addLiveActivity({ event_type: "proposal.applied", label: "Approved memory change applied" });
+          setDemo((current) => reduceDemoState(current, {
+            type: "proposal.applied",
+            proposalId: result.proposal_id || result.proposal?.proposal_id,
+            memoryId: result.authoritative_memory?.memory_id || result.authoritative_memory?.id || "",
+          }));
           loadWorkspace().catch((error) => showToast(error.message));
           showToast(result.already_applied ? "This approved change was already applied." : "Approved change applied to authoritative memory.");
         },
       }),
-    ]).catch((error) => showToast(`WebMCP: ${error.message}`));
+    ])
+      .then((results) => setSiteToolsStatus(resolveSiteToolsStatus(results)))
+      .catch((error) => {
+        setSiteToolsStatus({ kind: "error", registeredCount: 0 });
+        showToast(`WebMCP: ${error.message}`);
+      });
   }, [boot.sampleMode]);
 
-  const navigate = (nextView) => {
+  const navigate = (nextView, memoryId = "") => {
     const nextPath = nextView === "overview" ? "/workspace" : `/workspace/${nextView}`;
     window.history.pushState({}, "", nextPath);
     setView(nextView);
+    if (memoryId) setSelectedMemoryId(memoryId);
   };
 
   const reviewProposal = async (proposal, action, approvedContent) => {
@@ -322,6 +378,12 @@ export function Workspace() {
       event_type: action === "reject" ? "proposal.rejected" : approvedContent !== undefined ? "proposal.edited_and_approved" : "proposal.approved",
       actor_id: "local-human",
     });
+    if (action === "approve" && approvedContent !== undefined) {
+      setDemo((current) => reduceDemoState(current, {
+        type: "proposal.edited_and_approved",
+        proposalId: reviewed.proposal_id,
+      }));
+    }
     showToast(action === "reject" ? "Proposal rejected." : "The exact human-approved value is now frozen.");
   };
 
@@ -334,11 +396,29 @@ export function Workspace() {
     showToast("Demo reset to the original governed-memory fixture.");
   };
 
+  const startDemo = async () => {
+    await resetDemo();
+    navigate("overview");
+    setDemo((current) => reduceDemoState(
+      createDemoState(current.project || project),
+      { type: "demo.started", startedAt: new Date().toISOString() },
+    ));
+  };
+
+  const exitDemo = () => {
+    clearDemoState(window.sessionStorage, project);
+    setDemo(createDemoState(project));
+    showToast("Guided Demo closed. Your workspace data is unchanged.");
+  };
+
+  const copyPrompt = async (prompt) => {
+    await navigator.clipboard.writeText(prompt);
+    showToast("Prompt copied for ChatGPT.");
+  };
+
   const nodes = snapshot.nodes || [];
   const edges = snapshot.edges || [];
-  const authoritativeNodes = nodes.filter(isAuthoritativeNode);
   const pendingCount = proposals.filter((proposal) => proposal.status === "pending").length;
-  const { count: decisionCount } = decisionOverview(authoritativeNodes, 5);
   const types = [...new Set(nodes.map((node) => node.node_type).filter(Boolean))].sort();
   const statuses = [...new Set(nodes.map(nodeAuthorityStatus))].sort();
   const filteredMemories = nodes.filter((node) => {
@@ -355,9 +435,11 @@ export function Workspace() {
   const nodeById = Object.fromEntries(nodes.map((node) => [node.id, node]));
   const selectedProposal = selectedMemory ? proposals.find((proposal) => proposal.result_memory_id === selectedMemory.id || proposal.target?.memory_id === selectedMemory.id) : null;
   const latestActivity = activity.slice(0, 6);
+  const focusedGraphMemoryId = demo.memoryId || "";
+  const graphHref = `${boot.apiBaseUrl || ""}/graph?project=${encodeURIComponent(project)}${focusedGraphMemoryId ? `&focus=${encodeURIComponent(focusedGraphMemoryId)}` : ""}`;
 
   return (
-    <div className="workspace-shell">
+    <div className={`workspace-shell ${demo.active ? "demo-active" : ""}`}>
       <aside className="workspace-sidebar">
         <button
           aria-label="Waggle — Shared memory"
@@ -372,19 +454,26 @@ export function Workspace() {
         <nav aria-label="Workspace navigation">
           {NAV_ITEMS.map((item) => (
             <button className={view === item.id ? "active" : ""} key={item.id} onClick={() => navigate(item.id)} type="button">
-              <ShellIcon>{item.id === "overview" ? "⌂" : item.id === "memories" ? "◇" : item.id === "proposals" ? "✓" : "↗"}</ShellIcon>
+              <ShellIcon icon={item.icon} />
               {item.label}
               {item.id === "proposals" && pendingCount ? <span className="nav-count">{pendingCount}</span> : null}
             </button>
           ))}
         </nav>
         <div className="sidebar-spacer" />
-        <a className="graph-studio-link" href={`${boot.apiBaseUrl || ""}/graph?project=${encodeURIComponent(project)}`}>
-          <ShellIcon>⌘</ShellIcon>
+        <a className="graph-studio-link" href={graphHref}>
+          <ShellIcon icon={Network} />
           <span>Graph Studio<small>Explore lineage</small></span>
-          <b>↗</b>
+          <ArrowRight size={14} />
         </a>
-        <div className="connection-state"><span /> WebMCP ready</div>
+        <div className={`connection-state connection-state-${siteToolsStatus.kind}`}>
+          <span />
+          {siteToolsStatus.kind === "ready"
+            ? `${siteToolsStatus.registeredCount} Site tools ready`
+            : siteToolsStatus.kind === "checking"
+              ? "Checking Site tools…"
+              : "Open in ChatGPT browser"}
+        </div>
       </aside>
 
       <main className="workspace-main">
@@ -402,42 +491,25 @@ export function Workspace() {
               ><i /> Challenge Demo</span>
             ) : null}
             <span className="human-control"><i /> Human controlled</span>
-            {boot.demoMode ? <button className="reset-demo-button" onClick={() => resetDemo().catch((error) => showToast(error.message))} type="button">Reset Demo</button> : null}
-            <button className="refresh-button" onClick={() => loadWorkspace().catch((error) => showToast(error.message))} type="button">↻ <span>Refresh</span></button>
+            {boot.demoMode ? <button className="reset-demo-button" onClick={() => (demo.active ? startDemo() : resetDemo()).catch((error) => showToast(error.message))} type="button">Reset Demo</button> : null}
+            <button className="refresh-button" onClick={() => loadWorkspace().catch((error) => showToast(error.message))} type="button"><RefreshCw size={14} /> <span>Refresh</span></button>
           </div>
         </header>
 
         <div className="workspace-content">
-          {loading ? <div className="workspace-loading"><span /> Loading governed memory…</div> : null}
+          {loading ? <div className="workspace-loading"><span /> Connecting to Waggle…</div> : null}
 
           {!loading && view === "overview" ? (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="workspace-page">
-              <section className="workspace-hero">
-                <div>
-                  <div className="eyebrow">Waggle</div>
-                  <h1>Memory humans and agents share.</h1>
-                  <p>Both you and ChatGPT operate on the same governed project memory under the same authority rules.</p>
-                </div>
-                <div className="hero-signal" aria-hidden="true"><span /><span /><span /></div>
-              </section>
-              <section className="metric-grid">
-                <button onClick={() => navigate("memories")} type="button"><span>Memories</span><strong>{authoritativeNodes.length}</strong><small>authoritative</small></button>
-                <button onClick={() => navigate("memories")} type="button"><span>Decisions</span><strong>{decisionCount}</strong><small>current choices</small></button>
-                <button className={pendingCount ? "attention" : ""} onClick={() => navigate("proposals")} type="button"><span>Pending proposals</span><strong>{pendingCount}</strong><small>{pendingCount ? "needs your review" : "all reviewed"}</small></button>
-              </section>
-              <div className="overview-grid">
-                <section className="workspace-panel brief-panel">
-                  <div className="panel-heading"><div><div className="eyebrow">Project brief</div><h2>What everyone should know</h2></div><span className="live-pill"><i /> Live memory</span></div>
-                  <BriefSection label="Goal" value={brief?.goal} />
-                  <BriefSection label="Current state" items={brief?.current_state} />
-                  <BriefSection label="Key decisions" items={brief?.decisions} />
-                  <BriefSection label="Constraints" items={brief?.constraints} />
-                </section>
-                <section className="workspace-panel activity-panel">
-                  <div className="panel-heading"><div><div className="eyebrow">Recent activity</div><h2>Human + agent timeline</h2></div><button onClick={() => navigate("activity")} type="button">View all</button></div>
-                  {latestActivity.length ? latestActivity.map((event, index) => <ActivityRow event={event} key={event.event_id} last={index === latestActivity.length - 1} />) : <EmptyState>WebMCP activity will appear here as it happens.</EmptyState>}
-                </section>
-              </div>
+              <WorkspaceOverview
+                activity={activity}
+                brief={brief}
+                graphHref={graphHref}
+                onNavigate={navigate}
+                onStartDemo={() => startDemo().catch((error) => showToast(error.message))}
+                proposals={proposals}
+                snapshot={snapshot}
+              />
             </motion.div>
           ) : null}
 
@@ -456,6 +528,7 @@ export function Workspace() {
                     onEditedContent={setEditedProposalContent}
                     onCancelEdit={() => setEditingProposalId("")}
                     onReview={(action, content) => reviewProposal(proposal, action, content).catch((error) => showToast(error.message))}
+                    onCopyApplyPrompt={() => copyPrompt("Apply the memory change I approved.").catch((error) => showToast(error.message))}
                   />
                 )) : <EmptyState>No proposals yet. Ask ChatGPT to suggest a correction to an existing memory.</EmptyState>}
               </div>
@@ -510,6 +583,15 @@ export function Workspace() {
           ) : null}
         </div>
       </main>
+
+      <GuidedDemo
+        graphHref={graphHref}
+        onCopyPrompt={(prompt) => copyPrompt(prompt).catch((error) => showToast(error.message))}
+        onExit={exitDemo}
+        onRestart={() => startDemo().catch((error) => showToast(error.message))}
+        siteToolsStatus={siteToolsStatus}
+        state={demo}
+      />
 
       <AnimatePresence>{toast ? <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} className="workspace-toast"><span>✓</span>{toast}</motion.div> : null}</AnimatePresence>
     </div>

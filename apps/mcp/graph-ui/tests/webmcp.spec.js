@@ -5,8 +5,8 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   const brief = {
     project: { id: "waggle-webmcp", name: "Waggle WebMCP" },
     goal: "Build governed shared memory.",
-    current_state: [],
-    decisions: [],
+    current_state: [{ memory_id: "memory-current", content: "The workspace shares governed context with ChatGPT." }],
+    decisions: [{ memory_id: "memory-v3", content: "Use Neo4j for storage." }],
     constraints: [],
     open_questions: [],
     recent_changes: [],
@@ -16,6 +16,37 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
     query: "storage architecture",
     project_id: "waggle-webmcp",
     memories: [{ memory_id: "memory-v3", status: "authoritative" }],
+  };
+  const graph = {
+    tenant_id: "demo",
+    nodes: [
+      {
+        id: "memory-v3",
+        project: "waggle-webmcp",
+        label: "Storage architecture",
+        content: "Use Neo4j for storage.",
+        node_type: "decision",
+        tags: ["storage", "architecture"],
+        valid_to: null,
+        created_at: "2026-08-26T14:00:00+00:00",
+        updated_at: "2026-08-26T14:00:00+00:00",
+      },
+      {
+        id: "memory-current",
+        project: "waggle-webmcp",
+        label: "Current memory workflow",
+        content: "The workspace shares governed context with ChatGPT.",
+        node_type: "fact",
+        tags: ["current-state", "webmcp"],
+        valid_to: null,
+        created_at: "2026-08-26T13:00:00+00:00",
+        updated_at: "2026-08-26T13:00:00+00:00",
+      },
+    ],
+    edges: [
+      { id: "edge-current-storage", source_id: "memory-current", target_id: "memory-v3", relationship: "supports" },
+    ],
+    ui: {},
   };
   const proposal = {
     proposal_id: "proposal_123",
@@ -76,7 +107,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
     const url = route.request().url();
     const payload = url.includes("/transcripts")
       ? { records: [], pagination: { offset: 0, total_count: 0 } }
-      : { tenant_id: "demo", nodes: [], edges: [], ui: {} };
+      : graph;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -117,7 +148,10 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(recall),
+      body: JSON.stringify(persistedProposals[0]?.status === "applied" ? {
+        ...recall,
+        memories: [{ memory_id: "memory-v4", status: "authoritative" }],
+      } : recall),
     });
   });
   await page.route("**/api/webmcp/proposals**", async (route) => {
@@ -163,6 +197,22 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
         result_memory_id: "memory-v4",
       };
       persistedProposals = [appliedProposal];
+      graph.nodes = [
+        { ...graph.nodes[0], valid_to: "2026-08-26T00:02:00+00:00" },
+        {
+          ...graph.nodes[0],
+          id: "memory-v4",
+          content: appliedProposal.approved_content,
+          created_at: "2026-08-26T00:02:00+00:00",
+          updated_at: "2026-08-26T00:02:00+00:00",
+          valid_to: null,
+        },
+        graph.nodes[1],
+      ];
+      graph.edges = [
+        ...graph.edges,
+        { id: "edge-storage-update", source_id: "memory-v4", target_id: "memory-v3", relationship: "updates" },
+      ];
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -196,9 +246,22 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
 
   await page.goto("/");
   await expect(page.getByText("Challenge Demo")).toBeVisible();
-  await page.getByRole("button", { name: "Reset Demo" }).click();
+  await expect(page.getByRole("heading", { name: "Shared project memory, governed by humans." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Current Context" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Key Decisions" })).toBeVisible();
+  await expect(page.getByText("Live Memory Map")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Explore full graph" })).toHaveAttribute("href", /\/graph\?project=waggle-webmcp/);
+  await page.getByRole("button", { name: "See Waggle in Action" }).click();
   await expect(page.getByText("Demo reset to the original governed-memory fixture.")).toBeVisible();
   expect(resetCount).toBe(1);
+  await expect(page.getByRole("complementary", { name: "Guided Demo" })).toBeVisible();
+  await expect(page.getByText("Step 1 of 6")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "get_project_brief" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Check Site tools before Prompt 1" })).toBeVisible();
+  await expect(page.getByText("ChatGPT desktop app's built-in browser", { exact: false })).toBeVisible();
+  await expect(page.getByText("4 Site tools registered on this page", { exact: true })).toBeVisible();
+  await expect(page.getByText("GPT-5.6 Sol or Terra", { exact: false })).toBeVisible();
+  await expect(page.getByText("apply_approved_memory_change", { exact: true })).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate(() => window.__registeredSiteTools.map((tool) => tool.name)),
@@ -217,6 +280,8 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   );
   expect(briefResult).toEqual(brief);
   await expect(page.getByText("Project brief shared with ChatGPT.")).toBeVisible();
+  await expect(page.getByText("Step 2 of 6")).toBeVisible();
+  await expect(page.getByText("recall_memory", { exact: true })).toBeVisible();
 
   const recallResult = await page.evaluate(() =>
     window.__registeredSiteTools
@@ -231,6 +296,26 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   await expect(
     page.getByText("ChatGPT recalled 1 authoritative memory."),
   ).toBeVisible();
+  await expect(page.getByText("Step 3 of 6")).toBeVisible();
+  await expect(page.getByText("propose_memory_change", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Activity", exact: true }).click();
+  await expect(page.getByText("Step 3 of 6")).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("Step 3 of 6")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__registeredSiteTools.length)).toBe(4);
+
+  await page.getByRole("button", { name: "Reset Demo" }).click();
+  expect(resetCount).toBe(2);
+  await expect(page.getByText("Step 1 of 6")).toBeVisible();
+  await page.evaluate(() => window.__registeredSiteTools.find((tool) => tool.name === "get_project_brief").execute({ project_id: "waggle-webmcp" }));
+  await expect(page.getByText("Step 2 of 6")).toBeVisible();
+  await page.evaluate(() => window.__registeredSiteTools.find((tool) => tool.name === "recall_memory").execute({
+    project_id: "waggle-webmcp",
+    query: "storage architecture",
+    limit: 5,
+  }));
+  await expect(page.getByText("Step 3 of 6")).toBeVisible();
 
   const proposalResult = await page.evaluate(() =>
     window.__registeredSiteTools
@@ -246,12 +331,14 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   await expect(page.getByRole("heading", { name: "Memory correction" })).toBeVisible();
   await expect(page.getByText("Use Neo4j for storage.")).toBeVisible();
   await expect(
-    page.getByText("Use SQLite by default; Neo4j remains optional."),
+    page.locator(".proposal-card").getByText("Use SQLite by default; Neo4j remains optional."),
   ).toBeVisible();
   await expect(page.getByText("pending review", { exact: true })).toBeVisible();
   await expect(
     page.getByText("A new proposal is ready for human review."),
   ).toBeVisible();
+  await expect(page.getByText("Step 4 of 6")).toBeVisible();
+  await expect(page.getByText("human_review", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Edit & Approve" }).click();
   await page.getByLabel("Human-approved content").fill(
@@ -259,7 +346,10 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   );
   await page.getByRole("button", { name: "Confirm edit & approve" }).click();
   await expect(page.getByText("Human approved", { exact: true })).toBeVisible();
-  await expect(page.getByText("Awaiting application by ChatGPT")).toBeVisible();
+  await expect(page.getByText("Ask ChatGPT: Apply the change I approved.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy apply prompt" })).toBeVisible();
+  await expect(page.getByText("Step 5 of 6")).toBeVisible();
+  await expect(page.getByText("apply_approved_memory_change", { exact: true })).toBeVisible();
 
   const appliedResult = await page.evaluate(() =>
     window.__registeredSiteTools
@@ -272,12 +362,43 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   );
   await expect(page.locator(".workspace-status-applied")).toBeVisible();
   await expect(page.getByText("Authoritative", { exact: true })).toBeVisible();
+  await expect(page.getByText("Step 6 of 6")).toBeVisible();
 
-  await page.reload();
+  const finalRecall = await page.evaluate(() =>
+    window.__registeredSiteTools
+      .find((tool) => tool.name === "recall_memory")
+      .execute({
+        project_id: "waggle-webmcp",
+        query: "storage architecture",
+        limit: 5,
+      }),
+  );
+  expect(finalRecall.memories).toEqual([{ memory_id: "memory-v4", status: "authoritative" }]);
+  await expect(page.getByRole("heading", { name: "Human-approved truth, recalled." })).toBeVisible();
+  const lineageLink = page.getByRole("link", { name: "Explore lineage in Graph Studio" });
+  await expect(lineageLink).toHaveAttribute("href", /focus=memory-v4/);
+  await lineageLink.click();
+  await expect(page).toHaveURL(/\/graph\?project=waggle-webmcp&focus=memory-v4/);
+  await expect(page.getByRole("button", { name: "Show full graph" })).toBeVisible();
+  await expect(page.locator('textarea[name="content"]')).toHaveValue("Use SQLite by default; Neo4j remains optional and auditable.");
+
   await page.goto("/workspace/proposals");
   await expect(page.getByRole("heading", { name: "Memory correction" })).toBeVisible();
   await expect(page.locator(".workspace-status-applied")).toBeVisible();
   await expect(
     page.getByText("Use SQLite by default; Neo4j remains optional and auditable."),
   ).toBeVisible();
+
+  await page.addInitScript(() => {
+    delete document.modelContext;
+  });
+  await page.evaluate(() => window.sessionStorage.clear());
+  await page.goto("/");
+  await page.getByRole("button", { name: "See Waggle in Action" }).click();
+  await expect(page.getByText("Site tools are unavailable in this browser", { exact: true })).toBeVisible();
+  await expect(page.getByText("Settings → Browser → Permissions → Enable site tools", { exact: false })).toBeVisible();
+  await expect(page.locator(".guided-preflight-help")).toContainText(
+    "Waggle is a page-level Site tool, not a plugin or connector.",
+  );
+  await expect(page.getByText("Open in ChatGPT browser", { exact: true })).toBeVisible();
 });

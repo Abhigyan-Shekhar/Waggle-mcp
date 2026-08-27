@@ -4,6 +4,7 @@ import Cytoscape from "cytoscape";
 import coseBilkent from "cytoscape-cose-bilkent";
 import { apiRequest, buildScopeQuery } from "./lib/api";
 import { readBootConfig } from "./lib/boot-config";
+import { selectMemoryMapPreview } from "./lib/memory-map";
 import {
   registerApplyApprovedMemoryChangeTool,
   registerGetProjectBriefTool,
@@ -179,6 +180,10 @@ function readFileBase64(file) {
 
 export function GraphStudio() {
   const boot = useMemo(() => readBootConfig(), []);
+  const requestedFocusId = useMemo(
+    () => new URLSearchParams(window.location.search).get("focus")?.trim() || "",
+    [],
+  );
   const mode = boot.mode;
   const readOnly = mode === "view";
   const cyRef = useRef(null);
@@ -214,9 +219,17 @@ export function GraphStudio() {
   const [proposals, setProposals] = useState([]);
   const [editingProposalId, setEditingProposalId] = useState("");
   const [editedProposalContent, setEditedProposalContent] = useState("");
+  const [showFullGraph, setShowFullGraph] = useState(() => !requestedFocusId);
 
   const graph = useMemo(() => normalizeGraph(snapshot, importedNodeIds), [snapshot, importedNodeIds]);
-  const visibleGraph = useMemo(() => filterGraph(graph, filters), [graph, filters]);
+  const filteredGraph = useMemo(() => filterGraph(graph, filters), [graph, filters]);
+  const visibleGraph = useMemo(() => {
+    if (showFullGraph || !requestedFocusId || !filteredGraph.nodes.some((node) => node.id === requestedFocusId)) {
+      return filteredGraph;
+    }
+    const focused = selectMemoryMapPreview(filteredGraph, { focusMemoryId: requestedFocusId, limit: 8 });
+    return { ...filteredGraph, ...focused };
+  }, [filteredGraph, requestedFocusId, showFullGraph]);
   const transcriptPairs = useMemo(() => buildTranscriptPairs(transcriptRecords, graph.nodes), [transcriptRecords, graph.nodes]);
   const extractionHealth = useMemo(() => buildExtractionHealth(transcriptPairs), [transcriptPairs]);
   const buckets = useMemo(() => buildFilterBuckets(graph.nodes, transcriptRecords), [graph.nodes, transcriptRecords]);
@@ -240,6 +253,17 @@ export function GraphStudio() {
     window.clearTimeout(setToast.timer);
     setToast.timer = window.setTimeout(() => setStatus(""), 2400);
   };
+
+  useEffect(() => {
+    if (!requestedFocusId || !graph.nodes.length) return;
+    if (graph.nodes.some((node) => node.id === requestedFocusId)) {
+      setSelectedNodeId(requestedFocusId);
+      setActiveTab("graph");
+      setLayerMode("graph");
+    } else {
+      setShowFullGraph(true);
+    }
+  }, [graph.nodes, requestedFocusId]);
 
   const replaceProposal = (proposal) => {
     setProposals((current) => [
@@ -1111,6 +1135,11 @@ export function GraphStudio() {
                 <button className="rounded-xl border border-white/10 px-3 py-2 text-sm" onClick={redo} disabled={!historyFuture.length || readOnly || boot.sampleMode} type="button">
                   Redo
                 </button>
+                {requestedFocusId && !showFullGraph ? (
+                  <button className="rounded-xl border border-emerald-300/30 bg-emerald-300/8 px-3 py-2 text-sm text-emerald-100" onClick={() => setShowFullGraph(true)} type="button">
+                    Show full graph
+                  </button>
+                ) : null}
                 <div className="ml-auto flex items-center gap-2 text-xs text-graph-muted">
                   <span>{layerMode}</span>
                   {hoverNodeId ? <span className="rounded-full bg-white/8 px-2 py-1 text-white">Hover focus</span> : null}
@@ -1152,7 +1181,7 @@ export function GraphStudio() {
                   const pairId = `${record.session_id || "default"}:pair:${Math.floor((record.turn_index || 0) / 2)}`;
                   const pair = transcriptPairs.find((item) => item.id === pairId);
                   return (
-                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
+                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4" data-testid="transcript-card">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <div className="text-sm font-semibold text-white">{record.role}</div>

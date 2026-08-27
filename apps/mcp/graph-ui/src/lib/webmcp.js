@@ -147,6 +147,7 @@ export function registerRecallMemoryTool({
         tool: "recall_memory",
         project_id: projectId.trim(),
         result_count: result.memories?.length || 0,
+        result,
       });
       return result;
     },
