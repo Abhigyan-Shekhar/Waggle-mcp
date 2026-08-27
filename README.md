@@ -43,6 +43,16 @@ human decides exactly what becomes the new truth.
 > Render's free tier. If state disappears after a restart or redeploy, the
 > deterministic fixture is recreated automatically.
 
+### Submission visuals
+
+![Waggle Workspace showing shared project context, authoritative decisions, recent memories, and a live memory graph.](docs/assets/webmcp-submission/01-waggle-webmcp-cover.png)
+
+| Human-governed proposal | Focused memory lineage |
+|---|---|
+| ![Waggle proposal review showing the exact human-approved SQLite decision frozen for later application by ChatGPT.](docs/assets/webmcp-submission/03-proposal-human-governance.png) | ![Waggle Graph Studio focused on current and previous memory workflow nodes connected by an updates edge.](docs/assets/webmcp-submission/04-graph-studio-lineage.png) |
+
+![Human and ChatGPT meet in the Waggle Workspace, where four WebMCP tools cross a human approval boundary before updating an isolated SQLite-backed MemoryGraph.](docs/assets/webmcp-submission/05-webmcp-architecture.png)
+
 ### See Waggle in action
 
 1. In the latest ChatGPT desktop app, use ChatGPT Work or Codex with GPT-5.6
