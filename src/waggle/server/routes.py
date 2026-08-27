@@ -1352,6 +1352,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             Route("/workspace/memories", graph_editor),
             Route("/workspace/proposals", graph_editor),
             Route("/workspace/activity", graph_editor),
+            Route("/health", ready),
             Route("/health/live", live),
             Route("/health/ready", ready),
             Route("/metrics", metrics_endpoint),
