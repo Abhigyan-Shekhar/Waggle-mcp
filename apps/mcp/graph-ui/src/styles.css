@@ -157,6 +157,9 @@ body {
 .workspace-topbar strong { font-size: 15px; }
 .eyebrow { color: #7b837d; font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
+.consumer-badge { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid #d6ded9; border-radius: 999px; color: #334b40; background: rgba(255, 255, 255, 0.72); font-size: 11px; }
+.consumer-badge span { color: #77847d; font-size: 9px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.consumer-badge b { font-weight: 700; }
 .human-control, .live-pill { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid #d4ddd4; border-radius: 999px; color: #3d5e4d; background: rgba(255, 255, 255, 0.7); font-size: 11px; font-weight: 650; }
 .challenge-demo { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid #d6c793; border-radius: 999px; color: #72581f; background: #fff8df; font-size: 11px; font-weight: 700; }
 .challenge-demo i { width: 7px; height: 7px; border-radius: 50%; background: #bd8930; box-shadow: 0 0 0 4px rgba(189,137,48,.12); }
@@ -303,6 +306,7 @@ body {
   .nav-count { margin: -30px 0 0 25px; }
   .workspace-topbar { height: 64px; padding: 0 18px; }
   .human-control { display: none; }
+  .consumer-badge span { display: none; }
   .workspace-content { padding: 22px 16px 95px; }
   .workspace-hero { min-height: auto; padding: 24px; }
   .workspace-hero h1 { font-size: 34px; }

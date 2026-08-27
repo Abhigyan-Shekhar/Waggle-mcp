@@ -394,6 +394,7 @@ export function Workspace() {
             <strong>{brief?.project?.name || "Waggle WebMCP"}</strong>
           </div>
           <div className="topbar-actions">
+            <span className="consumer-badge" aria-label="Consumer: ChatGPT WebMCP"><span>Consumer</span><b>ChatGPT WebMCP</b></span>
             {boot.demoMode ? (
               <span
                 className="challenge-demo"
