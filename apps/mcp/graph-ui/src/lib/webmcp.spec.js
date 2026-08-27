@@ -90,6 +90,27 @@ describe("get_project_brief WebMCP registration", () => {
       definition.execute({ project_id: "project-b" }),
     ).rejects.toThrow("PROJECT_NOT_IN_WORKSPACE");
   });
+
+  it("constrains project-scoped Site tools to the project open in Waggle", async () => {
+    const definitions = [];
+    const modelContext = {
+      registerTool: (tool) => definitions.push(tool),
+    };
+    const options = {
+      modelContext,
+      getScope: () => ({ project: "waggle-webmcp" }),
+    };
+
+    await Promise.all([
+      registerGetProjectBriefTool(options),
+      registerRecallMemoryTool(options),
+      registerProposeMemoryChangeTool(options),
+    ]);
+
+    for (const definition of definitions) {
+      expect(definition.inputSchema.properties.project_id.enum).toEqual(["waggle-webmcp"]);
+    }
+  });
 });
 
 describe("recall_memory WebMCP registration", () => {

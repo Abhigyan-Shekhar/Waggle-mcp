@@ -31,6 +31,17 @@ function assertWorkspaceProject(projectId, getScope) {
   }
 }
 
+function projectIdSchema(getScope, description) {
+  const workspaceProject = String(getScope()?.project || "").trim();
+  return {
+    type: "string",
+    minLength: 1,
+    maxLength: 512,
+    ...(workspaceProject ? { enum: [workspaceProject] } : {}),
+    description,
+  };
+}
+
 export function registerGetProjectBriefTool({
   modelContext = document.modelContext,
   getScope = () => ({}),
@@ -47,12 +58,10 @@ export function registerGetProjectBriefTool({
     inputSchema: {
       type: "object",
       properties: {
-        project_id: {
-          type: "string",
-          minLength: 1,
-          maxLength: 512,
-          description: "The exact Waggle project identifier to brief.",
-        },
+        project_id: projectIdSchema(
+          getScope,
+          "The exact Waggle project identifier to brief.",
+        ),
       },
       required: ["project_id"],
       additionalProperties: false,
@@ -96,12 +105,10 @@ export function registerRecallMemoryTool({
     inputSchema: {
       type: "object",
       properties: {
-        project_id: {
-          type: "string",
-          minLength: 1,
-          maxLength: 512,
-          description: "The exact Waggle project identifier to search.",
-        },
+        project_id: projectIdSchema(
+          getScope,
+          "The exact Waggle project identifier to search.",
+        ),
         query: {
           type: "string",
           minLength: 1,
@@ -170,12 +177,10 @@ export function registerProposeMemoryChangeTool({
     inputSchema: {
       type: "object",
       properties: {
-        project_id: {
-          type: "string",
-          minLength: 1,
-          maxLength: 512,
-          description: "The exact Waggle project identifier containing the memory.",
-        },
+        project_id: projectIdSchema(
+          getScope,
+          "The exact Waggle project identifier containing the memory.",
+        ),
         memory_id: {
           type: "string",
           minLength: 1,
