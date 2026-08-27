@@ -57,8 +57,9 @@
 
 ## Current validation
 
-- Public acceptance run: `2026-08-26` against
-  `https://waggle-webmcp.onrender.com` at branch commit `7ba0f71`.
+- Public acceptance runs: `2026-08-27T14:03Z`–`14:09Z` against
+  `https://waggle-webmcp.onrender.com`, including the responsive human-review
+  fix at branch commit `926fa1a`.
 - `/health/live`, `/health/ready`, `/`, every `/workspace` route, `/graph`, and
   the production JavaScript asset returned successfully.
 - The public fixture returned 25 nodes and 10 edges. Graph Studio loaded those
@@ -83,9 +84,14 @@
   recall returned "Use SQLite by default; Neo4j remains optional." as an
   authoritative `human_approved_proposal` memory, and focused Graph Studio
   displayed its native `updates` lineage.
-- This validates deployed WebMCP discovery and invocation in the Codex browser.
-  The consumer ChatGPT surface remains a separate compatibility check and is
-  not claimed as complete.
+- The ChatGPT mode in the desktop app's built-in browser exposed all four
+  page-level Site tools and completed the frozen governed-memory flow twice
+  from a clean seeded state. Both runs produced the exact human-approved value,
+  excluded the superseded Neo4j decision from authoritative recall, and showed
+  the native `updates` lineage in focused Graph Studio.
+- The second run also verified the full six-step Guided Demo progression through
+  `Human-approved truth, recalled.` and the lineage link. This is the consumer
+  ChatGPT acceptance gate; it is no longer pending.
 - Two consumer ChatGPT Prompt 1 attempts returned a generic "Waggle is not
   available" response rather than a `get_project_brief` invocation. They are
   recorded as failed discovery attempts, not acceptance evidence. The Guided
@@ -94,26 +100,24 @@
 
 ## Next task
 
-- Repeat the public flow twice in the consumer ChatGPT surface using the exact
-  judge prompts after confirming **Site tools → Available site tools**, record
-  any surface-specific discovery issue, then capture the final video and
-  submission gallery.
+- Record the final under-three-minute video from the verified ChatGPT flow,
+  finish the submission gallery, proofread the Devpost fields, and freeze the
+  deployed branch after submission.
 
 ## Tests passing
 
 - Python focused integration suite: 25 passed.
 - Ruff checks for the WebMCP backend and tests: passed.
-- Frontend unit suite: 26 passed.
+- Frontend unit suite: 34 passed.
 - Production Vite bundle: built successfully.
 - Chromium workspace and Graph Studio browser suite: 14 passed.
 
 ## Known issues
 
 - The repository contained substantial unrelated modified and untracked files before this work began. WebMCP changes must remain isolated and must not overwrite them.
-- Automated Playwright coverage still uses a `document.modelContext`
-  compatibility shim, while a separate public Codex-browser acceptance run has
-  now exercised native WebMCP discovery and invocation. Consumer ChatGPT still
-  needs its own final compatibility run.
+- Automated Playwright coverage uses a `document.modelContext` compatibility
+  shim, supplemented by two native consumer ChatGPT Site-tool acceptance runs
+  against the public deployment.
 - The existing frontend bundle emits Vite's chunk-size warning; this change does
   not introduce a separate lazy-loaded WebMCP chunk.
 - Render's free backend spins down after inactivity, so its first request can

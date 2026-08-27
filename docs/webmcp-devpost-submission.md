@@ -301,9 +301,9 @@ side-by-side comparison framing were optimized for QA rather than Devpost.
 
 ## Final submission gate
 
-- [ ] Real ChatGPT discovers all four WebMCP tools.
-- [ ] The complete human + agent flow passes at least twice after reset.
-- [ ] `WEBMCP_STATUS.md` records the ChatGPT surface and acceptance result.
+- [x] Real ChatGPT discovers all four WebMCP tools.
+- [x] The complete human + agent flow passes at least twice after reset.
+- [x] `WEBMCP_STATUS.md` records the ChatGPT surface and acceptance result.
 - [ ] The under-three-minute video follows `docs/webmcp-demo-video-script.md`.
 - [ ] YouTube playback works publicly without login and includes clear audio.
 - [ ] All five required assets pass the quality gate.
