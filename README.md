@@ -338,6 +338,8 @@ Conflicts or superseded context:
 | `WAGGLE_RECURSIVE_CONTEXT_DEFAULT_DEPTH` | `2` | Graph expansion depth |
 | `WAGGLE_RECURSIVE_CONTEXT_INCLUDE_EVIDENCE` | `true` | Include transcript evidence |
 
+For the complete list of environment variables and configuration details, see [Environment variables](docs/environment_variables.md).
+
 **Tool aliases:** `recursive_context`, `assemble_context`, `rlm_context` all resolve to `build_context`.
 
 ---
