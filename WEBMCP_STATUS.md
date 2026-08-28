@@ -90,15 +90,24 @@
   ChatGPT model autonomously selected the tools from the frozen prompts.
 - Two consumer ChatGPT Prompt 1 attempts returned a generic "Waggle is not
   available" response rather than a `get_project_brief` invocation. They are
-  recorded as model-selection failures, not acceptance evidence. The Guided
-  Demo and judge-facing instructions now distinguish registration from
-  selection and use explicit tool-named prompts with required arguments.
+  retained as pre-fix model-selection failures, not acceptance evidence. The
+  explicit tool-selection fix was then deployed at `ec05e8b1`.
+- Consumer ChatGPT acceptance passed twice on `2026-08-28` using the deployed
+  explicit tool-named prompts. In both runs ChatGPT invoked all four registered
+  Site tools, the human approved the exact SQLite replacement in Waggle, apply
+  accepted only the approved proposal ID, and final recall returned only "Use
+  SQLite by default; Neo4j remains optional." with supersession lineage.
+- The two accepted runs used distinct proposal and authoritative-memory IDs.
+  A user-confirmed `Reset Demo` boundary between them removed Run 1 state and
+  restored the deterministic Neo4j seed before Run 2. The sealed trace is in
+  `docs/webmcp-consumer-acceptance-2026-08-28.md`.
 
 ## Next task
 
-- Reverify the explicit tool-named flow in consumer ChatGPT twice. Only then
-  record the final under-three-minute video, finish the submission gallery,
-  proofread the Devpost fields, and freeze the deployed branch.
+- Record the final under-three-minute video, finish the submission gallery, and
+  proofread the Devpost fields. The accepted deployment implementation is
+  frozen at `ec05e8b1`; subsequent challenge-branch changes must be
+  documentation or submission artifacts only.
 
 ## Tests passing
 
@@ -113,7 +122,8 @@
 - The repository contained substantial unrelated modified and untracked files before this work began. WebMCP changes must remain isolated and must not overwrite them.
 - Automated Playwright coverage uses a `document.modelContext` compatibility
   shim. Direct native browser-runtime calls cover public Site-tool execution;
-  consumer ChatGPT model selection remains a separate manual gate.
+  consumer ChatGPT selection is covered by the two manual acceptance runs
+  sealed on `2026-08-28`.
 - The existing frontend bundle emits Vite's chunk-size warning; this change does
   not introduce a separate lazy-loaded WebMCP chunk.
 - Render's free backend spins down after inactivity, so its first request can

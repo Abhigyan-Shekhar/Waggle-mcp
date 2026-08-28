@@ -1,10 +1,10 @@
 # Waggle WebMCP Devpost Submission Package
 
 This document is the paste-ready source of truth for the challenge submission.
-Do not describe the real ChatGPT acceptance run or YouTube video as complete
-until those gates are recorded in `WEBMCP_STATUS.md` and independently checked.
-Native discovery and the complete four-tool flow have passed in the public
-Codex in-app browser; treat consumer ChatGPT as a separate final gate.
+Consumer ChatGPT acceptance is complete and sealed in
+`docs/webmcp-consumer-acceptance-2026-08-28.md`. Do not describe the YouTube
+video as complete until that separate gate is recorded in `WEBMCP_STATUS.md`
+and independently checked.
 
 ## Project identity
 
@@ -252,9 +252,9 @@ Then inspect Activity and follow **Explore lineage in Graph Studio**.
   data; the deterministic fixture is recreated on the next request.
 - The hosted instance demonstrates an isolated judge workflow. It does not
   claim that Render itself is local-first storage.
-- Native Site-tool registration and direct browser-runtime execution were
-  verified against the public deployment. Consumer ChatGPT model selection
-  must be reverified with the explicit tool-named prompts before submission.
+- Native Site-tool registration, direct browser-runtime execution, and two
+  complete consumer ChatGPT runs were verified against the public deployment.
+  The accepted implementation is frozen at `ec05e8b1`.
 
 ## Asset capture checklist
 
@@ -302,9 +302,9 @@ side-by-side comparison framing were optimized for QA rather than Devpost.
 
 ## Final submission gate
 
-- [ ] Consumer ChatGPT lists all four WebMCP tools after the reliability fix.
-- [ ] The explicit tool-named human + agent flow passes at least twice after reset.
-- [ ] `WEBMCP_STATUS.md` records both post-fix ChatGPT runs and their acceptance result.
+- [x] Consumer ChatGPT invokes all four WebMCP tools after the reliability fix.
+- [x] The explicit tool-named human + agent flow passes twice with a reset boundary.
+- [x] `WEBMCP_STATUS.md` records both post-fix ChatGPT runs and their acceptance result.
 - [ ] The under-three-minute video follows `docs/webmcp-demo-video-script.md`.
 - [ ] YouTube playback works publicly without login and includes clear audio.
 - [ ] All five required assets pass the quality gate.
