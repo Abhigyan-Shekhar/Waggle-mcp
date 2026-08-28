@@ -78,6 +78,10 @@ def _live_tools_fixture_shape(mcp_surface):
     ]
 
 
+def _live_tools_by_name(mcp_surface):
+    return {tool.name: tool for tool in mcp_surface._dispatcher.list_tools()}
+
+
 # ── Tool list surface ──────────────────────────────────────────────────────────
 
 
@@ -139,6 +143,40 @@ def test_tool_property_names_unchanged(mcp_surface):
         live_props = set((live_map[name]["inputSchema"] or {}).get("properties", {}).keys())
         removed = fixture_props - live_props
         assert not removed, f"Tool '{name}' lost argument properties since fixture was taken: {sorted(removed)}"
+
+
+def test_every_tool_declares_annotations(mcp_surface):
+    for tool in mcp_surface._dispatcher.list_tools():
+        assert tool.annotations is not None
+        assert "readOnlyHint" in tool.annotations
+
+
+def test_read_only_tools_keep_safe_annotations(mcp_surface):
+    tools = _live_tools_by_name(mcp_surface)
+
+    for name in ["query_graph", "get_stats", "fsck"]:
+        assert tools[name].annotations == {
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+        }
+
+
+def test_mutating_tools_keep_write_annotations(mcp_surface):
+    tools = _live_tools_by_name(mcp_surface)
+
+    assert tools["store_node"].annotations == {
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+    }
+    assert tools["delete_node"].annotations == {
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": False,
+    }
+    assert tools["update_node"].annotations["destructiveHint"] is True
+    assert tools["clear_all"].annotations["destructiveHint"] is True
 
 
 # ── Resource list surface ──────────────────────────────────────────────────────

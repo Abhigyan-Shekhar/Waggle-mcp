@@ -100,6 +100,56 @@ def _scope_properties() -> dict[str, dict[str, Any]]:
     }
 
 
+_READ_ONLY_TOOLS = frozenset(
+    {
+        "dedup_candidates",
+        "aggregate_graph",
+        "query_graph",
+        "debug_retrieval",
+        "get_related",
+        "get_node_history",
+        "list_context_scopes",
+        "list_context_windows",
+        "get_context_window",
+        "timeline",
+        "list_conflicts",
+        "graph_diff",
+        "prime_context",
+        "get_topics",
+        "get_stats",
+        "edge_quality_report",
+        "build_context",
+        "diff",
+        "grep",
+        "load_abhi_chunks",
+        "fsck",
+        "show",
+    }
+)
+
+_DESTRUCTIVE_TOOLS = frozenset(
+    {
+        "canonicalize_node",
+        "resolve_conflict",
+        "update_node",
+        "delete_node",
+        "clear_session",
+        "clear_project",
+        "clear_all",
+        "import_markdown_vault",
+    }
+)
+
+
+def _tool_annotations(name: str) -> dict[str, bool]:
+    read_only = name in _READ_ONLY_TOOLS
+    return {
+        "readOnlyHint": read_only,
+        "destructiveHint": name in _DESTRUCTIVE_TOOLS,
+        "idempotentHint": read_only,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Tool alias table (unchanged from WaggleServer._TOOL_ALIASES)
 # ---------------------------------------------------------------------------
@@ -1183,6 +1233,9 @@ class WaggleToolDispatcher:
                     ),
                 )
             )
+
+        for tool in tools:
+            tool.annotations = _tool_annotations(tool.name)
 
         return tools
 
