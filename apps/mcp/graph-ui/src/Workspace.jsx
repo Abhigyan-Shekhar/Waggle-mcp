@@ -20,6 +20,7 @@ import { readBootConfig } from "./lib/boot-config";
 import {
   clearDemoState,
   createDemoState,
+  DEMO_STEPS,
   loadDemoState,
   reduceDemoState,
   saveDemoState,
@@ -469,7 +470,7 @@ export function Workspace() {
         <div className={`connection-state connection-state-${siteToolsStatus.kind}`}>
           <span />
           {siteToolsStatus.kind === "ready"
-            ? `${siteToolsStatus.registeredCount} Site tools ready`
+            ? `${siteToolsStatus.registeredCount} Site tools registered`
             : siteToolsStatus.kind === "checking"
               ? "Checking Site tools…"
               : "Open in ChatGPT browser"}
@@ -528,7 +529,7 @@ export function Workspace() {
                     onEditedContent={setEditedProposalContent}
                     onCancelEdit={() => setEditingProposalId("")}
                     onReview={(action, content) => reviewProposal(proposal, action, content).catch((error) => showToast(error.message))}
-                    onCopyApplyPrompt={() => copyPrompt("Apply the memory change I approved.").catch((error) => showToast(error.message))}
+                    onCopyApplyPrompt={() => copyPrompt(DEMO_STEPS[4].prompt).catch((error) => showToast(error.message))}
                   />
                 )) : <EmptyState>No proposals yet. Ask ChatGPT to suggest a correction to an existing memory.</EmptyState>}
               </div>

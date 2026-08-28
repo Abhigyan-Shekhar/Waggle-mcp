@@ -84,25 +84,21 @@
   recall returned "Use SQLite by default; Neo4j remains optional." as an
   authoritative `human_approved_proposal` memory, and focused Graph Studio
   displayed its native `updates` lineage.
-- The ChatGPT mode in the desktop app's built-in browser exposed all four
-  page-level Site tools and completed the frozen governed-memory flow twice
-  from a clean seeded state. Both runs produced the exact human-approved value,
-  excluded the superseded Neo4j decision from authoritative recall, and showed
-  the native `updates` lineage in focused Graph Studio.
-- The second run also verified the full six-step Guided Demo progression through
-  `Human-approved truth, recalled.` and the lineage link. This is the consumer
-  ChatGPT acceptance gate; it is no longer pending.
+- The browser exposed all four page-level Site tools and direct native WebMCP
+  calls completed the governed-memory flow twice from a clean seeded state.
+  Those runs prove registration and execution, but they do not prove that the
+  ChatGPT model autonomously selected the tools from the frozen prompts.
 - Two consumer ChatGPT Prompt 1 attempts returned a generic "Waggle is not
   available" response rather than a `get_project_brief` invocation. They are
-  recorded as failed discovery attempts, not acceptance evidence. The Guided
-  Demo and judge-facing instructions now require verifying all four page-level
-  Site tools in ChatGPT's built-in browser before sending Prompt 1.
+  recorded as model-selection failures, not acceptance evidence. The Guided
+  Demo and judge-facing instructions now distinguish registration from
+  selection and use explicit tool-named prompts with required arguments.
 
 ## Next task
 
-- Record the final under-three-minute video from the verified ChatGPT flow,
-  finish the submission gallery, proofread the Devpost fields, and freeze the
-  deployed branch after submission.
+- Reverify the explicit tool-named flow in consumer ChatGPT twice. Only then
+  record the final under-three-minute video, finish the submission gallery,
+  proofread the Devpost fields, and freeze the deployed branch.
 
 ## Tests passing
 
@@ -116,8 +112,8 @@
 
 - The repository contained substantial unrelated modified and untracked files before this work began. WebMCP changes must remain isolated and must not overwrite them.
 - Automated Playwright coverage uses a `document.modelContext` compatibility
-  shim, supplemented by two native consumer ChatGPT Site-tool acceptance runs
-  against the public deployment.
+  shim. Direct native browser-runtime calls cover public Site-tool execution;
+  consumer ChatGPT model selection remains a separate manual gate.
 - The existing frontend bundle emits Vite's chunk-size warning; this change does
   not introduce a separate lazy-loaded WebMCP chunk.
 - Render's free backend spins down after inactivity, so its first request can

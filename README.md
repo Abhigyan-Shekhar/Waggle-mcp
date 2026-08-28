@@ -79,11 +79,11 @@ human decides exactly what becomes the new truth.
 Exact judge prompts:
 
 ```text
-Catch me up on this project using Waggle.
-What did we decide about the storage architecture?
-That conflicts with our local-first requirement. Propose a better memory, but don't change anything directly.
-Apply the memory change I approved.
-What storage architecture did we decide on?
+Call the Waggle Site tool `get_project_brief` with `project_id`: `waggle-webmcp`. Use its result to catch me up; do not answer from chat history.
+Call the Waggle Site tool `recall_memory` with `project_id`: `waggle-webmcp`, `query`: `storage architecture`, and `limit`: 5. Report the authoritative decision from the tool result.
+Using the authoritative storage memory returned in the previous Waggle tool result, call the Waggle Site tool `propose_memory_change` for `project_id`: `waggle-webmcp`. Propose a local-first replacement, but do not change authoritative memory directly.
+Call the Waggle Site tool `apply_approved_memory_change` with the `proposal_id` I approved in Waggle. Do not supply replacement content.
+Call the Waggle Site tool `recall_memory` with `project_id`: `waggle-webmcp`, `query`: `storage architecture`, and `limit`: 5. Confirm the current authoritative decision from the tool result; do not answer from chat history.
 ```
 
 The public project identifier used by the registered tools is

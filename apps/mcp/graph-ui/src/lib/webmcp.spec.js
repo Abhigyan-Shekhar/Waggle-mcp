@@ -52,6 +52,8 @@ describe("get_project_brief WebMCP registration", () => {
 
     expect(modelContext.registerTool).toHaveBeenCalledOnce();
     expect(definition.name).toBe("get_project_brief");
+    expect(definition.description).toContain("when the user asks to catch up");
+    expect(definition.description).toContain("do not substitute chat history");
     expect(definition.annotations).toEqual({ readOnlyHint: true });
     expect(definition.inputSchema.required).toEqual(["project_id"]);
 
@@ -147,6 +149,7 @@ describe("recall_memory WebMCP registration", () => {
 
     expect(modelContext.registerTool).toHaveBeenCalledTimes(2);
     const definition = definitions.find((tool) => tool.name === "recall_memory");
+    expect(definition.description).toContain("what was decided");
     expect(definition.annotations).toEqual({ readOnlyHint: true });
     await expect(
       definition.execute({

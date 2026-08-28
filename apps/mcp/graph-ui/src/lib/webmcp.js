@@ -54,7 +54,7 @@ export function registerGetProjectBriefTool({
   return registerOnce(modelContext, {
     name: "get_project_brief",
     description:
-      "Get a compact, authoritative project briefing from the Waggle memory visible in this workspace.",
+      "Use this read-only Waggle Site tool when the user asks to catch up on, brief, summarize, or get the current state of the project open in this workspace. It returns authoritative project memory; do not substitute chat history.",
     inputSchema: {
       type: "object",
       properties: {
@@ -101,7 +101,7 @@ export function registerRecallMemoryTool({
   return registerOnce(modelContext, {
     name: "recall_memory",
     description:
-      "Recall current authoritative Waggle memories for a project. Superseded and expired memories are excluded.",
+      "Use this read-only Waggle Site tool when the user asks what was decided, remembered, constrained, or is currently authoritative about a topic in the project open in this workspace. Superseded and expired memories are excluded.",
     inputSchema: {
       type: "object",
       properties: {
@@ -173,7 +173,7 @@ export function registerProposeMemoryChangeTool({
   return registerOnce(modelContext, {
     name: "propose_memory_change",
     description:
-      "Propose a change to an existing authoritative Waggle memory for human review. This does not modify the authoritative memory.",
+      "Use this Waggle Site tool when the user asks to correct, replace, or propose a better version of an existing authoritative memory without changing it directly. It creates a human-review proposal and does not modify the authoritative memory.",
     inputSchema: {
       type: "object",
       properties: {
@@ -269,7 +269,7 @@ export function registerApplyApprovedMemoryChangeTool({
   return registerOnce(modelContext, {
     name: "apply_approved_memory_change",
     description:
-      "Apply a memory change that has already been explicitly approved by a human in Waggle. This tool cannot alter the approved content or bypass human review.",
+      "Use this Waggle Site tool when the user explicitly asks to apply a proposal that a human already approved in Waggle. It accepts only the approved proposal ID and cannot alter the approved content or bypass human review.",
     inputSchema: {
       type: "object",
       properties: {

@@ -33,12 +33,12 @@ Before recording:
 |---|---|---|
 | **0:00–0:12** | Open on the live Workspace hero. Keep **Challenge Demo**, **Human controlled**, Current Context, and Key Decisions visible. | “Agents remember more every day, but that memory is usually opaque. People cannot easily see what became truth, why it changed, or stop an agent from overwriting it.” |
 | **0:12–0:28** | Slowly pan across Current Context, Key Decisions, and the live Memory Map. Select **See Waggle in Action**. | “Waggle turns project memory into a shared workspace. ChatGPT operates on the same governed memory shown here, while humans control what becomes authoritative.” |
-| **0:28–0:47** | In ChatGPT, send **“Catch me up on this project using Waggle.”** Show the real `get_project_brief` call, then return to the automatically advanced guide and highlighted Project Brief. | “First, ChatGPT calls `get_project_brief`. The answer is assembled from Waggle’s real project graph, and the guide advances from the WebMCP event—not from a scripted Next button.” |
-| **0:47–1:05** | Send **“What did we decide about the storage architecture?”** Show `recall_memory` returning **Use Neo4j as the primary storage engine.** Briefly show the highlighted authoritative memory. | “Authoritative recall returns the current storage decision and excludes superseded history. Right now, Neo4j is the recorded truth.” |
-| **1:05–1:27** | Send **“That conflicts with our local-first requirement. Propose a better memory, but don't change anything directly.”** Show `propose_memory_change`, then the real pending proposal card. | “The agent can identify a conflict and propose a replacement, but it cannot write directly. The authoritative memory remains unchanged while the proposal waits for a human.” |
+| **0:28–0:47** | Copy and send Prompt 1, which explicitly requests `get_project_brief` for `waggle-webmcp`. Show the real tool call, then return to the automatically advanced guide and highlighted Project Brief. | “First, ChatGPT calls `get_project_brief`. The answer is assembled from Waggle’s real project graph, and the guide advances from the WebMCP event—not from a scripted Next button.” |
+| **0:47–1:05** | Copy and send Prompt 2, which explicitly requests `recall_memory` for `storage architecture`. Show it returning **Use Neo4j as the primary storage engine.** Briefly show the highlighted authoritative memory. | “Authoritative recall returns the current storage decision and excludes superseded history. Right now, Neo4j is the recorded truth.” |
+| **1:05–1:27** | Copy and send Prompt 3, which explicitly requests `propose_memory_change` for the recalled storage memory. Show the real pending proposal card. | “The agent can identify a conflict and propose a replacement, but it cannot write directly. The authoritative memory remains unchanged while the proposal waits for a human.” |
 | **1:27–1:50** | In Waggle, select **Edit & Approve**, enter **“Use SQLite by default; Neo4j remains optional.”**, and approve. Hold on the frozen approved payload. | “Now the human edits and approves the exact wording. That approved payload is frozen. The agent cannot modify it, and stale target protection prevents it from overwriting a newer decision.” |
-| **1:50–2:10** | In ChatGPT, send **“Apply the memory change I approved.”** Show `apply_approved_memory_change` using only the proposal ID. Return to the Previous → Authoritative transformation. | “Application accepts only the approved proposal ID. Waggle creates a new authoritative memory, preserves the previous value, and records a native `updates` relationship with reviewer and proposal provenance.” |
-| **2:10–2:25** | Send **“What storage architecture did we decide on?”** Show `recall_memory` returning the human-approved SQLite value and the guide completion state. | “Ask the same question again and ChatGPT now retrieves the exact human-approved truth: SQLite by default, with Neo4j optional.” |
+| **1:50–2:10** | Copy and send Prompt 5, which explicitly requests `apply_approved_memory_change` using only the approved proposal ID. Return to the Previous → Authoritative transformation. | “Application accepts only the approved proposal ID. Waggle creates a new authoritative memory, preserves the previous value, and records a native `updates` relationship with reviewer and proposal provenance.” |
+| **2:10–2:25** | Copy and send Prompt 6, which explicitly requests `recall_memory` again. Show the human-approved SQLite value and the guide completion state. | “Ask the same question again and ChatGPT now retrieves the exact human-approved truth: SQLite by default, with Neo4j optional.” |
 | **2:25–2:38** | Open Activity and scroll just enough to show brief, recall, proposal, approval, application, and final recall events. | “The complete sequence is visible in the activity trail, so the human can audit both agent actions and governance decisions.” |
 | **2:38–2:50** | Select **Explore lineage in Graph Studio**. Hold on the focused changed-memory lineage, previous and authoritative nodes, real `updates` edge, and **Show full graph** control. | “Graph Studio shows what actually changed in the same isolated workspace: previous state, new authority, lineage, and provenance—not a mocked diagram.” |
 | **2:50–2:56** | Cut to `apps/mcp/graph-ui/src/lib/webmcp.js`. Highlight `modelContext.registerTool` and quickly reveal the four registered names. | “Under the hood, these are four registered WebMCP tools backed by Waggle’s existing graph and governance services.” |
@@ -49,12 +49,12 @@ Before recording:
 Use the prompts exactly as displayed by the Guided Demo:
 
 ```text
-Catch me up on this project using Waggle.
-What did we decide about the storage architecture?
-That conflicts with our local-first requirement. Propose a better memory, but don't change anything directly.
+Call the Waggle Site tool `get_project_brief` with `project_id`: `waggle-webmcp`. Use its result to catch me up; do not answer from chat history.
+Call the Waggle Site tool `recall_memory` with `project_id`: `waggle-webmcp`, `query`: `storage architecture`, and `limit`: 5. Report the authoritative decision from the tool result.
+Using the authoritative storage memory returned in the previous Waggle tool result, call the Waggle Site tool `propose_memory_change` for `project_id`: `waggle-webmcp`. Propose a local-first replacement, but do not change authoritative memory directly.
 Use SQLite by default; Neo4j remains optional.
-Apply the memory change I approved.
-What storage architecture did we decide on?
+Call the Waggle Site tool `apply_approved_memory_change` with the `proposal_id` I approved in Waggle. Do not supply replacement content.
+Call the Waggle Site tool `recall_memory` with `project_id`: `waggle-webmcp`, `query`: `storage architecture`, and `limit`: 5. Confirm the current authoritative decision from the tool result; do not answer from chat history.
 ```
 
 The fourth line is entered by the human in Waggle, not sent as a ChatGPT

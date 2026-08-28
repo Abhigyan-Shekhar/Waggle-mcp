@@ -74,6 +74,10 @@ export function GuidedDemo({ state, graphHref, onCopyPrompt, onExit, onRestart, 
                   In the browser address bar, select <strong>Site tools → Available site tools</strong>
                   {" "}and confirm all four tools before continuing.
                 </p>
+                <p>
+                  Registration confirms availability, not automatic selection. Copy the exact frozen prompt below;
+                  it names the required Site tool and arguments so ChatGPT has an unambiguous call target.
+                </p>
                 <ul aria-label="Required Waggle Site tools">
                   {SITE_TOOL_NAMES.map((name) => <li key={name}><Check size={12} /> <code>{name}</code></li>)}
                 </ul>
@@ -102,7 +106,7 @@ export function GuidedDemo({ state, graphHref, onCopyPrompt, onExit, onRestart, 
                 <strong>{humanStep ? "Waiting for your approval" : "Waiting for a real WebMCP event"}</strong>
                 <p>{humanStep
                   ? "Edit the proposal and approve it. The exact human-approved payload will be frozen."
-                  : "Send the prompt in ChatGPT. This step advances only when Waggle receives the matching tool event."}</p>
+                  : "Send the exact prompt in ChatGPT. This step advances only when Waggle receives the matching tool event."}</p>
               </div>
             </div>
           </>

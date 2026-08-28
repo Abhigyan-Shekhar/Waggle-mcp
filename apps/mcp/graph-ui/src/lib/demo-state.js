@@ -5,19 +5,19 @@ export const DEMO_STEPS = [
     number: 1,
     tool: "get_project_brief",
     title: "Catch up on the project",
-    prompt: "Catch me up on this project using Waggle.",
+    prompt: "Call the Waggle Site tool `get_project_brief` with `project_id`: `waggle-webmcp`. Use its result to catch me up; do not answer from chat history.",
   },
   {
     number: 2,
     tool: "recall_memory",
     title: "Recall a decision",
-    prompt: "What did we decide about the storage architecture?",
+    prompt: "Call the Waggle Site tool `recall_memory` with `project_id`: `waggle-webmcp`, `query`: `storage architecture`, and `limit`: 5. Report the authoritative decision from the tool result.",
   },
   {
     number: 3,
     tool: "propose_memory_change",
     title: "Propose a correction",
-    prompt: "That conflicts with our local-first requirement. Propose a better memory, but don't change anything directly.",
+    prompt: "Using the authoritative storage memory returned in the previous Waggle tool result, call the Waggle Site tool `propose_memory_change` for `project_id`: `waggle-webmcp`. Propose a local-first replacement, but do not change authoritative memory directly.",
   },
   {
     number: 4,
@@ -29,13 +29,13 @@ export const DEMO_STEPS = [
     number: 5,
     tool: "apply_approved_memory_change",
     title: "Apply the approved change",
-    prompt: "Apply the memory change I approved.",
+    prompt: "Call the Waggle Site tool `apply_approved_memory_change` with the `proposal_id` I approved in Waggle. Do not supply replacement content.",
   },
   {
     number: 6,
     tool: "recall_memory",
     title: "Confirm the new truth",
-    prompt: "What storage architecture did we decide on?",
+    prompt: "Call the Waggle Site tool `recall_memory` with `project_id`: `waggle-webmcp`, `query`: `storage architecture`, and `limit`: 5. Confirm the current authoritative decision from the tool result; do not answer from chat history.",
   },
 ];
 

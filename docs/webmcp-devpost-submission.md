@@ -229,11 +229,11 @@ Select **See Waggle in Action** and use its Copy Prompt controls with ChatGPT.
 The public project ID is `waggle-webmcp`.
 
 ```text
-Catch me up on this project using Waggle.
-What did we decide about the storage architecture?
-That conflicts with our local-first requirement. Propose a better memory, but don't change anything directly.
-Apply the memory change I approved.
-What storage architecture did we decide on?
+Call the Waggle Site tool `get_project_brief` with `project_id`: `waggle-webmcp`. Use its result to catch me up; do not answer from chat history.
+Call the Waggle Site tool `recall_memory` with `project_id`: `waggle-webmcp`, `query`: `storage architecture`, and `limit`: 5. Report the authoritative decision from the tool result.
+Using the authoritative storage memory returned in the previous Waggle tool result, call the Waggle Site tool `propose_memory_change` for `project_id`: `waggle-webmcp`. Propose a local-first replacement, but do not change authoritative memory directly.
+Call the Waggle Site tool `apply_approved_memory_change` with the `proposal_id` I approved in Waggle. Do not supply replacement content.
+Call the Waggle Site tool `recall_memory` with `project_id`: `waggle-webmcp`, `query`: `storage architecture`, and `limit`: 5. Confirm the current authoritative decision from the tool result; do not answer from chat history.
 ```
 
 At the human-review step, edit the proposal to:
@@ -252,8 +252,9 @@ Then inspect Activity and follow **Explore lineage in Graph Studio**.
   data; the deterministic fixture is recreated on the next request.
 - The hosted instance demonstrates an isolated judge workflow. It does not
   claim that Render itself is local-first storage.
-- Consumer ChatGPT acceptance was verified with two complete native Site-tool
-  runs against the public deployment.
+- Native Site-tool registration and direct browser-runtime execution were
+  verified against the public deployment. Consumer ChatGPT model selection
+  must be reverified with the explicit tool-named prompts before submission.
 
 ## Asset capture checklist
 
@@ -301,9 +302,9 @@ side-by-side comparison framing were optimized for QA rather than Devpost.
 
 ## Final submission gate
 
-- [x] Real ChatGPT discovers all four WebMCP tools.
-- [x] The complete human + agent flow passes at least twice after reset.
-- [x] `WEBMCP_STATUS.md` records the ChatGPT surface and acceptance result.
+- [ ] Consumer ChatGPT lists all four WebMCP tools after the reliability fix.
+- [ ] The explicit tool-named human + agent flow passes at least twice after reset.
+- [ ] `WEBMCP_STATUS.md` records both post-fix ChatGPT runs and their acceptance result.
 - [ ] The under-three-minute video follows `docs/webmcp-demo-video-script.md`.
 - [ ] YouTube playback works publicly without login and includes clear audio.
 - [ ] All five required assets pass the quality gate.

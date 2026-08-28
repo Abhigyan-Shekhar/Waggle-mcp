@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clearDemoState,
   createDemoState,
+  DEMO_STEPS,
   loadDemoState,
   reduceDemoState,
   saveDemoState,
@@ -17,6 +18,16 @@ function memoryStorage() {
 }
 
 describe("guided demo state", () => {
+  it("uses explicit Site-tool prompts for every ChatGPT step", () => {
+    for (const step of DEMO_STEPS.filter((item) => item.tool !== "human_review")) {
+      expect(step.prompt).toContain(`\`${step.tool}\``);
+    }
+    expect(DEMO_STEPS[0].prompt).toContain("`project_id`: `waggle-webmcp`");
+    expect(DEMO_STEPS[1].prompt).toContain("`query`: `storage architecture`");
+    expect(DEMO_STEPS[4].prompt).toContain("`proposal_id`");
+    expect(DEMO_STEPS[5].prompt).toContain("do not answer from chat history");
+  });
+
   it("does not advance when an event belongs to a later ChatGPT step", () => {
     const started = reduceDemoState(createDemoState("waggle-webmcp"), {
       type: "demo.started",
