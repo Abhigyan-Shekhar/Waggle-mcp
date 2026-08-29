@@ -930,6 +930,117 @@ def test_demo_cookie_preserves_state_and_all_four_webmcp_tools_use_isolated_scop
     assert refreshed.json()["proposals"][0]["status"] == "applied"
 
 
+def test_demo_header_preserves_state_when_cross_origin_cookies_are_blocked(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    config = make_split_demo_http_config(tmp_path)
+    app_server = WaggleServer(graph=graph, config=config)
+    app = create_http_application(app_server, config)
+    session_a = {"X-Waggle-Demo-Session": "a" * 64}
+    session_b = {"X-Waggle-Demo-Session": "b" * 64}
+
+    with TestClient(app) as client:
+        def without_cookies() -> None:
+            client.cookies.clear()
+
+        without_cookies()
+        brief = client.post(
+            "/api/webmcp/project-brief",
+            json={"project_id": "waggle-webmcp"},
+            headers=session_a,
+        )
+        without_cookies()
+        recall_before = client.post(
+            "/api/webmcp/recall-memory",
+            json={"project_id": "waggle-webmcp", "query": "storage architecture", "limit": 5},
+            headers=session_a,
+        )
+        storage_memory = next(
+            memory
+            for memory in recall_before.json()["memories"]
+            if memory["content"] == "Use Neo4j as the primary storage engine."
+        )
+
+        without_cookies()
+        cross_session_proposal = client.post(
+            "/api/webmcp/proposals",
+            json={
+                "project_id": "waggle-webmcp",
+                "memory_id": storage_memory["memory_id"],
+                "proposed_content": "Attempt cross-session mutation.",
+                "reason": "This must remain isolated.",
+                "evidence_ids": [],
+            },
+            headers=session_b,
+        )
+
+        without_cookies()
+        proposal = client.post(
+            "/api/webmcp/proposals",
+            json={
+                "project_id": "waggle-webmcp",
+                "memory_id": storage_memory["memory_id"],
+                "proposed_content": "Use SQLite as the default storage engine.",
+                "reason": "Preserve the local-first default.",
+                "evidence_ids": [],
+            },
+            headers=session_a,
+        )
+        proposal_id = proposal.json()["proposal_id"]
+
+        without_cookies()
+        approved = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/review",
+            json={"action": "approve", "approved_content": "Use SQLite by default; Neo4j remains optional."},
+            headers=session_a,
+        )
+        without_cookies()
+        applied = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/apply",
+            json={"project_id": "waggle-webmcp"},
+            headers=session_a,
+        )
+        without_cookies()
+        recall_after = client.post(
+            "/api/webmcp/recall-memory",
+            json={"project_id": "waggle-webmcp", "query": "storage architecture", "limit": 5},
+            headers=session_a,
+        )
+        without_cookies()
+        reset = client.post("/api/webmcp/demo/reset", json={}, headers=session_a)
+        without_cookies()
+        recall_reset = client.post(
+            "/api/webmcp/recall-memory",
+            json={"project_id": "waggle-webmcp", "query": "storage architecture", "limit": 5},
+            headers=session_a,
+        )
+        without_cookies()
+        preflight = client.options(
+            "/api/webmcp/recall-memory",
+            headers={
+                "Origin": "https://waggle-webmcp.onrender.com",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "Content-Type, X-Waggle-Demo-Session",
+            },
+        )
+
+    assert brief.status_code == 200
+    assert cross_session_proposal.status_code == 400
+    assert proposal.status_code == 201
+    assert approved.json()["approved_content"] == "Use SQLite by default; Neo4j remains optional."
+    assert applied.json()["authoritative_memory"]["content"] == "Use SQLite by default; Neo4j remains optional."
+    assert any(
+        memory["content"] == "Use SQLite by default; Neo4j remains optional."
+        for memory in recall_after.json()["memories"]
+    )
+    assert reset.status_code == 200
+    assert any(
+        memory["content"] == "Use Neo4j as the primary storage engine."
+        for memory in recall_reset.json()["memories"]
+    )
+    assert preflight.status_code == 200
+    assert "x-waggle-demo-session" in preflight.headers["access-control-allow-headers"].lower()
+
+
 def test_demo_sessions_are_independent_and_reset_cannot_affect_another_browser(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
     config = make_demo_http_config(tmp_path)

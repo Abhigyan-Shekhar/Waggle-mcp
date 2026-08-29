@@ -70,6 +70,7 @@ from .utils import (
 )
 
 LOGGER = logging.getLogger(__name__)
+DEMO_SESSION_HEADER = "X-Waggle-Demo-Session"
 
 
 def _decode_base64_content(value: Any, field_name: str = "content_base64") -> bytes:
@@ -142,15 +143,20 @@ class _DemoSessionMiddleware:
         cookies = SimpleCookie()
         cookies.load(headers.get("cookie", ""))
         existing = cookies.get(DEMO_COOKIE_NAME)
-        session_id = existing.value if existing is not None else ""
-        fresh = not valid_demo_session_id(session_id)
-        if fresh:
+        cookie_session_id = existing.value if existing is not None else ""
+        header_session_id = headers.get(DEMO_SESSION_HEADER, "").strip()
+        if valid_demo_session_id(header_session_id):
+            session_id = header_session_id
+        elif valid_demo_session_id(cookie_session_id):
+            session_id = cookie_session_id
+        else:
             session_id = secrets.token_urlsafe(32)
+        refresh_cookie = cookie_session_id != session_id
         state = scope.setdefault("state", {})
         state["demo_session_id"] = session_id
 
         async def send_with_cookie(message: dict[str, Any]) -> None:
-            if fresh and message["type"] == "http.response.start":
+            if refresh_cookie and message["type"] == "http.response.start":
                 cookie = SimpleCookie()
                 cookie[DEMO_COOKIE_NAME] = session_id
                 morsel = cookie[DEMO_COOKIE_NAME]
@@ -1414,6 +1420,6 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             allow_origins=[config.demo_frontend_origin],
             allow_credentials=True,
             allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["Content-Type"],
+            allow_headers=["Content-Type", DEMO_SESSION_HEADER],
         )
     return _RequestBodySizeMiddleware(app, max_bytes=config.max_payload_bytes)

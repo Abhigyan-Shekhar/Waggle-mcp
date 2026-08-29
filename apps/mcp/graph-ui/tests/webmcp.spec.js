@@ -2,6 +2,16 @@ import { expect, test } from "@playwright/test";
 
 test("registers and executes Waggle WebMCP tools from the live page", async ({ page }) => {
   let resetCount = 0;
+  let demoSessionId = "";
+  const expectStableDemoSession = (route) => {
+    const requestSessionId = route.request().headers()["x-waggle-demo-session"] || "";
+    expect(requestSessionId).toMatch(/^[a-f0-9]{64}$/);
+    if (demoSessionId) {
+      expect(requestSessionId).toBe(demoSessionId);
+    } else {
+      demoSessionId = requestSessionId;
+    }
+  };
   const brief = {
     project: { id: "waggle-webmcp", name: "Waggle WebMCP" },
     goal: "Build governed shared memory.",
@@ -115,6 +125,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
     });
   });
   await page.route("**/api/webmcp/project-brief", async (route) => {
+    expectStableDemoSession(route);
     expect(route.request().postDataJSON()).toEqual({ project_id: "waggle-webmcp" });
     await route.fulfill({
       status: 200,
@@ -140,6 +151,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
     });
   });
   await page.route("**/api/webmcp/recall-memory", async (route) => {
+    expectStableDemoSession(route);
     expect(route.request().postDataJSON()).toEqual({
       project_id: "waggle-webmcp",
       query: "storage architecture",
@@ -155,6 +167,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
     });
   });
   await page.route("**/api/webmcp/proposals**", async (route) => {
+    expectStableDemoSession(route);
     const url = new URL(route.request().url());
     if (route.request().method() === "GET") {
       await route.fulfill({
@@ -402,6 +415,7 @@ test("registers and executes Waggle WebMCP tools from the live page", async ({ p
   await page.addInitScript(() => {
     delete document.modelContext;
   });
+  demoSessionId = "";
   await page.evaluate(() => window.sessionStorage.clear());
   await page.goto("/");
   await page.getByRole("button", { name: "See Waggle in Action" }).click();
