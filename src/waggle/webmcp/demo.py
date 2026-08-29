@@ -86,7 +86,7 @@ def _seed_records() -> list[tuple[str, str, str, NodeType, list[str]]]:
         ("constraint-scope", "Project isolation constraint", "Every retrieval and mutation must remain inside the active project scope.", NodeType.NOTE, ["constraint", "security"]),
         ("sqlite", "SQLite capability", "SQLite is available without external infrastructure and supports Waggle's local-first runtime.", NodeType.FACT, ["storage", "evidence"]),
         ("neo4j", "Neo4j capability", "Neo4j remains useful as an optional graph backend for networked deployments.", NodeType.FACT, ["storage", "evidence"]),
-        ("webmcp", "WebMCP integration", "The workspace exposes four site tools: project brief, authoritative recall, proposal creation, and approved application.", NodeType.FACT, ["webmcp"]),
+        ("webmcp", "WebMCP integration", "The workspace exposes five site tools: private session .abhi loading, project brief, authoritative recall, proposal creation, and approved application.", NodeType.FACT, ["webmcp"]),
         ("fingerprint", "Proposal fingerprints", "Every proposal captures the exact target memory version so review and apply can detect stale state.", NodeType.FACT, ["governance", "safety"]),
         ("immutable", "Immutable approvals", "After human approval, the exact approved payload is frozen and cannot be altered by the applying agent.", NodeType.FACT, ["governance"]),
         ("portable", "Portable memory", "Waggle memory can follow a project across supported agents and local development tools.", NodeType.CONCEPT, ["product"]),
@@ -164,9 +164,9 @@ def ensure_demo_seed(graph: Any, repository: ProposalRepository, scope: DemoScop
 
     del repository  # Kept in the signature to make the shared store boundary explicit.
     with graph._lock, graph._pool.checkout() as connection:
-        # Imported portable workspaces deliberately replace the seeded storage
-        # node. Any project node therefore means this browser already has a
-        # workspace and must not be silently reseeded on the next request.
+        # Any project node means this browser already has its server-backed
+        # challenge fixture. Portable .abhi graphs are handled only in the
+        # page's sessionStorage and never enter this backing store.
         existing = connection.execute(
             "SELECT 1 FROM nodes WHERE tenant_id = ? AND project = ? LIMIT 1",
             (str(graph.tenant_id), scope.project_id),

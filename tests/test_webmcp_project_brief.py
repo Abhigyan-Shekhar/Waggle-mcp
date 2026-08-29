@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sqlite3
-import base64
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -881,43 +880,19 @@ def test_fresh_demo_browser_gets_securely_scoped_deterministic_seed(tmp_path: Pa
     assert brief.json()["project"] == {"id": "waggle-webmcp", "name": "Waggle WebMCP"}
 
 
-def test_demo_can_replace_its_isolated_workspace_from_portable_abhi(tmp_path: Path) -> None:
+def test_demo_does_not_accept_portable_abhi_on_the_server(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
-    graph.add_node(
-        node_id="portable-goal", label="Project goal", content="Ship a portable project graph.",
-        node_type=NodeType.NOTE, tags=["goal"], project="portable-source", force_new=True,
-    )
-    graph.add_node(
-        node_id="portable-decision", label="Database decision", content="Use SQLite locally.",
-        node_type=NodeType.DECISION, tags=["architecture"], project="portable-source", force_new=True,
-    )
-    graph.add_edge(
-        edge_id="portable-link", source_id="portable-goal", target_id="portable-decision",
-        relationship=RelationType.RELATES_TO,
-    )
-    artifact = graph.export_abhi(project="portable-source")
-    encoded = base64.b64encode(Path(artifact.output_path).read_bytes()).decode("ascii")
     config = make_demo_http_config(tmp_path)
     app_server = WaggleServer(graph=graph, config=config)
     app = create_http_application(app_server, config)
 
     with TestClient(app) as client:
         client.get("/")
-        imported = client.post("/api/webmcp/import-abhi", json={"content_base64": encoded})
+        imported = client.post("/api/webmcp/import-abhi", json={"content_base64": "private-bytes"})
         snapshot = client.get("/api/graph?project=waggle-webmcp")
-        brief = client.post("/api/webmcp/project-brief", json={"project_id": "waggle-webmcp"})
-        reset = client.post("/api/webmcp/demo/reset", json={})
-        reset_snapshot = client.get("/api/graph?project=waggle-webmcp")
 
-    assert imported.status_code == 200
-    assert imported.json()["node_count"] == 2
-    assert imported.json()["edge_count"] == 1
-    assert {node["label"] for node in snapshot.json()["nodes"]} == {"Project goal", "Database decision"}
-    assert {node["project"] for node in snapshot.json()["nodes"]} == {"waggle-webmcp"}
-    assert brief.json()["goal"] == "Ship a portable project graph."
-    assert brief.json()["decisions"][0]["content"] == "Use SQLite locally."
-    assert reset.status_code == 200
-    assert any(node["content"] == "Use Neo4j as the primary storage engine." for node in reset_snapshot.json()["nodes"])
+    assert imported.status_code == 404
+    assert any(node["content"] == "Use Neo4j as the primary storage engine." for node in snapshot.json()["nodes"])
 
 
 def test_demo_cookie_preserves_state_and_all_four_webmcp_tools_use_isolated_scope(tmp_path: Path) -> None:

@@ -17,14 +17,14 @@ Before recording:
 - warm `https://waggle-webmcp-api.onrender.com/health/ready` and wait for HTTP 200;
 - use ChatGPT's built-in browser with a model and account configuration that supports Site tools;
 - open `https://waggle-webmcp.onrender.com/` in ChatGPT's built-in browser;
-- select **Site tools → Available site tools** in the address bar and confirm all four Waggle tools are listed before Prompt 1;
+- select **Site tools → Available site tools** in the address bar and confirm all five Waggle tools are listed before Prompt 1;
 - confirm **Settings → Browser → Permissions → Enable site tools** is enabled; do not look for Waggle in the plugin catalog;
 - select **Restart demo** and confirm the original Neo4j storage decision is authoritative;
 - keep ChatGPT and Waggle in adjacent tabs or side-by-side windows;
 - use 100% browser zoom and a viewport where the Workspace, guide rail, and proposal controls are readable;
 - hide bookmarks, notifications, personal account details, unrelated tabs, and developer-console output;
 - test the microphone, record system audio only if it adds useful tool-call feedback, and leave one second of silence at each cut;
-- prepare the code view at `apps/mcp/graph-ui/src/lib/webmcp.js`, centered on `registerOnce` and the four `name` fields;
+- prepare the code view at `apps/mcp/graph-ui/src/lib/webmcp.js`, centered on `registerOnce` and the five `name` fields;
 - confirm no secrets, local filesystem paths, session cookies, or private browser data are visible.
 
 ## Timed shot list and narration
@@ -82,7 +82,7 @@ prompt.
 - [ ] Narration starts with the problem within the first three seconds.
 - [ ] Audio is clear and free of clipping, keyboard noise, and long silence.
 - [ ] Text is readable at normal YouTube playback size.
-- [ ] The live Workspace and all four WebMCP tool names are visible.
+- [ ] The live Workspace and all five WebMCP tool names are visible.
 - [ ] Project brief and authoritative recall are shown.
 - [ ] Proposal creation leaves the original memory unchanged.
 - [ ] Human Edit & Approve and the exact frozen payload are shown.

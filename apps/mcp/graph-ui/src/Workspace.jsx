@@ -27,8 +27,15 @@ import {
 } from "./lib/demo-state";
 import { resolveSiteToolsStatus } from "./lib/site-tools-status";
 import {
+  clearSessionWorkspace,
+  compileSessionBrief,
+  createSessionApi,
+  loadAbhiIntoSession,
+} from "./lib/session-abhi";
+import {
   registerApplyApprovedMemoryChangeTool,
   registerGetProjectBriefTool,
+  registerLoadAbhiSessionTool,
   registerProposeMemoryChangeTool,
   registerRecallMemoryTool,
 } from "./lib/webmcp";
@@ -213,6 +220,7 @@ export function Workspace() {
   const project = boot.scope.project || "waggle-webmcp";
   const scope = useMemo(() => ({ ...boot.scope, project }), [boot.scope.agent_id, boot.scope.session_id, project]);
   const scopeRef = useRef(scope);
+  const sessionApi = useMemo(() => createSessionApi(project, window.sessionStorage), [project]);
   const [view, setView] = useState(() => pathView(window.location.pathname));
   const [snapshot, setSnapshot] = useState({ nodes: [], edges: [] });
   const [proposals, setProposals] = useState([]);
@@ -251,7 +259,7 @@ export function Workspace() {
   };
 
   const loadActivity = async () => {
-    if (boot.sampleMode) return;
+    if (boot.sampleMode || sessionApi.active()) return;
     const events = await apiRequest("/api/admin/audit-events?limit=80");
     const visibleTypes = new Set(Object.keys(ACTIVITY_LABELS));
     setActivity(events.filter((event) => visibleTypes.has(event.event_type)).slice(0, 40));
@@ -259,6 +267,14 @@ export function Workspace() {
 
   const loadWorkspace = async () => {
     if (boot.sampleMode) return;
+    const sessionState = sessionApi.getState();
+    if (sessionState) {
+      setSnapshot(sessionState.snapshot);
+      setProposals(sessionState.proposals || []);
+      setBrief(compileSessionBrief(sessionState));
+      setLoading(false);
+      return;
+    }
     const query = buildScopeQuery(scope);
     const [graphData, proposalData, briefData, events] = await Promise.all([
       apiRequest(`/api/graph${query}${query ? "&" : "?"}include_source_prompt=true`),
@@ -301,6 +317,7 @@ export function Workspace() {
     Promise.all([
       registerGetProjectBriefTool({
         getScope: () => scopeRef.current,
+        getSessionApi: () => sessionApi,
         onActivity: ({ result }) => {
           setBrief(result);
           addLiveActivity({ event_type: "webmcp.project_brief.read", label: "ChatGPT requested project brief" });
@@ -310,6 +327,7 @@ export function Workspace() {
       }),
       registerRecallMemoryTool({
         getScope: () => scopeRef.current,
+        getSessionApi: () => sessionApi,
         onActivity: ({ result_count: resultCount, result }) => {
           addLiveActivity({ event_type: "webmcp.memory.recalled", label: `ChatGPT recalled ${resultCount} ${resultCount === 1 ? "memory" : "memories"}` });
           const recalledIds = result?.memories?.map((memory) => memory.memory_id || memory.id).filter(Boolean) || [];
@@ -326,6 +344,7 @@ export function Workspace() {
       }),
       registerProposeMemoryChangeTool({
         getScope: () => scopeRef.current,
+        getSessionApi: () => sessionApi,
         onActivity: ({ proposal }) => {
           replaceProposal(proposal);
           addLiveActivity({ event_type: "proposal.created", label: "ChatGPT proposed memory change" });
@@ -341,6 +360,7 @@ export function Workspace() {
       }),
       registerApplyApprovedMemoryChangeTool({
         getScope: () => scopeRef.current,
+        getSessionApi: () => sessionApi,
         onActivity: ({ result }) => {
           replaceProposal(result.proposal);
           addLiveActivity({ event_type: "proposal.applied", label: "Approved memory change applied" });
@@ -351,6 +371,30 @@ export function Workspace() {
           }));
           loadWorkspace().catch((error) => showToast(error.message));
           showToast(result.already_applied ? "This approved change was already applied." : "Approved change applied to authoritative memory.");
+        },
+      }),
+      registerLoadAbhiSessionTool({
+        getScope: () => scopeRef.current,
+        loadAbhi: async ({ projectId, fileName, contentBase64 }) => {
+          const result = await loadAbhiIntoSession({
+            contentBase64,
+            fileName,
+            project: projectId,
+            storage: window.sessionStorage,
+          });
+          setSnapshot(result.snapshot);
+          setProposals([]);
+          setBrief(result.brief);
+          setSelectedMemoryId("");
+          return { ...result, snapshot: undefined };
+        },
+        onActivity: ({ result }) => {
+          addLiveActivity({
+            event_type: "demo.abhi.imported",
+            actor_id: "webmcp",
+            detail: `${result.node_count} memories · browser session only`,
+          });
+          showToast(`Loaded ${result.node_count} private session memories from ChatGPT.`);
         },
       }),
     ])
@@ -369,12 +413,15 @@ export function Workspace() {
   };
 
   const reviewProposal = async (proposal, action, approvedContent) => {
-    const payload = { action };
-    if (approvedContent !== undefined) payload.approved_content = approvedContent;
-    const reviewed = await apiRequest(`/api/webmcp/proposals/${encodeURIComponent(proposal.proposal_id)}/review`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+    const reviewed = sessionApi.active()
+      ? sessionApi.reviewProposal({ proposalId: proposal.proposal_id, action, approvedContent })
+      : await apiRequest(`/api/webmcp/proposals/${encodeURIComponent(proposal.proposal_id)}/review`, {
+        method: "POST",
+        body: JSON.stringify({
+          action,
+          ...(approvedContent !== undefined ? { approved_content: approvedContent } : {}),
+        }),
+      });
     replaceProposal(reviewed);
     setEditingProposalId("");
     setEditedProposalContent("");
@@ -392,6 +439,7 @@ export function Workspace() {
   };
 
   const resetDemo = async () => {
+    clearSessionWorkspace(project, window.sessionStorage);
     await apiRequest("/api/webmcp/demo/reset", { method: "POST", body: "{}" });
     setSelectedMemoryId("");
     setEditingProposalId("");
@@ -414,23 +462,25 @@ export function Workspace() {
     }
     setImporting(true);
     try {
-      const dataUrl = await new Promise((resolve, reject) => {
+      const contentBase64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onload = () => resolve(String(reader.result || "").split(",", 2)[1] || "");
         reader.onerror = () => reject(reader.error || new Error("Could not read that file."));
         reader.readAsDataURL(file);
       });
-      const contentBase64 = String(dataUrl).split(",", 2)[1] || "";
-      const result = await apiRequest("/api/webmcp/import-abhi", {
-        method: "POST",
-        body: JSON.stringify({ content_base64: contentBase64 }),
+      const result = await loadAbhiIntoSession({
+        contentBase64,
+        fileName: file.name,
+        project,
+        storage: window.sessionStorage,
       });
       setBrief(result.brief || null);
+      setSnapshot(result.snapshot);
+      setProposals([]);
       setSelectedMemoryId("");
       clearDemoState(window.sessionStorage, project);
       setDemo(createDemoState(project));
-      await loadWorkspace();
-      showToast(`Imported ${result.node_count} memories and ${result.edge_count} links. ChatGPT can now brief this workspace.`);
+      showToast(`Loaded ${result.node_count} memories privately for this browser session. Nothing was uploaded to Waggle.`);
     } catch (error) {
       showToast(error.message || "The .abhi file could not be imported.");
     } finally {
@@ -479,6 +529,7 @@ export function Workspace() {
   const latestActivity = activity.slice(0, 6);
   const focusedGraphMemoryId = demo.memoryId || "";
   const graphHref = `${boot.apiBaseUrl || ""}/graph?project=${encodeURIComponent(project)}${focusedGraphMemoryId ? `&focus=${encodeURIComponent(focusedGraphMemoryId)}` : ""}`;
+  const privateSessionActive = sessionApi.active();
 
   return (
     <div className={`workspace-shell ${demo.active ? "demo-active" : ""}`}>
@@ -532,10 +583,11 @@ export function Workspace() {
                 title="This hosted workspace is an isolated seeded demonstration of Waggle's WebMCP governance experience."
               ><i /> Challenge Demo</span>
             ) : null}
+            {privateSessionActive ? <span className="human-control" title="This graph exists only in this browser tab's sessionStorage and is never written to Waggle's hosted database."><i /> Private session graph</span> : null}
             <span className="human-control"><i /> Human controlled</span>
             {boot.demoMode ? <>
               <input accept=".abhi,application/octet-stream" aria-label="Import Waggle .abhi file" className="abhi-file-input" onChange={importAbhi} ref={importInputRef} type="file" />
-              <button className="import-abhi-button" disabled={importing} onClick={() => importInputRef.current?.click()} type="button">{importing ? "Importing…" : "Import .abhi"}</button>
+              <button className="import-abhi-button" disabled={importing} onClick={() => importInputRef.current?.click()} title="Parsed locally and kept only until this browser tab/session closes or you reset the demo." type="button">{importing ? "Loading…" : "Load private .abhi"}</button>
             </> : null}
             {boot.demoMode ? <button className="reset-demo-button" onClick={() => (demo.active ? startDemo() : resetDemo()).catch((error) => showToast(error.message))} type="button">Reset Demo</button> : null}
             <button className="refresh-button" onClick={() => loadWorkspace().catch((error) => showToast(error.message))} type="button"><RefreshCw size={14} /> <span>Refresh</span></button>

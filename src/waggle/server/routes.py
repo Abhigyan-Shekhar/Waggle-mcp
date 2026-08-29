@@ -562,86 +562,6 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         result = reset_demo(graph, proposal_repository, demo_scope)
         return JSONResponse(result)
 
-    async def webmcp_import_abhi(request: Request) -> Response:
-        """Replace this browser's demo fixture with a validated portable graph."""
-
-        demo_scope = _demo_scope_from_request(request)
-        if demo_scope is None:
-            raise ValidationFailure("Portable workspace import is available in challenge demo mode only.")
-        payload = await request.json()
-        content_base64 = payload.get("content_base64")
-        if not isinstance(content_base64, str) or not content_base64.strip():
-            raise ValidationFailure("content_base64 is required for a .abhi import.")
-
-        graph, _ = _require_http_scope(request, "graph:write")
-        with tempfile.NamedTemporaryFile(suffix=".abhi", delete=False) as handle:
-            temp_path = Path(handle.name)
-        try:
-            temp_path.write_bytes(_decode_base64_content(content_base64))
-            document = load_abhi_document(temp_path)
-            validation = validate_abhi_document(document, input_path=str(temp_path))
-            if not validation.valid:
-                raise ValidationFailure("; ".join(validation.errors) or "The .abhi file is invalid.")
-            source = abhi_to_snapshot(document, fallback_tenant_id=graph.tenant_id)
-            source_nodes = list(source.get("nodes", []))
-            source_edges = list(source.get("edges", []))
-            if not source_nodes:
-                raise ValidationFailure("The .abhi file contains no memory nodes.")
-            source_node_ids = [str(node.get("id", "")).strip() for node in source_nodes]
-            if not all(source_node_ids) or len(set(source_node_ids)) != len(source_node_ids):
-                raise ValidationFailure("The .abhi file contains invalid or duplicate node identifiers.")
-            # Node ids are globally unique in Waggle's shared backing store, so
-            # namespace them while retaining the graph's structure.
-            node_id_map = {
-                source_id: f"import-{demo_scope.namespace}-{hashlib.sha256(source_id.encode('utf-8')).hexdigest()[:20]}"
-                for source_id in source_node_ids
-            }
-
-            # Preserve topology but re-home the graph inside this browser's
-            # isolated tenant and the stable project id exposed to Site tools.
-            with graph._lock, graph._pool.checkout() as connection:
-                graph._clear_scope_rows(connection, scope="project", project=demo_scope.project_id, dry_run=False)
-                proposal_repository.clear_project(tenant_id=str(graph.tenant_id), project_id=demo_scope.project_id, connection=connection)
-                for node in source_nodes:
-                    graph.add_node(
-                        node_id=node_id_map[str(node.get("id", "")).strip()],
-                        label=str(node.get("label", "")).strip(),
-                        content=str(node.get("content", "")).strip(),
-                        node_type=NodeType(str(node.get("node_type", "note"))),
-                        tags=[str(tag).strip() for tag in node.get("tags", []) if str(tag).strip()],
-                        source_prompt=str(node.get("source_prompt", "")),
-                        agent_id=str(node.get("agent_id", "imported-abhi")) or "imported-abhi",
-                        project=demo_scope.project_id,
-                        session_id=str(node.get("session_id", "")),
-                        metadata=dict(node.get("metadata") or {}),
-                        connection=connection,
-                        force_new=True,
-                    )
-                for edge_index, edge in enumerate(source_edges):
-                    source_id = str(edge.get("source_id", "")).strip()
-                    target_id = str(edge.get("target_id", "")).strip()
-                    if source_id not in node_id_map or target_id not in node_id_map:
-                        raise ValidationFailure("The .abhi file contains an edge with a missing node.")
-                    edge_key = f"{edge_index}:{edge.get('id', '')}"
-                    graph.add_edge(
-                        edge_id=f"import-edge-{demo_scope.namespace}-{hashlib.sha256(edge_key.encode('utf-8')).hexdigest()[:20]}",
-                        source_id=node_id_map[source_id],
-                        target_id=node_id_map[target_id],
-                        relationship=RelationType(str(edge.get("relationship", "relates_to"))),
-                        weight=float(edge.get("weight", 1.0)),
-                        metadata=dict(edge.get("metadata") or {}),
-                        connection=connection,
-                    )
-                graph.emit_audit_event(
-                    event_type="demo.abhi.imported", actor_type="human", actor_id="local-human",
-                    resource_type="project", resource_id=demo_scope.project_id, action="replace_from_abhi",
-                    metadata={"project": demo_scope.project_id, "node_count": len(source_nodes), "edge_count": len(source_edges)}, connection=connection,
-                )
-            brief = compile_project_brief(graph, project_id=demo_scope.project_id)
-            return JSONResponse(_public_response(request, {"status": "imported", "project_id": demo_scope.project_id, "node_count": len(source_nodes), "edge_count": len(source_edges), "brief": brief}))
-        finally:
-            temp_path.unlink(missing_ok=True)
-
     async def graph_transcripts(request: Request) -> Response:
         scope = _scope_from_request(request)
         try:
@@ -1450,7 +1370,6 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             Route("/api/webmcp/proposals", webmcp_list_proposals, methods=["GET"]),
             Route("/api/webmcp/proposals", webmcp_propose_memory_change, methods=["POST"]),
             Route("/api/webmcp/demo/reset", webmcp_reset_demo, methods=["POST"]),
-            Route("/api/webmcp/import-abhi", webmcp_import_abhi, methods=["POST"]),
             Route(
                 "/api/webmcp/proposals/{proposal_id:str}/review",
                 webmcp_review_proposal,

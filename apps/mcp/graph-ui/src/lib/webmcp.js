@@ -45,6 +45,7 @@ function projectIdSchema(getScope, description) {
 export function registerGetProjectBriefTool({
   modelContext = document.modelContext,
   getScope = () => ({}),
+  getSessionApi = () => null,
   onActivity = () => {},
 } = {}) {
   if (typeof modelContext?.registerTool !== "function") {
@@ -75,14 +76,18 @@ export function registerGetProjectBriefTool({
 
       assertWorkspaceProject(projectId.trim(), getScope);
 
-      const result = await apiRequest("/api/webmcp/project-brief", {
-        method: "POST",
-        body: JSON.stringify({ project_id: projectId.trim() }),
-      });
+      const sessionApi = getSessionApi();
+      const result = sessionApi?.active()
+        ? sessionApi.getProjectBrief()
+        : await apiRequest("/api/webmcp/project-brief", {
+          method: "POST",
+          body: JSON.stringify({ project_id: projectId.trim() }),
+        });
       onActivity({
         tool: "get_project_brief",
         project_id: projectId.trim(),
         supporting_memory_count: result.supporting_memory_ids?.length || 0,
+        result,
       });
       return result;
     },
@@ -92,6 +97,7 @@ export function registerGetProjectBriefTool({
 export function registerRecallMemoryTool({
   modelContext = document.modelContext,
   getScope = () => ({}),
+  getSessionApi = () => null,
   onActivity = () => {},
 } = {}) {
   if (typeof modelContext?.registerTool !== "function") {
@@ -142,14 +148,17 @@ export function registerRecallMemoryTool({
       }
 
       assertWorkspaceProject(projectId.trim(), getScope);
-      const result = await apiRequest("/api/webmcp/recall-memory", {
-        method: "POST",
-        body: JSON.stringify({
-          project_id: projectId.trim(),
-          query: query.trim(),
-          limit,
-        }),
-      });
+      const sessionApi = getSessionApi();
+      const result = sessionApi?.active()
+        ? sessionApi.recallMemory({ query: query.trim(), limit })
+        : await apiRequest("/api/webmcp/recall-memory", {
+          method: "POST",
+          body: JSON.stringify({
+            project_id: projectId.trim(),
+            query: query.trim(),
+            limit,
+          }),
+        });
       onActivity({
         tool: "recall_memory",
         project_id: projectId.trim(),
@@ -164,6 +173,7 @@ export function registerRecallMemoryTool({
 export function registerProposeMemoryChangeTool({
   modelContext = document.modelContext,
   getScope = () => ({}),
+  getSessionApi = () => null,
   onActivity = () => {},
 } = {}) {
   if (typeof modelContext?.registerTool !== "function") {
@@ -237,16 +247,25 @@ export function registerProposeMemoryChangeTool({
       }
 
       assertWorkspaceProject(projectId.trim(), getScope);
-      const result = await apiRequest("/api/webmcp/proposals", {
-        method: "POST",
-        body: JSON.stringify({
-          project_id: projectId.trim(),
-          memory_id: memoryId.trim(),
-          proposed_content: proposedContent.trim(),
+      const normalizedEvidenceIds = evidenceIds.map((item) => item.trim());
+      const sessionApi = getSessionApi();
+      const result = sessionApi?.active()
+        ? sessionApi.proposeMemoryChange({
+          memoryId: memoryId.trim(),
+          proposedContent: proposedContent.trim(),
           reason: reason.trim(),
-          evidence_ids: evidenceIds.map((item) => item.trim()),
-        }),
-      });
+          evidenceIds: normalizedEvidenceIds,
+        })
+        : await apiRequest("/api/webmcp/proposals", {
+          method: "POST",
+          body: JSON.stringify({
+            project_id: projectId.trim(),
+            memory_id: memoryId.trim(),
+            proposed_content: proposedContent.trim(),
+            reason: reason.trim(),
+            evidence_ids: normalizedEvidenceIds,
+          }),
+        });
       onActivity({
         tool: "propose_memory_change",
         project_id: projectId.trim(),
@@ -260,6 +279,7 @@ export function registerProposeMemoryChangeTool({
 export function registerApplyApprovedMemoryChangeTool({
   modelContext = document.modelContext,
   getScope = () => ({}),
+  getSessionApi = () => null,
   onActivity = () => {},
 } = {}) {
   if (typeof modelContext?.registerTool !== "function") {
@@ -297,18 +317,84 @@ export function registerApplyApprovedMemoryChangeTool({
       if (!projectId) {
         throw new Error("PROJECT_NOT_IN_WORKSPACE: open the proposal's project before applying it.");
       }
-      const result = await apiRequest(
-        `/api/webmcp/proposals/${encodeURIComponent(proposalId.trim())}/apply`,
-        {
-          method: "POST",
-          body: JSON.stringify({ project_id: projectId }),
-        },
-      );
+      const sessionApi = getSessionApi();
+      const result = sessionApi?.active()
+        ? sessionApi.applyApprovedMemoryChange({ proposalId: proposalId.trim() })
+        : await apiRequest(
+          `/api/webmcp/proposals/${encodeURIComponent(proposalId.trim())}/apply`,
+          {
+            method: "POST",
+            body: JSON.stringify({ project_id: projectId }),
+          },
+        );
       onActivity({
         tool: "apply_approved_memory_change",
         project_id: projectId,
         result,
       });
+      return result;
+    },
+  });
+}
+
+export function registerLoadAbhiSessionTool({
+  modelContext = document.modelContext,
+  getScope = () => ({}),
+  loadAbhi = async () => { throw new Error("SESSION_IMPORT_UNAVAILABLE"); },
+  onActivity = () => {},
+} = {}) {
+  if (typeof modelContext?.registerTool !== "function") {
+    return Promise.resolve(false);
+  }
+
+  return registerOnce(modelContext, {
+    name: "load_abhi_for_session",
+    description:
+      "Use this Waggle Site tool when the user attaches a .abhi file and asks to load or discuss it for this browser session. Pass the attached file bytes as base64. The file is parsed in the page, kept only in sessionStorage, never uploaded to Waggle's server, and disappears when this browser tab/session closes or the user resets it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_id: projectIdSchema(
+          getScope,
+          "The exact Waggle workspace identifier that will temporarily host the imported graph.",
+        ),
+        file_name: {
+          type: "string",
+          pattern: "\\.abhi$",
+          maxLength: 255,
+          description: "The attached file name, ending in .abhi.",
+        },
+        content_base64: {
+          type: "string",
+          minLength: 4,
+          maxLength: 1000000,
+          contentEncoding: "base64",
+          contentMediaType: "application/vnd.waggle.abhi",
+          description: "The exact attached .abhi file bytes encoded as base64; do not summarize or alter them.",
+        },
+      },
+      required: ["project_id", "file_name", "content_base64"],
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+    },
+    execute: async (input) => {
+      const projectId = input?.project_id;
+      const fileName = input?.file_name;
+      const contentBase64 = input?.content_base64;
+      if (typeof projectId !== "string" || !projectId.trim()) throw new Error("INVALID_INPUT: project_id is required.");
+      if (typeof fileName !== "string" || !fileName.toLowerCase().endsWith(".abhi")) throw new Error("INVALID_INPUT: file_name must end in .abhi.");
+      if (typeof contentBase64 !== "string" || !contentBase64.trim()) throw new Error("INVALID_INPUT: content_base64 is required.");
+      assertWorkspaceProject(projectId.trim(), getScope);
+      const result = await loadAbhi({
+        projectId: projectId.trim(),
+        fileName,
+        contentBase64,
+      });
+      onActivity({ tool: "load_abhi_for_session", project_id: projectId.trim(), result });
       return result;
     },
   });

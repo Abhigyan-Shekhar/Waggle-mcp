@@ -220,7 +220,7 @@ multi-tenant SaaS infrastructure are intentionally outside this submission.
 
 Use ChatGPT's built-in browser with a model and account configuration that
 supports Site tools. Open the Live Workspace and select **Site tools →
-Available site tools** in the address bar. Confirm all four
+Available site tools** in the address bar. Confirm all five
 Waggle tools are listed before Prompt 1. If necessary, enable **Settings →
 Browser → Permissions → Enable site tools** and reload. Waggle is provided by
 the open page, not installed from the plugin catalog.

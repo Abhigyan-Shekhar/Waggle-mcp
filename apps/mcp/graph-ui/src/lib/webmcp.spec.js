@@ -3,12 +3,47 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   registerApplyApprovedMemoryChangeTool,
   registerGetProjectBriefTool,
+  registerLoadAbhiSessionTool,
   registerProposeMemoryChangeTool,
   registerRecallMemoryTool,
 } from "./webmcp";
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("load_abhi_for_session WebMCP registration", () => {
+  it("accepts attached bytes as base64 and delegates only to the browser loader", async () => {
+    let definition;
+    const loadAbhi = vi.fn(async () => ({
+      status: "loaded_for_browser_session",
+      node_count: 2,
+      privacy: "browser session only",
+    }));
+    const activity = vi.fn();
+    await registerLoadAbhiSessionTool({
+      modelContext: { registerTool: (tool) => (definition = tool) },
+      getScope: () => ({ project: "waggle-webmcp" }),
+      loadAbhi,
+      onActivity: activity,
+    });
+
+    expect(definition.name).toBe("load_abhi_for_session");
+    expect(definition.inputSchema.properties.content_base64.contentEncoding).toBe("base64");
+    expect(definition.description).toContain("never uploaded to Waggle's server");
+    const result = await definition.execute({
+      project_id: "waggle-webmcp",
+      file_name: "project.abhi",
+      content_base64: "V0dMAQ==",
+    });
+    expect(result.status).toBe("loaded_for_browser_session");
+    expect(loadAbhi).toHaveBeenCalledWith({
+      projectId: "waggle-webmcp",
+      fileName: "project.abhi",
+      contentBase64: "V0dMAQ==",
+    });
+    expect(activity).toHaveBeenCalledOnce();
+  });
 });
 
 describe("get_project_brief WebMCP registration", () => {

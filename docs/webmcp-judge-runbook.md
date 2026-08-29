@@ -49,7 +49,9 @@ the plugin catalog: WebMCP tools belong to the open page.
 After the browser lists the tools, run the exact judge story in ChatGPT:
 
 1. Discover `get_project_brief`, `recall_memory`,
-   `propose_memory_change`, and `apply_approved_memory_change`.
+   `propose_memory_change`, `apply_approved_memory_change`, and
+   `load_abhi_for_session`. The first four remain the frozen governance flow;
+   the fifth accepts an attached `.abhi` payload for browser-session-only use.
 2. Call `get_project_brief` with `project_id: waggle-webmcp`.
 3. Recall `storage architecture` and confirm the authoritative answer is
    `Use Neo4j as the primary storage engine.`
