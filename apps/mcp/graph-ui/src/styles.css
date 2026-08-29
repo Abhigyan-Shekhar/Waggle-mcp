@@ -164,6 +164,9 @@ body {
 .challenge-demo { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid #d6c793; border-radius: 999px; color: #72581f; background: #fff8df; font-size: 11px; font-weight: 700; }
 .challenge-demo i { width: 7px; height: 7px; border-radius: 50%; background: #bd8930; box-shadow: 0 0 0 4px rgba(189,137,48,.12); }
 .reset-demo-button { padding: 8px 11px; border: 1px solid #d6c793; border-radius: 10px; color: #70541b; background: #fffaf0; font-size: 11px; font-weight: 650; }
+.import-abhi-button { padding: 8px 11px; border: 1px solid #92b7a5; border-radius: 10px; color: #35664e; background: #f4fbf6; font-size: 11px; font-weight: 650; }
+.import-abhi-button:disabled { opacity: .65; cursor: wait; }
+.abhi-file-input { display: none; }
 .human-control i { width: 7px; height: 7px; border: 2px solid #3d7557; border-radius: 50%; }
 .refresh-button { display: inline-flex; gap: 6px; align-items: center; padding: 8px 11px; border: 1px solid var(--workspace-line); border-radius: 10px; color: #5e6761; background: rgba(255, 255, 255, 0.65); font-size: 12px; }
 .workspace-content { max-width: 1260px; margin: 0 auto; padding: 42px 44px 70px; }

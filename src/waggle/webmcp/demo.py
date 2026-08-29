@@ -164,7 +164,13 @@ def ensure_demo_seed(graph: Any, repository: ProposalRepository, scope: DemoScop
 
     del repository  # Kept in the signature to make the shared store boundary explicit.
     with graph._lock, graph._pool.checkout() as connection:
-        existing = graph._fetch_node_row(connection, scope.node_id("storage"))
+        # Imported portable workspaces deliberately replace the seeded storage
+        # node. Any project node therefore means this browser already has a
+        # workspace and must not be silently reseeded on the next request.
+        existing = connection.execute(
+            "SELECT 1 FROM nodes WHERE tenant_id = ? AND project = ? LIMIT 1",
+            (str(graph.tenant_id), scope.project_id),
+        ).fetchone()
         if existing is None:
             _seed_demo(graph, scope, connection=connection)
 

@@ -52,6 +52,7 @@ const ACTIVITY_LABELS = {
   "proposal.applied": "Approved memory change applied",
   "memory.superseded": "Previous memory preserved in history",
   "demo.workspace.seeded": "Challenge workspace prepared",
+  "demo.abhi.imported": "Human imported portable memory graph",
   "demo.reset": "Human reset the challenge demo",
 };
 
@@ -227,6 +228,8 @@ export function Workspace() {
   const [loading, setLoading] = useState(true);
   const [demo, setDemo] = useState(() => loadDemoState(window.sessionStorage, project));
   const [siteToolsStatus, setSiteToolsStatus] = useState({ kind: "checking", registeredCount: 0 });
+  const importInputRef = useRef(null);
+  const [importing, setImporting] = useState(false);
 
   const showToast = (message) => {
     setToast(message);
@@ -397,6 +400,44 @@ export function Workspace() {
     showToast("Demo reset to the original governed-memory fixture.");
   };
 
+  const importAbhi = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".abhi")) {
+      showToast("Choose a Waggle .abhi memory file.");
+      return;
+    }
+    if (file.size > 700 * 1024) {
+      showToast("This hosted demo accepts .abhi files up to 700 KB.");
+      return;
+    }
+    setImporting(true);
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(reader.error || new Error("Could not read that file."));
+        reader.readAsDataURL(file);
+      });
+      const contentBase64 = String(dataUrl).split(",", 2)[1] || "";
+      const result = await apiRequest("/api/webmcp/import-abhi", {
+        method: "POST",
+        body: JSON.stringify({ content_base64: contentBase64 }),
+      });
+      setBrief(result.brief || null);
+      setSelectedMemoryId("");
+      clearDemoState(window.sessionStorage, project);
+      setDemo(createDemoState(project));
+      await loadWorkspace();
+      showToast(`Imported ${result.node_count} memories and ${result.edge_count} links. ChatGPT can now brief this workspace.`);
+    } catch (error) {
+      showToast(error.message || "The .abhi file could not be imported.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const startDemo = async () => {
     await resetDemo();
     navigate("overview");
@@ -492,6 +533,10 @@ export function Workspace() {
               ><i /> Challenge Demo</span>
             ) : null}
             <span className="human-control"><i /> Human controlled</span>
+            {boot.demoMode ? <>
+              <input accept=".abhi,application/octet-stream" aria-label="Import Waggle .abhi file" className="abhi-file-input" onChange={importAbhi} ref={importInputRef} type="file" />
+              <button className="import-abhi-button" disabled={importing} onClick={() => importInputRef.current?.click()} type="button">{importing ? "Importing…" : "Import .abhi"}</button>
+            </> : null}
             {boot.demoMode ? <button className="reset-demo-button" onClick={() => (demo.active ? startDemo() : resetDemo()).catch((error) => showToast(error.message))} type="button">Reset Demo</button> : null}
             <button className="refresh-button" onClick={() => loadWorkspace().catch((error) => showToast(error.message))} type="button"><RefreshCw size={14} /> <span>Refresh</span></button>
           </div>
