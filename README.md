@@ -51,7 +51,7 @@ human decides exactly what becomes the new truth.
 |---|---|
 | ![Waggle proposal review showing the exact human-approved SQLite decision frozen for later application by ChatGPT.](docs/assets/webmcp-submission/03-proposal-human-governance.png) | ![Waggle Graph Studio focused on current and previous memory workflow nodes connected by an updates edge.](docs/assets/webmcp-submission/04-graph-studio-lineage.png) |
 
-![Human and ChatGPT meet in the Waggle Workspace, where four WebMCP tools cross a human approval boundary before updating an isolated SQLite-backed MemoryGraph.](docs/assets/webmcp-submission/05-webmcp-architecture.png)
+![Human and ChatGPT meet in the Waggle Workspace, where WebMCP tools cross a human approval boundary before updating governed memory.](docs/assets/webmcp-submission/05-webmcp-architecture.png)
 
 ### See Waggle in action
 
@@ -59,7 +59,9 @@ human decides exactly what becomes the new truth.
    built-in browser with a model and account configuration that supports Site
    tools.
 2. In the built-in browser address bar, open **Site tools → Available site
-   tools** and confirm all four Waggle tools are listed. If needed, enable
+   tools** and confirm five Waggle tools are listed. The four governance tools
+   remain the judged flow; `load_abhi_for_session` adds private, temporary
+   browser-session memory. If needed, enable
    **Settings → Browser → Permissions → Enable site tools**. Waggle's WebMCP
    integration is page-level; it is not installed from the plugin catalog.
 3. Select **See Waggle in Action**. Starting or restarting the guide resets
