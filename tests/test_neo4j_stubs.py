@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import inspect
+import json
+from datetime import UTC, datetime
+from pathlib import Path
 from types import MethodType
 from unittest.mock import MagicMock
 
 import numpy as np
 
 from waggle.models import (
+    Edge,
+    Node,
+    NodeType,
     SubgraphResult,
 )
 from waggle.neo4j_graph import Neo4jMemoryGraph
@@ -226,27 +232,348 @@ def test_neo4j_for_tenant_returns_new_instance() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Note: Known Neo4j gaps
+# Signature contract for previously trapped methods
 # ---------------------------------------------------------------------------
-#
-# The following methods are defined in `src/waggle/neo4j_graph.py` but are
-# NOT accessible on `Neo4jMemoryGraph` instances because they appear inside
-# a module-level `def update_node(...)` function (line 1867) that is never
-# called and whose body (lines 1959-4277) is dead code.  These methods
-# cannot be tested without first fixing the indentation:
-#
-#   - delete_node        (line 2069)
-#   - update_edge        (line 1959)
-#   - delete_edge        (line 2034)
-#   - list_recent_nodes  (line 2084)
-#   - list_context_scopes(line 2110)
-#   - get_stats          (line 2125)
-#   - list_transcript_records  (line 3375)
-#   - search_transcript_records(line 3407)
-#
-# Additionally, `add_node` and `add_edge` *are* accessible on the class but
-# internally call private helpers (`_find_duplicate_node`, `_require_node`,
-# `_fetch_node`, `_node_create_params`, `_node_from_props`,
-# `_register_conflicts`, `_find_existing_edge`) that are also trapped in
-# the same dead-code region.  These methods cannot execute without fixing
-# the indentation first.
+
+
+def test_neo4j_update_node_signature() -> None:
+    sig = inspect.signature(Neo4jMemoryGraph.update_node)
+    assert "node_id" in sig.parameters
+    assert "content" in sig.parameters
+    assert "label" in sig.parameters
+    assert "tags" in sig.parameters
+    assert "agent_id" in sig.parameters
+    assert "project" in sig.parameters
+    assert "session_id" in sig.parameters
+    assert "valid_from" in sig.parameters
+    assert "valid_to" in sig.parameters
+    assert "evidence_records" in sig.parameters
+
+
+def test_neo4j_delete_node_signature() -> None:
+    sig = inspect.signature(Neo4jMemoryGraph.delete_node)
+    assert "node_id" in sig.parameters
+
+
+def test_neo4j_update_edge_signature() -> None:
+    sig = inspect.signature(Neo4jMemoryGraph.update_edge)
+    assert "edge_id" in sig.parameters
+    assert "source_id" in sig.parameters
+    assert "target_id" in sig.parameters
+    assert "relationship" in sig.parameters
+    assert "weight" in sig.parameters
+    assert "metadata" in sig.parameters
+
+
+def test_neo4j_delete_edge_signature() -> None:
+    sig = inspect.signature(Neo4jMemoryGraph.delete_edge)
+    assert "edge_id" in sig.parameters
+
+
+def test_neo4j_list_recent_nodes_signature() -> None:
+    sig = inspect.signature(Neo4jMemoryGraph.list_recent_nodes)
+    assert "limit" in sig.parameters
+    assert "agent_id" in sig.parameters
+    assert "project" in sig.parameters
+    assert "session_id" in sig.parameters
+
+
+def test_neo4j_list_context_scopes_signature() -> None:
+    inspect.signature(Neo4jMemoryGraph.list_context_scopes)
+
+
+def test_neo4j_get_stats_signature() -> None:
+    inspect.signature(Neo4jMemoryGraph.get_stats)
+
+
+def test_neo4j_merge_duplicate_node_preserves_scope_fields() -> None:
+    graph = make_mock_graph()
+    existing_node = Node(
+        id="existing_id",
+        tenant_id="tenant_x",
+        agent_id="agent_123",
+        project="project_abc",
+        session_id="session_xyz",
+        label="existing_label",
+        content="existing_content",
+        node_type=NodeType.CONCEPT,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    incoming_node = Node(
+        id="incoming_id",
+        tenant_id="tenant_x",
+        agent_id="agent_456",
+        project="project_def",
+        session_id="session_uvw",
+        label="incoming_label",
+        content="incoming_content",
+        node_type=NodeType.CONCEPT,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    mock_session = graph._session.return_value
+    merged = graph._merge_duplicate_node(mock_session, existing_node=existing_node, incoming_node=incoming_node)
+
+    assert merged.agent_id == "agent_123"
+    assert merged.project == "project_abc"
+    assert merged.session_id == "session_xyz"
+
+
+def test_neo4j_update_edge_deduplication() -> None:
+    graph = make_mock_graph()
+
+    # Mock _fetch_node so self._require_node passes
+    graph._fetch_node = MagicMock(return_value=MagicMock())
+
+    # Mock database session return value for finding existing edge
+    mock_session = graph._session.return_value
+    mock_session.run.return_value.single.return_value = {
+        "id": "edge_1",
+        "source_id": "source",
+        "target_id": "target",
+        "relationship": "relates_to",
+        "weight": 1.0,
+        "metadata": "{}",
+        "created_at": "2026-01-01T00:00:00+00:00",
+    }
+
+    # Mock _find_existing_edge to return a duplicate edge
+    existing_dup = Edge(
+        id="edge_2",
+        tenant_id="local-default",
+        source_id="source",
+        target_id="target",
+        relationship="relates_to",
+        weight=1.0,
+    )
+    graph._find_existing_edge = MagicMock(return_value=existing_dup)
+
+    updated = graph.update_edge(
+        edge_id="edge_1",
+        source_id="source",
+        target_id="target",
+        relationship="relates_to",
+    )
+
+    # Check that it returns the duplicate edge (edge_2) instead of updating edge_1
+    assert updated.id == "edge_2"
+
+    # Verify that the old edge was deleted
+    delete_called = False
+    for call in mock_session.run.call_args_list:
+        query = call[0][0]
+        if "DELETE r" in query and "MEMORY_EDGE" in query:
+            delete_called = True
+    assert delete_called
+
+
+def test_neo4j_snapshot_scope_persistence() -> None:
+    graph = make_mock_graph()
+    mock_session = graph._session.return_value
+
+    raw_node = {
+        "id": "node_123",
+        "label": "TestNode",
+        "content": "test content",
+        "node_type": "note",
+        "agent_id": "my-agent",
+        "project": "my-project",
+        "session_id": "my-session",
+        "tags": [],
+        "created_at": "2026-01-01T00:00:00+00:00",
+        "updated_at": "2026-01-01T00:00:00+00:00",
+    }
+
+    graph._insert_snapshot_node(mock_session, raw_node)
+
+    # Verify CREATE query contains agent_id, project, and session_id
+    create_called = False
+    for call in mock_session.run.call_args_list:
+        query = call[0][0]
+        kwargs = call[1]
+        if "CREATE (n:MemoryNode" in query:
+            create_called = True
+            assert "agent_id" in kwargs
+            assert kwargs["agent_id"] == "my-agent"
+            assert kwargs["project"] == "my-project"
+            assert kwargs["session_id"] == "my-session"
+    assert create_called
+
+    mock_session.run.reset_mock()
+    graph._update_snapshot_node(mock_session, raw_node)
+
+    # Verify SET query contains agent_id, project, and session_id
+    update_called = False
+    for call in mock_session.run.call_args_list:
+        query = call[0][0]
+        kwargs = call[1]
+        if "MATCH (n:MemoryNode" in query and "SET" in query:
+            update_called = True
+            assert "agent_id" in kwargs
+            assert kwargs["agent_id"] == "my-agent"
+            assert kwargs["project"] == "my-project"
+            assert kwargs["session_id"] == "my-session"
+    assert update_called
+
+
+def test_neo4j_import_graph_backup_preserves_embeddings(tmp_path: Path) -> None:
+    graph = make_mock_graph()
+    mock_session = graph._session.return_value
+
+    # We mock _fetch_node to return None so it performs insert
+    graph._fetch_node = MagicMock(return_value=None)
+
+    backup_data = {
+        "schema_version": 5,
+        "tenant_id": "local-default",
+        "nodes": [
+            {
+                "id": "node_123",
+                "label": "TestNode",
+                "content": "test content",
+                "node_type": "note",
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "updated_at": "2026-01-01T00:00:00+00:00",
+            }
+        ],
+        "edges": [],
+        "embeddings": {
+            "node_123": "AACAPwAAAEA="  # float32 array [1.0, 2.0]
+        },
+    }
+
+    backup_file = tmp_path / "backup.json"
+    backup_file.write_text(json.dumps(backup_data))
+
+    graph.import_graph_backup(input_path=backup_file)
+
+    # Verify that session.run was called to CREATE the node with the preserved embedding
+    create_called = False
+    for call in mock_session.run.call_args_list:
+        query = call[0][0]
+        kwargs = call[1]
+        if "CREATE (n:MemoryNode" in query:
+            create_called = True
+            assert "embedding" in kwargs
+            assert kwargs["embedding"] == [1.0, 2.0]
+    assert create_called
+
+
+def test_neo4j_markdown_vault_import_rejects_out_of_scope_id_resolved_target(tmp_path: Path) -> None:
+    graph = make_mock_graph()
+    mock_session = graph._session.return_value
+
+    # Mock the query "MATCH (n:MemoryNode ...)" to return the out-of-scope target node
+    mock_record = {
+        "n": {
+            "id": "b002-123",
+            "label": "Out of Scope Target",
+            "content": "Target content",
+            "node_type": "note",
+            "project": "other-project",
+            "agent_id": "other-agent",
+            "session_id": "other-session",
+            "tenant_id": "local-default",
+            "tags": [],
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "updated_at": "2026-01-01T00:00:00+00:00",
+        }
+    }
+
+    mock_result = MagicMock()
+    mock_result.__iter__ = MagicMock(return_value=iter([mock_record]))
+    mock_result.single = MagicMock(return_value=None)
+    mock_session.run.return_value = mock_result
+
+    # Mock add_node to handle both the source node creation and stub node creation
+    source_node = Node(
+        id="a001-123",
+        label="Source Document",
+        content="Source content",
+        node_type=NodeType.NOTE,
+        project="default",
+        agent_id="default",
+        session_id="default",
+        tenant_id="local-default",
+        tags=[],
+    )
+
+    stub_node = Node(
+        id="stub-456",
+        label="Out of Scope Target",
+        content="Stub content",
+        node_type=NodeType.NOTE,
+        project="default",
+        agent_id="default",
+        session_id="default",
+        tenant_id="local-default",
+        tags=["stub", "vault-import"],
+    )
+
+    class MockResult:
+        def __init__(self, node: Node):
+            self.node = node
+
+    def mock_add_node(label: str, **kwargs: object) -> MockResult:
+        if label == "Source Document":
+            return MockResult(source_node)
+        else:
+            # Must be the stub node
+            assert kwargs.get("project") == "default"
+            assert kwargs.get("agent_id") == "default"
+            assert kwargs.get("session_id") == "default"
+            return MockResult(stub_node)
+
+    graph.add_node = MagicMock(side_effect=mock_add_node)
+
+    def mock_fetch_node(session: object, node_id: str) -> Node | None:
+        if node_id == "a001-123":
+            return source_node
+        elif node_id == "stub-456":
+            return stub_node
+        elif node_id == "b002-123":
+            # Out of scope target node
+            return Node(
+                id="b002-123",
+                label="Out of Scope Target",
+                content="Target content",
+                node_type=NodeType.NOTE,
+                project="other-project",
+                agent_id="other-agent",
+                session_id="other-session",
+                tenant_id="local-default",
+            )
+        return None
+
+    graph._fetch_node = MagicMock(side_effect=mock_fetch_node)
+    graph.add_edge = MagicMock()
+
+    # Write the markdown document
+    vault_dir = tmp_path / "vault-scope-neo4j"
+    vault_dir.mkdir(parents=True, exist_ok=True)
+    doc_path = vault_dir / "Source Document.md"
+    doc_content = (
+        "---\n"
+        "node_id: a001-123\n"
+        "label: Source Document\n"
+        "type: Note\n"
+        "project: default\n"
+        "agent_id: default\n"
+        "session_id: default\n"
+        "---\n"
+        "\n"
+        "We are referencing an out of scope node.\n"
+        "\n"
+        "## Relations\n"
+        "- [[depends_on::Out of Scope Target]] <!-- node_id:b002-123 -->\n"
+    )
+    doc_path.write_text(doc_content, encoding="utf-8")
+
+    # Import the vault
+    imported = graph.import_markdown_vault(root_path=vault_dir)
+
+    # Verify that a stub node was created
+    assert imported.stub_nodes_created == 1
+    # Verify that we called add_node to create the stub node (with project="default")
+    assert graph.add_node.call_count == 2

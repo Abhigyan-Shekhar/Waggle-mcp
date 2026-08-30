@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import pytest
+from test_dedup import make_graph
 
-from tests.test_dedup import make_graph
 from waggle.models import Node, NodeType
 
 

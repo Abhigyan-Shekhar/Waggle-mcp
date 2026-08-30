@@ -128,6 +128,40 @@ def _decode_metadata(raw: Any) -> dict[str, Any]:
     return {}
 
 
+def _decode_evidence_records(raw: Any) -> list[EvidenceRecord]:
+    if raw in (None, ""):
+        return []
+    if isinstance(raw, list):
+        return [EvidenceRecord.model_validate(item) for item in raw]
+    if isinstance(raw, str):
+        try:
+            decoded = json.loads(raw)
+        except json.JSONDecodeError:
+            return []
+        if not isinstance(decoded, list):
+            return []
+        return [EvidenceRecord.model_validate(item) for item in decoded]
+    return []
+
+
+def _decode_list(raw: Any) -> list[Any]:
+    if raw in (None, ""):
+        return []
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str):
+        try:
+            decoded = json.loads(raw)
+        except json.JSONDecodeError:
+            return []
+        return decoded if isinstance(decoded, list) else []
+    return []
+
+
+def _decode_string_list(raw: Any) -> list[str]:
+    return [str(item).strip() for item in _decode_list(raw) if str(item).strip()]
+
+
 def _normalized_content_hash(text: str) -> str:
     normalized = normalize_text(text)
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()

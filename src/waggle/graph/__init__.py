@@ -106,6 +106,7 @@ from .base import (
 )
 from .base import (
     MemoryGraphBase,
+    _decode_evidence_records,
     _decode_metadata,
     _encode_evidence_records,
     _encode_metadata,
@@ -385,22 +386,6 @@ CREATE INDEX IF NOT EXISTS idx_audit_events_tenant_type ON audit_events(tenant_i
 CREATE INDEX IF NOT EXISTS idx_audit_events_tenant_actor ON audit_events(tenant_id, actor_id);
 CREATE INDEX IF NOT EXISTS idx_audit_events_tenant_resource ON audit_events(tenant_id, resource_id);
 """
-
-
-def _decode_evidence_records(raw: Any) -> list[EvidenceRecord]:
-    if raw in (None, ""):
-        return []
-    if isinstance(raw, list):
-        return [EvidenceRecord.model_validate(item) for item in raw]
-    if isinstance(raw, str):
-        try:
-            decoded = json.loads(raw)
-        except json.JSONDecodeError:
-            return []
-        if not isinstance(decoded, list):
-            return []
-        return [EvidenceRecord.model_validate(item) for item in decoded]
-    return []
 
 
 class _ReadWriteLock:
@@ -3580,7 +3565,18 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                     [str(document.frontmatter["node_id"]) for document in documents],
                 )
             }
-            label_index: dict[str, Node] = {}
+            label_index: dict[str, list[Node]] = {}
+
+            def _index_node(node: Node) -> None:
+                label_index.setdefault(node.label.strip().lower(), []).append(node)
+
+            def _replace_indexed_node(node: Node) -> None:
+                for key in list(label_index):
+                    label_index[key] = [candidate for candidate in label_index[key] if candidate.id != node.id]
+                    if not label_index[key]:
+                        del label_index[key]
+                _index_node(node)
+
             all_rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata,
@@ -3592,7 +3588,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             ).fetchall()
             for row in all_rows:
                 node = self._row_to_node(row)
-                label_index.setdefault(node.label.strip().lower(), node)
+                _index_node(node)
                 nodes_by_id.setdefault(node.id, node)
 
             imported_id_map: dict[str, str] = {}
@@ -3603,7 +3599,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 if original_node_id:
                     imported_id_map[original_node_id] = node.id
                     nodes_by_id[original_node_id] = node
-                label_index[node.label.strip().lower()] = node
+                _replace_indexed_node(node)
                 if created:
                     result.nodes_created += 1
                 else:
@@ -3618,8 +3614,25 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                 for relation in document.relations:
                     target_lookup_id = imported_id_map.get(relation.target_node_id, relation.target_node_id)
                     target_node = nodes_by_id.get(target_lookup_id) if target_lookup_id else None
+                    if target_node is not None:
+                        if not _scope_matches(
+                            target_node,
+                            agent_id=source_node.agent_id,
+                            project=source_node.project,
+                            session_id=source_node.session_id,
+                        ):
+                            target_node = None
                     if target_node is None and relation.target_label:
-                        target_node = label_index.get(relation.target_label.strip().lower())
+                        candidates = label_index.get(relation.target_label.strip().lower(), [])
+                        for candidate in candidates:
+                            if _scope_matches(
+                                candidate,
+                                agent_id=source_node.agent_id,
+                                project=source_node.project,
+                                session_id=source_node.session_id,
+                            ):
+                                target_node = candidate
+                                break
                     if target_node is None and relation.target_label:
                         target_node = self._insert_vault_stub_node(
                             connection,
@@ -3629,7 +3642,7 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                             session_id=source_node.session_id,
                         )
                         nodes_by_id[target_node.id] = target_node
-                        label_index[target_node.label.strip().lower()] = target_node
+                        _index_node(target_node)
                         result.stub_nodes_created += 1
                     if target_node is None:
                         result.conflicts.append(
@@ -3680,10 +3693,25 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             for raw_window in snapshot.get("context_windows", []):
                 self._upsert_snapshot_context_window(connection, {**raw_window, "tenant_id": self.tenant_id})
 
+            # Resolve the embeddings map from the snapshot
+            embeddings_map = {}
+            raw_embeddings = snapshot.get("embeddings")
+            if isinstance(raw_embeddings, dict):
+                if "vectors" in raw_embeddings and isinstance(raw_embeddings["vectors"], dict):
+                    embeddings_map = raw_embeddings["vectors"]
+                else:
+                    embeddings_map = raw_embeddings
+
             for raw_node in snapshot.get("nodes", []):
                 raw_node = {**raw_node, "tenant_id": raw_node.get("tenant_id") or snapshot_tenant}
                 if raw_node["tenant_id"] != self.tenant_id:
                     raw_node["tenant_id"] = self.tenant_id
+
+                node_id = str(raw_node.get("id") or "").strip()
+                if raw_node.get("embedding") is None:
+                    if node_id in embeddings_map:
+                        raw_node["embedding"] = embeddings_map[node_id]
+
                 if self._fetch_node_row(connection, raw_node["id"]) is None:
                     self._insert_snapshot_node(connection, raw_node)
                     result.nodes_created += 1
