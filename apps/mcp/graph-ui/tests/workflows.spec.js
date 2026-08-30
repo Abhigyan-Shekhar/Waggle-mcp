@@ -165,7 +165,7 @@ test.beforeEach(async ({ page }) => {
       session_id: "test-session"
     };
   });
-  await page.goto("/");
+  await page.goto("/graph");
 });
 
 test.describe("Graph UI Workflows", () => {

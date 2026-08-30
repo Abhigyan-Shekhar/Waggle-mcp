@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Waggle WebMCP human-governed memory architecture</title>
+  <desc id="desc">ChatGPT and a human share one browser-scoped Waggle workspace. WebMCP tools read memory and create proposals. Only human-approved changes can be applied to the isolated SQLite-backed MemoryGraph.</desc>
+  <defs>
+    <linearGradient id="canvas" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbf8f0"/>
+      <stop offset="1" stop-color="#edf3eb"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#193b2b" flood-opacity="0.10"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12Z" fill="#2f7454"/>
+    </marker>
+    <marker id="arrow-muted" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12Z" fill="#8a9b90"/>
+    </marker>
+    <style>
+      .sans{font-family:Arial,sans-serif}
+      .serif{font-family:Georgia,serif}
+      .eyebrow{font-size:16px;font-weight:700;letter-spacing:3px;fill:#587064}
+      .title{font-size:54px;font-weight:600;fill:#173729}
+      .subtitle{font-size:21px;fill:#53665c}
+      .card-title{font-size:27px;font-weight:700;fill:#18392a}
+      .card-copy{font-size:18px;fill:#56685e}
+      .label{font-size:15px;font-weight:800;letter-spacing:2px;fill:#2f7454}
+      .tool{font-size:16px;font-weight:700;fill:#f8fbf8}
+      .tool-small{font-size:12px;font-weight:700;fill:#f8fbf8}
+      .small{font-size:15px;fill:#62746a}
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="#f8f5ed"/>
+  <circle cx="1450" cy="96" r="220" fill="#e0eadc" opacity="0.7"/>
+  <circle cx="95" cy="830" r="180" fill="#f4e6c7" opacity="0.6"/>
+
+  <g class="sans">
+    <text x="92" y="78" class="eyebrow">WAGGLE WEBMCP</text>
+    <text x="92" y="144" class="title serif">Humans govern what agents remember.</text>
+    <text x="92" y="184" class="subtitle">One shared memory surface, with an explicit approval boundary and complete lineage.</text>
+
+    <g filter="url(#shadow)">
+      <rect x="92" y="256" width="280" height="214" rx="28" fill="#fffdf7" stroke="#cfd9d1" stroke-width="2"/>
+      <circle cx="152" cy="316" r="30" fill="#e4eee5"/>
+      <path d="M138 320c10-18 19-18 29 0M142 307a10 10 0 1 1 20 0" fill="none" stroke="#2f7454" stroke-width="4" stroke-linecap="round"/>
+      <text x="198" y="309" class="label">HUMAN</text>
+      <text x="124" y="370" class="card-title">Review authority</text>
+      <text x="124" y="405" class="card-copy">Edit, approve, reject</text>
+      <text x="124" y="433" class="card-copy">and freeze exact truth.</text>
+    </g>
+
+    <g filter="url(#shadow)">
+      <rect x="92" y="520" width="280" height="214" rx="28" fill="#fffdf7" stroke="#cfd9d1" stroke-width="2"/>
+      <circle cx="152" cy="580" r="30" fill="#e4eee5"/>
+      <path d="M136 575h32v22h-32zM144 568v7M160 568v7M144 604v7M160 604v7" fill="none" stroke="#2f7454" stroke-width="3" stroke-linecap="round"/>
+      <text x="198" y="573" class="label">CHATGPT</text>
+      <text x="124" y="634" class="card-title">WebMCP consumer</text>
+      <text x="124" y="669" class="card-copy">Recall context and</text>
+      <text x="124" y="697" class="card-copy">propose corrections.</text>
+    </g>
+
+    <g filter="url(#shadow)">
+      <rect x="492" y="300" width="388" height="384" rx="34" fill="#fefdf8" stroke="#9eb5a5" stroke-width="2"/>
+      <rect x="492" y="300" width="388" height="74" rx="34" fill="#2f7454"/>
+      <path d="M492 340h388v34H492z" fill="#2f7454"/>
+      <circle cx="532" cy="337" r="7" fill="#f0c36a"/>
+      <circle cx="558" cy="337" r="7" fill="#c8dbcc"/>
+      <circle cx="584" cy="337" r="7" fill="#f8fbf8"/>
+      <text x="620" y="345" class="tool">Waggle Workspace</text>
+      <text x="532" y="424" class="label">SHARED BROWSER SURFACE</text>
+      <text x="532" y="470" class="card-title">Same governed memory</text>
+      <text x="532" y="502" class="card-copy">Current context · Decisions</text>
+      <text x="532" y="531" class="card-copy">Proposals · Activity · Graph</text>
+      <rect x="532" y="570" width="308" height="72" rx="18" fill="#eef4ec" stroke="#cbd8ce"/>
+      <circle cx="566" cy="606" r="10" fill="#2f7454"/>
+      <text x="591" y="601" class="label">HUMAN CONTROLLED</text>
+      <text x="591" y="624" class="small">Agents suggest. Humans decide.</text>
+    </g>
+
+    <g filter="url(#shadow)">
+      <rect x="1010" y="238" width="496" height="258" rx="32" fill="#173b2b"/>
+      <text x="1054" y="288" class="label" style="fill:#b8d2bf">WEBMCP + GOVERNANCE API</text>
+      <text x="1054" y="331" class="card-title" style="fill:#ffffff">Four narrow site tools</text>
+      <g>
+        <rect x="1054" y="363" width="188" height="42" rx="12" fill="#2f7454"/><text x="1072" y="390" class="tool">get_project_brief</text>
+        <rect x="1256" y="363" width="202" height="42" rx="12" fill="#2f7454"/><text x="1274" y="390" class="tool">recall_memory</text>
+        <rect x="1054" y="417" width="188" height="42" rx="12" fill="#2f7454"/><text x="1066" y="444" class="tool-small">propose_memory_change</text>
+        <rect x="1256" y="417" width="202" height="42" rx="12" fill="#2f7454"/><text x="1268" y="444" class="tool-small">apply_approved_memory_change</text>
+      </g>
+    </g>
+
+    <g filter="url(#shadow)">
+      <rect x="1010" y="550" width="496" height="216" rx="32" fill="#fffdf7" stroke="#9eb5a5" stroke-width="2"/>
+      <text x="1054" y="601" class="label">ISOLATED JUDGE SESSION</text>
+      <text x="1054" y="636" class="card-title" style="font-size:22px">SQLite + Waggle</text>
+      <text x="1054" y="665" class="card-title" style="font-size:22px">MemoryGraph</text>
+      <text x="1054" y="700" class="card-copy">Authoritative and superseded nodes</text>
+      <text x="1054" y="729" class="card-copy">retain provenance through updates edges.</text>
+      <rect x="1341" y="586" width="116" height="116" rx="58" fill="#e3eee4"/>
+      <ellipse cx="1399" cy="618" rx="34" ry="13" fill="none" stroke="#2f7454" stroke-width="4"/>
+      <path d="M1365 618v47c0 8 15 14 34 14s34-6 34-14v-47M1365 641c0 8 15 14 34 14s34-6 34-14" fill="none" stroke="#2f7454" stroke-width="4"/>
+    </g>
+
+    <path d="M372 362H462" fill="none" stroke="#2f7454" stroke-width="4" marker-end="url(#arrow)"/>
+    <text x="395" y="342" class="small">govern</text>
+    <path d="M372 628H462" fill="none" stroke="#2f7454" stroke-width="4" marker-end="url(#arrow)"/>
+    <text x="397" y="608" class="small">invoke</text>
+    <path d="M880 410H982" fill="none" stroke="#2f7454" stroke-width="4" marker-end="url(#arrow)"/>
+    <text x="897" y="391" class="small">read / propose</text>
+    <path d="M1258 496V530" fill="none" stroke="#2f7454" stroke-width="4" marker-end="url(#arrow)"/>
+    <text x="1280" y="521" class="small">approved only</text>
+    <path d="M1010 706C944 706 918 650 918 600C918 552 936 518 982 496" fill="none" stroke="#8a9b90" stroke-width="3" stroke-dasharray="10 10" marker-end="url(#arrow-muted)"/>
+
+    <rect x="92" y="810" width="1414" height="48" rx="18" fill="#e6efe4"/>
+    <text x="116" y="841" class="small">Hosted challenge mode is seeded, ephemeral, browser-isolated, and resettable. Waggle’s production architecture remains local-first.</text>
+  </g>
+</svg>
