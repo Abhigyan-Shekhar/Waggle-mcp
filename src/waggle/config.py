@@ -65,6 +65,15 @@ def _parse_float(name: str, value: str) -> float:
     return parsed
 
 
+def _parse_bool(name: str, value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    raise ValidationFailure(f"{name} must be a boolean, got '{value}'.")
+
+
 @dataclass(slots=True)
 class AppConfig:
     backend: str
@@ -170,7 +179,9 @@ class AppConfig:
             hybrid_recency_weight=_parse_float(
                 "WAGGLE_HYBRID_RECENCY_WEIGHT", os.environ.get("WAGGLE_HYBRID_RECENCY_WEIGHT", "1.0")
             ),
-            hybrid_rerank_enabled=os.environ.get("WAGGLE_HYBRID_RERANK_ENABLED", "false").strip().lower() == "true",
+            hybrid_rerank_enabled=_parse_bool(
+                "WAGGLE_HYBRID_RERANK_ENABLED", os.environ.get("WAGGLE_HYBRID_RERANK_ENABLED", "false")
+            ),
             hybrid_rerank_model=os.environ.get("WAGGLE_HYBRID_RERANK_MODEL", "claude-3-5-sonnet-latest").strip(),
             hybrid_rerank_top_k_in=_parse_int(
                 "WAGGLE_HYBRID_RERANK_TOP_K_IN", os.environ.get("WAGGLE_HYBRID_RERANK_TOP_K_IN", "20")
@@ -183,14 +194,16 @@ class AppConfig:
             neo4j_username=os.environ.get("WAGGLE_NEO4J_USERNAME", "").strip(),
             neo4j_password=os.environ.get("WAGGLE_NEO4J_PASSWORD", ""),
             neo4j_database=os.environ.get("WAGGLE_NEO4J_DATABASE", "").strip(),
-            retention_enabled=os.environ.get("WAGGLE_RETENTION_ENABLED", "false").strip().lower() == "true",
+            retention_enabled=_parse_bool(
+                "WAGGLE_RETENTION_ENABLED", os.environ.get("WAGGLE_RETENTION_ENABLED", "false")
+            ),
             retention_days=_parse_int("WAGGLE_RETENTION_DAYS", os.environ.get("WAGGLE_RETENTION_DAYS", "90")),
             retention_prune_interval_hours=_parse_int(
                 "WAGGLE_RETENTION_PRUNE_INTERVAL_HOURS", os.environ.get("WAGGLE_RETENTION_PRUNE_INTERVAL_HOURS", "24")
             ),
             startup_mode=os.environ.get("WAGGLE_STARTUP_MODE", STARTUP_MODE_NORMAL).strip().lower(),
             api_key_environment=os.environ.get("WAGGLE_API_KEY_ENVIRONMENT", "test").strip().lower(),
-            tiered_retrieval=os.environ.get("WAGGLE_TIERED_RETRIEVAL", "false").strip().lower() == "true",
+            tiered_retrieval=_parse_bool("WAGGLE_TIERED_RETRIEVAL", os.environ.get("WAGGLE_TIERED_RETRIEVAL", "false")),
             tiered_retrieval_top_k_windows=_parse_int(
                 "WAGGLE_TIERED_TOP_K_WINDOWS", os.environ.get("WAGGLE_TIERED_TOP_K_WINDOWS", "3")
             ),

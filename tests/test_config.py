@@ -157,3 +157,23 @@ def test_resolve_default_db_path_configured(tmp_path, monkeypatch):
     config_content = f'[mcp_servers.waggle.env]\nWAGGLE_DB_PATH = "{target_path.as_posix()}"'
     config_file.write_text(config_content, encoding="utf-8")
     assert resolve_default_db_path() == str(target_path)
+
+
+def test_from_env_rejects_invalid_boolean(monkeypatch):
+    monkeypatch.setenv("WAGGLE_RETENTION_ENABLED", "maybe")
+
+    with pytest.raises(
+        ValidationFailure,
+        match=r"WAGGLE_RETENTION_ENABLED.*boolean",
+    ):
+        AppConfig.from_env()
+
+
+def test_from_env_rejects_invalid_tiered_retrieval_boolean(monkeypatch):
+    monkeypatch.setenv("WAGGLE_TIERED_RETRIEVAL", "maybe")
+
+    with pytest.raises(
+        ValidationFailure,
+        match=r"WAGGLE_TIERED_RETRIEVAL.*boolean",
+    ):
+        AppConfig.from_env()
