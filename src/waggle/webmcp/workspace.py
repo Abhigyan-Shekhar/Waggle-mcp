@@ -422,7 +422,10 @@ def propose_memory_change(
         sort_keys=True,
         separators=(",", ":"),
     )
-    dedupe_key = hashlib.sha256(dedupe_payload.encode("utf-8")).hexdigest()
+    # Non-security fingerprint for retry deduplication, never a credential verifier.
+    # HTTP actor_id is a display name or public API-key record UUID, not the secret.
+    # Keep the digest stable so retries also find proposals created before upgrades.
+    dedupe_key = hashlib.sha256(dedupe_payload.encode("utf-8"), usedforsecurity=False).hexdigest()
     return repository.create_or_get_pending(
         tenant_id=str(graph.tenant_id),
         project_id=project,

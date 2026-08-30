@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
+import pytest
 from starlette.testclient import TestClient
 
 from waggle.config import AppConfig
@@ -423,6 +424,50 @@ def test_proposal_persists_without_changing_authoritative_memory(tmp_path: Path)
         listed = client.get("/api/webmcp/proposals?project_id=waggle-webmcp")
     assert listed.status_code == 200
     assert listed.json()["proposals"] == [proposal]
+
+
+@pytest.mark.parametrize("actor_names", [("", ""), ("agent-a", "agent-b")])
+def test_authenticated_proposal_dedupe_uses_public_actor_identity(tmp_path: Path, actor_names: tuple[str, str]) -> None:
+    graph = make_graph(tmp_path)
+    _, _, target_id = seed_decision_chain(graph)
+    actors = [graph.create_api_key("local-default", name=name) for name in actor_names]
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+    payload = {
+        "project_id": "waggle-webmcp",
+        "memory_id": target_id,
+        "proposed_content": "Use encrypted SQLite by default; Neo4j remains optional.",
+    }
+
+    with TestClient(app) as client:
+        responses = [
+            client.post("/api/webmcp/proposals", json=payload, headers={"x-api-key": actor.raw_api_key})
+            for actor in actors
+        ]
+    assert [response.status_code for response in responses] == [201, 201]
+    proposals = [response.json() for response in responses]
+    assert proposals[0]["proposal_id"] != proposals[1]["proposal_id"]
+    for actor, proposal in zip(actors, proposals, strict=True):
+        assert proposal["proposed_by"] == {"type": "agent", "id": actor.record.name or actor.record.api_key_id}
+        assert proposal["status"] == "pending"
+
+    # Reopening the application must retain the same per-actor retry identity.
+    reloaded_app = create_http_application(app_server, app_server.config)
+    with TestClient(reloaded_app) as client:
+        for actor, proposal in zip(actors, proposals, strict=True):
+            retry = client.post("/api/webmcp/proposals", json=payload, headers={"x-api-key": actor.raw_api_key})
+            assert retry.status_code == 200
+            assert retry.json()["proposal_id"] == proposal["proposal_id"]
+
+    with sqlite3.connect(tmp_path / "webmcp.db") as connection:
+        rows = connection.execute("SELECT * FROM webmcp_memory_proposals").fetchall()
+        fingerprints = connection.execute("SELECT dedupe_key FROM webmcp_memory_proposals").fetchall()
+    assert len(rows) == 2
+    assert all(actor.raw_api_key not in repr(rows) for actor in actors)
+    assert all(
+        len(value) == 64 and all(character in "0123456789abcdef" for character in value) for (value,) in fingerprints
+    )
+    assert graph.get_node(target_id).content == "Use SQLite by default; Neo4j remains optional."
 
 
 def test_proposal_allows_distinct_changes_to_same_target(tmp_path: Path) -> None:
