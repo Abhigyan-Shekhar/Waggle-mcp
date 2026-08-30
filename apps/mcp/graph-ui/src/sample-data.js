@@ -3,6 +3,7 @@ export const SAMPLE_GRAPH_SNAPSHOT = {
   nodes: [
     {
       id: "node-decision",
+      authority_status: "authoritative",
       label: "Dual-layer graph UI decision",
       content: "Use Cytoscape for the graph canvas and expose transcript provenance in the inspector.",
       node_type: "decision",
@@ -26,6 +27,7 @@ export const SAMPLE_GRAPH_SNAPSHOT = {
     },
     {
       id: "node-fact",
+      authority_status: "authoritative",
       label: "Transcript turn-pairs persisted",
       content: "Transcript records are stored alongside extracted memory and can be replayed independently.",
       node_type: "fact",
@@ -49,6 +51,7 @@ export const SAMPLE_GRAPH_SNAPSHOT = {
     },
     {
       id: "node-widget",
+      authority_status: "authoritative",
       label: "Extraction health widget",
       content: "Track how many transcript turn-pairs produced durable memory and list misses.",
       node_type: "concept",
@@ -72,6 +75,7 @@ export const SAMPLE_GRAPH_SNAPSHOT = {
     },
     {
       id: "node-import",
+      authority_status: "authoritative",
       label: "Imported ABHI snapshot",
       content: "Imported namespace nodes should glow and retain ABHI provenance.",
       node_type: "entity",
