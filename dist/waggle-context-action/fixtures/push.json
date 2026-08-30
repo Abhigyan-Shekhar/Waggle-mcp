@@ -1,0 +1,32 @@
+{
+  "ref": "refs/heads/main",
+  "before": "before-sha",
+  "after": "after-sha",
+  "compare": "https://github.com/octo/demo/compare/before-sha...after-sha",
+  "created": false,
+  "deleted": false,
+  "forced": false,
+  "head_commit": {
+    "id": "after-sha",
+    "timestamp": "2025-01-02T03:04:05Z",
+    "message": "Add context handoff"
+  },
+  "commits": [
+    {
+      "id": "commit-one",
+      "url": "https://github.com/octo/demo/commit/commit-one",
+      "message": "Add parser",
+      "timestamp": "2025-01-02T03:03:00Z",
+      "author": {"name": "Octo Cat", "email": "octo@example.com", "username": "octocat"}
+    },
+    {
+      "id": "after-sha",
+      "url": "https://github.com/octo/demo/commit/after-sha",
+      "message": "Add context handoff",
+      "timestamp": "2025-01-02T03:04:05Z",
+      "author": {"name": "Octo Cat", "email": "octo@example.com", "username": "octocat"}
+    }
+  ],
+  "repository": {"id": 1001, "full_name": "octo/demo"},
+  "sender": {"id": 7, "login": "octocat"}
+}

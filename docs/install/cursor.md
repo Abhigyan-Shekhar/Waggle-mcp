@@ -10,6 +10,12 @@ No cloud account. No API key. Local by default.
 
 ```bash
 pipx install waggle-mcp
+pipx ensurepath
+```
+
+Restart the terminal after the first `pipx ensurepath`, then run:
+
+```bash
 waggle-mcp setup --yes --clients cursor
 ```
 
