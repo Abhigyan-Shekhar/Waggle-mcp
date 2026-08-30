@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -55,6 +56,26 @@ def test_ensure_context_window_creates_and_reuses_window(tmp_path: Path) -> None
     assert window.repo_id == repo_id
     assert window.session_id == "session-1"
     assert window.status == "active"
+
+
+def test_add_node_explicit_timestamp_applies_to_context_window(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    stamp = datetime(2025, 1, 2, 3, 4, 5, tzinfo=UTC)
+
+    stored = graph.add_node(
+        node_id="event-1",
+        label="Timestamped event",
+        content="A deterministic event",
+        node_type=NodeType.NOTE,
+        project="octo/demo",
+        created_at=stamp,
+        updated_at=stamp,
+    ).node
+
+    assert stored.context_window_id is not None
+    window = graph.get_context_window(stored.context_window_id)
+    assert window.created_at == stamp
+    assert window.updated_at == stamp
 
 
 def test_resolve_window_context_defaults(tmp_path: Path) -> None:

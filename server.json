@@ -1,17 +1,18 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.Abhigyan-Shekhar/Waggle-mcp",
-  "description": "Persistent graph-backed conversational memory for AI agents.",
+  "title": "Waggle",
+  "description": "Persistent, local-first, graph-backed conversational memory for AI agents.",
   "repository": {
     "url": "https://github.com/Abhigyan-Shekhar/Waggle-mcp",
     "source": "github"
   },
-  "version": "0.1.8",
+  "version": "0.1.25",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "waggle-mcp",
-      "version": "0.1.8",
+      "version": "0.1.25",
       "transport": {
         "type": "stdio"
       },
@@ -43,13 +44,6 @@
           "isRequired": false,
           "format": "string",
           "default": "local-default"
-        },
-        {
-          "name": "WAGGLE_API_KEY_ENVIRONMENT",
-          "description": "Generated API key prefix environment: test/local for non-production or live for production.",
-          "isRequired": false,
-          "format": "string",
-          "default": "test"
         },
         {
           "name": "WAGGLE_MODEL",

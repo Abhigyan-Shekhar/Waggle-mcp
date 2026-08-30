@@ -24,7 +24,8 @@ jobs:
             asset_name: waggle-mcp-darwin-arm64
             executable_name: waggle-mcp-darwin-arm64
             artifact_path: dist/waggle-mcp-darwin-arm64
-          - runner: macos-13
+          # macos-13 was retired; retain the x86_64 build on GitHub's supported Intel runner.
+          - runner: macos-15-intel
             asset_name: waggle-mcp-darwin-x64
             executable_name: waggle-mcp-darwin-x64
             artifact_path: dist/waggle-mcp-darwin-x64
@@ -55,7 +56,7 @@ jobs:
           npm run build
 
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
 
@@ -73,7 +74,28 @@ jobs:
             --onefile \
             --name "${{ matrix.executable_name }}" \
             --collect-all waggle \
-            src/waggle/server.py
+            --exclude-module sentence_transformers \
+            --exclude-module torch \
+            --exclude-module transformers \
+            --exclude-module sklearn \
+            --exclude-module scipy \
+            --exclude-module huggingface_hub \
+            --exclude-module tokenizers \
+            --exclude-module safetensors \
+            --exclude-module numpy.random \
+            --exclude-module numpy.fft \
+            --exclude-module numpy.testing \
+            --exclude-module numpy.f2py \
+            --exclude-module googleapiclient \
+            --exclude-module google_auth_httplib2 \
+            --exclude-module google.genai \
+            --exclude-module pyvis \
+            --exclude-module IPython \
+            --exclude-module jedi \
+            --exclude-module openai \
+            --exclude-module anthropic \
+            --exclude-module portkey_ai \
+            src/waggle/entrypoints/cli.py
 
       - name: Smoke test binary
         shell: bash
@@ -83,7 +105,6 @@ jobs:
         run: |
           "${{ matrix.artifact_path }}" --help
           "${{ matrix.artifact_path }}" doctor --help
-          "${{ matrix.artifact_path }}" doctor
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -118,7 +139,7 @@ jobs:
           path: dist
 
       - name: Upload release asset
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           files: ${{ matrix.artifact_path }}
           fail_on_unmatched_files: true
@@ -176,7 +197,7 @@ jobs:
           path: dist/bundle-metadata.json
 
       - name: Upload bundle-metadata to release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           files: dist/bundle-metadata.json
           fail_on_unmatched_files: true

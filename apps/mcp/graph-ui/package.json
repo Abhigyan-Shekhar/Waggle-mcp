@@ -10,9 +10,11 @@
     "test:unit": "vitest run --coverage"
   },
   "dependencies": {
-    "cytoscape": "^3.30.4",
+    "cytoscape": "^3.34.0",
     "cytoscape-cose-bilkent": "^4.1.0",
+    "fflate": "^0.8.3",
     "framer-motion": "^12.42.2",
+    "lucide-react": "^0.468.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

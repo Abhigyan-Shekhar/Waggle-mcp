@@ -15,9 +15,10 @@ RUNTIME_ROOT = PLUGIN_ROOT / "runtime"
 LAUNCHER_PATH = PLUGIN_ROOT / "bin" / "waggle-server-launcher.js"
 ENTRYPOINT = ROOT / "src" / "waggle" / "entrypoints" / "server_only.py"
 MAX_BINARY_BYTES = 80 * 1024 * 1024
+MAX_RUNTIME_DIRECTORY_BYTES = 192 * 1024 * 1024
 STARTUP_TIMEOUT_SECONDS = 10.0
 BUILD_TIMEOUT_SECONDS = 600.0
-BUNDLE_MODE = "onefile"
+BUNDLE_MODE = "onedir"
 
 HEAVY_EXCLUDES = [
     # The bundled Codex runtime must stay small and fast to launch. These
@@ -172,8 +173,11 @@ def validate_layout(require_artifacts: bool, probe: bool, verify_signatures: boo
         if size > MAX_BINARY_BYTES:
             failures.append(f"{binary.relative_to(ROOT)} is {size} bytes; limit is {MAX_BINARY_BYTES}")
         target_size = _path_size(target_dir)
-        if target_size > MAX_BINARY_BYTES:
-            failures.append(f"{target_dir.relative_to(ROOT)} is {target_size} bytes; limit is {MAX_BINARY_BYTES}")
+        if target_size > MAX_RUNTIME_DIRECTORY_BYTES:
+            failures.append(
+                f"{target_dir.relative_to(ROOT)} is {target_size} bytes; "
+                f"limit is {MAX_RUNTIME_DIRECTORY_BYTES}"
+            )
 
         if probe and target == current_target:
             started_at = time.monotonic()
@@ -261,9 +265,15 @@ def _verify_signature(binary: Path, target: str) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build and validate Codex plugin bundled Waggle runtimes.")
-    parser.add_argument("--build-current", action="store_true", help="Build the current platform binary with PyInstaller.")
-    parser.add_argument("--require-artifacts", action="store_true", help="Fail if any platform runtime binary is missing.")
-    parser.add_argument("--probe", action="store_true", help="Run the --server-info startup probe for present artifacts.")
+    parser.add_argument(
+        "--build-current", action="store_true", help="Build the current platform binary with PyInstaller."
+    )
+    parser.add_argument(
+        "--require-artifacts", action="store_true", help="Fail if any platform runtime binary is missing."
+    )
+    parser.add_argument(
+        "--probe", action="store_true", help="Run the --server-info startup probe for present artifacts."
+    )
     parser.add_argument("--verify-signatures", action="store_true", help="Verify macOS and Windows code signatures.")
     parser.add_argument(
         "--allow-experimental-python",

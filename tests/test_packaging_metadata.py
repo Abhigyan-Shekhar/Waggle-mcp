@@ -16,6 +16,39 @@ def test_pyproject_uses_setuptools_src_layout() -> None:
     assert pyproject["build-system"]["build-backend"] == "setuptools.build_meta"
     assert pyproject["tool"]["setuptools"]["package-dir"] == {"": "src"}
     assert pyproject["tool"]["setuptools"]["packages"]["find"]["where"] == ["src"]
+    assert "cryptography>=45.0.0,<46.0.0" in pyproject["project"]["dependencies"]
+
+
+def test_pyproject_exposes_expected_console_scripts() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+
+    assert pyproject["project"]["scripts"] == {
+        "waggle-mcp": "waggle.server:main",
+        "waggle": "waggle.server:main",
+    }
+
+
+def test_install_docs_put_pipx_app_directory_on_path() -> None:
+    install_docs = [ROOT / "README.md", *(ROOT / "docs" / "install").glob("*.md")]
+
+    for doc_path in install_docs:
+        contents = doc_path.read_text()
+        fenced_blocks = re.findall(r"```[^\n]*\n.*?\n```", contents, re.DOTALL)
+        prose = re.sub(r"```[^\n]*\n.*?\n```", "", contents, flags=re.DOTALL)
+        prose_blocks: list[str] = []
+        for block in re.split(r"\n\s*\n", prose):
+            if "pipx install waggle-mcp" not in block:
+                continue
+            if any(line.lstrip().startswith("|") for line in block.splitlines()):
+                prose_blocks.extend(line for line in block.splitlines() if "pipx install waggle-mcp" in line)
+            else:
+                prose_blocks.append(block)
+
+        install_flows = [block for block in [*fenced_blocks, *prose_blocks] if "pipx install waggle-mcp" in block]
+        for install_flow in install_flows:
+            assert "pipx ensurepath" in install_flow, (
+                f"Missing pipx PATH setup in an install flow in {doc_path.relative_to(ROOT)}"
+            )
 
 
 def test_dockerfile_uses_module_entrypoint_for_arg_passthrough() -> None:
@@ -27,6 +60,33 @@ def test_dockerfile_uses_module_entrypoint_for_arg_passthrough() -> None:
     assert "HF_HOME=/app/.cache/huggingface" in dockerfile
     assert "SENTENCE_TRANSFORMERS_HOME=/app/.cache/sentence-transformers" in dockerfile
     assert "SentenceTransformer('all-MiniLM-L6-v2')" in dockerfile
+    assert dockerfile.index("COPY src ./src") < dockerfile.index('pip install ".[neo4j]"')
+
+
+def test_release_workflows_use_current_entrypoints_and_versioned_image() -> None:
+    binary_workflow = (ROOT / ".github" / "workflows" / "release-binaries.yml").read_text()
+    image_workflow = (ROOT / ".github" / "workflows" / "publish-image.yml").read_text()
+
+    assert "src/waggle/entrypoints/cli.py" in binary_workflow
+    assert "src/waggle/server.py" not in binary_workflow
+    assert '"${{ matrix.artifact_path }}" doctor --help' in binary_workflow
+    assert '"${{ matrix.artifact_path }}" doctor\n' not in binary_workflow
+    from scripts.build_codex_plugin_runtime import HEAVY_EXCLUDES
+
+    for module in HEAVY_EXCLUDES:
+        assert f"--exclude-module {module}" in binary_workflow
+    assert "image-version: ${{ steps.meta.outputs.version }}" in image_workflow
+    assert "VERSION=${{ steps.meta.outputs.version }}" in image_workflow
+    assert "${{ needs.build-and-push.outputs.image-version }}" in image_workflow
+    assert "--entrypoint python" in image_workflow
+    assert "cache-to: type=gha,mode=max,ignore-error=true" in image_workflow
+
+
+def test_codex_onedir_runtime_has_separate_size_budget() -> None:
+    from scripts.build_codex_plugin_runtime import MAX_BINARY_BYTES, MAX_RUNTIME_DIRECTORY_BYTES
+
+    assert MAX_BINARY_BYTES == 80 * 1024 * 1024
+    assert MAX_RUNTIME_DIRECTORY_BYTES == 192 * 1024 * 1024
 
 
 def test_smithery_uses_packaged_cli_entrypoint() -> None:
@@ -104,8 +164,9 @@ def test_codex_release_docs_record_intentional_version_split_and_unsigned_policy
     checklist = (ROOT / "docs" / "install" / "codex-marketplace-release-checklist.md").read_text()
 
     for text in [codex_guide, runtime_guide, checklist]:
-        assert "0.1.2" in text
-        assert "v0.1.18" in text
+        assert "0.1.3" in text
+        assert "v0.1.24" in text
+        assert "v0.1.23" not in text
 
     assert "intentionally unsigned" in codex_guide
     assert "intentionally unsigned" in runtime_guide
@@ -136,3 +197,19 @@ def test_codex_install_guide_matches_shipped_example_config() -> None:
         "docs/install/codex.md drifted from examples/codex_config.example.toml. "
         "Keep the documented Waggle command, args, and env values aligned."
     )
+
+
+def test_version_consistency() -> None:
+    """Verify that all manifest versions are identical and in sync with pyproject.toml."""
+    import sys
+
+    sys.path.append(str(ROOT))
+    from scripts.sync_version import FILES, read_version
+
+    pyproject_version = read_version("pyproject.toml", "toml")
+
+    for rel_path, file_type in FILES.items():
+        if rel_path == "pyproject.toml":
+            continue
+        v = read_version(rel_path, file_type)
+        assert v == pyproject_version, f"Version mismatch in {rel_path}: expected {pyproject_version}, got {v}"

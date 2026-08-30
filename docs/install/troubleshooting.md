@@ -2,7 +2,20 @@
 
 ## `waggle-mcp: command not found`
 
-Install with `pipx install waggle-mcp`, then run `pipx ensurepath` and restart your shell.
+The package may already be installed while pipx's app directory is missing from
+your shell's `PATH`. On zsh, repair and verify it with:
+
+```bash
+pipx ensurepath
+exec zsh -l
+command -v waggle-mcp
+waggle-mcp doctor
+```
+
+For another shell, close and reopen the terminal instead of running
+`exec zsh -l`. If `pipx list` shows `waggle-mcp` but `command -v waggle-mcp`
+is still empty, run `pipx reinstall waggle-mcp` to recreate its app link.
+Updating pipx itself is not normally required for this error.
 
 ## Python or `pipx` issues
 
@@ -50,6 +63,24 @@ waggle-mcp serve --transport stdio
 ```
 
 Then restart the client and verify the MCP entry is enabled.
+
+## `AuthenticationError` over HTTP transport
+
+Requests to `/mcp` require a valid API key header. The health and metrics endpoints (`/health/live`, `/health/ready`, `/metrics`) do not.
+
+Three distinct messages can surface here:
+
+- `Missing X-API-Key header.` — no `X-API-Key` header was sent.
+- `Invalid API key.` — a key was sent, but it is unknown, not active, or the hash did not verify.
+- `API key expired.` — the key was found but its `expires_at` has already passed.
+
+In all three cases, send a valid `X-API-Key: <your_key>` with the request. Issue one with:
+
+```bash
+waggle-mcp create-api-key --tenant-id <tenant> --name <label> --scopes "graph:read,graph:write"
+```
+
+See [docs/reference.md](../reference.md) for the full admin command list and [docs/security/security-model.md](../security/security-model.md#authentication) for how API keys and tenant scopes work.
 
 ## Run Waggle diagnostics
 

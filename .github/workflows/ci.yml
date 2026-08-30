@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
 
@@ -38,7 +38,10 @@ jobs:
       - name: Check markdown links
         run: python scripts/check_markdown_links.py
 
-  # â”€â”€ Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      - name: Check version drift
+        run: python scripts/sync_version.py --check
+
+  # ── Tests ─────────────────────────────────────────────────────────────────
   test:
     name: Test (Python ${{ matrix.python-version }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -56,7 +59,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -78,6 +81,15 @@ jobs:
           PYTHONUTF8: "1"   # prevents UnicodeEncodeError on Windows
         run: pytest -v --tb=long
 
+      - name: Build local wheel for Action smoke
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        run: python -m pip wheel --no-deps --no-build-isolation --wheel-dir dist .
+
+      # This proves the install path works, not that this exact version is live on PyPI.
+      - name: Local-wheel Action install smoke
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        run: python dist/waggle-context-action/tests/local_wheel_install_smoke.py dist/*.whl
+
   # ── Code-analysis tests ───────────────────────────────────────────────────
   code-analysis:
     name: Code-analysis (Python ${{ matrix.python-version }})
@@ -93,7 +105,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -117,7 +129,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
 
@@ -130,7 +142,7 @@ jobs:
       - name: Check distribution metadata
         run: |
           pip install twine
-          twine check dist/*
+          twine check dist/*.whl dist/*.tar.gz
 
   codex-plugin-runtime:
     name: Codex plugin runtime layout
@@ -232,4 +244,3 @@ jobs:
 
       - name: Check metadata version alignment
         run: python3 ../../../scripts/check_extension_metadata.py --verbose
-
