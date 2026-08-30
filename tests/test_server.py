@@ -1829,6 +1829,17 @@ def test_cli_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
     assert f"waggle-mcp {waggle.__version__}" in captured.out
 
 
+def test_cli_doctor_help_exits_zero_and_lists_fix_option(capsys: pytest.CaptureFixture[str]) -> None:
+    parser = _build_parser()
+
+    with pytest.raises(SystemExit) as excinfo:
+        parser.parse_args(["doctor", "--help"])
+
+    captured = capsys.readouterr()
+    assert excinfo.value.code == 0
+    assert "--fix" in captured.out
+
+
 def test_store_node_reports_deduplication(tmp_path: Path) -> None:
     app = make_app(tmp_path)
 

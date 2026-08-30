@@ -1,0 +1,17 @@
+{
+  "ref": "refs/heads/retired",
+  "before": "deleted-head-sha",
+  "after": "0000000000000000000000000000000000000000",
+  "compare": "https://github.com/octo/demo/compare/deleted-head-sha...0000000000000000000000000000000000000000",
+  "created": false,
+  "deleted": true,
+  "forced": false,
+  "head_commit": null,
+  "commits": [],
+  "repository": {
+    "id": 1001,
+    "full_name": "octo/demo",
+    "pushed_at": 1735787045
+  },
+  "sender": {"id": 7, "login": "octocat"}
+}

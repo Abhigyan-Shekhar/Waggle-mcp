@@ -29,6 +29,7 @@ from waggle.abhi import (
 from waggle.config import DEFAULT_DB_PATH, AppConfig
 from waggle.embeddings import EmbeddingModel
 from waggle.errors import ValidationFailure, WaggleError
+from waggle.github_event import ingest_github_event
 from waggle.graph import MemoryGraph
 from waggle.models import TranscriptIngestionInput, utc_now
 
@@ -699,6 +700,45 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Hard input-size cap in bytes (default: 16 MiB). Oversized payloads fail with exit code 1.",
     )
 
+    ingest_github_event_parser = subparsers.add_parser(
+        "ingest-github-event",
+        help="Convert a GitHub event JSON payload into a scoped Waggle checkpoint and Markdown handoff.",
+        description=(
+            "Parse an issue, pull request, discussion, release, push, or explicitly generic JSON payload "
+            "without network or external AI calls, store sanitized provenance in Waggle memory, and export "
+            "a portable .abhi checkpoint plus Markdown context handoff."
+        ),
+    )
+    ingest_github_event_parser.add_argument("--event-path", required=True, help="Path to the GitHub event JSON file.")
+    ingest_github_event_parser.add_argument(
+        "--event-type",
+        choices=["issue", "pull-request", "discussion", "release", "push", "generic"],
+        default="",
+        help="Optional explicit event type; otherwise use GITHUB_EVENT_NAME or structural inference.",
+    )
+    ingest_github_event_parser.add_argument("--repository", required=True, help="Source repository (OWNER/REPO).")
+    ingest_github_event_parser.add_argument("--project", required=True, help="Waggle project namespace.")
+    ingest_github_event_parser.add_argument(
+        "--scope",
+        choices=["all", "project", "session", "since-date"],
+        default="project",
+        help="Existing Waggle export scope mode (default: project).",
+    )
+    ingest_github_event_parser.add_argument("--session-id", default="", help="Required with --scope session.")
+    ingest_github_event_parser.add_argument("--since-date", default="", help="Required with --scope since-date.")
+    ingest_github_event_parser.add_argument(
+        "--output-context", required=True, help="Destination Markdown context handoff path."
+    )
+    ingest_github_event_parser.add_argument(
+        "--output-checkpoint", required=True, help="Destination portable .abhi checkpoint path."
+    )
+    ingest_github_event_parser.add_argument(
+        "--max-input-bytes",
+        type=int,
+        default=1024 * 1024,
+        help="Hard event payload limit in bytes (default: 1 MiB).",
+    )
+
     setup = subparsers.add_parser(
         "setup",
         help="Non-interactive one-line setup — auto-patch supported MCP clients.",
@@ -882,6 +922,8 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         args.command = _CLI_COMMAND_ALIASES[args.command]
     if args.command == "doctor":
         return _run_doctor_command(config, args)
+    if args.command == "ingest-github-event":
+        return _run_ingest_github_event(config, args)
     backend = _build_backend(config)
     if args.command == "create-tenant":
         tenant = backend.ensure_tenant(args.tenant_id, args.name)
@@ -1910,6 +1952,53 @@ def _run_ingest_transcript_handoff(config: AppConfig, args: argparse.Namespace) 
     return 0
 
 
+def _run_ingest_github_event(config: AppConfig, args: argparse.Namespace) -> int:
+    if config.backend != "sqlite":
+        _emit_cli_error(
+            "validation_error",
+            "ingest-github-event is supported only with the SQLite backend.",
+            {},
+        )
+        return 1
+    graph = MemoryGraph(
+        config.db_path,
+        EmbeddingModel("deterministic"),
+        tenant_id=config.default_tenant_id,
+        enable_dedup=False,
+        recency_half_life_days=config.recency_half_life_days,
+        export_dir=config.export_dir,
+        api_key_environment=config.api_key_environment,
+    )
+    try:
+        result = ingest_github_event(
+            graph,
+            event_path=Path(args.event_path),
+            event_type=str(args.event_type),
+            github_event_name=os.environ.get("GITHUB_EVENT_NAME", ""),
+            repository=str(args.repository),
+            project=str(args.project),
+            scope=str(args.scope),
+            session_id=str(args.session_id),
+            since_date=str(args.since_date),
+            output_context=Path(args.output_context),
+            output_checkpoint=Path(args.output_checkpoint),
+            max_input_bytes=int(args.max_input_bytes),
+        )
+    except ValidationFailure as exc:
+        _emit_cli_error("validation_error", str(exc), {})
+        return 1
+    except WaggleError as exc:
+        _emit_cli_error(exc.code, str(exc), {"status_code": exc.status_code})
+        return 2
+    except Exception as exc:
+        _emit_cli_error("backend_error", str(exc), {"type": type(exc).__name__})
+        return 2
+    finally:
+        graph.close()
+    print(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
+    return 0
+
+
 def _prompt_choice(question: str, choices: list[str]) -> str:
     from .utils import _BOLD, _CYAN, _GREEN, _RED
 
@@ -2725,7 +2814,7 @@ def main() -> None:
         config.validate()
     if command in {"serve", "edit-graph", "view-graph", "ui", "graph-studio", "open-studio"}:
         print_startup_banner(config, args)
-    log_stream = sys.stderr if config.transport == "stdio" else sys.stdout
+    log_stream = sys.stderr if command == "ingest-github-event" or config.transport == "stdio" else sys.stdout
     from waggle.logging_utils import configure_logging
 
     configure_logging(config.log_level, stream=log_stream)

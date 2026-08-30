@@ -10,7 +10,10 @@ No cloud account. No API key. Local by default.
 
 ```bash
 pipx install waggle-mcp
+pipx ensurepath
 ```
+
+Restart the terminal after the first `pipx ensurepath` before starting Waggle.
 
 ## Manual config
 

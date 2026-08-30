@@ -2,7 +2,7 @@
   "name": "waggle-memory",
   "displayName": "Waggle: Local Memory for AI Agents",
   "description": "Local graph memory for coding agents using MCP.",
-  "version": "0.1.0",
+  "version": "0.1.25",
   "publisher": "Abhigyan-Shekhar",
   "license": "Apache-2.0",
   "homepage": "https://github.com/Abhigyan-Shekhar/Waggle-mcp",
@@ -43,7 +43,7 @@
   ],
   "main": "./dist/extension.js",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1"
+    "@modelcontextprotocol/sdk": "^1.30.0"
   },
   "contributes": {
     "commands": [
@@ -128,7 +128,10 @@
         "waggle.installMethod": {
           "type": "string",
           "default": "binary",
-          "enum": ["pipx", "binary"],
+          "enum": [
+            "pipx",
+            "binary"
+          ],
           "description": "Install method: bundled binary download or pipx."
         },
         "waggle.binaryReleaseRepo": {
@@ -154,7 +157,10 @@
         "waggle.mcpConfigScope": {
           "type": "string",
           "default": "servers",
-          "enum": ["servers", "mcpServers"],
+          "enum": [
+            "servers",
+            "mcpServers"
+          ],
           "description": "Root key to use when writing .vscode/mcp.json."
         }
       }
@@ -171,10 +177,10 @@
     "package": "vsce package"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.1.1",
     "@types/vscode": "^1.96.0",
-    "esbuild": "^0.28.1",
-    "typescript": "^5.7.2",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
     "@vscode/vsce": "^3.2.2"
   },
   "overrides": {
