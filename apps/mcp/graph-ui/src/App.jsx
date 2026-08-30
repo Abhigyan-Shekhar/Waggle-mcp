@@ -4,6 +4,13 @@ import Cytoscape from "cytoscape";
 import coseBilkent from "cytoscape-cose-bilkent";
 import { apiRequest, buildScopeQuery } from "./lib/api";
 import { readBootConfig } from "./lib/boot-config";
+import { selectMemoryMapPreview } from "./lib/memory-map";
+import {
+  registerApplyApprovedMemoryChangeTool,
+  registerGetProjectBriefTool,
+  registerProposeMemoryChangeTool,
+  registerRecallMemoryTool,
+} from "./lib/webmcp";
 import ScrollToTop from "./ScrollToTop";
 import {
   buildExtractionHealth,
@@ -21,6 +28,7 @@ import {
 } from "./lib/graph-utils";
 import { SAMPLE_GRAPH_SNAPSHOT, SAMPLE_RETRIEVAL, SAMPLE_TRANSCRIPTS } from "./sample-data";
 import { VirtualList } from "./VirtualList";
+import { Workspace } from "./Workspace";
 
 Cytoscape.use(coseBilkent);
 
@@ -170,8 +178,12 @@ function readFileBase64(file) {
   });
 }
 
-export function App() {
+export function GraphStudio() {
   const boot = useMemo(() => readBootConfig(), []);
+  const requestedFocusId = useMemo(
+    () => new URLSearchParams(window.location.search).get("focus")?.trim() || "",
+    [],
+  );
   const mode = boot.mode;
   const readOnly = mode === "view";
   const cyRef = useRef(null);
@@ -179,6 +191,7 @@ export function App() {
   const lastEdgeTapRef = useRef({ id: "", at: 0 });
   const dragStateRef = useRef(null);
   const [scope, setScope] = useState(boot.scope);
+  const scopeRef = useRef(boot.scope);
   const [snapshot, setSnapshot] = useState(boot.sampleMode ? SAMPLE_GRAPH_SNAPSHOT : { tenant_id: "", nodes: [], edges: [], ui: {} });
   const [transcriptRecords, setTranscriptRecords] = useState(boot.sampleMode ? SAMPLE_TRANSCRIPTS : []);
   const [filters, setFilters] = useState({ search: "", tags: [], sessions: [], sources: [], agents: [], projects: [], dateRange: "all" });
@@ -203,9 +216,20 @@ export function App() {
   const [importPreview, setImportPreview] = useState(null);
   const [abhiDiff, setAbhiDiff] = useState(null);
   const [showMisses, setShowMisses] = useState(false);
+  const [proposals, setProposals] = useState([]);
+  const [editingProposalId, setEditingProposalId] = useState("");
+  const [editedProposalContent, setEditedProposalContent] = useState("");
+  const [showFullGraph, setShowFullGraph] = useState(() => !requestedFocusId);
 
   const graph = useMemo(() => normalizeGraph(snapshot, importedNodeIds), [snapshot, importedNodeIds]);
-  const visibleGraph = useMemo(() => filterGraph(graph, filters), [graph, filters]);
+  const filteredGraph = useMemo(() => filterGraph(graph, filters), [graph, filters]);
+  const visibleGraph = useMemo(() => {
+    if (showFullGraph || !requestedFocusId || !filteredGraph.nodes.some((node) => node.id === requestedFocusId)) {
+      return filteredGraph;
+    }
+    const focused = selectMemoryMapPreview(filteredGraph, { focusMemoryId: requestedFocusId, limit: 8 });
+    return { ...filteredGraph, ...focused };
+  }, [filteredGraph, requestedFocusId, showFullGraph]);
   const transcriptPairs = useMemo(() => buildTranscriptPairs(transcriptRecords, graph.nodes), [transcriptRecords, graph.nodes]);
   const extractionHealth = useMemo(() => buildExtractionHealth(transcriptPairs), [transcriptPairs]);
   const buckets = useMemo(() => buildFilterBuckets(graph.nodes, transcriptRecords), [graph.nodes, transcriptRecords]);
@@ -230,18 +254,56 @@ export function App() {
     setToast.timer = window.setTimeout(() => setStatus(""), 2400);
   };
 
+  useEffect(() => {
+    if (!requestedFocusId || !graph.nodes.length) return;
+    if (graph.nodes.some((node) => node.id === requestedFocusId)) {
+      setSelectedNodeId(requestedFocusId);
+      setActiveTab("graph");
+      setLayerMode("graph");
+    } else {
+      setShowFullGraph(true);
+    }
+  }, [graph.nodes, requestedFocusId]);
+
+  const replaceProposal = (proposal) => {
+    setProposals((current) => [
+      proposal,
+      ...current.filter((item) => item.proposal_id !== proposal.proposal_id),
+    ]);
+  };
+
+  const reviewProposal = async (proposal, action, approvedContent) => {
+    const payload = { action };
+    if (approvedContent !== undefined) {
+      payload.approved_content = approvedContent;
+    }
+    const reviewed = await apiRequest(
+      `/api/webmcp/proposals/${encodeURIComponent(proposal.proposal_id)}/review`,
+      { method: "POST", body: JSON.stringify(payload) },
+    );
+    replaceProposal(reviewed);
+    setEditingProposalId("");
+    setEditedProposalContent("");
+    setToast(action === "reject" ? "Proposal rejected." : "Human-approved payload frozen.");
+  };
+
   const loadSnapshot = async (nextScope = scope) => {
     if (boot.sampleMode) {
       return;
     }
-    const [graphData, transcriptData] = await Promise.all([
+    const proposalRequest = nextScope.project
+      ? apiRequest(`/api/webmcp/proposals?project_id=${encodeURIComponent(nextScope.project)}`)
+      : Promise.resolve({ proposals: [] });
+    const [graphData, transcriptData, proposalData] = await Promise.all([
       apiRequest(`/api/graph${buildScopeQuery(nextScope)}${buildScopeQuery(nextScope) ? "&" : "?"}include_source_prompt=true`),
-      apiRequest(`/api/graph/transcripts${buildScopeQuery(nextScope)}`)
+      apiRequest(`/api/graph/transcripts${buildScopeQuery(nextScope)}`),
+      proposalRequest,
     ]);
     setSnapshot(graphData);
     setTranscriptRecords(transcriptData.records || []);
     setTranscriptOffset(transcriptData.pagination?.offset ?? 0);
     setTranscriptTotalCount(transcriptData.pagination?.total_count ?? 0);
+    setProposals(proposalData.proposals || []);
     setSelectedNodeId("");
     setSelectedEdgeId("");
     setHoverNodeId("");
@@ -250,6 +312,42 @@ export function App() {
   useEffect(() => {
     loadSnapshot(boot.scope).catch((error) => setToast(error.message));
   }, []);
+
+  useEffect(() => {
+    scopeRef.current = scope;
+  }, [scope]);
+
+  useEffect(() => {
+    if (boot.sampleMode) {
+      return;
+    }
+    Promise.all([
+      registerGetProjectBriefTool({
+        getScope: () => scopeRef.current,
+        onActivity: () => setToast("Agent requested the project brief."),
+      }),
+      registerRecallMemoryTool({
+        getScope: () => scopeRef.current,
+        onActivity: ({ result_count: resultCount }) =>
+          setToast(`Agent recalled ${resultCount} authoritative memories.`),
+      }),
+      registerProposeMemoryChangeTool({
+        getScope: () => scopeRef.current,
+        onActivity: ({ proposal }) => {
+          replaceProposal(proposal);
+          setToast("Agent proposed a memory change for human review.");
+        },
+      }),
+      registerApplyApprovedMemoryChangeTool({
+        getScope: () => scopeRef.current,
+        onActivity: ({ result }) => {
+          replaceProposal(result.proposal);
+          loadSnapshot(scopeRef.current).catch((error) => setToast(error.message));
+          setToast(result.already_applied ? "Approved change was already applied." : "Human-approved change applied.");
+        },
+      }),
+    ]).catch((error) => setToast(`WebMCP: ${error.message}`));
+  }, [boot.sampleMode]);
 
   const pushHistory = async () => {
     const restorePayload = buildRestorePayload(graph, scope);
@@ -1037,6 +1135,11 @@ export function App() {
                 <button className="rounded-xl border border-white/10 px-3 py-2 text-sm" onClick={redo} disabled={!historyFuture.length || readOnly || boot.sampleMode} type="button">
                   Redo
                 </button>
+                {requestedFocusId && !showFullGraph ? (
+                  <button className="rounded-xl border border-emerald-300/30 bg-emerald-300/8 px-3 py-2 text-sm text-emerald-100" onClick={() => setShowFullGraph(true)} type="button">
+                    Show full graph
+                  </button>
+                ) : null}
                 <div className="ml-auto flex items-center gap-2 text-xs text-graph-muted">
                   <span>{layerMode}</span>
                   {hoverNodeId ? <span className="rounded-full bg-white/8 px-2 py-1 text-white">Hover focus</span> : null}
@@ -1078,7 +1181,7 @@ export function App() {
                   const pairId = `${record.session_id || "default"}:pair:${Math.floor((record.turn_index || 0) / 2)}`;
                   const pair = transcriptPairs.find((item) => item.id === pairId);
                   return (
-                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4">
+                    <div className="rounded-2xl border border-white/8 bg-black/15 p-4" data-testid="transcript-card">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <div className="text-sm font-semibold text-white">{record.role}</div>
@@ -1422,6 +1525,128 @@ export function App() {
             )}
           </Section>
 
+          <Section
+            title="Governance proposals"
+            extra={<span className="text-xs text-graph-muted">{proposals.length}</span>}
+          >
+            {proposals.length ? (
+              <div className="grid gap-3">
+                {proposals.slice(0, 5).map((proposal) => (
+                  <article
+                    className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm"
+                    data-proposal-id={proposal.proposal_id}
+                    key={proposal.proposal_id}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-medium text-white">Proposed memory change</div>
+                      <span className="rounded-full border border-amber-200/20 px-2 py-0.5 text-[11px] uppercase tracking-wide text-amber-100">
+                        {proposal.status === "pending"
+                          ? "Pending human review"
+                          : proposal.status === "approved"
+                            ? "Human approved"
+                            : proposal.status}
+                      </span>
+                    </div>
+                    <div className="mt-3 text-xs uppercase tracking-wide text-graph-muted">Current</div>
+                    <div className="mt-1 text-white">{proposal.target?.current_content}</div>
+                    <div className="mt-3 text-xs uppercase tracking-wide text-graph-muted">Proposed</div>
+                    <div className="mt-1 text-white">{proposal.proposed_content}</div>
+                    {proposal.reason ? (
+                      <>
+                        <div className="mt-3 text-xs uppercase tracking-wide text-graph-muted">Reason</div>
+                        <div className="mt-1 text-graph-muted">{proposal.reason}</div>
+                      </>
+                    ) : null}
+                    <div className="mt-3 text-xs text-graph-muted">
+                      Proposed by {proposal.proposed_by?.id === "webmcp" ? "ChatGPT" : proposal.proposed_by?.id || "agent"}
+                    </div>
+                    {proposal.status === "pending" && !readOnly ? (
+                      editingProposalId === proposal.proposal_id ? (
+                        <div className="mt-4 grid gap-2">
+                          <textarea
+                            aria-label="Human-approved content"
+                            className="min-h-28 rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white"
+                            onChange={(event) => setEditedProposalContent(event.target.value)}
+                            value={editedProposalContent}
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button
+                              className="rounded-xl border border-white/10 px-3 py-2 text-xs"
+                              onClick={() => setEditingProposalId("")}
+                              type="button"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              className="rounded-xl bg-white px-3 py-2 text-xs font-medium text-black"
+                              onClick={() => reviewProposal(proposal, "approve", editedProposalContent).catch((error) => setToast(error.message))}
+                              type="button"
+                            >
+                              Confirm edit & approve
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-4 flex flex-wrap justify-end gap-2">
+                          <button
+                            className="rounded-xl border border-red-300/20 px-3 py-2 text-xs text-red-100"
+                            onClick={() => reviewProposal(proposal, "reject").catch((error) => setToast(error.message))}
+                            type="button"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            className="rounded-xl border border-white/10 px-3 py-2 text-xs"
+                            onClick={() => {
+                              setEditingProposalId(proposal.proposal_id);
+                              setEditedProposalContent(proposal.proposed_content);
+                            }}
+                            type="button"
+                          >
+                            Edit & Approve
+                          </button>
+                          <button
+                            className="rounded-xl bg-white px-3 py-2 text-xs font-medium text-black"
+                            onClick={() => reviewProposal(proposal, "approve").catch((error) => setToast(error.message))}
+                            type="button"
+                          >
+                            Approve
+                          </button>
+                        </div>
+                      )
+                    ) : null}
+                    {proposal.status === "approved" ? (
+                      <div className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] p-3">
+                        <div className="font-medium text-emerald-100">✓ Human approved</div>
+                        <div className="mt-2 text-xs uppercase tracking-wide text-graph-muted">Approved value</div>
+                        <div className="mt-1 text-white">{proposal.approved_content}</div>
+                        <div className="mt-2 text-xs text-graph-muted">Awaiting application</div>
+                      </div>
+                    ) : null}
+                    {proposal.status === "rejected" ? (
+                      <div className="mt-4 text-sm text-red-200">Rejected by {proposal.reviewed_by || "human"}</div>
+                    ) : null}
+                    {proposal.status === "stale" ? (
+                      <div className="mt-4 text-sm text-amber-100">Stale — the target memory changed.</div>
+                    ) : null}
+                    {proposal.status === "applied" ? (
+                      <div className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] p-3">
+                        <div className="font-medium text-emerald-100">✓ Applied</div>
+                        <div className="mt-2 text-xs uppercase tracking-wide text-graph-muted">Previous</div>
+                        <div className="mt-1 text-white">{proposal.target?.current_content}</div>
+                        <div className="mt-2 text-xs uppercase tracking-wide text-graph-muted">Current</div>
+                        <div className="mt-1 text-white">{proposal.approved_content}</div>
+                        <div className="mt-2 text-xs text-graph-muted">Corrected by {proposal.reviewed_by || "human"}</div>
+                      </div>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-graph-muted">No pending memory changes.</p>
+            )}
+          </Section>
+
           <Section title=".ABHI workflow">
             <div className="grid gap-2">
               <button className="rounded-xl border border-white/10 px-3 py-2 text-sm" onClick={() => exportGraph("abhi")} type="button">
@@ -1488,4 +1713,8 @@ export function App() {
     </div>
     
   );
+}
+
+export function App() {
+  return window.location.pathname === "/graph" ? <GraphStudio /> : <Workspace />;
 }
