@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   clearDemoState,
   createDemoState,
   DEMO_STEPS,
+  getSessionStorage,
   loadDemoState,
   reduceDemoState,
   saveDemoState,
@@ -18,6 +19,29 @@ function memoryStorage() {
 }
 
 describe("guided demo state", () => {
+  it.each(["SecurityError", "QuotaExceededError"])("tolerates %s from storage methods", (name) => {
+    const fail = () => { throw new DOMException("Storage unavailable", name); };
+    const storage = { getItem: fail, setItem: fail, removeItem: fail };
+    const state = createDemoState("waggle-webmcp");
+    expect(loadDemoState(storage, state.project)).toEqual(state);
+    expect(() => saveDemoState(storage, state)).not.toThrow();
+    expect(() => clearDemoState(storage, state.project)).not.toThrow();
+  });
+
+  it("tolerates an unavailable storage object and a throwing browser getter", () => {
+    vi.stubGlobal("window", { get sessionStorage() { throw new Error("Denied"); } });
+    try {
+      const storage = getSessionStorage();
+      expect(storage).toBeNull();
+      const state = createDemoState("waggle-webmcp");
+      expect(loadDemoState(storage, state.project)).toEqual(state);
+      expect(() => saveDemoState(storage, state)).not.toThrow();
+      expect(() => clearDemoState(storage, state.project)).not.toThrow();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("uses explicit Site-tool prompts for every ChatGPT step", () => {
     for (const step of DEMO_STEPS.filter((item) => item.tool !== "human_review")) {
       expect(step.prompt).toContain(`\`${step.tool}\``);

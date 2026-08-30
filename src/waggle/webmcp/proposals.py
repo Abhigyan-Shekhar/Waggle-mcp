@@ -6,7 +6,7 @@ import json
 import sqlite3
 import threading
 from collections.abc import Iterator
-from contextlib import closing, contextmanager
+from contextlib import closing, contextmanager, nullcontext
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -128,6 +128,8 @@ class ProposalRepository:
     @contextmanager
     def _connection_scope(self, connection: sqlite3.Connection | None) -> Iterator[sqlite3.Connection]:
         if connection is not None:
+            # The caller owns this transaction and its graph lock. Never acquire
+            # the repository lock while SQLite's writer lock may already be held.
             yield connection
             return
         with closing(self._connect()) as owned_connection, owned_connection:
@@ -140,7 +142,10 @@ class ProposalRepository:
         proposal_id: str,
         connection: sqlite3.Connection | None = None,
     ) -> dict[str, Any] | None:
-        with self._lock, self._connection_scope(connection) as active_connection:
+        with (
+            self._lock if connection is None else nullcontext(),
+            self._connection_scope(connection) as active_connection,
+        ):
             row = active_connection.execute(
                 "SELECT * FROM webmcp_memory_proposals WHERE tenant_id = ? AND proposal_id = ?",
                 (tenant_id, proposal_id),
@@ -161,8 +166,9 @@ class ProposalRepository:
         proposed_by_type: str,
         proposed_by_id: str,
         dedupe_key: str,
+        connection: sqlite3.Connection | None = None,
     ) -> tuple[dict[str, Any], bool]:
-        with self._lock, self._connection_scope(None) as connection:
+        with self._lock if connection is None else nullcontext(), self._connection_scope(connection) as connection:
             existing = connection.execute(
                 """
                 SELECT * FROM webmcp_memory_proposals
@@ -261,7 +267,7 @@ class ProposalRepository:
     ) -> int:
         """Delete proposal workflow state inside an existing graph transaction."""
 
-        with self._lock:
+        with self._connection_scope(connection):
             cursor = connection.execute(
                 "DELETE FROM webmcp_memory_proposals WHERE tenant_id = ? AND project_id = ?",
                 (tenant_id, project_id),
@@ -281,7 +287,10 @@ class ProposalRepository:
     ) -> dict[str, Any] | None:
         reviewed_at = datetime.now(UTC).isoformat()
         status = "approved" if action == "approve" else "rejected"
-        with self._lock, self._connection_scope(connection) as active_connection:
+        with (
+            self._lock if connection is None else nullcontext(),
+            self._connection_scope(connection) as active_connection,
+        ):
             cursor = active_connection.execute(
                 """
                 UPDATE webmcp_memory_proposals
@@ -313,7 +322,10 @@ class ProposalRepository:
         proposal_id: str,
         connection: sqlite3.Connection | None = None,
     ) -> dict[str, Any] | None:
-        with self._lock, self._connection_scope(connection) as active_connection:
+        with (
+            self._lock if connection is None else nullcontext(),
+            self._connection_scope(connection) as active_connection,
+        ):
             active_connection.execute(
                 """
                 UPDATE webmcp_memory_proposals
@@ -337,7 +349,7 @@ class ProposalRepository:
         connection: sqlite3.Connection,
     ) -> dict[str, Any] | None:
         applied_at = datetime.now(UTC).isoformat()
-        with self._lock:
+        with self._connection_scope(connection):
             cursor = connection.execute(
                 """
                 UPDATE webmcp_memory_proposals

@@ -136,9 +136,25 @@ export function loadDemoState(storage, project) {
 }
 
 export function saveDemoState(storage, state) {
-  storage.setItem(storageKey(state.project), JSON.stringify(state));
+  try {
+    storage.setItem(storageKey(state.project), JSON.stringify(state));
+  } catch {
+    // Guided progress remains usable in memory when storage is unavailable/full.
+  }
 }
 
 export function clearDemoState(storage, project) {
-  storage.removeItem(storageKey(project));
+  try {
+    storage.removeItem(storageKey(project));
+  } catch {
+    // Storage access/removal can be denied by an embedded browser.
+  }
+}
+
+export function getSessionStorage() {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
 }

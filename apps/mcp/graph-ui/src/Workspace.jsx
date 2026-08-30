@@ -21,6 +21,7 @@ import {
   clearDemoState,
   createDemoState,
   DEMO_STEPS,
+  getSessionStorage,
   loadDemoState,
   reduceDemoState,
   saveDemoState,
@@ -223,7 +224,8 @@ export function Workspace() {
   const project = boot.scope.project || "waggle-webmcp";
   const scope = useMemo(() => ({ ...boot.scope, project }), [boot.scope.agent_id, boot.scope.session_id, project]);
   const scopeRef = useRef(scope);
-  const sessionApi = useMemo(() => createSessionApi(project, window.sessionStorage), [project]);
+  const storage = useMemo(() => getSessionStorage(), []);
+  const sessionApi = useMemo(() => createSessionApi(project, storage), [project, storage]);
   const [view, setView] = useState(() => pathView(window.location.pathname));
   const [snapshot, setSnapshot] = useState({ nodes: [], edges: [] });
   const [proposals, setProposals] = useState([]);
@@ -238,7 +240,7 @@ export function Workspace() {
   const [applyingProposalId, setApplyingProposalId] = useState("");
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
-  const [demo, setDemo] = useState(() => loadDemoState(window.sessionStorage, project));
+  const [demo, setDemo] = useState(() => loadDemoState(storage, project));
   const [siteToolsStatus, setSiteToolsStatus] = useState({ kind: "checking", registeredCount: 0 });
   const importInputRef = useRef(null);
   const [importing, setImporting] = useState(false);
@@ -312,8 +314,8 @@ export function Workspace() {
   }, [boot.sampleMode]);
 
   useEffect(() => {
-    if (demo.active) saveDemoState(window.sessionStorage, demo);
-    else clearDemoState(window.sessionStorage, project);
+    if (demo.active) saveDemoState(storage, demo);
+    else clearDemoState(storage, project);
   }, [demo, project]);
 
   useEffect(() => {
@@ -384,7 +386,7 @@ export function Workspace() {
             contentBase64,
             fileName,
             project: projectId,
-            storage: window.sessionStorage,
+            storage,
           });
           setSnapshot(result.snapshot);
           setProposals([]);
@@ -470,7 +472,7 @@ export function Workspace() {
   };
 
   const resetDemo = async () => {
-    clearSessionWorkspace(project, window.sessionStorage);
+    if (sessionApi.active()) clearSessionWorkspace(project, storage);
     await apiRequest("/api/webmcp/demo/reset", { method: "POST", body: "{}" });
     setSelectedMemoryId("");
     setEditingProposalId("");
@@ -503,13 +505,13 @@ export function Workspace() {
         contentBase64,
         fileName: file.name,
         project,
-        storage: window.sessionStorage,
+        storage,
       });
       setBrief(result.brief || null);
       setSnapshot(result.snapshot);
       setProposals([]);
       setSelectedMemoryId("");
-      clearDemoState(window.sessionStorage, project);
+      clearDemoState(storage, project);
       setDemo(createDemoState(project));
       showToast(`Loaded ${result.node_count} memories privately for this browser session. Nothing was uploaded to Waggle.`);
     } catch (error) {
@@ -529,7 +531,7 @@ export function Workspace() {
   };
 
   const exitDemo = () => {
-    clearDemoState(window.sessionStorage, project);
+    clearDemoState(storage, project);
     setDemo(createDemoState(project));
     showToast("Guided Demo closed. Your workspace data is unchanged.");
   };

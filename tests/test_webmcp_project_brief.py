@@ -1,24 +1,262 @@
 from __future__ import annotations
 
+import json
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from threading import Event
 
 import numpy as np
 import pytest
 from starlette.testclient import TestClient
 
 from waggle.config import AppConfig
+from waggle.errors import ValidationFailure, WaggleError
 from waggle.graph import MemoryGraph
+from waggle.graph_ui import render_graph_editor_html
 from waggle.models import NodeType, RelationType
 from waggle.server import WaggleServer, create_http_application
 from waggle.webmcp import (
     ProposalRepository,
     compile_project_brief,
     project_authority_snapshot,
+    propose_memory_change,
     recall_authoritative_memory,
 )
+from waggle.webmcp import demo as demo_module
+
+
+def test_bootstrap_escapes_script_delimiters_without_changing_scope(tmp_path: Path) -> None:
+    hostile = '</ScRiPt><script>alert("x")</script>&\u2028\u2029end'
+    page = render_graph_editor_html(project=hostile, agent_id=hostile, session_id=hostile, title=hostile)
+    assert page.count("<script>") == 1
+    assert "</ScRiPt>" not in page
+    serialized = page.split("window.__WAGGLE_GRAPH_CONFIG__ = ", 1)[1].split(";\n", 1)[0]
+    assert "<" not in serialized and ">" not in serialized and "&" not in serialized
+    assert json.loads(serialized)["scope"] == dict.fromkeys(["project", "agent_id", "session_id"], hostile)
+    graph = make_graph(tmp_path)
+    server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    with TestClient(create_http_application(server, server.config)) as client:
+        response = client.get("/graph", params={"project": hostile, "agent_id": hostile, "session_id": hostile})
+    assert response.status_code == 200
+    assert response.text.count("<script>") == 1
+    serialized = response.text.split("window.__WAGGLE_GRAPH_CONFIG__ = ", 1)[1].split(";\n", 1)[0]
+    assert json.loads(serialized)["scope"] == dict.fromkeys(["project", "agent_id", "session_id"], hostile)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/webmcp/proposals",
+        "/api/webmcp/proposals/example/review",
+        "/api/webmcp/proposals/example/apply",
+        "/api/webmcp/proposals/example/human-apply",
+        "/api/webmcp/demo/reset",
+        "/api/graph/nodes",
+    ],
+)
+def test_demo_mutations_reject_cookie_only_simple_posts(tmp_path: Path, path: str) -> None:
+    graph = make_graph(tmp_path)
+    config = make_split_demo_http_config(tmp_path)
+    server = WaggleServer(graph=graph, config=config)
+    with TestClient(create_http_application(server, config), base_url="https://testserver") as client:
+        client.get("/")
+        before = client.get("/api/graph?project=waggle-webmcp").json()
+        for headers in [{}, {"X-Waggle-Demo-Session": "invalid"}]:
+            response = client.post(
+                path,
+                content='{"action":"approve"}',
+                headers={
+                    "Origin": "https://attacker.example",
+                    "Content-Type": "text/plain",
+                    **headers,
+                },
+            )
+            assert response.status_code == 403
+            assert response.json()["error"] == "DEMO_SESSION_REQUIRED"
+        after = client.get("/api/graph?project=waggle-webmcp").json()
+        brief = client.post("/api/webmcp/project-brief", json={"project_id": "waggle-webmcp"})
+    assert after["nodes"] == before["nodes"]
+    assert brief.status_code == 200  # Read-only tools retain cookie fallback.
+
+
+def test_demo_admission_is_bounded_across_api_requests_and_restarts(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(demo_module, "MAX_DEMO_TENANTS", 2)
+    graph = make_graph(tmp_path)
+    config = make_demo_http_config(tmp_path)
+    server = WaggleServer(graph=graph, config=config)
+    with TestClient(create_http_application(server, config)) as client:
+        for token in ["a" * 32, "b" * 32]:
+            response = client.get("/api/graph?project=waggle-webmcp", headers={"X-Waggle-Demo-Session": token})
+            assert response.status_code == 200
+    with TestClient(create_http_application(server, config)) as client:
+        # Raw /api requests must not bypass the cap through headers OR cookies.
+        client.cookies.set("waggle_demo_session", "c" * 32)
+        assert client.get("/api/graph?project=waggle-webmcp").status_code == 503
+        response = client.post(
+            "/api/webmcp/project-brief",
+            json={"project_id": "waggle-webmcp"},
+            headers={"X-Waggle-Demo-Session": "d" * 32},
+        )
+        assert response.status_code == 503
+        assert response.json()["error"] == "DEMO_CAPACITY_REACHED"
+        assert (
+            client.get("/api/graph?project=waggle-webmcp", headers={"X-Waggle-Demo-Session": "a" * 32}).status_code
+            == 200
+        )
+    with sqlite3.connect(tmp_path / "webmcp.db") as connection:
+        assert connection.execute("SELECT COUNT(*) FROM tenants WHERE tenant_id GLOB 'demo_*'").fetchone()[0] == 2
+
+
+def test_demo_admission_cap_serializes_independent_graph_instances(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(demo_module, "MAX_DEMO_TENANTS", 2)
+    graphs = [make_graph(tmp_path) for _ in range(6)]
+
+    def admit(index: int) -> bool:
+        try:
+            demo_module.admit_demo_scope(graphs[index], demo_module.resolve_demo_scope(str(index) * 32))
+            return True
+        except WaggleError as error:
+            assert error.code == "DEMO_CAPACITY_REACHED"
+            return False
+
+    try:
+        with ThreadPoolExecutor(max_workers=6) as executor:
+            assert sum(executor.map(admit, range(6))) == 2
+    finally:
+        for graph in graphs:
+            graph.close()
+
+
+def test_demo_rejects_unsupported_backend_before_sqlite_access(tmp_path: Path) -> None:
+    config = make_demo_http_config(tmp_path)
+    config.validate()  # The free SQLite demo must be a valid HTTP configuration.
+    config = replace(config, backend="neo4j")
+    with pytest.raises(ValidationFailure, match="requires WAGGLE_BACKEND=sqlite"):
+        config.validate()
+    server = WaggleServer(graph=make_graph(tmp_path), config=config)
+    with pytest.raises(ValidationFailure, match="requires WAGGLE_BACKEND=sqlite"):
+        create_http_application(server, config)
+    with pytest.raises(ValidationFailure, match="requires a SQLite memory graph"):
+        demo_module.ensure_demo_seed(object(), None, demo_module.resolve_demo_scope("a" * 32))
+
+
+def test_proposal_external_transaction_never_takes_repository_lock_or_connection(tmp_path: Path, monkeypatch) -> None:
+    graph = make_graph(tmp_path)
+    _, _, target_id = seed_decision_chain(graph)
+    repository = ProposalRepository(tmp_path / "webmcp.db")
+    proposal, created = propose_memory_change(
+        graph, repository, project_id="waggle-webmcp", memory_id=target_id, proposed_content="New approved value"
+    )
+    assert created
+
+    class ForbiddenLock:
+        def __enter__(self):
+            raise AssertionError("Graph transaction must not wait on the repository lock")
+
+        def __exit__(self, *args):
+            pass
+
+    def forbidden_connection():
+        raise AssertionError("Must reuse graph connection")
+
+    monkeypatch.setattr(repository, "_lock", ForbiddenLock())
+    monkeypatch.setattr(repository, "_connect", forbidden_connection)
+    args = {"tenant_id": graph.tenant_id, "proposal_id": proposal["proposal_id"]}
+    with graph._lock, graph._pool.checkout() as connection:
+        assert repository.get(**args, connection=connection)["status"] == "pending"
+        repository.review_pending(
+            **args,
+            action="approve",
+            reviewed_by="human",
+            approved_content="New approved value",
+            review_note="",
+            connection=connection,
+        )
+        assert repository.mark_applied(**args, result_memory_id=target_id, connection=connection)["status"] == "applied"
+        repository.mark_stale(**args, connection=connection)
+        assert (
+            repository.clear_project(tenant_id=graph.tenant_id, project_id="waggle-webmcp", connection=connection) == 1
+        )
+
+
+def test_pending_proposal_rolls_back_with_external_transaction(tmp_path: Path) -> None:
+    repository = ProposalRepository(tmp_path / "proposals.db")
+    args = {
+        "tenant_id": "tenant",
+        "project_id": "project",
+        "target_memory_id": "target",
+        "target_memory_version": "version",
+        "current_content": "old",
+        "proposed_content": "new",
+        "reason": "",
+        "evidence_ids": [],
+        "proposed_by_type": "agent",
+        "proposed_by_id": "actor",
+        "dedupe_key": "dedupe",
+    }
+    with sqlite3.connect(repository.db_path) as connection:
+        connection.row_factory = sqlite3.Row
+        connection.execute("BEGIN IMMEDIATE")
+        proposal, created = repository.create_or_get_pending(**args, connection=connection)
+        assert created
+        connection.rollback()
+    assert repository.get(tenant_id="tenant", proposal_id=proposal["proposal_id"]) is None
+
+
+def test_mark_applied_does_not_deadlock_with_concurrent_proposal_creation(tmp_path: Path, monkeypatch) -> None:
+    repository = ProposalRepository(tmp_path / "proposals.db")
+    args = {
+        "tenant_id": "tenant",
+        "project_id": "project",
+        "target_memory_id": "target",
+        "target_memory_version": "version",
+        "current_content": "old",
+        "proposed_content": "new",
+        "reason": "",
+        "evidence_ids": [],
+        "proposed_by_type": "agent",
+        "proposed_by_id": "actor",
+        "dedupe_key": "first",
+    }
+    proposal, _ = repository.create_or_get_pending(**args)
+    attempting_insert = Event()
+
+    def connect():
+        connection = sqlite3.connect(repository.db_path, timeout=1.0)
+        connection.row_factory = sqlite3.Row
+        connection.set_trace_callback(
+            lambda sql: attempting_insert.set() if sql.lstrip().startswith("INSERT") else None
+        )
+        return connection
+
+    monkeypatch.setattr(repository, "_connect", connect)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with sqlite3.connect(repository.db_path) as connection:
+            connection.row_factory = sqlite3.Row
+            connection.execute("BEGIN IMMEDIATE")
+            repository.review_pending(
+                tenant_id="tenant",
+                proposal_id=proposal["proposal_id"],
+                action="approve",
+                reviewed_by="human",
+                approved_content="new",
+                review_note="",
+                connection=connection,
+            )
+            # The creator holds the repository lock while waiting for this writer.
+            future = executor.submit(repository.create_or_get_pending, **{**args, "dedupe_key": "second"})
+            assert attempting_insert.wait(timeout=2)
+            applied = repository.mark_applied(
+                tenant_id="tenant",
+                proposal_id=proposal["proposal_id"],
+                result_memory_id="result",
+                connection=connection,
+            )
+            assert applied["status"] == "applied"
+        assert future.result(timeout=2)[1]
 
 
 class FakeEmbeddingModel:
@@ -976,6 +1214,7 @@ def test_demo_does_not_accept_portable_abhi_on_the_server(tmp_path: Path) -> Non
 
     with TestClient(app) as client:
         client.get("/")
+        client.headers["X-Waggle-Demo-Session"] = client.cookies.get("waggle_demo_session")
         imported = client.post("/api/webmcp/import-abhi", json={"content_base64": "private-bytes"})
         snapshot = client.get("/api/graph?project=waggle-webmcp")
 
@@ -991,6 +1230,7 @@ def test_demo_cookie_preserves_state_and_all_four_webmcp_tools_use_isolated_scop
 
     with TestClient(app) as client:
         client.get("/")
+        client.headers["X-Waggle-Demo-Session"] = client.cookies.get("waggle_demo_session")
         brief = client.post("/api/webmcp/project-brief", json={"project_id": "waggle-webmcp"})
         snapshot = client.get("/api/graph?project=waggle-webmcp").json()
         hero = next(node for node in snapshot["nodes"] if node["label"] == "Storage architecture")
@@ -1165,6 +1405,7 @@ def test_demo_sessions_are_independent_and_reset_cannot_affect_another_browser(t
         def use_session(cookie: str) -> None:
             client.cookies.clear()
             client.cookies.set("waggle_demo_session", cookie)
+            client.headers["X-Waggle-Demo-Session"] = cookie
 
         use_session(cookie_a)
         snapshot_a = client.get("/api/graph?project=waggle-webmcp").json()

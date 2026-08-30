@@ -52,6 +52,14 @@ that database.
 > Render's free tier. If state disappears after a restart or redeploy, the
 > deterministic fixture is recreated automatically.
 
+The free Render blueprint stores only disposable seeded demo state under `/tmp`,
+not on a persistent disk. Demo governance requires SQLite; production Neo4j MCP
+hosting is a separate configuration. The demo admits at most 128 tenant namespaces
+per database, including direct API requests. At capacity, new sessions receive
+`503 DEMO_CAPACITY_REACHED`; existing sessions remain usable and are not evicted.
+State-changing demo requests require `X-Waggle-Demo-Session` (sent automatically
+by the Workspace); a cookie alone cannot authorize them.
+
 ### Submission visuals
 
 ![Waggle Workspace showing shared project context, authoritative decisions, recent memories, and a live memory graph.](docs/assets/webmcp-submission/01-waggle-webmcp-cover.png)

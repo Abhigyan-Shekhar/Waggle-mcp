@@ -1548,7 +1548,7 @@ export function GraphStudio() {
                       </span>
                     </div>
                     <div className="mt-3 text-xs uppercase tracking-wide text-graph-muted">Current</div>
-                    <div className="mt-1 text-white">{proposal.target.current_content}</div>
+                    <div className="mt-1 text-white">{proposal.target?.current_content}</div>
                     <div className="mt-3 text-xs uppercase tracking-wide text-graph-muted">Proposed</div>
                     <div className="mt-1 text-white">{proposal.proposed_content}</div>
                     {proposal.reason ? (
@@ -1633,7 +1633,7 @@ export function GraphStudio() {
                       <div className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] p-3">
                         <div className="font-medium text-emerald-100">✓ Applied</div>
                         <div className="mt-2 text-xs uppercase tracking-wide text-graph-muted">Previous</div>
-                        <div className="mt-1 text-white">{proposal.target.current_content}</div>
+                        <div className="mt-1 text-white">{proposal.target?.current_content}</div>
                         <div className="mt-2 text-xs uppercase tracking-wide text-graph-muted">Current</div>
                         <div className="mt-1 text-white">{proposal.approved_content}</div>
                         <div className="mt-2 text-xs text-graph-muted">Corrected by {proposal.reviewed_by || "human"}</div>

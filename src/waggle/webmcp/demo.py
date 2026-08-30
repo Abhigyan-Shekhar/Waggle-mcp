@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from waggle.errors import ValidationFailure
+from waggle.errors import ValidationFailure, WaggleError
+from waggle.graph import MemoryGraph
 from waggle.models import NodeType, RelationType
 
 from .proposals import ProposalRepository
@@ -16,6 +17,7 @@ from .proposals import ProposalRepository
 DEMO_PUBLIC_PROJECT_ID = "waggle-webmcp"
 DEMO_COOKIE_NAME = "waggle_demo_session"
 DEMO_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
+MAX_DEMO_TENANTS = 128
 _DEMO_SESSION_PATTERN = re.compile(r"^[A-Za-z0-9_-]{24,96}$")
 
 
@@ -35,6 +37,30 @@ class DemoScope:
 
 def valid_demo_session_id(value: str) -> bool:
     return bool(_DEMO_SESSION_PATTERN.fullmatch(str(value or "")))
+
+
+def admit_demo_scope(graph: Any, scope: DemoScope) -> None:
+    """Reserve a bounded demo tenant before for_tenant can create one.
+
+    Reject new namespaces at capacity rather than evicting another visitor's
+    active work. Persisted tenant rows make the limit survive app restarts.
+    """
+    if not isinstance(graph, MemoryGraph):
+        raise ValidationFailure("Challenge demo governance requires a SQLite memory graph.")
+    with graph._lock, graph._pool.checkout() as connection:
+        # Serialize admission across processes, not only threads in this graph.
+        connection.execute("BEGIN IMMEDIATE")
+        if connection.execute("SELECT 1 FROM tenants WHERE tenant_id = ?", (scope.tenant_id,)).fetchone():
+            return
+        count = connection.execute("SELECT COUNT(*) FROM tenants WHERE tenant_id GLOB 'demo_*'").fetchone()[0]
+        if count >= MAX_DEMO_TENANTS:
+            raise WaggleError(
+                "DEMO_CAPACITY_REACHED", "Demo capacity reached; existing sessions remain available.", status_code=503
+            )
+        connection.execute(
+            "INSERT INTO tenants (tenant_id, name, status, created_at) VALUES (?, '', 'active', ?)",
+            (scope.tenant_id, datetime.now(UTC).isoformat()),
+        )
 
 
 def resolve_demo_scope(session_id: str) -> DemoScope:
@@ -314,6 +340,8 @@ def ensure_demo_seed(graph: Any, repository: ProposalRepository, scope: DemoScop
     """Create the deterministic fixture once for a fresh cookie namespace."""
 
     del repository  # Kept in the signature to make the shared store boundary explicit.
+    if not isinstance(graph, MemoryGraph):
+        raise ValidationFailure("Challenge demo governance requires a SQLite memory graph.")
     with graph._lock, graph._pool.checkout() as connection:
         # Any project node means this browser already has its server-backed
         # challenge fixture. Portable .abhi graphs are handled only in the

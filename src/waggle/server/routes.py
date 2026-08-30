@@ -60,6 +60,7 @@ from waggle.webmcp import (
     review_memory_change,
     valid_demo_session_id,
 )
+from waggle.webmcp.demo import admit_demo_scope
 
 from .mcp import WaggleServer
 from .utils import (
@@ -144,6 +145,21 @@ class _DemoSessionMiddleware:
         existing = cookies.get(DEMO_COOKIE_NAME)
         cookie_session_id = existing.value if existing is not None else ""
         header_session_id = headers.get(DEMO_SESSION_HEADER, "").strip()
+        # Cookies (including SameSite=None) are ambient credentials. Mutations
+        # require the non-simple header so a cross-site form cannot exercise them.
+        readonly_posts = {"/api/webmcp/project-brief", "/api/webmcp/recall-memory"}
+        if (
+            path.startswith("/api/")
+            and scope.get("method") not in {"GET", "HEAD", "OPTIONS"}
+            and path not in readonly_posts
+            and not valid_demo_session_id(header_session_id)
+        ):
+            response = JSONResponse(
+                {"error": "DEMO_SESSION_REQUIRED", "message": "A valid X-Waggle-Demo-Session header is required."},
+                status_code=403,
+            )
+            await response(scope, receive, send)
+            return
         if valid_demo_session_id(header_session_id):
             session_id = header_session_id
         elif valid_demo_session_id(cookie_session_id):
@@ -176,6 +192,8 @@ class _DemoSessionMiddleware:
 
 
 def create_http_application(app_server: WaggleServer, config: AppConfig) -> Starlette:
+    if config.demo_mode and config.backend != "sqlite":
+        raise ValidationFailure("Challenge demo governance requires WAGGLE_BACKEND=sqlite.")
     service = MCPHttpAppV2(app_server._root_graph, config, app_server.metrics)
     proposal_repository = ProposalRepository(config.db_path)
 
@@ -226,6 +244,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
     def _graph_from_request(request: Request, *, tenant_override: str = "") -> tuple[Any, Any | None]:
         demo_scope = _demo_scope_from_request(request)
         if demo_scope is not None:
+            admit_demo_scope(app_server._root_graph, demo_scope)
             graph = app_server._root_graph.for_tenant(demo_scope.tenant_id)
             ensure_demo_seed(graph, proposal_repository, demo_scope)
             return graph, None

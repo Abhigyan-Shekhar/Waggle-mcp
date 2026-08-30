@@ -2,6 +2,7 @@ services:
   - type: web
     name: waggle-webmcp-api
     runtime: docker
+    # Disposable challenge fixture, not durable user storage. Keep the demo free.
     plan: free
     branch: codex/waggle-webmcp
     autoDeploy: false
@@ -14,7 +15,7 @@ services:
       - key: WAGGLE_MODEL
         value: deterministic
       - key: WAGGLE_DB_PATH
-        value: /data/waggle-webmcp-demo.db
+        value: /tmp/waggle-webmcp-demo.db
       - key: WAGGLE_HTTP_HOST
         value: 0.0.0.0
       - key: WAGGLE_DEMO_MODE
