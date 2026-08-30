@@ -225,7 +225,7 @@ If your issue does not clearly require one of these files, look for a narrower p
 
 ## Running Tests
 
-```bash
+```
 # Fast: deterministic embeddings — no 420 MB download, no network
 WAGGLE_MODEL=deterministic pytest -q
 
@@ -242,6 +242,21 @@ WAGGLE_MODEL=deterministic pytest -v --tb=short
 > **Always use `WAGGLE_MODEL=deterministic` in CI and local development** unless you are specifically testing embedding quality. The deterministic fallback uses SHA-256 hashing and is fast, reproducible, and requires no network.
 
 If you change benchmark-facing numbers, regenerate the corresponding artifacts and update `tests/artifacts/README.md`.
+
+```markdown
+### Running Focused Tests
+
+To validate small changes quickly without running the full test suite, you can run a single test file or a specific test case using `pytest`:
+
+```bash
+# Run a single test file
+pytest tests/test_models.py
+
+# Run a specific test case / function
+pytest tests/test_models.py -k "test_model_validation"
+
+```
+
 
 ---
 ### Writing Tests
