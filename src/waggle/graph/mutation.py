@@ -90,6 +90,7 @@ class MutationMixin(MemoryGraphBase):
         embedding: np.ndarray | None = None,
         metadata: dict[str, Any] | None = None,
         connection: sqlite3.Connection | None = None,
+        force_new: bool = False,
     ) -> NodeStoreResult:
         resolved_created_at = created_at or utc_now()
         resolved_updated_at = updated_at or resolved_created_at
@@ -135,7 +136,7 @@ class MutationMixin(MemoryGraphBase):
         )
 
         def _insert(active_connection: sqlite3.Connection) -> NodeStoreResult:
-            if self.enable_dedup:
+            if self.enable_dedup and not force_new:
                 duplicate = self._find_duplicate_node(active_connection, node=node, embedding=embedding_vector)
                 if duplicate is not None:
                     existing_node, dedup_reason, similarity = duplicate

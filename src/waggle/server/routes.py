@@ -4,15 +4,18 @@ import base64
 import binascii
 import json
 import logging
+import secrets
 import tempfile
 import uuid
 from copy import deepcopy
 from datetime import UTC, datetime
+from http.cookies import SimpleCookie
 from pathlib import Path
 from typing import Any
 
 from starlette.applications import Starlette
 from starlette.datastructures import Headers
+from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from starlette.routing import Mount, Route
@@ -39,6 +42,24 @@ from waggle.models import (
     RelationType,
 )
 from waggle.protocol.mcp.http import MCPHttpApp as MCPHttpAppV2
+from waggle.webmcp import (
+    DEMO_COOKIE_MAX_AGE,
+    DEMO_COOKIE_NAME,
+    DEMO_PUBLIC_PROJECT_ID,
+    ProposalRepository,
+    apply_approved_memory_change,
+    compile_project_brief,
+    ensure_demo_seed,
+    project_authority_snapshot,
+    propose_memory_change,
+    publicize_demo_payload,
+    recall_authoritative_memory,
+    reset_demo,
+    resolve_demo_scope,
+    resolve_public_project,
+    review_memory_change,
+    valid_demo_session_id,
+)
 
 from .mcp import WaggleServer
 from .utils import (
@@ -48,6 +69,7 @@ from .utils import (
 )
 
 LOGGER = logging.getLogger(__name__)
+DEMO_SESSION_HEADER = "X-Waggle-Demo-Session"
 
 
 def _decode_base64_content(value: Any, field_name: str = "content_base64") -> bytes:
@@ -99,8 +121,63 @@ class _RequestBodySizeMiddleware:
         await self.app(scope, limited_receive, send)
 
 
+class _DemoSessionMiddleware:
+    """Attach an opaque, HTTP-only browser session to challenge requests."""
+
+    def __init__(self, app: ASGIApp, *, secure: bool, cross_origin: bool = False) -> None:
+        self.app = app
+        self.secure = secure
+        self.cross_origin = cross_origin
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        path = str(scope.get("path") or "")
+        if path != "/" and not path.startswith(("/graph", "/workspace", "/api/")):
+            await self.app(scope, receive, send)
+            return
+
+        headers = Headers(scope=scope)
+        cookies = SimpleCookie()
+        cookies.load(headers.get("cookie", ""))
+        existing = cookies.get(DEMO_COOKIE_NAME)
+        cookie_session_id = existing.value if existing is not None else ""
+        header_session_id = headers.get(DEMO_SESSION_HEADER, "").strip()
+        if valid_demo_session_id(header_session_id):
+            session_id = header_session_id
+        elif valid_demo_session_id(cookie_session_id):
+            session_id = cookie_session_id
+        else:
+            session_id = secrets.token_urlsafe(32)
+        refresh_cookie = cookie_session_id != session_id
+        state = scope.setdefault("state", {})
+        state["demo_session_id"] = session_id
+
+        async def send_with_cookie(message: dict[str, Any]) -> None:
+            if refresh_cookie and message["type"] == "http.response.start":
+                cookie = SimpleCookie()
+                cookie[DEMO_COOKIE_NAME] = session_id
+                morsel = cookie[DEMO_COOKIE_NAME]
+                morsel["path"] = "/"
+                morsel["max-age"] = str(DEMO_COOKIE_MAX_AGE)
+                morsel["httponly"] = True
+                # A separately hosted workspace reaches this API cross-site. Such
+                # credentialed requests require SameSite=None (and therefore Secure).
+                morsel["samesite"] = "None" if self.cross_origin else "Lax"
+                if self.secure:
+                    morsel["secure"] = True
+                response_headers = list(message.get("headers", []))
+                response_headers.append((b"set-cookie", morsel.OutputString().encode("latin-1")))
+                message = {**message, "headers": response_headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_cookie)
+
+
 def create_http_application(app_server: WaggleServer, config: AppConfig) -> Starlette:
     service = MCPHttpAppV2(app_server._root_graph, config, app_server.metrics)
+    proposal_repository = ProposalRepository(config.db_path)
 
     async def waggle_error_handler(request: Request, exc: WaggleError) -> Response:
         if isinstance(exc, AuthenticationError):
@@ -121,14 +198,37 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
     async def metrics_endpoint(request: Request) -> Response:
         return PlainTextResponse(request.app.state.http_service.metrics.render_prometheus())
 
+    def _demo_scope_from_request(request: Request):
+        if not config.demo_mode:
+            return None
+        return resolve_demo_scope(str(getattr(request.state, "demo_session_id", "")))
+
+    def _resolve_request_project(request: Request, supplied_project: Any) -> str:
+        demo_scope = _demo_scope_from_request(request)
+        if demo_scope is None:
+            return str(supplied_project or "").strip()
+        return resolve_public_project(demo_scope, supplied_project)
+
+    def _public_response(request: Request, payload: Any) -> Any:
+        demo_scope = _demo_scope_from_request(request)
+        return publicize_demo_payload(payload, demo_scope) if demo_scope is not None else payload
+
     def _scope_from_request(request: Request) -> dict[str, str]:
+        requested_project = request.query_params.get("project", "").strip()
+        if config.demo_mode:
+            requested_project = requested_project or DEMO_PUBLIC_PROJECT_ID
         return {
-            "project": request.query_params.get("project", "").strip(),
+            "project": _resolve_request_project(request, requested_project),
             "agent_id": request.query_params.get("agent_id", "").strip(),
             "session_id": request.query_params.get("session_id", "").strip(),
         }
 
     def _graph_from_request(request: Request, *, tenant_override: str = "") -> tuple[Any, Any | None]:
+        demo_scope = _demo_scope_from_request(request)
+        if demo_scope is not None:
+            graph = app_server._root_graph.for_tenant(demo_scope.tenant_id)
+            ensure_demo_seed(graph, proposal_repository, demo_scope)
+            return graph, None
         raw_api_key = request.headers.get("x-api-key", "").strip()
         if raw_api_key:
             principal = app_server._root_graph.authenticate_api_key(raw_api_key)
@@ -259,12 +359,15 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         if mode not in {"edit", "view"}:
             mode = "edit"
         scope = _scope_from_request(request)
+        display_project = DEMO_PUBLIC_PROJECT_ID if config.demo_mode else scope["project"]
         return HTMLResponse(
             render_graph_editor_html(
                 mode=mode,
-                project=scope["project"],
+                project=display_project,
                 agent_id=scope["agent_id"],
                 session_id=scope["session_id"],
+                title="Waggle Graph Studio" if request.url.path == "/graph" else "Waggle — Shared Memory",
+                demo_mode=config.demo_mode,
             )
         )
 
@@ -280,6 +383,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             snapshot = graph.get_graph_snapshot(include_source_prompt=include_source_prompt, **scope)
         except TypeError:
             snapshot = graph.get_graph_snapshot(**scope)
+        snapshot = project_authority_snapshot(snapshot)
         _emit_http_audit(
             request,
             event_type="graph.snapshot.read",
@@ -288,16 +392,201 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             metadata={"project": scope["project"], "agent_id": scope["agent_id"], "session_id": scope["session_id"]},
         )
         return JSONResponse(
-            {
-                "tenant_id": snapshot.get("tenant_id", ""),
-                "schema_version": snapshot.get("schema_version", 1),
-                "nodes": snapshot.get("nodes", []),
-                "edges": snapshot.get("edges", []),
-                "ui": snapshot.get("ui", {}),
-                "node_types": [node_type.value for node_type in NodeType],
-                "relation_types": [relation.value for relation in RelationType],
-            }
+            _public_response(
+                request,
+                {
+                    "tenant_id": snapshot.get("tenant_id", ""),
+                    "schema_version": snapshot.get("schema_version", 1),
+                    "nodes": snapshot.get("nodes", []),
+                    "edges": snapshot.get("edges", []),
+                    "ui": snapshot.get("ui", {}),
+                    "node_types": [node_type.value for node_type in NodeType],
+                    "relation_types": [relation.value for relation in RelationType],
+                },
+            )
         )
+
+    async def webmcp_project_brief(request: Request) -> Response:
+        payload = await request.json()
+        project_id = payload.get("project_id")
+        if not isinstance(project_id, str):
+            raise ValidationFailure("project_id must be a string.")
+        project_id = _resolve_request_project(request, project_id)
+        graph, _ = _require_http_scope(request, "graph:read")
+        brief = compile_project_brief(graph, project_id=project_id)
+        _emit_http_audit(
+            request,
+            event_type="webmcp.project_brief.read",
+            resource_type="project_brief",
+            resource_id=project_id.strip(),
+            action="read",
+            metadata={"tool": "get_project_brief"},
+        )
+        public_brief = _public_response(request, brief)
+        if config.demo_mode:
+            public_brief["project"] = {"id": DEMO_PUBLIC_PROJECT_ID, "name": "Waggle WebMCP"}
+        return JSONResponse(public_brief)
+
+    async def webmcp_recall_memory(request: Request) -> Response:
+        payload = await request.json()
+        project_id = payload.get("project_id")
+        query = payload.get("query")
+        limit = payload.get("limit", 5)
+        if not isinstance(project_id, str):
+            raise ValidationFailure("project_id must be a string.")
+        if not isinstance(query, str):
+            raise ValidationFailure("query must be a string.")
+        project_id = _resolve_request_project(request, project_id)
+        graph, _ = _require_http_scope(request, "graph:read")
+        recall = recall_authoritative_memory(
+            graph,
+            project_id=project_id,
+            query=query,
+            limit=limit,
+        )
+        _emit_http_audit(
+            request,
+            event_type="webmcp.memory.recalled",
+            resource_type="memory_recall",
+            resource_id=project_id.strip(),
+            action="read",
+            metadata={"tool": "recall_memory", "result_count": len(recall["memories"])},
+        )
+        return JSONResponse(_public_response(request, recall))
+
+    async def webmcp_propose_memory_change(request: Request) -> Response:
+        payload = await request.json()
+        project_id = payload.get("project_id")
+        memory_id = payload.get("memory_id")
+        proposed_content = payload.get("proposed_content")
+        reason = payload.get("reason", "")
+        evidence_ids = payload.get("evidence_ids", [])
+        if not isinstance(project_id, str):
+            raise ValidationFailure("project_id must be a string.")
+        if not isinstance(memory_id, str):
+            raise ValidationFailure("memory_id must be a string.")
+        if not isinstance(proposed_content, str):
+            raise ValidationFailure("proposed_content must be a string.")
+        if not isinstance(reason, str):
+            raise ValidationFailure("reason must be a string.")
+        project_id = _resolve_request_project(request, project_id)
+        graph, principal = _require_http_scope(request, "graph:write")
+        proposal, created = propose_memory_change(
+            graph,
+            proposal_repository,
+            project_id=project_id,
+            memory_id=memory_id,
+            proposed_content=proposed_content,
+            reason=reason,
+            evidence_ids=evidence_ids,
+            proposed_by_type="agent",
+            proposed_by_id=(principal.name or principal.api_key_id) if principal is not None else "webmcp",
+        )
+        _emit_http_audit(
+            request,
+            event_type="proposal.created" if created else "proposal.deduplicated",
+            resource_type="memory_change_proposal",
+            resource_id=proposal["proposal_id"],
+            action="create" if created else "deduplicate",
+            metadata={
+                "tool": "propose_memory_change",
+                "project_id": proposal["project_id"],
+                "target_memory_id": proposal["target"]["memory_id"],
+                "created": created,
+            },
+        )
+        return JSONResponse(_public_response(request, proposal), status_code=201 if created else 200)
+
+    async def webmcp_review_proposal(request: Request) -> Response:
+        proposal_id = request.path_params["proposal_id"]
+        payload = await request.json()
+        action = payload.get("action")
+        approved_content = payload.get("approved_content")
+        review_note = payload.get("review_note", "")
+        if not isinstance(action, str):
+            raise ValidationFailure("action must be a string.")
+        if approved_content is not None and not isinstance(approved_content, str):
+            raise ValidationFailure("approved_content must be a string when provided.")
+        if not isinstance(review_note, str):
+            raise ValidationFailure("review_note must be a string.")
+        graph, principal = _require_http_scope(request, "graph:write")
+        reviewed = review_memory_change(
+            graph,
+            proposal_repository,
+            proposal_id=proposal_id,
+            action=action,
+            approved_content=approved_content,
+            review_note=review_note,
+            reviewed_by=(principal.name or principal.api_key_id) if principal is not None else "local-human",
+        )
+        return JSONResponse(_public_response(request, reviewed))
+
+    async def webmcp_apply_proposal(request: Request) -> Response:
+        proposal_id = request.path_params["proposal_id"]
+        payload = await request.json()
+        unexpected = set(payload) - {"project_id"}
+        if unexpected:
+            raise ValidationFailure("Apply accepts only project_id; approved content cannot be supplied or changed.")
+        project_id = payload.get("project_id")
+        if not isinstance(project_id, str):
+            raise ValidationFailure("project_id must be a string.")
+        project_id = _resolve_request_project(request, project_id)
+        graph, principal = _require_http_scope(request, "graph:write")
+        applied = apply_approved_memory_change(
+            graph,
+            proposal_repository,
+            proposal_id=proposal_id,
+            project_id=project_id,
+            applied_by=(principal.name or principal.api_key_id) if principal is not None else "webmcp",
+        )
+        return JSONResponse(_public_response(request, applied))
+
+    async def webmcp_human_apply_proposal(request: Request) -> Response:
+        """Commit a frozen, already-approved proposal from the human UI only."""
+
+        proposal_id = request.path_params["proposal_id"]
+        payload = await request.json()
+        unexpected = set(payload) - {"project_id"}
+        if unexpected:
+            raise ValidationFailure(
+                "Human apply accepts only project_id; approved content cannot be supplied or changed."
+            )
+        project_id = payload.get("project_id")
+        if not isinstance(project_id, str):
+            raise ValidationFailure("project_id must be a string.")
+        project_id = _resolve_request_project(request, project_id)
+        graph, principal = _require_http_scope(request, "graph:write")
+        applied = apply_approved_memory_change(
+            graph,
+            proposal_repository,
+            proposal_id=proposal_id,
+            project_id=project_id,
+            applied_by=(principal.name or principal.api_key_id) if principal is not None else "local-human",
+            applied_actor_type="human",
+        )
+        return JSONResponse(_public_response(request, applied))
+
+    async def webmcp_list_proposals(request: Request) -> Response:
+        project_id = request.query_params.get("project_id", "")
+        if not project_id.strip():
+            raise ValidationFailure("project_id is required.")
+        project_id = _resolve_request_project(request, project_id)
+        graph, _ = _require_http_scope(request, "graph:read")
+        proposals = proposal_repository.list_for_project(
+            tenant_id=str(graph.tenant_id),
+            project_id=project_id,
+            status="",
+            limit=50,
+        )
+        return JSONResponse(_public_response(request, {"project_id": project_id, "proposals": proposals}))
+
+    async def webmcp_reset_demo(request: Request) -> Response:
+        demo_scope = _demo_scope_from_request(request)
+        if demo_scope is None:
+            raise ValidationFailure("Challenge demo mode is not enabled.")
+        graph, _ = _require_http_scope(request, "graph:write")
+        result = reset_demo(graph, proposal_repository, demo_scope)
+        return JSONResponse(result)
 
     async def graph_transcripts(request: Request) -> Response:
         scope = _scope_from_request(request)
@@ -1091,11 +1380,37 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     raw_app = Starlette(
         routes=[
+            Route("/", graph_editor),
+            Route("/workspace", graph_editor),
+            Route("/workspace/memories", graph_editor),
+            Route("/workspace/proposals", graph_editor),
+            Route("/workspace/activity", graph_editor),
+            Route("/health", ready),
             Route("/health/live", live),
             Route("/health/ready", ready),
             Route("/metrics", metrics_endpoint),
             Route("/graph", graph_editor),
             Route("/api/graph", graph_snapshot, methods=["GET"]),
+            Route("/api/webmcp/project-brief", webmcp_project_brief, methods=["POST"]),
+            Route("/api/webmcp/recall-memory", webmcp_recall_memory, methods=["POST"]),
+            Route("/api/webmcp/proposals", webmcp_list_proposals, methods=["GET"]),
+            Route("/api/webmcp/proposals", webmcp_propose_memory_change, methods=["POST"]),
+            Route("/api/webmcp/demo/reset", webmcp_reset_demo, methods=["POST"]),
+            Route(
+                "/api/webmcp/proposals/{proposal_id:str}/review",
+                webmcp_review_proposal,
+                methods=["POST"],
+            ),
+            Route(
+                "/api/webmcp/proposals/{proposal_id:str}/apply",
+                webmcp_apply_proposal,
+                methods=["POST"],
+            ),
+            Route(
+                "/api/webmcp/proposals/{proposal_id:str}/human-apply",
+                webmcp_human_apply_proposal,
+                methods=["POST"],
+            ),
             Route("/api/graph/transcripts", graph_transcripts, methods=["GET"]),
             Route("/api/graph/retrieval-debug", graph_retrieval_debug, methods=["POST"]),
             Route("/api/graph/abhi", graph_abhi_preview, methods=["GET"]),
@@ -1124,4 +1439,19 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         lifespan=service.lifespan,
         exception_handlers={WaggleError: waggle_error_handler},
     )
-    return _RequestBodySizeMiddleware(raw_app, max_bytes=config.max_payload_bytes)
+    app: ASGIApp = raw_app
+    if config.demo_mode:
+        app = _DemoSessionMiddleware(
+            app,
+            secure=config.demo_cookie_secure or bool(config.demo_frontend_origin),
+            cross_origin=bool(config.demo_frontend_origin),
+        )
+    if config.demo_frontend_origin:
+        app = CORSMiddleware(
+            app,
+            allow_origins=[config.demo_frontend_origin],
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", DEMO_SESSION_HEADER],
+        )
+    return _RequestBodySizeMiddleware(app, max_bytes=config.max_payload_bytes)
