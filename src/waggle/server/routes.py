@@ -540,6 +540,29 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         )
         return JSONResponse(_public_response(request, applied))
 
+    async def webmcp_human_apply_proposal(request: Request) -> Response:
+        """Commit a frozen, already-approved proposal from the human UI only."""
+
+        proposal_id = request.path_params["proposal_id"]
+        payload = await request.json()
+        unexpected = set(payload) - {"project_id"}
+        if unexpected:
+            raise ValidationFailure("Human apply accepts only project_id; approved content cannot be supplied or changed.")
+        project_id = payload.get("project_id")
+        if not isinstance(project_id, str):
+            raise ValidationFailure("project_id must be a string.")
+        project_id = _resolve_request_project(request, project_id)
+        graph, principal = _require_http_scope(request, "graph:write")
+        applied = apply_approved_memory_change(
+            graph,
+            proposal_repository,
+            proposal_id=proposal_id,
+            project_id=project_id,
+            applied_by=(principal.name or principal.api_key_id) if principal is not None else "local-human",
+            applied_actor_type="human",
+        )
+        return JSONResponse(_public_response(request, applied))
+
     async def webmcp_list_proposals(request: Request) -> Response:
         project_id = request.query_params.get("project_id", "")
         if not project_id.strip():
@@ -1378,6 +1401,11 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             Route(
                 "/api/webmcp/proposals/{proposal_id:str}/apply",
                 webmcp_apply_proposal,
+                methods=["POST"],
+            ),
+            Route(
+                "/api/webmcp/proposals/{proposal_id:str}/human-apply",
+                webmcp_human_apply_proposal,
                 methods=["POST"],
             ),
             Route("/api/graph/transcripts", graph_transcripts, methods=["GET"]),

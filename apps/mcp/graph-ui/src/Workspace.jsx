@@ -117,7 +117,7 @@ function EmptyState({ children }) {
   return <div className="workspace-empty">{children}</div>;
 }
 
-function ProposalCard({ proposal, readOnly, editing, editedContent, onEdit, onEditedContent, onCancelEdit, onReview, onCopyApplyPrompt }) {
+function ProposalCard({ proposal, readOnly, editing, editedContent, applying, onEdit, onEditedContent, onCancelEdit, onReview, onHumanApply, onCopyApplyPrompt }) {
   const pending = proposal.status === "pending";
   return (
     <motion.article layout className={`proposal-card proposal-${proposal.status}`} data-proposal-id={proposal.proposal_id}>
@@ -148,8 +148,11 @@ function ProposalCard({ proposal, readOnly, editing, editedContent, onEdit, onEd
           <span>Approved value</span>
           <p>{proposal.approved_content}</p>
           <div className="approved-next-action">
-            <div><span className="awaiting-dot" /> Ask ChatGPT: Apply the change I approved.</div>
-            <button aria-label="Copy apply prompt" onClick={onCopyApplyPrompt} type="button"><Clipboard size={14} /> Copy prompt</button>
+            <div><span className="awaiting-dot" /> Ready to commit the frozen approved value.</div>
+            <div className="proposal-actions">
+              <button className="button-primary" disabled={applying || readOnly} onClick={onHumanApply} type="button">{applying ? "Applying…" : "Apply approved change"}</button>
+              <button aria-label="Copy apply prompt" onClick={onCopyApplyPrompt} type="button"><Clipboard size={14} /> Ask ChatGPT instead</button>
+            </div>
           </div>
         </div>
       ) : (
@@ -232,6 +235,7 @@ export function Workspace() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [editingProposalId, setEditingProposalId] = useState("");
   const [editedProposalContent, setEditedProposalContent] = useState("");
+  const [applyingProposalId, setApplyingProposalId] = useState("");
   const [toast, setToast] = useState("");
   const [loading, setLoading] = useState(true);
   const [demo, setDemo] = useState(() => loadDemoState(window.sessionStorage, project));
@@ -438,6 +442,33 @@ export function Workspace() {
     showToast(action === "reject" ? "Proposal rejected." : "The exact human-approved value is now frozen.");
   };
 
+  const humanApplyProposal = async (proposal) => {
+    const approvedValue = proposal.approved_content || "the approved value";
+    if (!window.confirm(`Apply this exact human-approved value?\n\n${approvedValue}\n\nThis creates a new authoritative memory and preserves the previous one as lineage.`)) {
+      return;
+    }
+    setApplyingProposalId(proposal.proposal_id);
+    try {
+      const result = sessionApi.active()
+        ? sessionApi.applyApprovedMemoryChange({ proposalId: proposal.proposal_id })
+        : await apiRequest(`/api/webmcp/proposals/${encodeURIComponent(proposal.proposal_id)}/human-apply`, {
+          method: "POST",
+          body: JSON.stringify({ project_id: project }),
+        });
+      replaceProposal(result.proposal);
+      addLiveActivity({ event_type: "proposal.applied", actor_id: "local-human", label: "Human applied approved memory change" });
+      setDemo((current) => reduceDemoState(current, {
+        type: "proposal.applied",
+        proposalId: result.proposal_id || result.proposal?.proposal_id,
+        memoryId: result.authoritative_memory?.memory_id || result.authoritative_memory?.id || "",
+      }));
+      await loadWorkspace();
+      showToast(result.already_applied ? "This approved change was already applied." : "Approved value applied and prior memory preserved in lineage.");
+    } finally {
+      setApplyingProposalId("");
+    }
+  };
+
   const resetDemo = async () => {
     clearSessionWorkspace(project, window.sessionStorage);
     await apiRequest("/api/webmcp/demo/reset", { method: "POST", body: "{}" });
@@ -622,10 +653,12 @@ export function Workspace() {
                     readOnly={readOnly}
                     editing={editingProposalId === proposal.proposal_id}
                     editedContent={editedProposalContent}
+                    applying={applyingProposalId === proposal.proposal_id}
                     onEdit={() => { setEditingProposalId(proposal.proposal_id); setEditedProposalContent(proposal.proposed_content); }}
                     onEditedContent={setEditedProposalContent}
                     onCancelEdit={() => setEditingProposalId("")}
                     onReview={(action, content) => reviewProposal(proposal, action, content).catch((error) => showToast(error.message))}
+                    onHumanApply={() => humanApplyProposal(proposal).catch((error) => showToast(error.message))}
                     onCopyApplyPrompt={() => copyPrompt(DEMO_STEPS[4].prompt).catch((error) => showToast(error.message))}
                   />
                 )) : <EmptyState>No proposals yet. Ask ChatGPT to suggest a correction to an existing memory.</EmptyState>}

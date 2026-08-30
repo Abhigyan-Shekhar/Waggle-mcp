@@ -59,6 +59,12 @@ After the browser lists the tools, run the exact judge story in ChatGPT:
    optional; confirm authoritative memory has not changed.
 5. Approve or edit-and-approve the proposal in the Waggle workspace.
 6. Apply it from ChatGPT using only the proposal ID and public project alias.
+   Site tools receive an independent browser security review for every mutation.
+   If that review blocks this otherwise-valid, human-approved apply call, use the
+   approved proposal card's **Apply approved change** button instead. It asks for
+   an explicit human confirmation and sends only the proposal ID and project ID;
+   the server still verifies approval, frozen content, target freshness, and
+   idempotency before committing the change.
 7. Recall storage architecture again and confirm only the corrected memory is
    authoritative, with its `updates` lineage preserved.
 8. Reset the demo and rerun the opening recall to confirm the exact original

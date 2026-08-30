@@ -590,6 +590,7 @@ def apply_approved_memory_change(
     proposal_id: str,
     project_id: str,
     applied_by: str = "webmcp",
+    applied_actor_type: str = "agent",
 ) -> dict[str, Any]:
     """Atomically apply the exact human-approved payload through native update lineage."""
 
@@ -629,7 +630,7 @@ def apply_approved_memory_change(
             )
             graph.emit_audit_event(
                 event_type="proposal.stale",
-                actor_type="agent",
+                actor_type=applied_actor_type,
                 actor_id=applied_by,
                 resource_type="memory_change_proposal",
                 resource_id=proposal_key,
@@ -709,7 +710,7 @@ def apply_approved_memory_change(
                 raise _proposal_error("PROPOSAL_NOT_APPROVED", "Proposal is no longer approved.")
             graph.emit_audit_event(
                 event_type="proposal.applied",
-                actor_type="agent",
+                actor_type=applied_actor_type,
                 actor_id=applied_by,
                 resource_type="memory_change_proposal",
                 resource_id=proposal_key,
@@ -719,7 +720,7 @@ def apply_approved_memory_change(
             )
             graph.emit_audit_event(
                 event_type="memory.superseded",
-                actor_type="agent",
+                actor_type=applied_actor_type,
                 actor_id=applied_by,
                 resource_type="node",
                 resource_id=target.id,

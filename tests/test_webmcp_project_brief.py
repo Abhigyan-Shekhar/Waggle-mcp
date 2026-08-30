@@ -705,6 +705,51 @@ def test_pending_and_rejected_proposals_cannot_be_applied(tmp_path: Path) -> Non
     assert "proposal.rejected" in {event.event_type for event in graph.list_audit_events(limit=100)}
 
 
+def test_human_apply_commits_only_the_frozen_approved_value(tmp_path: Path) -> None:
+    graph = make_graph(tmp_path)
+    target = seed_governance_target(graph)
+    app_server = WaggleServer(graph=graph, config=make_http_config(tmp_path))
+    app = create_http_application(app_server, app_server.config)
+    approved_content = "Use SQLite by default; Neo4j remains optional."
+
+    with TestClient(app) as client:
+        proposal_id = create_proposal(client, target.id).json()["proposal_id"]
+        reviewed = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/review",
+            json={"action": "approve", "approved_content": approved_content},
+        )
+        rejected_payload = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/human-apply",
+            json={
+                "project_id": "waggle-webmcp",
+                "approved_content": "A caller must never be able to replace the reviewed value.",
+            },
+        )
+        applied = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/human-apply",
+            json={"project_id": "waggle-webmcp"},
+        )
+        applied_again = client.post(
+            f"/api/webmcp/proposals/{proposal_id}/human-apply",
+            json={"project_id": "waggle-webmcp"},
+        )
+
+    assert reviewed.status_code == 200
+    assert rejected_payload.status_code == 400
+    assert "approved content cannot be supplied" in rejected_payload.json()["message"]
+    assert applied.status_code == 200
+    assert applied.json()["authoritative_memory"]["content"] == approved_content
+    assert applied_again.status_code == 200
+    assert applied_again.json()["already_applied"] is True
+    applied_event = next(
+        event
+        for event in graph.list_audit_events(limit=100)
+        if event.event_type == "proposal.applied" and event.resource_id == proposal_id
+    )
+    assert applied_event.actor_type == "human"
+    assert applied_event.actor_id == "local-human"
+
+
 def test_pending_proposal_becomes_stale_at_review(tmp_path: Path) -> None:
     graph = make_graph(tmp_path)
     target = seed_governance_target(graph)
