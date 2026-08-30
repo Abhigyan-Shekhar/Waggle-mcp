@@ -2515,6 +2515,119 @@ def test_resolve_conflict_invalidates_communities_cache(tmp_path: Path) -> None:
         assert row["communities_stale"] == 1
 
 
+def test_get_topics_publish_skips_when_a_mutation_wins_the_race(tmp_path: Path) -> None:
+    """Test that a mutation racing the recompute wins -- the publish is skipped, not the mutation's stale flag."""
+    graph = make_graph(tmp_path)
+    graph.add_node(label="Auth REST", content="User prefers REST APIs", node_type=NodeType.PREFERENCE)
+    graph.get_topics()
+
+    with graph._lock, graph._connect() as conn:
+        observed_version = conn.execute(
+            "SELECT communities_version FROM tenants WHERE tenant_id = ?", (graph.tenant_id,)
+        ).fetchone()["communities_version"]
+        before = conn.execute(
+            "SELECT communities_stale, cached_communities FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+
+        # simulate a racing mutation, then try to publish against the stale observed_version
+        graph._mark_communities_stale(conn)
+        conn.execute(
+            """
+            UPDATE tenants SET communities_stale = 0, cached_communities = ?
+            WHERE tenant_id = ? AND communities_version = ?
+            """,
+            (json.dumps({"should-not-be-published": True}), graph.tenant_id, observed_version),
+        )
+
+        after = conn.execute(
+            "SELECT communities_stale, cached_communities FROM tenants WHERE tenant_id = ?",
+            (graph.tenant_id,),
+        ).fetchone()
+
+    assert after["communities_stale"] == 1
+    assert after["cached_communities"] == before["cached_communities"]
+
+
+def test_import_markdown_vault_node_only_sync_invalidates_communities_cache(tmp_path: Path) -> None:
+    """Test that a vault re-import touching only a node's content marks communities as stale."""
+    graph = make_graph(tmp_path)
+    decision = graph.add_node(
+        label="Use PostgreSQL",
+        content="We decided to use PostgreSQL for production.",
+        node_type=NodeType.DECISION,
+    ).node
+
+    graph.get_topics()
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute("SELECT communities_stale FROM tenants WHERE tenant_id = ?", (graph.tenant_id,)).fetchone()
+        assert row["communities_stale"] == 0
+
+    exported = graph.export_markdown_vault(root_path=tmp_path / "vault-node-only")
+    decision_file_rel = next(path for path in exported.files_written if decision.id in path)
+    decision_file = Path(exported.root_path) / decision_file_rel
+    decision_file.write_text(
+        decision_file.read_text(encoding="utf-8").replace(
+            "We decided to use PostgreSQL for production.",
+            "We decided to use PostgreSQL 16 for production.",
+        ),
+        encoding="utf-8",
+    )
+
+    imported = graph.import_markdown_vault(root_path=tmp_path / "vault-node-only")
+    assert imported.nodes_updated >= 1
+    assert imported.edges_created == 0
+    assert imported.edges_deleted == 0
+
+    with graph._lock, graph._connect() as conn:
+        row = conn.execute("SELECT communities_stale FROM tenants WHERE tenant_id = ?", (graph.tenant_id,)).fetchone()
+        assert row["communities_stale"] == 1
+
+
+def test_import_graph_backup_invalidates_communities_cache(tmp_path: Path) -> None:
+    """Test that import_graph_backup marks communities as stale."""
+    source = make_graph(tmp_path / "source")
+    target = make_graph(tmp_path / "target")
+    target.add_node(label="Existing", content="Already in target", node_type=NodeType.NOTE)
+    source.add_node(
+        label="Backup Node", content="This node should survive a backup round trip", node_type=NodeType.NOTE
+    )
+
+    target.get_topics()
+    with target._lock, target._connect() as conn:
+        row = conn.execute("SELECT communities_stale FROM tenants WHERE tenant_id = ?", (target.tenant_id,)).fetchone()
+        assert row["communities_stale"] == 0
+
+    backup = source.export_graph_backup(output_path=tmp_path / "backup.json")
+    imported = target.import_graph_backup(input_path=backup.output_path)
+    assert imported.nodes_created == 1
+
+    with target._lock, target._connect() as conn:
+        row = conn.execute("SELECT communities_stale FROM tenants WHERE tenant_id = ?", (target.tenant_id,)).fetchone()
+        assert row["communities_stale"] == 1
+
+
+def test_import_abhi_invalidates_communities_cache(tmp_path: Path) -> None:
+    """Test that import_abhi marks communities as stale."""
+    source = make_graph(tmp_path / "source")
+    target = make_graph(tmp_path / "target")
+    target.add_node(label="Existing", content="Already in target", node_type=NodeType.NOTE)
+    source.add_node(label="Use PostgreSQL", content="Use PostgreSQL for production.", node_type=NodeType.DECISION)
+
+    target.get_topics()
+    with target._lock, target._connect() as conn:
+        row = conn.execute("SELECT communities_stale FROM tenants WHERE tenant_id = ?", (target.tenant_id,)).fetchone()
+        assert row["communities_stale"] == 0
+
+    exported = source.export_abhi(output_path=tmp_path / "memory.abhi")
+    imported = target.import_abhi(input_path=exported.output_path)
+    assert imported.nodes_created == 1
+
+    with target._lock, target._connect() as conn:
+        row = conn.execute("SELECT communities_stale FROM tenants WHERE tenant_id = ?", (target.tenant_id,)).fetchone()
+        assert row["communities_stale"] == 1
+
+
 def test_observe_conversation_round_trip_stamps_transcript_embeddings_and_turn_pairs(
     tmp_path: Path,
 ) -> None:
