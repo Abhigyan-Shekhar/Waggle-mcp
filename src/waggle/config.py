@@ -116,6 +116,9 @@ class AppConfig:
     # are merged at write time instead of creating a duplicate.
     # Must be >= 0.85 to avoid false-positive merges.
     dedup_threshold: float = 0.88
+    demo_mode: bool = False
+    demo_cookie_secure: bool = True
+    demo_frontend_origin: str = ""
 
     @classmethod
     def from_env(cls) -> AppConfig:
@@ -205,6 +208,9 @@ class AppConfig:
                 "WAGGLE_TIERED_TOP_K_WINDOWS", os.environ.get("WAGGLE_TIERED_TOP_K_WINDOWS", "3")
             ),
             dedup_threshold=_parse_float("WAGGLE_DEDUP_THRESHOLD", os.environ.get("WAGGLE_DEDUP_THRESHOLD", "0.88")),
+            demo_mode=os.environ.get("WAGGLE_DEMO_MODE", "false").strip().lower() == "true",
+            demo_cookie_secure=os.environ.get("WAGGLE_DEMO_COOKIE_SECURE", "true").strip().lower() == "true",
+            demo_frontend_origin=os.environ.get("WAGGLE_DEMO_FRONTEND_ORIGIN", "").strip().rstrip("/"),
         )
         config.validate()
         return config
@@ -214,7 +220,9 @@ class AppConfig:
             raise ValidationFailure(f"Unsupported WAGGLE_TRANSPORT: {self.transport}")
         if self.backend not in {"sqlite", "neo4j"}:
             raise ValidationFailure(f"Unsupported WAGGLE_BACKEND: {self.backend}")
-        if self.transport == "http" and self.backend != "neo4j":
+        if self.demo_mode and self.backend != "sqlite":
+            raise ValidationFailure("Challenge demo governance requires WAGGLE_BACKEND=sqlite.")
+        if self.transport == "http" and self.backend != "neo4j" and not self.demo_mode:
             raise ValidationFailure("HTTP transport requires WAGGLE_BACKEND=neo4j.")
         if not self.default_tenant_id:
             raise ValidationFailure("WAGGLE_DEFAULT_TENANT_ID cannot be empty.")
