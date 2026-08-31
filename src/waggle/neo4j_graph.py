@@ -583,20 +583,28 @@ class Neo4jMemoryGraph:
             match_clause = "WHERE n.tenant_id = $tenant_id"
             transcript_clause = "WHERE t.tenant_id = $tenant_id"
             ui_clause = "WHERE ui.tenant_id = $tenant_id"
+            repo_clause = "WHERE repo.tenant_id = $tenant_id"
+            cw_clause = "WHERE cw.tenant_id = $tenant_id"
         elif scope == "project":
             match_clause = "WHERE n.tenant_id = $tenant_id AND n.project = $project"
             transcript_clause = "WHERE t.tenant_id = $tenant_id AND t.project = $project"
             ui_clause = "WHERE ui.tenant_id = $tenant_id AND ui.project = $project"
+            repo_clause = "WHERE repo.tenant_id = $tenant_id AND repo.name = $project"
+            cw_clause = "MATCH (repo:Repo {tenant_id: $tenant_id, name: $project}), (cw:ContextWindow {tenant_id: $tenant_id, repo_id: repo.id})"
             params["project"] = project
         elif scope == "session":
             match_clause = "WHERE n.tenant_id = $tenant_id AND n.session_id = $session_id"
             transcript_clause = "WHERE t.tenant_id = $tenant_id AND t.session_id = $session_id"
             ui_clause = "WHERE ui.tenant_id = $tenant_id AND ui.session_id = $session_id"
+            repo_clause = "WHERE false"
+            cw_clause = "WHERE cw.tenant_id = $tenant_id AND cw.session_id = $session_id"
             params["session_id"] = session_id
         else:
             return result
 
-        nodes_info = session.run(f"MATCH (n:MemoryNode) {match_clause} RETURN n.node_type AS node_type, count(n) AS count", **params)
+        nodes_info = session.run(
+            f"MATCH (n:MemoryNode) {match_clause} RETURN n.node_type AS node_type, count(n) AS count", **params
+        )
         for record in nodes_info:
             node_type = record["node_type"]
             count = record["count"]
@@ -613,14 +621,34 @@ class Neo4jMemoryGraph:
         ).single()
         result.deleted_transcripts = transcript_count["count"] if transcript_count else 0
 
-        ui_count = session.run(
-            f"MATCH (ui:GraphUIState) {ui_clause} RETURN count(ui) AS count", **params
-        ).single()
+        ui_count = session.run(f"MATCH (ui:GraphUIState) {ui_clause} RETURN count(ui) AS count", **params).single()
         result.deleted_graph_ui_rows = ui_count["count"] if ui_count else 0
+
+        if scope == "project":
+            cw_query = f"{cw_clause} RETURN count(cw) AS count"
+            cwe_query = f"{cw_clause}-[cwe:CONTEXT_WINDOW_EDGE]-() RETURN count(DISTINCT cwe) AS count"
+            del_cw_query = f"{cw_clause} DETACH DELETE cw"
+        else:
+            cw_query = f"MATCH (cw:ContextWindow) {cw_clause} RETURN count(cw) AS count"
+            cwe_query = (
+                f"MATCH (cw:ContextWindow)-[cwe:CONTEXT_WINDOW_EDGE]-() {cw_clause} RETURN count(DISTINCT cwe) AS count"
+            )
+            del_cw_query = f"MATCH (cw:ContextWindow) {cw_clause} DETACH DELETE cw"
+
+        cw_count = session.run(cw_query, **params).single()
+        result.deleted_context_windows = cw_count["count"] if cw_count else 0
+
+        cwe_count = session.run(cwe_query, **params).single()
+        result.deleted_context_window_edges = cwe_count["count"] if cwe_count else 0
+
+        repo_count = session.run(f"MATCH (repo:Repo) {repo_clause} RETURN count(repo) AS count", **params).single()
+        result.deleted_repos = repo_count["count"] if repo_count else 0
 
         if not dry_run:
             session.run(f"MATCH (ui:GraphUIState) {ui_clause} DETACH DELETE ui", **params).consume()
             session.run(f"MATCH (t:MemoryTranscript) {transcript_clause} DETACH DELETE t", **params).consume()
+            session.run(del_cw_query, **params).consume()
+            session.run(f"MATCH (repo:Repo) {repo_clause} DETACH DELETE repo", **params).consume()
             session.run(f"MATCH (n:MemoryNode) {match_clause} DETACH DELETE n", **params).consume()
 
         return result
@@ -631,7 +659,11 @@ class Neo4jMemoryGraph:
             tenant_id, cached_project, _agent_id, cached_session_id = key
             if tenant_id != self.tenant_id:
                 continue
-            if scope == "all" or (scope == "project" and cached_project == project) or (scope == "session" and cached_session_id == session_id):
+            if (
+                scope == "all"
+                or (scope == "project" and cached_project == project)
+                or (scope == "session" and cached_session_id == session_id)
+            ):
                 keys_to_delete.append(key)
         for key in keys_to_delete:
             _UI_STATE_CACHE.pop(key, None)
