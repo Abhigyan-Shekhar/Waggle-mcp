@@ -30,11 +30,24 @@ def test_waggle_server_mcp_survives_missing_request_ctx(
 
     try:
         module = _reload_waggle_server_mcp()
+        with pytest.raises(LookupError):
+            module.request_ctx.get()
     finally:
-        _reload_waggle_server_mcp()
+        # Undo the patch before reloading so the module left in
+        # sys.modules is rebuilt against the SDK's real state, instead of
+        # leaking the fallback object into tests that run afterward.
+        monkeypatch.undo()
+        restored_module = _reload_waggle_server_mcp()
 
-    with pytest.raises(LookupError):
-        module.request_ctx.get()
+    if hasattr(mcp_lowlevel_server, "request_ctx"):
+        assert restored_module.request_ctx is mcp_lowlevel_server.request_ctx
+    else:
+        # The installed SDK genuinely lacks request_ctx (the GH-704
+        # scenario itself), so the fallback object is the correct,
+        # freshly-restored state rather than a leaked stale instance.
+        assert isinstance(
+            restored_module.request_ctx, restored_module._MissingRequestContext
+        )
 
 
 def test_waggle_help_runs_without_request_ctx() -> None:
