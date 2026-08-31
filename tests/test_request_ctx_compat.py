@@ -45,9 +45,7 @@ def test_waggle_server_mcp_survives_missing_request_ctx(
         # The installed SDK genuinely lacks request_ctx (the GH-704
         # scenario itself), so the fallback object is the correct,
         # freshly-restored state rather than a leaked stale instance.
-        assert isinstance(
-            restored_module.request_ctx, restored_module._MissingRequestContext
-        )
+        assert isinstance(restored_module.request_ctx, restored_module._MissingRequestContext)
 
 
 def test_waggle_help_runs_without_request_ctx() -> None:
