@@ -7,6 +7,8 @@ from unittest.mock import MagicMock
 import numpy as np
 
 from waggle.models import (
+    Node,
+    NodeType,
     SubgraphResult,
 )
 from waggle.neo4j_graph import Neo4jMemoryGraph
@@ -113,6 +115,31 @@ def test_neo4j_add_node_optional_params() -> None:
     assert "session_id" in sig.parameters
     assert "tags" in sig.parameters
     assert "node_id" in sig.parameters
+    assert "metadata" in sig.parameters
+    assert "force_new" in sig.parameters
+
+
+def test_project_graph_methods_remain_on_neo4j_class() -> None:
+    for name in ("update_node", "update_edge", "get_graph_snapshot", "add_node", "get_node"):
+        assert callable(getattr(Neo4jMemoryGraph, name))
+
+
+def test_neo4j_project_metadata_update_preserves_content() -> None:
+    graph = make_mock_graph()
+    node = Node(
+        id="project",
+        label="Project",
+        content="Registered project",
+        node_type=NodeType.ENTITY,
+        metadata={"authority": "source_observation"},
+    )
+    graph._fetch_node = MagicMock(return_value=node)
+    graph._mark_communities_stale = MagicMock()
+    result = graph.update_node(node_id=node.id, metadata={**node.metadata, "identity": {"project_root": "/new"}})
+    assert result.content == node.content
+    assert result.metadata["identity"]["project_root"] == "/new"
+    params = graph._session.return_value.run.call_args.kwargs
+    assert '"project_root": "/new"' in params["metadata"]
 
 
 def test_neo4j_add_edge_signature_has_required_params() -> None:

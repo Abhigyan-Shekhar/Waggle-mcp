@@ -6,6 +6,7 @@ import {
   registerLoadAbhiSessionTool,
   registerProposeMemoryChangeTool,
   registerRecallMemoryTool,
+  registerRefreshProjectContextTool,
 } from "./webmcp";
 
 afterEach(() => {
@@ -90,10 +91,10 @@ describe("get_project_brief WebMCP registration", () => {
     expect(definition.description).toContain("when the user asks to catch up");
     expect(definition.description).toContain("do not substitute chat history");
     expect(definition.annotations).toEqual({ readOnlyHint: true });
-    expect(definition.inputSchema.required).toEqual(["project_id"]);
+    expect(definition.inputSchema.required).toEqual([]);
 
     await expect(
-      definition.execute({ project_id: "waggle-webmcp" }),
+      definition.execute({}),
     ).resolves.toEqual(payload);
     expect(fetch).toHaveBeenCalledWith(
       "/api/webmcp/project-brief",
@@ -147,6 +148,35 @@ describe("get_project_brief WebMCP registration", () => {
     for (const definition of definitions) {
       expect(definition.inputSchema.properties.project_id.enum).toEqual(["waggle-webmcp"]);
     }
+  });
+});
+
+describe("refresh_project_context WebMCP registration", () => {
+  it("defaults to the open project and preserves the observation-only contract", async () => {
+    let definition;
+    const payload = { added_memory_ids: ["observation-1"], changed_categories: [] };
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      headers: { get: () => "application/json" },
+      json: async () => payload,
+    })));
+
+    await registerRefreshProjectContextTool({
+      modelContext: { registerTool: (tool) => (definition = tool) },
+      getScope: () => ({ project: "project-a" }),
+    });
+
+    expect(definition.name).toBe("refresh_project_context");
+    expect(definition.annotations).toEqual({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    });
+    await expect(definition.execute({})).resolves.toEqual(payload);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/webmcp/projects/refresh",
+      expect.objectContaining({ body: JSON.stringify({ project_id: "project-a" }) }),
+    );
   });
 });
 
