@@ -325,6 +325,9 @@ def test_http_app_health_auth_and_metrics(tmp_path: Path) -> None:
     app = create_http_application(app_server, app_server.config)
 
     with TestClient(app) as client:
+        compatibility_health = client.get("/health")
+        assert compatibility_health.status_code == 200
+        assert compatibility_health.json() == {"status": "ready"}
         assert client.get("/health/live").status_code == 200
         assert client.get("/health/ready").status_code == 200
 

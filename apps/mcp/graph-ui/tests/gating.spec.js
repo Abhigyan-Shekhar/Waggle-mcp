@@ -88,7 +88,7 @@ test.describe("Graph UI - Gating in View Mode", () => {
         session_id: "test-session"
       };
     });
-    await page.goto("/");
+    await page.goto("/graph");
   });
 
   test("should display view mode indicator and disable graph mutations", async ({ page }) => {
@@ -140,7 +140,7 @@ test.describe("Graph UI - Boot Config Validation", () => {
       message.text().includes("Invalid graph boot config"),
     );
 
-    await page.goto("/");
+    await page.goto("/graph");
 
     await expect(page.locator("text=Edit mode")).toBeVisible();
     await expect(page.locator('button:has-text("New node")')).toBeEnabled();
@@ -162,7 +162,7 @@ test.describe("Graph UI - Boot Config Validation", () => {
       };
     });
 
-    await page.goto("/");
+    await page.goto("/graph");
 
     await expect(page.locator("text=View mode")).toBeVisible();
     await expect(page.locator('input[placeholder="Project"]')).toHaveValue(
@@ -189,7 +189,7 @@ test.describe("Graph UI - Allowed Actions in Edit Mode", () => {
         session_id: "test-session"
       };
     });
-    await page.goto("/");
+    await page.goto("/graph");
   });
 
   test("should display edit mode indicator and allow graph mutations", async ({ page }) => {
