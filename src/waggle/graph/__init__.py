@@ -3921,14 +3921,26 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             created_ids.add(context_node.id)
 
         atomic_items = split_atomic_items(trimmed_content)
+        
+        _batch_embeddings: np.ndarray | None = None
+        if atomic_items:
+            try:
+                _batch_embeddings = self.embedding_model.embed_batch(atomic_items)
+                if _batch_embeddings is not None and len(_batch_embeddings) != len(atomic_items):
+                    _batch_embeddings = None
+            except Exception:
+                _batch_embeddings = None
+
         item_nodes: list[Node] = []
-        for item in atomic_items:
+        for _idx, item in enumerate(atomic_items):
+            _precomputed = _batch_embeddings[_idx] if _batch_embeddings is not None else None
             store_result = self.add_node(
                 label=infer_label(item),
                 content=item,
                 node_type=infer_node_type(item),
                 tags=["decomposed"],
                 source_prompt=context.strip() or trimmed_content,
+                embedding=_precomputed,
             )
             node = store_result.node
             item_nodes.append(node)

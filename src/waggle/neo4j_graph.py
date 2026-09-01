@@ -1026,6 +1026,7 @@ class Neo4jMemoryGraph:
         evidence_records: list[EvidenceRecord] | None = None,
         valid_from: datetime | None = None,
         valid_to: datetime | None = None,
+        embedding: np.ndarray | None = None,
     ) -> NodeStoreResult:
         node_kwargs: dict[str, Any] = {}
         if node_id is not None and str(node_id).strip():
@@ -1045,7 +1046,8 @@ class Neo4jMemoryGraph:
             valid_from=valid_from,
             valid_to=valid_to,
         )
-        embedding = self.embedding_model.embed(node.content)
+        if embedding is None:
+            embedding = self.embedding_model.embed(node.content)
 
         with self._lock, self._session() as session:
             existing = [
@@ -3246,7 +3248,18 @@ def update_node(
                     role=role,
                     transcript_text=text,
                 )
-        for candidate in candidates:
+        
+        _candidate_texts = [str(c["content"]) for c in candidates]
+        _batch_embeddings: np.ndarray | None = None
+        if _candidate_texts:
+            try:
+                _batch_embeddings = self.embedding_model.embed_batch(_candidate_texts)
+                if _batch_embeddings is not None and len(_batch_embeddings) != len(_candidate_texts):
+                    _batch_embeddings = None
+            except Exception:
+                _batch_embeddings = None
+
+        for _idx, candidate in enumerate(candidates):
             candidate_tags = list(candidate.get("tags", []))
             speaker_tag = next((tag for tag in candidate_tags if str(tag).startswith("speaker:")), "")
             speaker = speaker_tag.split(":", 1)[1] if ":" in speaker_tag else "user"
@@ -3259,6 +3272,8 @@ def update_node(
                 observed_at=observed_at,
                 session_id=session_id,
             )
+            
+            _precomputed = _batch_embeddings[_idx] if _batch_embeddings is not None else None
             store_result = self.add_node(
                 label=str(candidate["label"]),
                 content=str(candidate["content"]),
@@ -3270,6 +3285,7 @@ def update_node(
                 session_id=session_id,
                 evidence_records=[evidence],
                 valid_from=observed_at,
+                embedding=_precomputed,
             )
             result.stored_nodes.append(store_result.node)
             if store_result.created:
