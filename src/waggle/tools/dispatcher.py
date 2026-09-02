@@ -103,8 +103,6 @@ def _scope_properties() -> dict[str, dict[str, Any]]:
 _READ_ONLY_TOOLS = frozenset(
     {
         "dedup_candidates",
-        "aggregate_graph",
-        "query_graph",
         "debug_retrieval",
         "get_related",
         "get_node_history",

@@ -154,11 +154,18 @@ def test_every_tool_declares_annotations(mcp_surface):
 def test_read_only_tools_keep_safe_annotations(mcp_surface):
     tools = _live_tools_by_name(mcp_surface)
 
-    for name in ["query_graph", "get_stats", "fsck"]:
+    for name in ["get_stats", "fsck", "show"]:
         assert tools[name].annotations == {
             "readOnlyHint": True,
             "destructiveHint": False,
             "idempotentHint": True,
+        }
+
+    for name in ["query_graph", "aggregate_graph"]:
+        assert tools[name].annotations == {
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
         }
 
 
