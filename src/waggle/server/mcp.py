@@ -14,12 +14,6 @@ try:
     from mcp.server.lowlevel.server import request_ctx
 except ImportError:
 
-    class _MissingRequestContext:
-        def get(self) -> Any:
-            raise LookupError
-
-    request_ctx = _MissingRequestContext()
-
 from waggle import __version__
 from waggle.config import AppConfig
 from waggle.embeddings import STATUS_READY
