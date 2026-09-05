@@ -247,7 +247,8 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             admit_demo_scope(app_server._root_graph, demo_scope)
             graph = app_server._root_graph.for_tenant(demo_scope.tenant_id)
             ensure_demo_seed(graph, proposal_repository, demo_scope)
-            return graph, None        raw_api_key = request.headers.get("x-api-key", "").strip()
+            return graph, None
+        raw_api_key = request.headers.get("x-api-key", "").strip()
         if raw_api_key:
             principal = app_server._root_graph.authenticate_api_key(raw_api_key)
             return app_server._root_graph.for_tenant(principal.tenant_id), principal
