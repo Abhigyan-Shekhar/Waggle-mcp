@@ -496,32 +496,41 @@ When an API key is presented:
 | `export_markdown_vault` | Export one-file-per-node Markdown vaults |
 | `import_markdown_vault` | Re-import edited Markdown vault files |
 
-### Graphify import
+### Graph Import (JSON Backup)
 
-To test the import functionality locally, you can use the following minimal payload. Note that the unified API currently accepts the `json` format, and the graph data must be passed as a JSON-encoded string inside the `content` field.
+To test the import functionality locally, you can use the following minimal payload. The unified API currently accepts the `json` format, and the native Waggle graph backup data must be passed as a JSON-encoded string inside the `content` field.
 
 **Sample `import_payload.json`**
 ```json
 {
   "format": "json",
-  "content": "{\"nodes\": [{\"id\": \"node-1\", \"kind\": \"Concept\", \"name\": \"Authentication\"}, {\"id\": \"node-2\", \"kind\": \"Module\", \"name\": \"auth_service.py\"}], \"edges\": [{\"source\": \"node-1\", \"target\": \"node-2\", \"kind\": \"ImplementedBy\", \"confidence\": \"EXTRACTED\"}]}"
+  "content": "{\"nodes\": [{\"label\": \"node-1\", \"node_type\": \"Concept\", \"content\": \"Authentication\"}, {\"label\": \"node-2\", \"node_type\": \"Module\", \"content\": \"auth_service.py\"}], \"edges\": [{\"source_id\": \"node-1\", \"target_id\": \"node-2\", \"relationship\": \"ImplementedBy\"}]}"
 }
 ```
 
-#### Mapping Details
-When importing, note how properties are mapped:
-* **Node/Edge Kinds:** The `kind` field maps directly to the system's internal graph schema terminology.
-* **Confidence Mapping:** The Graphify confidence levels map as follows:
-  * `EXTRACTED` → High confidence (Explicitly defined in source)
-  * `INFERRED` → Medium confidence (Deduced by analysis)
-  * `AMBIGUOUS` → Low confidence (Requires manual review)
-
 #### Using the HTTP API (cURL)
-You can POST the payload directly to the unified import endpoint:
+You can POST the payload directly to the unified import endpoint. Note that this is a protected write route requiring an API key with the `graph:write` scope, and the default server port is `8080`.
+
 ```bash
-curl -X POST http://localhost:8000/api/graph/import \
+curl -X POST http://localhost:8080/api/graph/import \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
   -d @import_payload.json
+```
+
+#### Expected Response
+Upon a successful import, the endpoint returns import metadata. Both `node-1` and `node-2` will appear in the `imported_node_ids` list.
+```json
+{
+  "imported_node_ids": [
+    "node-1",
+    "node-2"
+  ],
+  "imported_edge_count": 1,
+  "metadata": {
+    "status": "success"
+  }
+}
 ```
 
 ## Architecture snapshot
