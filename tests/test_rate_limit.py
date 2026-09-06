@@ -21,6 +21,31 @@ async def test_rate_limiter_read_limit():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("is_write", [False, True], ids=["read", "write"])
+async def test_exhausted_bucket_accepts_requests_after_window_expires(
+    monkeypatch: pytest.MonkeyPatch, is_write: bool
+) -> None:
+    now = 100.0
+    monkeypatch.setattr("waggle.rate_limit.time.monotonic", lambda: now)
+    limiter = RateLimiter(
+        requests_per_minute=2,
+        write_requests_per_minute=2,
+        max_concurrent_requests=5,
+    )
+
+    await limiter.check_rate("test_user_reset", is_write=is_write)
+    await limiter.check_rate("test_user_reset", is_write=is_write)
+    with pytest.raises(RateLimitExceededError):
+        await limiter.check_rate("test_user_reset", is_write=is_write)
+
+    now += 60.001
+    await limiter.check_rate("test_user_reset", is_write=is_write)
+
+    bucket = limiter._write_windows if is_write else limiter._request_windows
+    assert list(bucket["test_user_reset"]) == [now]
+
+
+@pytest.mark.asyncio
 async def test_rate_limiter_read_write_independence():
     limiter = RateLimiter(
         requests_per_minute=2,
