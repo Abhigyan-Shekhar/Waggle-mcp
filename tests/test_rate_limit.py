@@ -10,6 +10,7 @@ from waggle.rate_limit import RateLimiter
 
 @pytest.mark.asyncio
 async def test_rate_limiter_read_limit():
+    """Reject reads after the per-user request budget is exhausted."""
     limiter = RateLimiter(requests_per_minute=2, max_concurrent_requests=5)
     key = "test_user_read"
 
@@ -25,6 +26,7 @@ async def test_rate_limiter_read_limit():
 async def test_exhausted_bucket_accepts_requests_after_window_expires(
     monkeypatch: pytest.MonkeyPatch, is_write: bool
 ) -> None:
+    """Reset both read and write buckets once every previous request has expired."""
     now = 100.0
     monkeypatch.setattr("waggle.rate_limit.time.monotonic", lambda: now)
     limiter = RateLimiter(
@@ -47,6 +49,7 @@ async def test_exhausted_bucket_accepts_requests_after_window_expires(
 
 @pytest.mark.asyncio
 async def test_rate_limiter_read_write_independence():
+    """Keep separate read and write budgets for the same user."""
     limiter = RateLimiter(
         requests_per_minute=2,
         max_concurrent_requests=5,
