@@ -1,30 +1,42 @@
 services:
   - type: web
-    name: waggle-mcp
+    name: waggle-webmcp-api
     runtime: docker
-    plan: starter
-    autoDeploy: true
+    # Disposable challenge fixture, not durable user storage. Keep the demo free.
+    plan: free
+    branch: codex/waggle-webmcp
+    autoDeploy: false
     healthCheckPath: /health/ready
     envVars:
       - key: WAGGLE_TRANSPORT
         value: http
       - key: WAGGLE_BACKEND
-        value: neo4j
+        value: sqlite
+      - key: WAGGLE_MODEL
+        value: deterministic
+      - key: WAGGLE_DB_PATH
+        value: /tmp/waggle-webmcp-demo.db
       - key: WAGGLE_HTTP_HOST
         value: 0.0.0.0
-      - key: WAGGLE_DEFAULT_TENANT_ID
-        value: local-default
+      - key: WAGGLE_DEMO_MODE
+        value: true
+      - key: WAGGLE_DEMO_COOKIE_SECURE
+        value: true
+      - key: WAGGLE_DEMO_FRONTEND_ORIGIN
+        value: https://waggle-webmcp.onrender.com
       - key: WAGGLE_API_KEY_ENVIRONMENT
         value: live
       - key: WAGGLE_LOG_LEVEL
         value: INFO
-      # Set these in the Render dashboard (or as Blueprint secrets) to point at your Neo4j instance.
-      - key: WAGGLE_NEO4J_URI
-        sync: false
-      - key: WAGGLE_NEO4J_USERNAME
-        sync: false
-      - key: WAGGLE_NEO4J_PASSWORD
-        sync: false
-      # Optional: pick an explicit Neo4j database (Aura defaults to "neo4j").
-      - key: WAGGLE_NEO4J_DATABASE
-        value: neo4j
+  - type: web
+    name: waggle-webmcp
+    runtime: static
+    plan: free
+    branch: codex/waggle-webmcp
+    autoDeploy: false
+    buildCommand: npm ci --prefix apps/mcp/graph-ui && npm run build --prefix apps/mcp/graph-ui
+    staticPublishPath: src/waggle/static/graph
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

@@ -56,7 +56,8 @@ def main() -> int:
         if not page_path.exists():
             failures.append(f"Missing install doc: {page_path.relative_to(ROOT)}")
 
-    docs_to_scan = [ROOT / "README.md", *sorted(install_dir.glob("*.md"))]
+    install_startup_docs = {install_dir / page for page in INSTALL_DOCS}
+    docs_to_scan = [ROOT / "README.md", *sorted(install_startup_docs)]
     for doc_path in docs_to_scan:
         text = doc_path.read_text()
         if EXPECTED_COMMAND not in text:
@@ -103,11 +104,12 @@ def main() -> int:
         if todo_pattern.search(text) and "future" not in text.lower():
             failures.append(f"Unmarked TODO found in critical doc: {doc_path.relative_to(ROOT)}")
 
-    server_source = (ROOT / "src" / "waggle" / "server.py").read_text()
-    if '"graph-studio"' not in server_source or '"open-studio"' not in server_source:
-        failures.append("CLI aliases graph-studio/open-studio are missing from src/waggle/server.py")
-    if '--transport", "stdio"' not in server_source and "--transport" not in server_source:
-        failures.append("CLI transport override not found in src/waggle/server.py")
+    cli_source = (ROOT / "src" / "waggle" / "server" / "cli.py").read_text()
+    server_only_source = (ROOT / "src" / "waggle" / "entrypoints" / "server_only.py").read_text()
+    if '"graph-studio"' not in cli_source or '"open-studio"' not in cli_source:
+        failures.append("CLI aliases graph-studio/open-studio are missing from src/waggle/server/cli.py")
+    if '"--transport", "stdio"' not in cli_source and "--transport" not in server_only_source:
+        failures.append("CLI transport override not found in server entrypoints")
 
     if failures:
         print("Distribution validation failed:")

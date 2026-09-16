@@ -57,6 +57,9 @@ class MemoryGraphBase:
     def _mark_window_embedding_stale(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError
 
+    def _mark_communities_stale(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
     def derive_context_window_edges(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError
 

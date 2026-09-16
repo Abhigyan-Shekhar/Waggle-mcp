@@ -11,18 +11,17 @@ ENV PIP_NO_CACHE_DIR=1
 
 WORKDIR /build
 
-# 1) Copy only dependency metadata first so Docker layer caching is preserved
+# 1) Copy package metadata and source before installation. Setuptools inspects
+# the configured src layout while preparing the editable wheel.
 COPY pyproject.toml README.md LICENSE ./
+COPY src ./src
 
-# 2) Install dependencies before copying source code
+# 2) Install the package and its runtime dependencies
 RUN pip install --upgrade pip && \
     pip install torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install ".[neo4j]"
 
-# 3) Copy source code (changes here won't bust the dep layer)
-COPY src ./src
-
-# 4) Pre-download the embedding model so it is baked into the image layer
+# 3) Pre-download the embedding model so it is baked into the image layer
 RUN HF_HOME=/root/.cache/huggingface \
     SENTENCE_TRANSFORMERS_HOME=/root/.cache/sentence-transformers \
     python -c "from sentence_transformers import SentenceTransformer; \
@@ -62,7 +61,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     WAGGLE_BACKEND=sqlite \
     WAGGLE_DB_PATH=/data/memory.db \
     WAGGLE_HTTP_HOST=0.0.0.0 \
-    WAGGLE_HTTP_PORT=8080 \
     WAGGLE_DEFAULT_TENANT_ID=local-default \
     WAGGLE_MODEL=all-MiniLM-L6-v2 \
     WAGGLE_STARTUP_MODE=normal \

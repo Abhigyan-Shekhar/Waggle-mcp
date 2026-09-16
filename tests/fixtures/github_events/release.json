@@ -1,0 +1,16 @@
+{
+  "action": "published",
+  "release": {
+    "id": 501,
+    "html_url": "https://github.com/octo/demo/releases/tag/v1.2.3",
+    "name": "Waggle Context Handoff v1.2.3",
+    "body": "First portable context handoff release.",
+    "tag_name": "v1.2.3",
+    "draft": false,
+    "prerelease": false,
+    "created_at": "2025-01-02T03:04:05Z",
+    "published_at": "2025-01-02T03:04:05Z"
+  },
+  "repository": {"id": 1001, "full_name": "octo/demo"},
+  "sender": {"id": 7, "login": "octocat"}
+}

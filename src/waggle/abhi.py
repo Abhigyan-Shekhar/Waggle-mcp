@@ -68,6 +68,10 @@ ABHI_MANIFEST_MEMBER = "manifest.json"
 ABHI_SIGNATURE_MEMBER = "signatures/content.ed25519"
 ABHI_PUBLIC_KEY_MEMBER = "signatures/public_key.pem"
 ABHI_DETERMINISTIC_ZIP_TIMESTAMP = (2000, 1, 1, 0, 0, 0)
+ABHI_MAX_MEMBER_PAYLOAD_BYTES = 512 * 1024 * 1024
+ABHI_MAX_ENCRYPTED_MEMBER_BYTES = (ABHI_MAX_MEMBER_PAYLOAD_BYTES * 4 // 3) + (2 * 1024 * 1024)
+ABHI_MAX_MANIFEST_BYTES = 4 * 1024 * 1024
+ABHI_MAX_SIGNATURE_BYTES = 1024 * 1024
 
 ABHI_MERGE_STRATEGIES = (
     "contradict",
@@ -220,14 +224,70 @@ def _decrypt_bytes(payload: dict[str, Any], *, passphrase: str) -> bytes:
         raise ValidationFailure("Could not decrypt .abhi payload. Check the passphrase.") from exc
 
 
+def _format_byte_limit(value: int) -> str:
+    mib = value / (1024 * 1024)
+    return f"{mib:.1f} MiB"
+
+
+def _coerce_manifest_member_size(member_name: str, value: Any) -> int:
+    if isinstance(value, bool) or (isinstance(value, float) and not value.is_integer()):
+        raise ValidationFailure(f"{member_name} has an invalid manifest size.")
+    try:
+        size = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValidationFailure(f"{member_name} has an invalid manifest size.") from exc
+    if size < 0:
+        raise ValidationFailure(f"{member_name} has an invalid negative manifest size.")
+    return size
+
+
+def _read_archive_member_bounded(archive: zipfile.ZipFile, member_name: str, *, max_size: int) -> bytes | None:
+    try:
+        member_info = archive.getinfo(member_name)
+    except KeyError:
+        return None
+
+    if member_info.file_size > max_size:
+        raise ValidationFailure(
+            f"{member_name} is too large to import "
+            f"({member_info.file_size} bytes, limit {_format_byte_limit(max_size)})."
+        )
+    return archive.read(member_name)
+
+
 def _read_member(archive: zipfile.ZipFile, manifest: dict[str, Any], member_name: str, *, passphrase: str) -> bytes:
     metadata = dict(manifest.get("members", {}).get(member_name, {}))
-    if member_name not in archive.namelist():
+    declared_size = None
+    if "size" in metadata:
+        declared_size = _coerce_manifest_member_size(member_name, metadata.get("size"))
+        if declared_size > ABHI_MAX_MEMBER_PAYLOAD_BYTES:
+            raise ValidationFailure(
+                f"{member_name} declares an oversized payload "
+                f"({declared_size} bytes, limit {_format_byte_limit(ABHI_MAX_MEMBER_PAYLOAD_BYTES)})."
+            )
+
+    raw = _read_archive_member_bounded(
+        archive,
+        member_name,
+        max_size=ABHI_MAX_ENCRYPTED_MEMBER_BYTES if metadata.get("encrypted") else ABHI_MAX_MEMBER_PAYLOAD_BYTES,
+    )
+    if raw is None:
+        if declared_size not in (None, 0):
+            raise ValidationFailure(f"{member_name} is missing but declares a non-empty payload.")
         return b""
-    raw = archive.read(member_name)
     if metadata.get("encrypted"):
         payload = json.loads(raw.decode("utf-8"))
-        return _decrypt_bytes(payload, passphrase=passphrase)
+        decrypted = _decrypt_bytes(payload, passphrase=passphrase)
+        if len(decrypted) > ABHI_MAX_MEMBER_PAYLOAD_BYTES:
+            raise ValidationFailure(
+                f"{member_name} decrypted to an oversized payload "
+                f"({len(decrypted)} bytes, limit {_format_byte_limit(ABHI_MAX_MEMBER_PAYLOAD_BYTES)})."
+            )
+        if declared_size is not None and len(decrypted) != declared_size:
+            raise ValidationFailure(f"{member_name} size does not match the manifest.")
+        return decrypted
+    if declared_size is not None and len(raw) != declared_size:
+        raise ValidationFailure(f"{member_name} size does not match the manifest.")
     return raw
 
 
@@ -316,6 +376,8 @@ def filter_snapshot_by_scope(
     project: str = "",
     agent_id: str = "",
     session_id: str = "",
+    strict_export: bool = False,
+    include_deps: bool = False,
 ) -> dict[str, Any]:
     if not any((project.strip(), agent_id.strip(), session_id.strip())):
         return deepcopy(snapshot)
@@ -327,12 +389,20 @@ def filter_snapshot_by_scope(
         if _scope_match(node, project=project, agent_id=agent_id, session_id=session_id)
     ]
     selected_node_ids = {str(node.get("id", "")).strip() for node in filtered["nodes"]}
-    filtered["edges"] = [
-        edge
-        for edge in snapshot.get("edges", [])
-        if str(edge.get("source_id", "")).strip() in selected_node_ids
-        and str(edge.get("target_id", "")).strip() in selected_node_ids
-    ]
+    if strict_export or include_deps:
+        filtered["edges"] = [
+            edge
+            for edge in snapshot.get("edges", [])
+            if str(edge.get("source_id", "")).strip() in selected_node_ids
+            or str(edge.get("target_id", "")).strip() in selected_node_ids
+        ]
+    else:
+        filtered["edges"] = [
+            edge
+            for edge in snapshot.get("edges", [])
+            if str(edge.get("source_id", "")).strip() in selected_node_ids
+            and str(edge.get("target_id", "")).strip() in selected_node_ids
+        ]
     filtered["transcripts"] = [
         transcript
         for transcript in snapshot.get("transcripts", [])
@@ -359,7 +429,15 @@ def filter_snapshot_by_scope(
 
 
 def _scope_filter(
-    snapshot: dict[str, Any], *, scope: str, project: str, agent_id: str, session_id: str, since_date: str
+    snapshot: dict[str, Any],
+    *,
+    scope: str,
+    project: str,
+    agent_id: str,
+    session_id: str,
+    since_date: str,
+    strict_export: bool = False,
+    include_deps: bool = False,
 ) -> dict[str, Any]:
     normalized = scope.strip().lower() or "all"
     filtered = deepcopy(snapshot)
@@ -369,6 +447,8 @@ def _scope_filter(
             project=project,
             agent_id=agent_id,
             session_id=session_id if normalized == "session" else "",
+            strict_export=strict_export,
+            include_deps=include_deps,
         )
     elif normalized == "since-date":
         cutoff = since_date.strip()
@@ -380,11 +460,20 @@ def _scope_filter(
             if str(node.get("updated_at") or node.get("created_at") or "") >= cutoff
         ]
         node_ids = {str(node.get("id", "")).strip() for node in filtered["nodes"]}
-        filtered["edges"] = [
-            edge
-            for edge in filtered.get("edges", [])
-            if str(edge.get("source_id", "")).strip() in node_ids and str(edge.get("target_id", "")).strip() in node_ids
-        ]
+        if strict_export or include_deps:
+            filtered["edges"] = [
+                edge
+                for edge in filtered.get("edges", [])
+                if str(edge.get("source_id", "")).strip() in node_ids
+                or str(edge.get("target_id", "")).strip() in node_ids
+            ]
+        else:
+            filtered["edges"] = [
+                edge
+                for edge in filtered.get("edges", [])
+                if str(edge.get("source_id", "")).strip() in node_ids
+                and str(edge.get("target_id", "")).strip() in node_ids
+            ]
         filtered["transcripts"] = [
             row for row in filtered.get("transcripts", []) if str(row.get("observed_at", "")).strip() >= cutoff
         ]
@@ -417,6 +506,8 @@ def build_abhi_document(
         agent_id=agent_id,
         session_id=session_id,
         since_date=since_date,
+        strict_export=strict_export,
+        include_deps=include_deps,
     )
     transcripts = _sorted_records(
         [_normalize_transcript(item, redact_patterns=redact_patterns) for item in filtered.get("transcripts", [])],
@@ -523,24 +614,96 @@ def build_abhi_document(
         "nodes": nodes,
         "edges": edges,
         "context_windows": context_windows,
+        "context_window_edges": context_window_edges,
     }
     manifest["content_hash"] = _hash_with_prefix(compute_abhi_hash(document))
     dangling_export = _find_dangling_edges(document)
     if dangling_export:
-        if strict_export:
-            raise DanglingEdgeError(
-                f"Export contains {len(dangling_export)} dangling edge(s). "
-                "Use --include-deps or remove --strict-export."
-            )
         if include_deps:
-            # TODO: Implement traversal of dangling edge targets to include referenced nodes.
-            pass
-        else:
-            logger.warning(
-                "Export contains %d dangling edge(s): %s",
-                len(dangling_export),
-                ", ".join(dangling_export[:5]) + ("..." if len(dangling_export) > 5 else ""),
-            )
+            included_ids = {str(n["id"]) for n in nodes if n.get("id")}
+            snapshot_nodes_by_id = {str(n["id"]): n for n in snapshot.get("nodes", []) if n.get("id")}
+
+            to_add = []
+            for edge in edges:
+                edge_id = str(edge.get("id", ""))
+                if edge_id in dangling_export:
+                    source = str(edge.get("source_id", ""))
+                    target = str(edge.get("target_id", ""))
+                    if source and source not in included_ids:
+                        if source in snapshot_nodes_by_id:
+                            to_add.append(snapshot_nodes_by_id[source])
+                            included_ids.add(source)
+                    if target and target not in included_ids:
+                        if target in snapshot_nodes_by_id:
+                            to_add.append(snapshot_nodes_by_id[target])
+                            included_ids.add(target)
+
+            if to_add:
+                normalized_to_add = [
+                    _normalize_node(item, redact_patterns=redact_patterns, include_embeddings=include_embeddings)
+                    for item in to_add
+                ]
+                nodes.extend(normalized_to_add)
+                nodes = _sorted_records(nodes, "id", "source_turn_pair_id", "updated_at")
+
+                document["nodes"] = nodes
+                manifest["counts"]["nodes"] = len(nodes)
+
+                final_window_ids = {
+                    str(node.get("context_window_id", "")).strip()
+                    for node in nodes
+                    if str(node.get("context_window_id", "")).strip()
+                }
+
+                context_windows = _sorted_records(
+                    [
+                        _normalize_window(item)
+                        for item in snapshot.get("context_windows", [])
+                        if str(item.get("id", "")).strip() in final_window_ids
+                    ],
+                    "id",
+                    "session_id",
+                )
+                document["context_windows"] = context_windows
+                manifest["counts"]["context_windows"] = len(context_windows)
+
+                context_window_edges = _sorted_records(
+                    [
+                        item
+                        for item in snapshot.get("context_window_edges", [])
+                        if str(item.get("source_window_id", "")).strip() in final_window_ids
+                        and str(item.get("target_window_id", "")).strip() in final_window_ids
+                    ],
+                    "id",
+                    "source_window_id",
+                    "target_window_id",
+                    "edge_type",
+                )
+                document["context_window_edges"] = context_window_edges
+                manifest["context_window_edges"] = context_window_edges
+
+                manifest["content_hash"] = _hash_with_prefix(compute_abhi_hash(document))
+
+            dangling_export = _find_dangling_edges(document)
+
+        if dangling_export:
+            if strict_export:
+                if include_deps:
+                    raise DanglingEdgeError(
+                        f"Export contains {len(dangling_export)} dangling edge(s) "
+                        "that could not be resolved even with --include-deps."
+                    )
+                else:
+                    raise DanglingEdgeError(
+                        f"Export contains {len(dangling_export)} dangling edge(s). "
+                        "Use --include-deps or remove --strict-export."
+                    )
+            else:
+                logger.warning(
+                    "Export contains %d dangling edge(s): %s",
+                    len(dangling_export),
+                    ", ".join(dangling_export[:5]) + ("..." if len(dangling_export) > 5 else ""),
+                )
     return _with_compat_views(document)
 
 
@@ -603,6 +766,8 @@ def write_abhi_document(
     signing_key_dir: str | Path | None = None,
     include_low_confidence_edges: bool = False,
     low_confidence_threshold: float = 0.7,
+    strict_export: bool = False,
+    include_deps: bool = False,
 ) -> AbhiExportResult:
     destination = Path(output_path).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -618,6 +783,8 @@ def write_abhi_document(
         encrypted=bool(passphrase),
         include_low_confidence_edges=include_low_confidence_edges,
         low_confidence_threshold=low_confidence_threshold,
+        strict_export=strict_export,
+        include_deps=include_deps,
     )
     manifest = document["manifest"]
     # Write the ZIP to a temp file first, then stream magic + ZIP to the final
@@ -711,7 +878,10 @@ def load_abhi_document(input_path: str | Path, passphrase: str = "") -> dict[str
     with zipfile.ZipFile(zip_source, "r") as archive:
         if ABHI_MANIFEST_MEMBER not in archive.namelist():
             raise ValidationFailure(f"{source} is missing {ABHI_MANIFEST_MEMBER}.")
-        manifest = json.loads(archive.read(ABHI_MANIFEST_MEMBER).decode("utf-8"))
+        manifest_bytes = _read_archive_member_bounded(archive, ABHI_MANIFEST_MEMBER, max_size=ABHI_MAX_MANIFEST_BYTES)
+        if manifest_bytes is None:
+            raise ValidationFailure(f"{source} is missing {ABHI_MANIFEST_MEMBER}.")
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
         _assert_supported_schema_version(str(manifest.get("schema_version", "")))
         document = {
             "manifest": manifest,
@@ -725,8 +895,16 @@ def load_abhi_document(input_path: str | Path, passphrase: str = "") -> dict[str
             ),
         }
         if manifest.get("signatures", {}).get("present"):
-            document["signature"] = archive.read(ABHI_SIGNATURE_MEMBER)
-            document["public_key_pem"] = archive.read(ABHI_PUBLIC_KEY_MEMBER)
+            signature = _read_archive_member_bounded(archive, ABHI_SIGNATURE_MEMBER, max_size=ABHI_MAX_SIGNATURE_BYTES)
+            public_key_pem = _read_archive_member_bounded(
+                archive, ABHI_PUBLIC_KEY_MEMBER, max_size=ABHI_MAX_SIGNATURE_BYTES
+            )
+            if signature is None:
+                raise ValidationFailure(f"{source} is missing {ABHI_SIGNATURE_MEMBER}.")
+            if public_key_pem is None:
+                raise ValidationFailure(f"{source} is missing {ABHI_PUBLIC_KEY_MEMBER}.")
+            document["signature"] = signature
+            document["public_key_pem"] = public_key_pem
         return _with_compat_views(document)
 
 

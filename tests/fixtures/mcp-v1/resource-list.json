@@ -1,0 +1,26 @@
+[
+  {
+    "uri": "graph://stats",
+    "name": "Graph Stats",
+    "description": "Current graph statistics.",
+    "mimeType": "text/plain"
+  },
+  {
+    "uri": "graph://recent",
+    "name": "Recent Graph Nodes",
+    "description": "The 10 most recently updated nodes.",
+    "mimeType": "text/plain"
+  },
+  {
+    "uri": "graph://windows",
+    "name": "Context Windows",
+    "description": "Recent context windows grouped by project/session.",
+    "mimeType": "text/plain"
+  },
+  {
+    "uri": "graph://memory-policy",
+    "name": "Automatic Memory Policy",
+    "description": "Policy for when assistants should retrieve and write Waggle memory automatically.",
+    "mimeType": "text/plain"
+  }
+]

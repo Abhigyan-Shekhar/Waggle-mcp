@@ -1,0 +1,5 @@
+pytest==9.1.1
+ruff==0.16.2
+mypy==2.3.0
+PyYAML==6.0.3
+yamllint==1.37.1

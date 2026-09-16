@@ -774,3 +774,106 @@ def test_merge_strategy_config_load_missing_file():
     assert config.default_strategy == "contradict"
     assert config.field_overrides == []
     assert config.type_overrides == []
+
+
+def test_scoped_export_strict_throws():
+    """strict_export=True in build_abhi_document should throw DanglingEdgeError when cross-scope edge is present."""
+    n1 = _node(label="ProjectNode", project="project-a")
+    n2 = _node(label="OtherNode", project="project-b")
+    edge = _edge(n1["id"], n2["id"])
+    snapshot = _make_snapshot(nodes=[n1, n2], edges=[edge])
+
+    # Should raise DanglingEdgeError because n2 is excluded from project-a scope but referenced by edge
+    with pytest.raises(DanglingEdgeError):
+        build_abhi_document(snapshot, scope="project", project="project-a", strict_export=True)
+
+
+def test_scoped_export_include_deps_resolves():
+    """include_deps=True in build_abhi_document should pull in dependency nodes and their context windows."""
+    n1 = _node(label="ProjectNode", project="project-a", context_window_id="win-1")
+    n2 = _node(label="OtherNode", project="project-b", context_window_id="win-2")
+    edge = _edge(n1["id"], n2["id"])
+
+    win1 = {"id": "win-1", "project": "project-a"}
+    win2 = {"id": "win-2", "project": "project-b"}
+    win_edge = {"source_window_id": "win-1", "target_window_id": "win-2"}
+
+    snapshot = _make_snapshot(nodes=[n1, n2], edges=[edge])
+    snapshot["context_windows"] = [win1, win2]
+    snapshot["context_window_edges"] = [win_edge]
+
+    # Exporting project-a with include_deps=True should resolve n2 and win2
+    doc = build_abhi_document(snapshot, scope="project", project="project-a", include_deps=True)
+
+    node_ids = {n["id"] for n in doc["nodes"]}
+    assert n1["id"] in node_ids
+    assert n2["id"] in node_ids  # Should be resolved as a dependency!
+
+    window_ids = {w["id"] for w in doc["context_windows"]}
+    assert "win-1" in window_ids
+    assert "win-2" in window_ids  # Should be resolved as a dependency!
+
+    # Edge and context window edge should also be present
+    assert len(doc["edges"]) == 1
+    assert len(doc["context_window_edges"]) == 1
+
+
+def test_scoped_export_without_flags_ignores_cross_project_edges():
+    """Without flags, build_abhi_document should filter out cross-scope edges completely."""
+    n1 = _node(label="ProjectNode", project="project-a")
+    n2 = _node(label="OtherNode", project="project-b")
+    edge = _edge(n1["id"], n2["id"])
+    snapshot = _make_snapshot(nodes=[n1, n2], edges=[edge])
+
+    doc = build_abhi_document(snapshot, scope="project", project="project-a")
+
+    node_ids = {n["id"] for n in doc["nodes"]}
+    assert n1["id"] in node_ids
+    assert n2["id"] not in node_ids
+
+    # The edge should be omitted since the target node is not in scope
+    assert len(doc["edges"]) == 0
+
+
+def test_scoped_export_include_deps_with_unresolvable_dangling_edge():
+    """include_deps=True should still raise DanglingEdgeError if endpoints are completely missing from snapshot."""
+    n1 = _node(label="ProjectNode", project="project-a")
+    edge = _edge(n1["id"], "completely-missing-node-id")
+    snapshot = _make_snapshot(nodes=[n1], edges=[edge])
+
+    with pytest.raises(DanglingEdgeError):
+        build_abhi_document(snapshot, scope="project", project="project-a", include_deps=True, strict_export=True)
+
+
+def test_scoped_export_context_window_edges_written_consistently():
+    """Verify context_window_edges is written consistently to both document root and manifest."""
+    n1 = _node(label="ProjectNode", project="project-a", context_window_id="win-1")
+    n2 = _node(label="OtherNode", project="project-b", context_window_id="win-2")
+    edge = _edge(n1["id"], n2["id"])
+
+    win1 = {"id": "win-1", "project": "project-a"}
+    win2 = {"id": "win-2", "project": "project-b"}
+    win_edge = {"id": "we-1", "source_window_id": "win-1", "target_window_id": "win-2", "edge_type": "overlap"}
+
+    snapshot = _make_snapshot(nodes=[n1, n2], edges=[edge])
+    snapshot["context_windows"] = [win1, win2]
+    snapshot["context_window_edges"] = [win_edge]
+
+    # Exporting project-a with include_deps=True should resolve n2 and win2, and update context_window_edges.
+    doc = build_abhi_document(snapshot, scope="project", project="project-a", include_deps=True)
+
+    # Check consistency
+    doc_edges = doc.get("context_window_edges", [])
+    manifest_edges = doc.get("manifest", {}).get("context_window_edges", [])
+
+    assert len(doc_edges) == 1
+    assert doc_edges[0]["id"] == "we-1"
+    assert doc_edges == manifest_edges
+
+    # Check hash matches
+    from waggle.abhi import compute_abhi_hash
+
+    computed_hash = compute_abhi_hash(doc)
+    content_hash = doc.get("manifest", {}).get("content_hash", "")
+    assert content_hash.startswith("sha256:")
+    assert content_hash == f"sha256:{computed_hash}"

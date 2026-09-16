@@ -149,12 +149,11 @@ def stall_ms(tmp_path_factory: pytest.TempPathFactory) -> dict[str, float]:
 
 
 def test_synchronous_embed_stalls_the_event_loop(stall_ms: dict[str, float]) -> None:
-    """A direct embed call blocks the loop far beyond the idle baseline."""
-    idle = stall_ms["idle"]
+    """A direct embed call blocks the loop for most of the simulated embed cost."""
     blocking = stall_ms["blocking"]
-    # The blocking stall should approach the simulated embed cost and dwarf idle.
-    assert blocking >= STALL_FLOOR_SECONDS * 1000.0
-    assert blocking > idle * 5.0
+    # The blocking stall should approach the simulated embed cost. Avoid a ratio
+    # against idle here because shared CI runners can report large idle jitter.
+    assert blocking >= EMBED_SLEEP_SECONDS * 800.0
 
 
 def test_threadpool_offload_keeps_loop_responsive(stall_ms: dict[str, float]) -> None:

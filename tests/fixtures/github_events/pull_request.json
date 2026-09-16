@@ -1,0 +1,19 @@
+{
+  "action": "opened",
+  "number": 17,
+  "pull_request": {
+    "id": 1701,
+    "number": 17,
+    "html_url": "https://github.com/octo/demo/pull/17",
+    "title": "Add portable context handoff",
+    "body": "Keep parsing in Python, not shell.",
+    "state": "open",
+    "draft": false,
+    "base": {"ref": "main", "sha": "base-sha"},
+    "head": {"ref": "feature", "sha": "head-sha"},
+    "created_at": "2025-01-02T03:04:05Z",
+    "updated_at": "2025-01-02T03:04:05Z"
+  },
+  "repository": {"id": 1001, "full_name": "octo/demo"},
+  "sender": {"id": 7, "login": "octocat"}
+}

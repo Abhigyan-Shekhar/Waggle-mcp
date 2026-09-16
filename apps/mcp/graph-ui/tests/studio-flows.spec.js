@@ -86,7 +86,7 @@ test.describe("Graph Studio - Workflow Flows", () => {
         session_id: "test-session"
       };
     });
-    await page.goto("/");
+    await page.goto("/graph");
   });
 
   test("should import .abhi file successfully", async ({ page }) => {

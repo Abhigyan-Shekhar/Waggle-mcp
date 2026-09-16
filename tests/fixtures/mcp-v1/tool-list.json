@@ -1,0 +1,1305 @@
+[
+  {
+    "name": "store_node",
+    "description": "Store a piece of knowledge as a node in the persistent memory graph. Call this whenever you learn something important from the user: facts, preferences, decisions, entities, concepts, or questions. Prefer atomic facts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Short label for the knowledge being stored."
+        },
+        "content": {
+          "type": "string",
+          "description": "Full natural-language description for this node."
+        },
+        "node_type": {
+          "type": "string",
+          "enum": [
+            "fact",
+            "entity",
+            "concept",
+            "preference",
+            "decision",
+            "question",
+            "note"
+          ],
+          "description": "Category of knowledge represented by the node."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional tags for categorization.",
+          "default": []
+        },
+        "source_prompt": {
+          "type": "string",
+          "description": "Optional original prompt that produced this knowledge.",
+          "default": ""
+        },
+        "agent_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional agent or client identifier used to partition memory."
+        },
+        "project": {
+          "type": "string",
+          "default": "",
+          "description": "Optional project or workspace name used to partition memory."
+        },
+        "session_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional conversation or run identifier used to partition memory."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "content",
+        "node_type"
+      ]
+    }
+  },
+  {
+    "name": "store_edge",
+    "description": "Create a relationship between two stored nodes. Use this immediately after storing related nodes so the memory graph preserves structure, updates, and conflicts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "description": "Source node ID."
+        },
+        "target_id": {
+          "type": "string",
+          "description": "Target node ID."
+        },
+        "relationship": {
+          "type": "string",
+          "enum": [
+            "relates_to",
+            "contradicts",
+            "depends_on",
+            "part_of",
+            "updates",
+            "derived_from",
+            "similar_to"
+          ],
+          "description": "Relationship between the two nodes."
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 1.0,
+          "description": "Optional strength of the relationship."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "target_id",
+        "relationship"
+      ]
+    }
+  },
+  {
+    "name": "canonicalize_node",
+    "description": "Manually merge multiple nodes into a single canonical node. All aliases from the merged nodes flow into the canonical node's aliases. All edges pointing to/from merged nodes are re-pointed to the canonical node. Merged nodes are deleted.  Idempotent: merging an already-merged node is a no-op. Use this after reviewing dedup_candidates to resolve ambiguous duplicates.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "node_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of node IDs to merge into the canonical node."
+        },
+        "canonical_id": {
+          "type": "string",
+          "description": "The canonical node ID to merge into."
+        },
+        "agent_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional agent or client identifier used to partition memory."
+        },
+        "project": {
+          "type": "string",
+          "default": "",
+          "description": "Optional project or workspace name used to partition memory."
+        },
+        "session_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional conversation or run identifier used to partition memory."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "node_ids",
+        "canonical_id"
+      ]
+    }
+  },
+  {
+    "name": "dedup_candidates",
+    "description": "Return pairs of nodes whose embeddings are above a threshold but below the auto-merge threshold.  Intended for human review before calling canonicalize_node. Returns pairs sorted by descending similarity so the most likely duplicates appear first.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "default": "",
+          "description": "Optional project scope to filter candidates."
+        },
+        "agent_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional agent scope to filter candidates."
+        },
+        "session_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional session scope to filter candidates."
+        },
+        "threshold": {
+          "type": "number",
+          "minimum": 0.85,
+          "maximum": 0.99,
+          "default": 0.85,
+          "description": "Minimum cosine similarity to report (default 0.85)."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "aggregate_graph",
+    "description": "Retrieve a broad set of nodes bypassing standard semantic limits, optimized for global aggregation and map-reduce tasks. Supports filtering by node_type and tags.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Optional natural-language search query to rank the broad retrieval."
+        },
+        "node_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional list of node types to filter by (e.g., 'fact', 'entity')."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional list of tags to require."
+        },
+        "max_nodes": {
+          "type": "integer",
+          "description": "Maximum number of nodes to return (default 100, up to 1000)."
+        },
+        "max_depth": {
+          "type": "integer",
+          "description": "Relationship traversal depth around matching nodes."
+        },
+        "include_invalidated": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, include nodes whose valid_to has passed. Default false excludes expired nodes."
+        },
+        "as_of": {
+          "type": "string",
+          "description": "ISO-8601 datetime. When provided, return only nodes valid at that point in time (overrides include_invalidated)."
+        },
+        "agent_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional agent or client identifier used to partition memory."
+        },
+        "project": {
+          "type": "string",
+          "default": "",
+          "description": "Optional project or workspace name used to partition memory."
+        },
+        "session_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional conversation or run identifier used to partition memory."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "query_graph",
+    "description": "Automatically search the memory graph before answering questions that may depend on prior context, user preferences, project decisions, constraints, or earlier conversation state. Returns a serialized subgraph with matching nodes and their connected neighborhood. Uses hybrid retrieval (transcript + graph) by default for robust fallback. Understands temporal references such as 'recently', 'latest', 'originally', and 'last week'. Benchmark modes: use retrieval_mode='graph' for graph-only (no verbatim fallback), 'verbatim' for transcript-only.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Natural-language search query."
+        },
+        "max_nodes": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 1,
+          "description": "Maximum number of matching nodes to return."
+        },
+        "max_depth": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 0,
+          "description": "Relationship traversal depth around matching nodes."
+        },
+        "expand_depth": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "description": "Optional support expansion depth. At 1, graph mode may return up to twice max_nodes."
+        },
+        "agent_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional agent or client identifier used to partition memory."
+        },
+        "project": {
+          "type": "string",
+          "default": "",
+          "description": "Optional project or workspace name used to partition memory."
+        },
+        "session_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional conversation or run identifier used to partition memory."
+        },
+        "retrieval_mode": {
+          "type": "string",
+          "enum": [
+            "graph",
+            "verbatim",
+            "hybrid"
+          ],
+          "default": "hybrid",
+          "description": "Retrieval strategy: graph-only, verbatim transcript retrieval, or hybrid fusion with reranking."
+        },
+        "include_invalidated": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, include nodes whose valid_to has passed. Default false excludes expired nodes."
+        },
+        "as_of": {
+          "type": "string",
+          "description": "ISO-8601 datetime. When provided, return only nodes valid at that point in time (overrides include_invalidated)."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "debug_retrieval",
+    "description": "Diagnose memory retrieval ranking for a query. Returns query embedding preview, context-window routing scores, selected windows, flat top nodes, and tiered top nodes for comparison.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Natural-language search query to diagnose."
+        },
+        "max_nodes": {
+          "type": "integer",
+          "default": 10,
+          "minimum": 1,
+          "description": "Maximum number of flat and tiered node matches to include."
+        },
+        "max_depth": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 0,
+          "description": "Relationship traversal depth for the flat retrieval comparison."
+        },
+        "retrieval_mode": {
+          "type": "string",
+          "enum": [
+            "graph",
+            "verbatim",
+            "hybrid"
+          ],
+          "default": "hybrid",
+          "description": "Which retrieval stack to diagnose."
+        },
+        "agent_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional agent or client identifier used to partition memory."
+        },
+        "project": {
+          "type": "string",
+          "default": "",
+          "description": "Optional project or workspace name used to partition memory."
+        },
+        "session_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional conversation or run identifier used to partition memory."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "get_related",
+    "description": "Fetch the neighborhood around a specific memory node. Use when you already have a node ID and need its connected context. Returns matching nodes and edges as a serialized subgraph.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "description": "ID of the node whose neighborhood should be returned."
+        },
+        "max_depth": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 0,
+          "description": "Relationship traversal depth from the starting node."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "node_id"
+      ]
+    }
+  },
+  {
+    "name": "get_node_history",
+    "description": "Inspect one memory node's evidence, validity window, and connected context. Use when auditing why a memory exists or how it changed. Returns the node, evidence records, related nodes, and edges.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "description": "ID of the node to inspect."
+        },
+        "max_depth": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 0,
+          "description": "Relationship traversal depth for related context."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "node_id"
+      ]
+    }
+  },
+  {
+    "name": "list_context_scopes",
+    "description": "List known agent, project, and session scope values stored in the current tenant graph. Use before filtering memory by scope. Returns arrays of scope identifiers.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "list_context_windows",
+    "description": "List context windows for a project. Use to inspect chat/session-level memory containers, their status, node counts, and update times.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "Optional project/repository scope to filter windows."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "closed",
+            "archived"
+          ],
+          "description": "Optional status filter for returned windows."
+        },
+        "limit": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 1,
+          "description": "Maximum number of context windows to return."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_context_window",
+    "description": "Inspect one context window, including its nodes and links to other context windows. Use when auditing what a conversation/session contributed to memory.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "window_id": {
+          "type": "string",
+          "description": "ID of the context window to inspect."
+        },
+        "include_nodes": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to include memory nodes stored in this context window."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "window_id"
+      ]
+    }
+  },
+  {
+    "name": "close_context_window",
+    "description": "Close a context window, recompute its final graph embedding, refresh node counts, and derive cross-window edges. Use when a chat/session is complete.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "window_id": {
+          "type": "string",
+          "description": "ID of the context window to close."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "window_id"
+      ]
+    }
+  },
+  {
+    "name": "timeline",
+    "description": "Build a chronological view of memory changes for a node, a query result, or the whole tenant. Use when order and evidence matter. Returns timestamped timeline items.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "description": "Optional node ID to anchor the timeline."
+        },
+        "query": {
+          "type": "string",
+          "description": "Optional natural-language query to select relevant memories."
+        },
+        "limit": {
+          "type": "integer",
+          "default": 25,
+          "minimum": 1,
+          "description": "Maximum number of timeline items to return."
+        },
+        "max_depth": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 0,
+          "description": "Relationship traversal depth when a node ID or query is supplied."
+        },
+        "include_evidence": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to include evidence records alongside node and edge events."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "list_conflicts",
+    "description": "List contradiction and update edges, with unresolved conflicts shown by default. Use to review memory disagreements before resolving them. Returns conflict entries with source and target nodes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "include_resolved": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to include conflicts that were already marked resolved."
+        },
+        "limit": {
+          "type": "integer",
+          "default": 25,
+          "minimum": 1,
+          "description": "Maximum number of conflicts to return."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "resolve_conflict",
+    "description": "Mark a contradiction or update edge as resolved without deleting the underlying history. Use after deciding how competing memories should be interpreted. Returns the resolved conflict entry. When winner is provided and the edge is CONTRADICTS or UPDATES, the losing node's valid_to is set to now, excluding it from future default queries.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "edge_id": {
+          "type": "string",
+          "description": "ID of the conflict edge to mark resolved."
+        },
+        "resolution_note": {
+          "type": "string",
+          "default": "",
+          "description": "Optional human-readable note explaining the resolution."
+        },
+        "winner": {
+          "type": "string",
+          "description": "Optional node ID of the winning node. Must be source_id or target_id of the edge. When provided, the losing node's valid_to is set to now, superseding it."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "edge_id"
+      ]
+    }
+  },
+  {
+    "name": "update_node",
+    "description": "Update an existing memory node's content, label, or tags. Use when a stored memory needs correction without deleting its identity. Returns the updated node.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "description": "ID of the node to update."
+        },
+        "content": {
+          "type": "string",
+          "description": "Replacement natural-language content for the node."
+        },
+        "label": {
+          "type": "string",
+          "description": "Replacement short label for the node."
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Replacement tag list for the node."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "node_id"
+      ]
+    }
+  },
+  {
+    "name": "delete_node",
+    "description": "Delete a node and all connected edges from persistent memory.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "description": "ID of the node to delete."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "node_id"
+      ]
+    }
+  },
+  {
+    "name": "clear_session",
+    "description": "Delete all memory data for one session/context window stream, including nodes, transcripts, context windows, and connected edges. Requires confirm=true.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "description": "Session identifier to clear."
+        },
+        "confirm": {
+          "type": "boolean",
+          "default": false,
+          "description": "Must be true to perform the destructive clear operation."
+        },
+        "dry_run": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preview the clear operation without deleting data."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "session_id"
+      ]
+    }
+  },
+  {
+    "name": "clear_project",
+    "description": "Delete all memory data for one project/repository, including nodes, transcripts, repos, context windows, and connected edges. Requires confirm=true.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "Project/repository scope to clear."
+        },
+        "confirm": {
+          "type": "boolean",
+          "default": false,
+          "description": "Must be true to perform the destructive clear operation."
+        },
+        "dry_run": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preview the clear operation without deleting data."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "project"
+      ]
+    }
+  },
+  {
+    "name": "clear_all",
+    "description": "Delete all graph memory data for the current tenant. Requires confirm=true. This does not remove API keys or tenant metadata.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "confirm": {
+          "type": "boolean",
+          "default": false,
+          "description": "Must be true to perform the destructive clear operation."
+        },
+        "dry_run": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preview the clear operation without deleting data."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "decompose_and_store",
+    "description": "Break long or complex content into atomic memory nodes, store them automatically, and create inferred edges. Use for notes, summaries, or multi-fact passages. Returns the stored subgraph.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "description": "Long-form content to decompose into memory nodes."
+        },
+        "context": {
+          "type": "string",
+          "default": "",
+          "description": "Optional background that helps classify and connect extracted memories."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "content"
+      ]
+    }
+  },
+  {
+    "name": "observe_conversation",
+    "description": "Automatically observe a completed user-assistant turn. ALWAYS persists the verbatim turn first. Then runs extraction (graph inference) as optional enrichment. If extraction fails, the verbatim turn is still stored. Use after turns containing preferences, decisions, constraints, requirements, corrections, project facts, or meaningful task outcomes. Do not ask the user to trigger this. Returns: turn_id, verbatim_stored (bool), nodes_extracted (count), edges_inferred (count), extraction_errors (non-fatal). Required fields: 'user_message' (the user's text) and 'assistant_response' (the assistant's reply). Do NOT use 'user_text' or 'assistant_text' \u2014 those field names are not accepted.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "user_message": {
+          "type": "string",
+          "description": "The user's message from the completed turn."
+        },
+        "assistant_response": {
+          "type": "string",
+          "description": "The assistant's response from the completed turn."
+        },
+        "agent_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional agent or client identifier used to partition memory."
+        },
+        "project": {
+          "type": "string",
+          "default": "",
+          "description": "Optional project or workspace name used to partition memory."
+        },
+        "session_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional conversation or run identifier used to partition memory."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "user_message",
+        "assistant_response"
+      ]
+    }
+  },
+  {
+    "name": "graph_diff",
+    "description": "Show what changed in the memory graph recently, including added nodes, updated nodes, created edges, and contradiction edges. Use for review or handoff. Returns a serialized graph diff.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "since": {
+          "type": "string",
+          "default": "24h",
+          "description": "Lookback window such as '24h', '7d', or an ISO-like timestamp."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "prime_context",
+    "description": "Automatically build a compact context brief at the start of a scoped conversation or before work that needs continuity. Use to hydrate an assistant with the most relevant scoped memories. Returns summary text plus nodes and edges.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional agent or client identifier used to partition memory."
+        },
+        "project": {
+          "type": "string",
+          "default": "",
+          "description": "Optional project or workspace name used to partition memory."
+        },
+        "session_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional conversation or run identifier used to partition memory."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_topics",
+    "description": "Detect topic clusters in the graph using community detection. Use to understand the main themes in memory. Returns labeled clusters with representative nodes and tags. Note: scope filtering (project, agent_id, session_id) is optional and silently ignored \u2014 topic detection always runs across the full tenant graph.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional agent or client identifier used to partition memory."
+        },
+        "project": {
+          "type": "string",
+          "default": "",
+          "description": "Optional project or workspace name used to partition memory."
+        },
+        "session_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional conversation or run identifier used to partition memory."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_stats",
+    "description": "Return high-level statistics about the current memory graph. Use for health checks or quick summaries. Returns node and edge counts, node type breakdowns, and recent or highly connected nodes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "export_graph_html",
+    "description": "Export the current memory graph as an interactive HTML visualization. Use when a human needs to inspect the graph visually. Returns the output path and graph counts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "output_path": {
+          "type": "string",
+          "description": "Optional destination HTML file path. If omitted, Waggle chooses an export path."
+        },
+        "include_physics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the visualization should use physics-based node layout."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "window_graph_viz",
+    "description": "Export the context-window graph as an interactive HTML visualization. Each node is a chat/session window and edges show overlap, supersession, temporal order, or shared scope.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "Optional project/repository scope whose context-window graph should be exported."
+        },
+        "output_path": {
+          "type": "string",
+          "description": "Optional destination HTML file path. If omitted, Waggle chooses an export path."
+        },
+        "include_physics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the visualization should use physics-based node layout."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "commit",
+    "description": "Snapshot the current memory graph to a portable file (waggle commit). Exports a JSON backup for migration, restore drills, or offline archive. Use commit_format='abhi' (default) for a full .abhi export, or 'backup' for a raw JSON backup. Returns the output path, schema version, and object counts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "output_path": {
+          "type": "string",
+          "description": "Optional destination file path. If omitted, Waggle chooses an export path."
+        },
+        "commit_format": {
+          "type": "string",
+          "enum": [
+            "abhi",
+            "backup",
+            "bundle"
+          ],
+          "default": "abhi",
+          "description": "'abhi' (default) exports a validated .abhi memory file; 'backup' exports a raw JSON backup; 'bundle' exports a portable Markdown/JSON context bundle."
+        },
+        "force": {
+          "type": "boolean",
+          "default": false,
+          "description": "Override the secret-scan refusal if transcript records contain likely secrets. Use only after deliberate review."
+        },
+        "include_low_confidence_edges": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, include RELATES_TO edges with edge_confidence < 0.7 that are normally filtered from exports."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "prime",
+            "query"
+          ],
+          "default": "prime",
+          "description": "Bundle mode: prime exports scoped memory, query exports query-focused context."
+        },
+        "query": {
+          "type": "string",
+          "default": "",
+          "description": "Optional query used when commit_format='bundle' and mode='query'."
+        },
+        "max_nodes": {
+          "type": "integer",
+          "default": 25,
+          "minimum": 1,
+          "description": "Maximum number of nodes to include in a context bundle."
+        },
+        "max_depth": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 0,
+          "description": "Relationship traversal depth for context bundle retrieval."
+        },
+        "retrieval_mode": {
+          "type": "string",
+          "enum": [
+            "graph",
+            "verbatim",
+            "hybrid"
+          ],
+          "default": "hybrid",
+          "description": "Retrieval strategy for query-mode context bundles."
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "markdown",
+            "json",
+            "both"
+          ],
+          "default": "both",
+          "description": "Context bundle output format."
+        },
+        "include_edges": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether context bundles should include graph edges."
+        },
+        "include_timestamps": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether context bundles should include timestamps."
+        },
+        "include_source_prompt": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether context bundles should include stored source prompts."
+        },
+        "audience": {
+          "type": "string",
+          "enum": [
+            "llm",
+            "human"
+          ],
+          "default": "llm",
+          "description": "Target audience for bundle formatting."
+        },
+        "agent_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional agent or client identifier used to partition memory."
+        },
+        "project": {
+          "type": "string",
+          "default": "",
+          "description": "Optional project or workspace name used to partition memory."
+        },
+        "session_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional conversation or run identifier used to partition memory."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "pull",
+    "description": "Load a memory file into the current graph (waggle pull). Accepts a .abhi file (default) or a raw JSON backup. Runs integrity verification, schema validation, and constraint checks before merging. Returns counts for created and updated nodes and edges.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "input_path": {
+          "type": "string",
+          "description": "Path to the .abhi or JSON backup file to import."
+        },
+        "pull_format": {
+          "type": "string",
+          "enum": [
+            "abhi",
+            "backup"
+          ],
+          "default": "abhi",
+          "description": "'abhi' (default) imports a .abhi memory file; 'backup' imports a raw JSON backup."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "input_path"
+      ]
+    }
+  },
+  {
+    "name": "diff",
+    "description": "Compare two .abhi memory files (waggle diff). Reports structural graph changes \u2014 added/removed/updated nodes and edges \u2014 plus lightweight semantic changes. The output is the screenshot that goes on the homepage.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "input_path_a": {
+          "type": "string",
+          "description": "Path to the first .abhi file (base / ours)."
+        },
+        "input_path_b": {
+          "type": "string",
+          "description": "Path to the second .abhi file (theirs / feature branch)."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "input_path_a",
+        "input_path_b"
+      ]
+    }
+  },
+  {
+    "name": "merge",
+    "description": "Three-way merge branching .abhi memory files (waggle merge). Merges left and right branches against a common base into one output file. Conflicts surface as CONTRADICTS edges \u2014 nobody else can do this. Use --merge-strategy to control winner selection when both sides changed the same object.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "base_input_path": {
+          "type": "string",
+          "description": "Path to the common base .abhi file."
+        },
+        "left_input_path": {
+          "type": "string",
+          "description": "Path to the left branch .abhi file (ours)."
+        },
+        "right_input_path": {
+          "type": "string",
+          "description": "Path to the right branch .abhi file (theirs)."
+        },
+        "output_path": {
+          "type": "string",
+          "description": "Destination path for the merged .abhi file."
+        },
+        "merge_strategy": {
+          "type": "string",
+          "enum": [
+            "prefer_right",
+            "prefer_left",
+            "last_write_wins"
+          ],
+          "default": "prefer_right",
+          "description": "Winner strategy when both sides changed the same object differently."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "base_input_path",
+        "left_input_path",
+        "right_input_path",
+        "output_path"
+      ]
+    }
+  },
+  {
+    "name": "grep",
+    "description": "Execute a saved or ad hoc query against an .abhi file (waggle grep). Triggers the file's on_query event actions and returns matching nodes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "input_path": {
+          "type": "string",
+          "description": "Path to the .abhi file to query."
+        },
+        "query_id": {
+          "type": "string",
+          "description": "Optional saved query id from the file."
+        },
+        "query_text": {
+          "type": "string",
+          "description": "Optional ad hoc query text to execute."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "input_path"
+      ]
+    }
+  },
+  {
+    "name": "load_abhi_chunks",
+    "description": "Load only selected or query-relevant chunks from an .abhi file for partial graph inspection.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "input_path": {
+          "type": "string",
+          "description": "Path to the .abhi file to inspect."
+        },
+        "chunk_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional explicit chunk ids to load."
+        },
+        "query_id": {
+          "type": "string",
+          "description": "Optional saved query id used to select chunks."
+        },
+        "query_text": {
+          "type": "string",
+          "description": "Optional ad hoc query text used to select chunks."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "input_path"
+      ]
+    }
+  },
+  {
+    "name": "fsck",
+    "description": "Validate an .abhi memory file without importing it (waggle fsck). Verifies integrity hash, schema compliance, and constraint satisfaction. Like git fsck \u2014 run this before trusting a file you received.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "input_path": {
+          "type": "string",
+          "description": "Path to the .abhi file to validate."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "input_path"
+      ]
+    }
+  },
+  {
+    "name": "show",
+    "description": "Inspect an .abhi memory file without loading it into the graph (waggle show). Returns summary stats, node/edge type breakdowns, and metadata counts. Like git show \u2014 quick read-only inspection of a commit object.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "input_path": {
+          "type": "string",
+          "description": "Path to the .abhi file to inspect."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "input_path"
+      ]
+    }
+  },
+  {
+    "name": "export_markdown_vault",
+    "description": "Export the current graph as an Obsidian-compatible Markdown vault. Use when a human wants browsable note files with graph links. Returns written files and graph counts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "root_path": {
+          "type": "string",
+          "description": "Destination directory for the Markdown vault."
+        },
+        "agent_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional agent or client identifier used to partition memory."
+        },
+        "project": {
+          "type": "string",
+          "default": "",
+          "description": "Optional project or workspace name used to partition memory."
+        },
+        "session_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional conversation or run identifier used to partition memory."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "root_path"
+      ]
+    }
+  },
+  {
+    "name": "import_markdown_vault",
+    "description": "Import an Obsidian-compatible Markdown vault into the current graph non-destructively. Use to sync edited vault notes back into memory. Returns created, updated, deleted-edge, and conflict counts.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "root_path": {
+          "type": "string",
+          "description": "Source directory of the Markdown vault to import."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "root_path"
+      ]
+    }
+  },
+  {
+    "name": "edge_quality_report",
+    "description": "Audit the quality of relationship edges in the memory graph. Returns counts per edge type, average edge_confidence per type, and the top-10 highest- and lowest-confidence edges for each type. Useful for diagnosing graph health and identifying noisy RELATES_TO edges.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional agent or client identifier used to partition memory."
+        },
+        "project": {
+          "type": "string",
+          "default": "",
+          "description": "Optional project or workspace name used to partition memory."
+        },
+        "session_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional conversation or run identifier used to partition memory."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "build_context",
+    "description": "Recursively retrieves and compresses relevant Waggle memory for the current task, using graph, hybrid, transcript, update, and conflict-aware retrieval. Decomposes the query into targeted subqueries, expands the graph around key nodes, resolves contradictions and superseded memories, and returns a compact context pack under a configurable token budget. Aliases: recursive_context, assemble_context, rlm_context.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Current user task or question to build context for."
+        },
+        "agent_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional agent or client identifier used to partition memory."
+        },
+        "project": {
+          "type": "string",
+          "default": "",
+          "description": "Optional project or workspace name used to partition memory."
+        },
+        "session_id": {
+          "type": "string",
+          "default": "",
+          "description": "Optional conversation or run identifier used to partition memory."
+        },
+        "token_budget": {
+          "type": "integer",
+          "default": 1200,
+          "description": "Maximum token budget for the context pack (approximate)."
+        },
+        "depth": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 0,
+          "description": "Graph expansion depth around retrieved nodes."
+        },
+        "max_subqueries": {
+          "type": "integer",
+          "default": 6,
+          "minimum": 1,
+          "description": "Maximum number of decomposed subqueries to run."
+        },
+        "include_evidence": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to include verbatim transcript evidence in the context pack."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "fast",
+            "balanced",
+            "deep"
+          ],
+          "default": "balanced",
+          "description": "Retrieval depth mode: 'fast' runs fewer subqueries for low latency; 'balanced' is the default; 'deep' adds extra subqueries for thorough coverage."
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "query"
+      ]
+    }
+  }
+]

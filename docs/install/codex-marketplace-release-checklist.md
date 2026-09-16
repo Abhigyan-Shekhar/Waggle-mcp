@@ -6,8 +6,8 @@ users add with `codex plugin marketplace add`.
 
 ## Version Policy
 
-- Codex plugin version: `0.1.1`
-- GitHub release tag used for the current public Codex bundle: `v0.1.17`
+- Codex plugin version: `0.1.3`
+- GitHub release tag for the Codex skills bundle: `v0.1.24`
 - These versions are intentionally separate. The GitHub tag follows the main
   repository release history, including earlier private-repository trial
   releases. The Codex plugin manifest version tracks the plugin surface itself.
@@ -36,18 +36,45 @@ Run these from the repository root:
 
 ```bash
 python3 scripts/build_codex_plugin_runtime.py --require-artifacts
-python3 scripts/package_codex_plugin.py --bundle-version v0.1.17 --output-dir dist/codex-plugin
+python3 scripts/package_codex_plugin.py --bundle-version v0.1.24 --output-dir dist/codex-plugin
 python3 -m pytest tests/test_package_codex_plugin.py tests/test_packaging_metadata.py -q
 ```
 
-For native platform smoke tests, install from the extracted marketplace bundle
-and confirm Codex exposes:
+For native platform smoke tests, use a clean user environment—not the
+development checkout—and follow the public path exactly:
+
+1. Download the published marketplace ZIP and checksum.
+2. Verify and extract it into a new directory.
+3. Run `codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.24`.
+4. Run `codex plugin add waggle@waggle`.
+5. Start a new Codex task in an unrelated existing repository.
+6. Confirm Codex exposes:
 
 - `prime_context`
 - `query_graph`
 - `observe_conversation`
 
-Also confirm a basic memory round trip:
+Record cold and retry startup latency from the runtime probe. A first launch
+over 10 seconds is a release-quality warning that must appear in the release
+notes even when retry succeeds.
+
+Confirm these behavioral memory round trips:
+
+### Constraint recall
+
+1. In session 1, say: `We're using SQLite because this project must remain fully local.`
+2. Start session 2 in the same repository.
+3. Ask: `Should we migrate the memory backend to Postgres?`
+4. Confirm Codex retrieves the local-only constraint before answering.
+
+### Failed-approach recall
+
+1. In session 1, attempt implementation A and establish the verified reason it failed.
+2. Start session 2 in the same repository.
+3. Ask how the feature should be implemented.
+4. Confirm Codex retrieves the failed approach and avoids repeating it.
+
+Also confirm a direct scoped round trip:
 
 1. Ask Codex to remember a project-scoped decision.
 2. Start a new Codex thread in the same workspace.
@@ -57,11 +84,11 @@ Also confirm a basic memory round trip:
 
 Expected files:
 
-- `waggle-codex-marketplace-v0.1.17.zip`
-- `waggle-codex-marketplace-v0.1.17.zip.sha256`
-- `waggle-codex-plugin-v0.1.17.zip`
-- `waggle-codex-plugin-v0.1.17.zip.sha256`
-- `waggle-codex-release-v0.1.17.json`
+- `waggle-codex-marketplace-v0.1.24.zip`
+- `waggle-codex-marketplace-v0.1.24.zip.sha256`
+- `waggle-codex-plugin-v0.1.24.zip`
+- `waggle-codex-plugin-v0.1.24.zip.sha256`
+- `waggle-codex-release-v0.1.24.json`
 
 The marketplace zip is the primary user-facing artifact. The bare plugin zip is
 for debugging, audits, and future installer compatibility.
@@ -73,6 +100,10 @@ notarization and Windows Authenticode signing require paid accounts or
 certificates, so they are not release blockers for this self-hosted marketplace
 bundle.
 
+This release is also self-hosted through GitHub Releases. Do not introduce a
+paid hosted backend for the default Codex plugin path; the bundled stdio MCP
+server runs locally with SQLite storage.
+
 Because the runtime is unsigned:
 
 - Keep checksum files attached to the release.
@@ -83,14 +114,19 @@ Because the runtime is unsigned:
 
 ## Announcement Checklist
 
-- Link users to the `v0.1.17` GitHub release.
+- Present Waggle as a self-hosted Codex MCP plugin, not as an OpenAI-curated
+  directory listing or signed native installer.
+- State that the default install path has no required hosting or certificate
+  cost.
+- Link users to the `v0.1.24` GitHub release.
 - Tell users to download the marketplace zip, extract it, and run:
 
 ```bash
-codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.17
+codex plugin marketplace add /path/to/waggle-codex-marketplace-v0.1.24
+codex plugin add waggle@waggle
 ```
 
-- State clearly that `v0.1.16` was a partial trial release and should not be
-  used as a Codex marketplace install source.
-- State clearly that the plugin version shown in Codex is `0.1.1`, while the
-  GitHub release tag is `v0.1.17`.
+- State clearly that `v0.1.16` and `v0.1.19` were partial releases and should
+  not be used as Codex marketplace install sources.
+- State clearly that the plugin version shown in Codex is `0.1.3`, while the
+  GitHub release tag is `v0.1.24`.

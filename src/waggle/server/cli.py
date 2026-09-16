@@ -28,6 +28,7 @@ from waggle.abhi import (
 from waggle.config import DEFAULT_DB_PATH, AppConfig
 from waggle.embeddings import EmbeddingModel
 from waggle.errors import ValidationFailure, WaggleError
+from waggle.github_event import ingest_github_event
 from waggle.graph import MemoryGraph
 from waggle.models import TranscriptIngestionInput, utc_now
 
@@ -343,6 +344,8 @@ def _build_parser() -> argparse.ArgumentParser:
     export_abhi.add_argument("--signing-key-dir", default="~/.waggle/keys")
     export_abhi.add_argument("--redact", dest="redact_patterns", action="append", default=[])
     export_abhi.add_argument("--passphrase-env", default="")
+    export_abhi.add_argument("--strict-export", action="store_true")
+    export_abhi.add_argument("--include-deps", action="store_true")
     export_abhi.add_argument(
         "--force", action="store_true", help="Export even if transcript secret scan finds likely credentials or tokens."
     )
@@ -367,6 +370,8 @@ def _build_parser() -> argparse.ArgumentParser:
     commit_abhi.add_argument("--signing-key-dir", default="~/.waggle/keys")
     commit_abhi.add_argument("--redact", dest="redact_patterns", action="append", default=[])
     commit_abhi.add_argument("--passphrase-env", default="")
+    commit_abhi.add_argument("--strict-export", action="store_true")
+    commit_abhi.add_argument("--include-deps", action="store_true")
     commit_abhi.add_argument(
         "--force", action="store_true", help="Commit even if transcript secret scan finds likely credentials or tokens."
     )
@@ -392,6 +397,8 @@ def _build_parser() -> argparse.ArgumentParser:
     checkpoint_context.add_argument("--signing-key-dir", default="~/.waggle/keys")
     checkpoint_context.add_argument("--redact", dest="redact_patterns", action="append", default=[])
     checkpoint_context.add_argument("--passphrase-env", default="")
+    checkpoint_context.add_argument("--strict-export", action="store_true")
+    checkpoint_context.add_argument("--include-deps", action="store_true")
     checkpoint_context.add_argument(
         "--force",
         action="store_true",
@@ -692,6 +699,45 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Hard input-size cap in bytes (default: 16 MiB). Oversized payloads fail with exit code 1.",
     )
 
+    ingest_github_event_parser = subparsers.add_parser(
+        "ingest-github-event",
+        help="Convert a GitHub event JSON payload into a scoped Waggle checkpoint and Markdown handoff.",
+        description=(
+            "Parse an issue, pull request, discussion, release, push, or explicitly generic JSON payload "
+            "without network or external AI calls, store sanitized provenance in Waggle memory, and export "
+            "a portable .abhi checkpoint plus Markdown context handoff."
+        ),
+    )
+    ingest_github_event_parser.add_argument("--event-path", required=True, help="Path to the GitHub event JSON file.")
+    ingest_github_event_parser.add_argument(
+        "--event-type",
+        choices=["issue", "pull-request", "discussion", "release", "push", "generic"],
+        default="",
+        help="Optional explicit event type; otherwise use GITHUB_EVENT_NAME or structural inference.",
+    )
+    ingest_github_event_parser.add_argument("--repository", required=True, help="Source repository (OWNER/REPO).")
+    ingest_github_event_parser.add_argument("--project", required=True, help="Waggle project namespace.")
+    ingest_github_event_parser.add_argument(
+        "--scope",
+        choices=["all", "project", "session", "since-date"],
+        default="project",
+        help="Existing Waggle export scope mode (default: project).",
+    )
+    ingest_github_event_parser.add_argument("--session-id", default="", help="Required with --scope session.")
+    ingest_github_event_parser.add_argument("--since-date", default="", help="Required with --scope since-date.")
+    ingest_github_event_parser.add_argument(
+        "--output-context", required=True, help="Destination Markdown context handoff path."
+    )
+    ingest_github_event_parser.add_argument(
+        "--output-checkpoint", required=True, help="Destination portable .abhi checkpoint path."
+    )
+    ingest_github_event_parser.add_argument(
+        "--max-input-bytes",
+        type=int,
+        default=1024 * 1024,
+        help="Hard event payload limit in bytes (default: 1 MiB).",
+    )
+
     setup = subparsers.add_parser(
         "setup",
         help="Non-interactive one-line setup — auto-patch supported MCP clients.",
@@ -875,6 +921,8 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
         args.command = _CLI_COMMAND_ALIASES[args.command]
     if args.command == "doctor":
         return _run_doctor_command(config, args)
+    if args.command == "ingest-github-event":
+        return _run_ingest_github_event(config, args)
     backend = _build_backend(config)
     if args.command == "create-tenant":
         tenant = backend.ensure_tenant(args.tenant_id, args.name)
@@ -1058,6 +1106,8 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             redact_patterns=list(getattr(args, "redact_patterns", []) or []),
             sign=bool(getattr(args, "sign", False)),
             signing_key_dir=getattr(args, "signing_key_dir", "~/.waggle/keys"),
+            strict_export=bool(getattr(args, "strict_export", False)),
+            include_deps=bool(getattr(args, "include_deps", False)),
         )
         print(json.dumps(exported.model_dump(mode="json"), indent=2))
         return 0
@@ -1093,6 +1143,8 @@ def _run_admin_command(config: AppConfig, args: argparse.Namespace) -> int:
             redact_patterns=list(getattr(args, "redact_patterns", []) or []),
             sign=bool(getattr(args, "sign", False)),
             signing_key_dir=getattr(args, "signing_key_dir", "~/.waggle/keys"),
+            strict_export=bool(getattr(args, "strict_export", False)),
+            include_deps=bool(getattr(args, "include_deps", False)),
         )
         payload = exported.model_dump(mode="json")
         payload["checkpoint_scope"] = scope
@@ -1793,6 +1845,53 @@ def _run_ingest_transcript_handoff(config: AppConfig, args: argparse.Namespace) 
         output["checkpoint_scope"] = result.checkpoint_scope
 
     print(json.dumps(output, indent=2))
+    return 0
+
+
+def _run_ingest_github_event(config: AppConfig, args: argparse.Namespace) -> int:
+    if config.backend != "sqlite":
+        _emit_cli_error(
+            "validation_error",
+            "ingest-github-event is supported only with the SQLite backend.",
+            {},
+        )
+        return 1
+    graph = MemoryGraph(
+        config.db_path,
+        EmbeddingModel("deterministic"),
+        tenant_id=config.default_tenant_id,
+        enable_dedup=False,
+        recency_half_life_days=config.recency_half_life_days,
+        export_dir=config.export_dir,
+        api_key_environment=config.api_key_environment,
+    )
+    try:
+        result = ingest_github_event(
+            graph,
+            event_path=Path(args.event_path),
+            event_type=str(args.event_type),
+            github_event_name=os.environ.get("GITHUB_EVENT_NAME", ""),
+            repository=str(args.repository),
+            project=str(args.project),
+            scope=str(args.scope),
+            session_id=str(args.session_id),
+            since_date=str(args.since_date),
+            output_context=Path(args.output_context),
+            output_checkpoint=Path(args.output_checkpoint),
+            max_input_bytes=int(args.max_input_bytes),
+        )
+    except ValidationFailure as exc:
+        _emit_cli_error("validation_error", str(exc), {})
+        return 1
+    except WaggleError as exc:
+        _emit_cli_error(exc.code, str(exc), {"status_code": exc.status_code})
+        return 2
+    except Exception as exc:
+        _emit_cli_error("backend_error", str(exc), {"type": type(exc).__name__})
+        return 2
+    finally:
+        graph.close()
+    print(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
     return 0
 
 
@@ -2535,29 +2634,9 @@ def get_app(config: AppConfig | None = None) -> WaggleServer:
 
 
 async def run_stdio(config: AppConfig) -> None:
-    app = get_app(config)
-    graph = app._root_graph
-    em = graph.embedding_model
-    is_bundled_runtime = os.environ.get("WAGGLE_BUNDLED_RUNTIME", "").strip() in {"1", "true", "yes"}
-    if (
-        not is_bundled_runtime
-        and not config.is_fast_mode
-        and hasattr(em, "start_background_warmup")
-        and not getattr(em, "_warmup_started", False)
-    ):
-        em.start_background_warmup()
-    if config.is_strict_mode:
-        LOGGER.info("stdio_strict_mode_waiting_for_embedding", extra={"model": em.model_name})
-        if hasattr(em, "_ready_event"):
-            em._ready_event.wait(timeout=120.0)
-        LOGGER.info(
-            "stdio_strict_mode_embedding_status",
-            extra={"status": getattr(em, "warmup_status", "unknown"), "error": getattr(em, "warmup_error", "")},
-        )
-    import mcp.server.stdio
+    from waggle.protocol.mcp.stdio import run_waggle_stdio
 
-    async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-        await app.server.run(read_stream, write_stream, app.initialization_options())
+    await run_waggle_stdio(config)
 
 
 def run_http(config: AppConfig) -> None:
@@ -2631,7 +2710,7 @@ def main() -> None:
         config.validate()
     if command in {"serve", "edit-graph", "view-graph", "ui", "graph-studio", "open-studio"}:
         print_startup_banner(config, args)
-    log_stream = sys.stderr if config.transport == "stdio" else sys.stdout
+    log_stream = sys.stderr if command == "ingest-github-event" or config.transport == "stdio" else sys.stdout
     from waggle.logging_utils import configure_logging
 
     configure_logging(config.log_level, stream=log_stream)

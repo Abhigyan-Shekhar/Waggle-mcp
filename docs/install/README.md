@@ -41,6 +41,12 @@ configuration:
 
 ```bash
 pipx install waggle-mcp
+pipx ensurepath
+```
+
+Restart the terminal after the first `pipx ensurepath`, then run:
+
+```bash
 waggle-mcp doctor
 ```
 

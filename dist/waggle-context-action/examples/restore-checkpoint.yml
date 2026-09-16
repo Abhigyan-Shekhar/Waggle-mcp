@@ -1,0 +1,39 @@
+name: Restore and extend Waggle context
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  accumulate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the Action repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create a baseline checkpoint
+        id: baseline
+        uses: ./
+        with:
+          event-path: fixtures/issue.json
+          scope: ${{ github.repository }}
+          waggle-version: ${{ vars.WAGGLE_VERSION }}
+          upload-artifact: "false"
+
+      - name: Restore and extend the same project memory
+        id: extended
+        uses: ./
+        with:
+          event-path: fixtures/release.json
+          checkpoint: ${{ steps.baseline.outputs.checkpoint-file }}
+          scope: ${{ github.repository }}
+          waggle-version: ${{ vars.WAGGLE_VERSION }}
+
+      - name: Confirm portable outputs
+        env:
+          CONTEXT_FILE: ${{ steps.extended.outputs.context-file }}
+          CHECKPOINT_FILE: ${{ steps.extended.outputs.checkpoint-file }}
+        shell: bash
+        run: test -s "$CONTEXT_FILE" && test -s "$CHECKPOINT_FILE"

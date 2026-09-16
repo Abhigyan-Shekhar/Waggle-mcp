@@ -56,7 +56,7 @@ test.describe("Graph UI - Virtualization Performance", () => {
         session_id: "perf-session"
       };
     });
-    await page.goto("/");
+    await page.goto("/graph");
   });
 
   test("should render only a small subset of the 1000 transcripts in the DOM", async ({ page }) => {
@@ -66,9 +66,10 @@ test.describe("Graph UI - Virtualization Performance", () => {
     // Wait for the transcripts container search input to confirm render
     await expect(page.locator('input[placeholder*="Search transcripts"]')).toBeVisible();
 
-    // Verify list responsiveness and count visible nodes
-    // Each transcript record renders a card styled with border-white/8 and bg-black/15
-    const cardLocators = page.locator('.flex-1.overflow-auto.p-4.scrollbar-thin .rounded-2xl.border.border-white\\/8');
+    // Verify list responsiveness through the transcript-card UI contract rather
+    // than coupling this performance check to Tailwind's escaped class names.
+    const cardLocators = page.getByTestId("transcript-card");
+    await expect(cardLocators.first()).toBeVisible();
     const totalVisibleCards = await cardLocators.count();
 
     console.log(`Total visible transcript cards: ${totalVisibleCards}`);

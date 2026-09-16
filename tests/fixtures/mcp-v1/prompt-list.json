@@ -1,0 +1,23 @@
+[
+  {
+    "name": "waggle_memory_policy",
+    "description": "Instructions for automatic memory retrieval and ingestion. Use this prompt to make the assistant handle memory without user-triggered tool calls.",
+    "arguments": [
+      {
+        "name": "project",
+        "description": "Optional project/workspace scope to pass to Waggle tools.",
+        "required": false
+      },
+      {
+        "name": "agent_id",
+        "description": "Optional agent/client identifier to pass to Waggle tools.",
+        "required": false
+      },
+      {
+        "name": "session_id",
+        "description": "Optional conversation/session identifier to pass to Waggle tools.",
+        "required": false
+      }
+    ]
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "action": "created",
+  "discussion": {
+    "id": 9001,
+    "number": 9,
+    "html_url": "https://github.com/octo/demo/discussions/9",
+    "title": "How should context accumulate?",
+    "body": "Accumulate memory at repository project scope.",
+    "state": "open",
+    "category": {"name": "Ideas"},
+    "created_at": "2025-01-02T03:04:05Z",
+    "updated_at": "2025-01-02T03:04:05Z"
+  },
+  "repository": {"id": 1001, "full_name": "octo/demo"},
+  "sender": {"id": 7, "login": "octocat"}
+}

@@ -24,6 +24,7 @@ _LAZY_EXPORTS = {
     "ImportResult": ("waggle.models", "ImportResult"),
     "Node": ("waggle.models", "Node"),
     "NodeHistoryResult": ("waggle.models", "NodeHistoryResult"),
+    "EdgeStoreResult": ("waggle.models", "EdgeStoreResult"),
     "NodeStoreResult": ("waggle.models", "NodeStoreResult"),
     "NodeType": ("waggle.models", "NodeType"),
     "ObservationResult": ("waggle.models", "ObservationResult"),
