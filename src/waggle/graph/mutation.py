@@ -229,7 +229,7 @@ class MutationMixin(MemoryGraphBase):
             self._mark_communities_stale(active_connection)
             conflicts = (
                 self._register_conflicts(active_connection, node, occurred_at=resolved_updated_at)
-                if self.enable_dedup
+                if self.enable_dedup and node.metadata.get("authority") != "source_observation"
                 else []
             )
             self.emit_audit_event(
