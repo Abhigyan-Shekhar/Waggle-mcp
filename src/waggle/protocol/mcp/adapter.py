@@ -52,6 +52,7 @@ class WagglemcpAdapter:
                 name=d.name,
                 description=d.description,
                 input_schema=d.input_schema,  # snake_case in SDK v2
+                annotations=types.ToolAnnotations(**d.annotations) if d.annotations else None,
             )
             for d in self._dispatcher.list_tools()
         ]
