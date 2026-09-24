@@ -88,6 +88,7 @@ from waggle.models import (
     ApiKeyRecord,
     AuditEventRecord,
     BackupResult,
+    ClearScopeResult,
     ConflictEntry,
     ConflictListResult,
     ConflictRecord,
@@ -484,6 +485,189 @@ class Neo4jMemoryGraph:
             if owns_session:
                 active_session.close()
 
+    def clear_session(self, *, session_id: str, dry_run: bool = False) -> ClearScopeResult:
+        normalized_session = session_id.strip()
+        if not normalized_session:
+            raise ValueError("session_id is required.")
+        with self._lock, self._session() as session:
+            if dry_run:
+                return self._clear_scope_rows(
+                    session,
+                    scope="session",
+                    session_id=normalized_session,
+                    dry_run=True,
+                )
+            tx = session.begin_transaction()
+            try:
+                result = self._clear_scope_rows(tx, scope="session", session_id=normalized_session, dry_run=False)
+                self.emit_audit_event(
+                    event_type="graph.scope_cleared",
+                    resource_type="session",
+                    resource_id=normalized_session,
+                    action="delete",
+                    metadata=result.model_dump(mode="json"),
+                    session=tx,
+                )
+                tx.commit()
+            except Exception:
+                tx.rollback()
+                raise
+            self._invalidate_ui_state_cache(scope="session", session_id=normalized_session)
+            return result
+
+    def clear_project(self, *, project: str, dry_run: bool = False) -> ClearScopeResult:
+        normalized_project = project.strip()
+        if not normalized_project:
+            raise ValueError("project is required.")
+        with self._lock, self._session() as session:
+            if dry_run:
+                return self._clear_scope_rows(
+                    session,
+                    scope="project",
+                    project=normalized_project,
+                    dry_run=True,
+                )
+            tx = session.begin_transaction()
+            try:
+                result = self._clear_scope_rows(tx, scope="project", project=normalized_project, dry_run=False)
+                self.emit_audit_event(
+                    event_type="graph.scope_cleared",
+                    resource_type="project",
+                    resource_id=normalized_project,
+                    action="delete",
+                    metadata=result.model_dump(mode="json"),
+                    session=tx,
+                )
+                tx.commit()
+            except Exception:
+                tx.rollback()
+                raise
+            self._invalidate_ui_state_cache(scope="project", project=normalized_project)
+            return result
+
+    def clear_all(self, *, dry_run: bool = False) -> ClearScopeResult:
+        with self._lock, self._session() as session:
+            if dry_run:
+                return self._clear_scope_rows(session, scope="all", dry_run=True)
+            tx = session.begin_transaction()
+            try:
+                result = self._clear_scope_rows(tx, scope="all", dry_run=False)
+                self.emit_audit_event(
+                    event_type="graph.scope_cleared",
+                    resource_type="tenant",
+                    resource_id=self.tenant_id,
+                    action="delete",
+                    metadata=result.model_dump(mode="json"),
+                    session=tx,
+                )
+                tx.commit()
+            except Exception:
+                tx.rollback()
+                raise
+            self._invalidate_ui_state_cache(scope="all")
+            return result
+
+    def _clear_scope_rows(
+        self,
+        session: Any,
+        *,
+        scope: str,
+        project: str = "",
+        session_id: str = "",
+        dry_run: bool = False,
+    ) -> ClearScopeResult:
+        result = ClearScopeResult(scope=scope, project=project, session_id=session_id, dry_run=dry_run)
+
+        params = {"tenant_id": self.tenant_id}
+        if scope == "all":
+            match_clause = "WHERE n.tenant_id = $tenant_id"
+            transcript_clause = "WHERE t.tenant_id = $tenant_id"
+            ui_clause = "WHERE ui.tenant_id = $tenant_id"
+            repo_clause = "WHERE repo.tenant_id = $tenant_id"
+            cw_clause = "WHERE cw.tenant_id = $tenant_id"
+        elif scope == "project":
+            match_clause = "WHERE n.tenant_id = $tenant_id AND n.project = $project"
+            transcript_clause = "WHERE t.tenant_id = $tenant_id AND t.project = $project"
+            ui_clause = "WHERE ui.tenant_id = $tenant_id AND ui.project = $project"
+            repo_clause = "WHERE repo.tenant_id = $tenant_id AND repo.name = $project"
+            cw_clause = "MATCH (repo:Repo {tenant_id: $tenant_id, name: $project}), (cw:ContextWindow {tenant_id: $tenant_id, repo_id: repo.id})"
+            params["project"] = project
+        elif scope == "session":
+            match_clause = "WHERE n.tenant_id = $tenant_id AND n.session_id = $session_id"
+            transcript_clause = "WHERE t.tenant_id = $tenant_id AND t.session_id = $session_id"
+            ui_clause = "WHERE ui.tenant_id = $tenant_id AND ui.session_id = $session_id"
+            repo_clause = "WHERE false"
+            cw_clause = "WHERE cw.tenant_id = $tenant_id AND cw.session_id = $session_id"
+            params["session_id"] = session_id
+        else:
+            return result
+
+        nodes_info = session.run(
+            f"MATCH (n:MemoryNode) {match_clause} RETURN n.node_type AS node_type, count(n) AS count", **params
+        )
+        for record in nodes_info:
+            node_type = record["node_type"]
+            count = record["count"]
+            result.counts_by_node_type[node_type] = count
+            result.deleted_nodes += count
+
+        edge_count = session.run(
+            f"MATCH (n:MemoryNode)-[r:MEMORY_EDGE]-() {match_clause} RETURN count(DISTINCT r) AS count", **params
+        ).single()
+        result.deleted_edges = edge_count["count"] if edge_count else 0
+
+        transcript_count = session.run(
+            f"MATCH (t:MemoryTranscript) {transcript_clause} RETURN count(t) AS count", **params
+        ).single()
+        result.deleted_transcripts = transcript_count["count"] if transcript_count else 0
+
+        ui_count = session.run(f"MATCH (ui:GraphUIState) {ui_clause} RETURN count(ui) AS count", **params).single()
+        result.deleted_graph_ui_rows = ui_count["count"] if ui_count else 0
+
+        if scope == "project":
+            cw_query = f"{cw_clause} RETURN count(cw) AS count"
+            cwe_query = f"{cw_clause}-[cwe:CONTEXT_WINDOW_EDGE]-() RETURN count(DISTINCT cwe) AS count"
+            del_cw_query = f"{cw_clause} DETACH DELETE cw"
+        else:
+            cw_query = f"MATCH (cw:ContextWindow) {cw_clause} RETURN count(cw) AS count"
+            cwe_query = (
+                f"MATCH (cw:ContextWindow)-[cwe:CONTEXT_WINDOW_EDGE]-() {cw_clause} RETURN count(DISTINCT cwe) AS count"
+            )
+            del_cw_query = f"MATCH (cw:ContextWindow) {cw_clause} DETACH DELETE cw"
+
+        cw_count = session.run(cw_query, **params).single()
+        result.deleted_context_windows = cw_count["count"] if cw_count else 0
+
+        cwe_count = session.run(cwe_query, **params).single()
+        result.deleted_context_window_edges = cwe_count["count"] if cwe_count else 0
+
+        repo_count = session.run(f"MATCH (repo:Repo) {repo_clause} RETURN count(repo) AS count", **params).single()
+        result.deleted_repos = repo_count["count"] if repo_count else 0
+
+        if not dry_run:
+            session.run(f"MATCH (ui:GraphUIState) {ui_clause} DETACH DELETE ui", **params).consume()
+            session.run(f"MATCH (t:MemoryTranscript) {transcript_clause} DETACH DELETE t", **params).consume()
+            session.run(del_cw_query, **params).consume()
+            session.run(f"MATCH (repo:Repo) {repo_clause} DETACH DELETE repo", **params).consume()
+            session.run(f"MATCH (n:MemoryNode) {match_clause} DETACH DELETE n", **params).consume()
+
+        return result
+
+    def _invalidate_ui_state_cache(self, *, scope: str, project: str = "", session_id: str = "") -> None:
+        keys_to_delete: list[tuple[str, str, str, str]] = []
+        for key in _UI_STATE_CACHE:
+            tenant_id, cached_project, _agent_id, cached_session_id = key
+            if tenant_id != self.tenant_id:
+                continue
+            if (
+                scope == "all"
+                or (scope == "project" and cached_project == project)
+                or (scope == "session" and cached_session_id == session_id)
+            ):
+                keys_to_delete.append(key)
+        for key in keys_to_delete:
+            _UI_STATE_CACHE.pop(key, None)
+
     def emit_audit_event(
         self,
         *,
@@ -551,7 +735,7 @@ class Neo4jMemoryGraph:
                 ip_address=event.ip_address,
                 user_agent=event.user_agent,
                 created_at=event.created_at.isoformat(),
-                metadata=event.metadata,
+                metadata=_encode_metadata(event.metadata),
             ).consume()
         finally:
             if owns_session:
@@ -612,7 +796,7 @@ class Neo4jMemoryGraph:
                 ip_address=props.get("ip_address") or "",
                 user_agent=props.get("user_agent") or "",
                 created_at=_parse_datetime(props["created_at"]),
-                metadata=props.get("metadata") or {},
+                metadata=_decode_metadata(props.get("metadata")),
             )
             for props in rows
         ]
