@@ -410,3 +410,26 @@ Use this when you already know you are inside `src/waggle` and need a quick expl
   - `CONTRIBUTING.md`
   - `docs/install/`
   - `docs/reference.md`
+
+
+## Test directory conventions
+
+All tests live under the top-level `tests/` directory. The suite is intentionally flat so contributors can find files quickly by name.
+
+### Naming and location conventions
+
+| Category | Where they live | Examples | When to add a new test here |
+|----------|------------------|----------|-----------------------------|
+| **Graph** | `tests/test_graph*.py`, `tests/test_edges.py`, `tests/test_temporal*.py`, `tests/test_dedup.py`, `tests/test_neo4j*.py` | `test_graph.py`, `test_edges.py`, `test_temporal_validity.py` | Core memory/graph behaviour, traversal, validity, deduplication, Neo4j parity |
+| **Protocol / MCP surface** | `tests/test_mcp*.py`, `tests/test_server.py`, `tests/test_stdio_integration.py` | `test_mcp_http.py`, `test_mcp_tool_surface.py`, `test_mcp_v2_adapter.py` | MCP tool registration, transport (stdio/HTTP), protocol compatibility |
+| **Integration** | Files that exercise multiple components or real transports | `test_stdio_integration.py`, `test_hooks.py`, `test_chat_runtime.py`, `test_ingest_*.py` | End-to-end flows, client hooks, runtime orchestration, multi-module behaviour |
+| **Fixtures** | `tests/fixtures/` | Shared JSON, sample graphs, etc. | Reusable test data only — do not put executable tests here |
+| **Shared setup** | `tests/conftest.py` | Fixtures, helpers, environment defaults | Common pytest fixtures used by many tests |
+
+### Rules of thumb
+
+- Prefer a new focused `test_<area>.py` file over growing an already large file.
+- Graph correctness changes → update or add tests under the graph-related names above.
+- MCP protocol / transport changes → update the `test_mcp*` or `test_stdio_integration.py` files.
+- Cross-component or real-transport behaviour → treat it as an integration test.
+- Always run the focused test with `WAGGLE_MODEL=deterministic pytest tests/test_<your_file>.py -q` before opening a PR.
