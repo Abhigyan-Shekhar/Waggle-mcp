@@ -139,6 +139,64 @@ $env:PYTHONUTF8 = "1"
 $env:WAGGLE_DB_PATH = "$env:APPDATA\waggle\waggle.db"
 ```
 
+### Quoting paths with spaces in MCP client configs
+
+MCP clients read JSON config files literally. Shell quoting rules from PowerShell or
+`cmd.exe` do not apply inside `claude_desktop_config.json`, `mcp.json`, or
+`.vscode/mcp.json`. This matters when Python, your project folder, or
+`WAGGLE_DB_PATH` contains spaces (for example `C:\Program Files\...` or
+`C:\E Drive\in progress 2\...`).
+
+**Rules for JSON config files:**
+
+- Put the executable in `"command"` and flags in `"args"`; do not join them into one shell string.
+- Escape backslashes in JSON strings by doubling them: `\\`.
+- Forward slashes also work on Windows and are often easier to read in JSON:
+  `C:/Users/Amir/AppData/Roaming/waggle/waggle.db`.
+- Do not rely on `~` in JSON on Windows; use a full path or set `WAGGLE_DB_PATH`
+  through your shell before launching the client.
+
+**Example: local venv under a path with spaces**
+
+```json
+{
+  "mcpServers": {
+    "waggle": {
+      "command": "C:/E Drive/in progress 2/Waggle-mcp/.venv/Scripts/python.exe",
+      "args": ["-m", "waggle.server", "serve", "--transport", "stdio"],
+      "env": {
+        "WAGGLE_BACKEND": "sqlite",
+        "WAGGLE_DB_PATH": "C:/Users/Amir/AppData/Roaming/waggle/waggle.db",
+        "WAGGLE_DEFAULT_TENANT_ID": "local-default",
+        "WAGGLE_MODEL": "all-MiniLM-L6-v2"
+      }
+    }
+  }
+}
+```
+
+**Test the command outside the client first**
+
+PowerShell:
+
+```powershell
+& "C:\E Drive\in progress 2\Waggle-mcp\.venv\Scripts\python.exe" -m waggle.server serve --transport stdio
+```
+
+`cmd.exe`:
+
+```cmd
+"C:\E Drive\in progress 2\Waggle-mcp\.venv\Scripts\python.exe" -m waggle.server serve --transport stdio
+```
+
+If the manual command starts but the MCP client fails, compare your JSON `command`
+and `args` against the working shell invocation. A missing quote or single backslash
+in JSON is the most common cause.
+
+When `waggle-mcp` is already on `PATH` (for example after `pipx install waggle-mcp`),
+the simple config in [generic-mcp.md](./generic-mcp.md) is usually enough because the
+command name has no spaces.
+
 ### Enable verbose logs on Windows
 
 ```powershell
