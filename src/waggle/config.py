@@ -208,8 +208,11 @@ class AppConfig:
                 "WAGGLE_TIERED_TOP_K_WINDOWS", os.environ.get("WAGGLE_TIERED_TOP_K_WINDOWS", "3")
             ),
             dedup_threshold=_parse_float("WAGGLE_DEDUP_THRESHOLD", os.environ.get("WAGGLE_DEDUP_THRESHOLD", "0.88")),
-            demo_mode=os.environ.get("WAGGLE_DEMO_MODE", "false").strip().lower() == "true",
-            demo_cookie_secure=os.environ.get("WAGGLE_DEMO_COOKIE_SECURE", "true").strip().lower() == "true",
+            demo_mode=_parse_bool("WAGGLE_DEMO_MODE", os.environ.get("WAGGLE_DEMO_MODE", "false")),
+            demo_cookie_secure=_parse_bool(
+                "WAGGLE_DEMO_COOKIE_SECURE",
+                os.environ.get("WAGGLE_DEMO_COOKIE_SECURE", "true"),
+            ),
             demo_frontend_origin=os.environ.get("WAGGLE_DEMO_FRONTEND_ORIGIN", "").strip().rstrip("/"),
         )
         config.validate()

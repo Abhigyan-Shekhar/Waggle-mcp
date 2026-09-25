@@ -177,3 +177,23 @@ def test_from_env_rejects_invalid_tiered_retrieval_boolean(monkeypatch):
         match=r"WAGGLE_TIERED_RETRIEVAL.*boolean",
     ):
         AppConfig.from_env()
+
+
+def test_from_env_rejects_invalid_demo_mode_boolean(monkeypatch):
+    monkeypatch.setenv("WAGGLE_DEMO_MODE", "maybe")
+
+    with pytest.raises(
+        ValidationFailure,
+        match=r"WAGGLE_DEMO_MODE.*boolean",
+    ):
+        AppConfig.from_env()
+
+
+def test_from_env_rejects_invalid_demo_cookie_secure_boolean(monkeypatch):
+    monkeypatch.setenv("WAGGLE_DEMO_COOKIE_SECURE", "invalid")
+
+    with pytest.raises(
+        ValidationFailure,
+        match=r"WAGGLE_DEMO_COOKIE_SECURE.*boolean",
+    ):
+        AppConfig.from_env()
