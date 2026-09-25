@@ -310,6 +310,10 @@ class Neo4jMemoryGraph:
                 FOR (a:GraphAuditEvent) REQUIRE a.event_id IS UNIQUE
                 """).consume()
             session.run("""
+                CREATE CONSTRAINT waggle_transcript_counter_session IF NOT EXISTS
+                FOR (c:TranscriptCounter) REQUIRE (c.tenant_id, c.session_id) IS UNIQUE
+                """).consume()
+            session.run("""
                 CREATE INDEX waggle_node_tenant_updated IF NOT EXISTS
                 FOR (n:MemoryNode) ON (n.tenant_id, n.updated_at)
                 """).consume()
@@ -3634,13 +3638,18 @@ def update_node(
     def _next_transcript_turn_index(self, session: Any, *, session_id: str) -> int:
         record = session.run(
             """
-            MATCH (t:MemoryTranscript {tenant_id: $tenant_id, session_id: $session_id})
-            RETURN COALESCE(max(t.turn_index), -1) AS max_turn_index
+            OPTIONAL MATCH (t:MemoryTranscript {tenant_id: $tenant_id, session_id: $session_id})
+            WITH COALESCE(max(t.turn_index), -1) AS existing_max
+            MERGE (c:TranscriptCounter {tenant_id: $tenant_id, session_id: $session_id})
+            ON CREATE SET c.value = existing_max - 1
+            WITH c, c.value + 2 AS next_turn_index
+            SET c.value = c.value + 2
+            RETURN next_turn_index
             """,
             tenant_id=self.tenant_id,
             session_id=session_id,
         ).single()
-        return int(record["max_turn_index"] or -1) + 1
+        return int(record["next_turn_index"])
 
     def _store_transcript_record(
         self,
