@@ -163,6 +163,7 @@ CREATE TABLE IF NOT EXISTS tenants (
     status TEXT NOT NULL DEFAULT 'active',
     communities_stale INTEGER DEFAULT 1,
     cached_communities TEXT DEFAULT NULL,
+    communities_version INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
 
@@ -1356,6 +1357,8 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             connection.execute("ALTER TABLE tenants ADD COLUMN communities_stale INTEGER DEFAULT 1")
         if "cached_communities" not in tenant_columns:
             connection.execute("ALTER TABLE tenants ADD COLUMN cached_communities TEXT DEFAULT NULL")
+        if "communities_version" not in tenant_columns:
+            connection.execute("ALTER TABLE tenants ADD COLUMN communities_version INTEGER NOT NULL DEFAULT 0")
 
         api_key_columns = {row["name"] for row in connection.execute("PRAGMA table_info(api_keys)").fetchall()}
         node_columns = {row["name"] for row in connection.execute("PRAGMA table_info(nodes)").fetchall()}
@@ -2340,10 +2343,13 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
         )
 
     def _mark_communities_stale(self, connection: sqlite3.Connection) -> None:
+        """Flag the cached get_topics() result stale, and bump communities_version
+        so an in-flight recompute on another connection can detect it lost the race.
+        """
         connection.execute(
             """
             UPDATE tenants
-            SET communities_stale = 1
+            SET communities_stale = 1, communities_version = communities_version + 1
             WHERE tenant_id = ?
             """,
             (self.tenant_id,),
@@ -3661,6 +3667,16 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                             relationship=relation.relationship,
                         )
                         result.edges_created += 1
+            # Edge deletion already invalidates via _delete_edge_record; node/edge
+            # creation here doesn't, so cover the whole transaction in one shot.
+            if (
+                result.nodes_created
+                or result.nodes_updated
+                or result.stub_nodes_created
+                or result.edges_created
+                or result.edges_deleted
+            ):
+                self._mark_communities_stale(connection)
         return result
 
     def import_graph_backup(self, *, input_path: str | Path) -> ImportResult:
@@ -3714,6 +3730,10 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                     self._update_window_node_count(connection, window_id)
                     self._mark_window_embedding_stale(connection, window_id)
                     self._upsert_snapshot_context_window(connection, {**raw_window, "tenant_id": self.tenant_id})
+
+            # No per-call hook on the snapshot write helpers -- cover the transaction once.
+            if result.nodes_created or result.nodes_updated or result.edges_created or result.edges_updated:
+                self._mark_communities_stale(connection)
         self.save_ui_state(
             positions=snapshot.get("ui", {}).get("positions", {}),
             zoom=snapshot.get("ui", {}).get("zoom", 1.0),
@@ -3876,6 +3896,10 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
                     self._update_window_node_count(connection, window_id)
                     self._mark_window_embedding_stale(connection, window_id)
                     self._upsert_snapshot_context_window(connection, {**raw_window, "tenant_id": self.tenant_id})
+
+            # Same reasoning as import_graph_backup above.
+            if result.nodes_created or result.nodes_updated or result.edges_created or result.edges_updated:
+                self._mark_communities_stale(connection)
         self.save_ui_state(
             positions=snapshot.get("ui", {}).get("positions", {}),
             zoom=snapshot.get("ui", {}).get("zoom", 1.0),
