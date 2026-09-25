@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import inspect
 import json
+import sqlite3
 from pathlib import Path
 from threading import Barrier, local
 from types import SimpleNamespace
@@ -23,6 +24,7 @@ from waggle.server import (
     WaggleServer,
     _assert_runtime_feature_parity,
     _build_parser,
+    _collect_memory_stats,
     _default_graph,
     _hook_tools_from_args,
     _run_admin_command,
@@ -479,6 +481,161 @@ def test_doctor_fix_reembeds_mixed_embedding_model_ids(
     assert repaired["transcript_stale_rows"] == 0
 
 
+def test_doctor_reports_memory_stats_from_configured_sqlite_db(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    mock_config = tmp_path / "mock_config.json"
+    mock_config.write_text(json.dumps({"mcpServers": {"waggle": {}}}))
+    monkeypatch.setattr("waggle.server._KNOWN_CONFIG_PATHS", [("Mock Client", str(mock_config))])
+    db_path = tmp_path / "server-memory.db"
+    graph = MemoryGraph(db_path, FakeEmbeddingModel())
+    graph.add_node(
+        label="SQLite memory",
+        content="Use SQLite for local memory.",
+        node_type=NodeType.DECISION,
+        project="audit",
+        session_id="doctor-stats",
+    )
+    graph.observe_conversation(
+        user_message="Use SQLite for local memory.",
+        assistant_response="Recorded.",
+        session_id="doctor-stats",
+        project="audit",
+    )
+
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="fake-model",
+        db_path=str(db_path),
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    exit_code = _run_doctor(config)
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "[3] Memory statistics" in stdout
+    assert "Backend: sqlite" in stdout
+    assert "Embedding model: fake-model" in stdout
+    assert "Database size: 0.0 MB" not in stdout
+    assert "Database size:" in stdout
+    assert "KiB" in stdout or "bytes" in stdout
+    assert "Nodes: 1" in stdout
+    assert "Transcript records: 2" in stdout
+    assert "Conversation sessions: 1" in stdout
+
+
+def test_doctor_reports_memory_stats_unavailable_for_non_sqlite_backend(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    home = tmp_path / "home"
+    appdata = home / "AppData" / "Roaming"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("APPDATA", str(appdata))
+
+    config = AppConfig(
+        backend="neo4j",
+        transport="stdio",
+        model_name="deterministic",
+        db_path=str(tmp_path / "server-memory.db"),
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="bolt://localhost:7687",
+        neo4j_username="neo4j",
+        neo4j_password="password",
+        neo4j_database="neo4j",
+    )
+
+    exit_code = _run_doctor(config, json_output=True)
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 1
+    assert payload["checks"]["memory_stats"]["status"] == "warn"
+    assert payload["checks"]["memory_stats"]["backend"] == "neo4j"
+    assert "SQLite file statistics are only available" in payload["checks"]["memory_stats"]["reason"]
+
+
+def test_collect_memory_stats_opens_sqlite_database_read_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "server-memory.db"
+    db_path.touch()
+    captured: dict[str, object] = {}
+
+    class FakeConnection:
+        def __enter__(self) -> FakeConnection:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def execute(self, query: str) -> object:
+            raise sqlite3.OperationalError("missing table")
+
+    def fake_connect(database: str, *, uri: bool = False) -> FakeConnection:
+        captured["database"] = database
+        captured["uri"] = uri
+        return FakeConnection()
+
+    monkeypatch.setattr(_collect_memory_stats.__globals__["sqlite3"], "connect", fake_connect)
+    config = AppConfig(
+        backend="sqlite",
+        transport="stdio",
+        model_name="deterministic",
+        db_path=str(db_path),
+        default_tenant_id="local-default",
+        http_host="127.0.0.1",
+        http_port=8080,
+        log_level="INFO",
+        rate_limit_rpm=120,
+        write_rate_limit_rpm=60,
+        max_concurrent_requests=8,
+        max_payload_bytes=1024 * 1024,
+        request_timeout_seconds=30,
+        export_dir=None,
+        neo4j_uri="",
+        neo4j_username="",
+        neo4j_password="",
+        neo4j_database="",
+    )
+
+    stats = _collect_memory_stats(config)
+
+    assert stats["status"] == "ok"
+    assert captured["uri"] is True
+    assert str(captured["database"]).startswith("file:")
+    assert str(captured["database"]).endswith("?mode=ro")
+
+
 def test_doctor_json_output_reports_status(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -575,6 +732,9 @@ def test_doctor_json_output_ok_status(
     assert payload["summary"]["fail"] == 0
     assert payload["checks"]["mcp_config"] == {"status": "ok", "found_in": ["Codex"]}
     assert payload["checks"]["db_connection"]["status"] == "ok"
+    assert payload["checks"]["memory_stats"]["status"] == "ok"
+    assert payload["checks"]["memory_stats"]["backend"] == "sqlite"
+    assert payload["checks"]["memory_stats"]["embedding_model"] == "deterministic"
     assert payload["checks"]["embedding_model"] == {"status": "ok", "model_id": "deterministic"}
     assert payload["checks"]["graph_schema"]["status"] == "ok"
     assert payload["checks"]["startup_mode"] == {"status": "ok", "mode": "normal"}
