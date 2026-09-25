@@ -1451,7 +1451,21 @@ class TraversalMixin(MemoryGraphBase):
             )
 
     def get_topics(self, force_recompute: bool = False) -> TopicResult:
+        """Return topic clusters via community detection (issue #451: cached per tenant).
+
+        Serves the cached result until a node/edge mutation marks it stale, or
+        ``force_recompute=True`` forces one. A mutation landing mid-recompute wins:
+        the cache write below is skipped, leaving the entry stale for the next call.
+        """
         with self._lock, self._pool.checkout() as connection:
+            # Must be read before node_rows below (and unconditionally, even under
+            # force_recompute) -- read after, a mutation landing between the two
+            # reads would go undetected by the version check further down.
+            cache_row = connection.execute(
+                "SELECT communities_stale, cached_communities, communities_version FROM tenants WHERE tenant_id = ?",
+                (self.tenant_id,),
+            ).fetchone()
+            observed_version = int(cache_row["communities_version"]) if cache_row else 0
             node_rows = connection.execute(
                 """
                 SELECT id, agent_id, project, session_id, label, content, node_type, tags, source_prompt, metadata,
@@ -1466,19 +1480,19 @@ class TraversalMixin(MemoryGraphBase):
             nodes = [self._row_to_node(row) for row in node_rows]
 
             partition = None
-            if not force_recompute:
-                row = connection.execute(
-                    "SELECT communities_stale, cached_communities FROM tenants WHERE tenant_id = ?",
-                    (self.tenant_id,),
-                ).fetchone()
-                if row and row["communities_stale"] == 0 and row["cached_communities"]:
-                    try:
-                        partition = json.loads(row["cached_communities"])
-                        # Treat non-mapping JSON payloads as cache miss
-                        if not isinstance(partition, dict):
-                            partition = None
-                    except Exception:
+            if (
+                not force_recompute
+                and cache_row
+                and cache_row["communities_stale"] == 0
+                and cache_row["cached_communities"]
+            ):
+                try:
+                    partition = json.loads(cache_row["cached_communities"])
+                    # Treat non-mapping JSON payloads as cache miss
+                    if not isinstance(partition, dict):
                         partition = None
+                except Exception:
+                    partition = None
 
             if partition is not None:
                 # Validate cached partition keys match current nodes exactly.
@@ -1490,13 +1504,14 @@ class TraversalMixin(MemoryGraphBase):
             if partition is None:
                 graph = self._load_graph(connection, node_ids=[node.id for node in nodes]).to_undirected()
                 partition = self._build_topic_partition(graph, nodes)
+                # rowcount 0 means a mutation won the race -- see docstring above.
                 connection.execute(
                     """
                     UPDATE tenants
                     SET communities_stale = 0, cached_communities = ?
-                    WHERE tenant_id = ?
+                    WHERE tenant_id = ? AND communities_version = ?
                     """,
-                    (json.dumps(partition), self.tenant_id),
+                    (json.dumps(partition), self.tenant_id, observed_version),
                 )
 
         nodes_by_id = {node.id: node for node in nodes}
