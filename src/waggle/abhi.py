@@ -1994,6 +1994,16 @@ def abhi_to_snapshot(
                 "tenant_id": str(manifest.get("tenant", "")) or fallback_tenant_id,
             }
         )
+    context_window_edges = []
+    for raw_edge in manifest.get("context_window_edges", []):
+        context_window_edges.append(
+            {
+                **deepcopy(raw_edge),
+                "id": _namespace_id(namespace, str(raw_edge.get("id", ""))),
+                "source_window_id": _namespace_id(namespace, str(raw_edge.get("source_window_id", ""))),
+                "target_window_id": _namespace_id(namespace, str(raw_edge.get("target_window_id", ""))),
+            }
+        )
     return {
         "schema_version": ABHI_MAJOR_VERSION,
         "tenant_id": str(manifest.get("tenant", "")) or fallback_tenant_id,
@@ -2003,7 +2013,7 @@ def abhi_to_snapshot(
         "edges": edges,
         "transcripts": transcripts,
         "context_windows": windows,
-        "context_window_edges": deepcopy(manifest.get("context_window_edges", [])),
+        "context_window_edges": context_window_edges,
         "repos": deepcopy(manifest.get("repos", [])),
         "ui": deepcopy(manifest.get("ui", {})),
     }
