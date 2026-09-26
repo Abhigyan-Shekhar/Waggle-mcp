@@ -76,6 +76,7 @@ To force Waggle to use a specific database location, set `WAGGLE_DB_PATH` explic
 | `WAGGLE_MAX_CONCURRENT_REQUESTS` | `8` | integer | HTTP request concurrency limiting. | `16` |
 | `WAGGLE_MAX_PAYLOAD_BYTES` | `1048576` | integer | HTTP request body size limit. | `2097152` |
 | `WAGGLE_REQUEST_TIMEOUT_SECONDS` | `30` | integer | Per-request timeout handling. | `60` |
+| `WAGGLE_WORKSPACE_PATH` | unset | absolute or relative path | Registers and opens a real repository for WebMCP. The path is resolved at startup; lightweight context is stored in the existing Waggle graph. | `/workspaces/my-product` |
 
 ## Neo4j storage
 
