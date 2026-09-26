@@ -114,6 +114,17 @@ class MCPHttpApp:
             body = b""
             receive_callable = receive
             if method == "POST":
+                content_type = headers.get("content-type", "").partition(";")[0].strip().lower()
+                if content_type != "application/json":
+                    status_holder["status"] = 415
+                    await JSONResponse(
+                        {
+                            "error": "unsupported_media_type",
+                            "message": "MCP POST requests must use Content-Type: application/json.",
+                        },
+                        status_code=415,
+                    )(scope, receive, send)
+                    return
                 request = Request(scope, receive)
                 body = await request.body()
                 if len(body) > self.config.max_payload_bytes:

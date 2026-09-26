@@ -69,7 +69,12 @@ def make_http_service(mcp_app: Any) -> MCPHttpApp:
     return service
 
 
-async def call_mcp_asgi(service: MCPHttpApp) -> list[dict[str, Any]]:
+async def call_mcp_asgi(
+    service: MCPHttpApp,
+    *,
+    content_type: str = "application/json",
+    receive_override: Any | None = None,
+) -> list[dict[str, Any]]:
     messages = [
         {
             "type": "http.request",
@@ -91,10 +96,13 @@ async def call_mcp_asgi(service: MCPHttpApp) -> list[dict[str, Any]]:
         "type": "http",
         "method": "POST",
         "path": "/mcp",
-        "headers": [(b"x-api-key", b"test-key")],
+        "headers": [
+            (b"x-api-key", b"test-key"),
+            (b"content-type", content_type.encode("ascii")),
+        ],
         "client": ("127.0.0.1", 12345),
     }
-    await service.mcp_asgi(scope, receive, send)
+    await service.mcp_asgi(scope, receive_override or receive, send)
     return sent
 
 
@@ -118,6 +126,35 @@ def test_mcp_asgi_sends_error_response_before_stream_started() -> None:
     response_starts = [message for message in sent if message["type"] == "http.response.start"]
     assert len(response_starts) == 1
     assert response_starts[0]["status"] == 503
+
+
+def test_mcp_asgi_rejects_unsupported_content_type_without_processing_body() -> None:
+    app_called = False
+    receive_calls = 0
+
+    async def mcp_app(scope: Any, receive: Any, send: Any) -> None:
+        nonlocal app_called
+        app_called = True
+
+    async def receive() -> dict[str, Any]:
+        nonlocal receive_calls
+        receive_calls += 1
+        raise AssertionError("unsupported content types must be rejected before reading the body")
+
+    sent = anyio.run(
+        lambda: call_mcp_asgi(
+            make_http_service(mcp_app),
+            content_type="text/plain; charset=utf-8",
+            receive_override=receive,
+        )
+    )
+
+    assert app_called is False
+    assert receive_calls == 0
+    response_starts = [message for message in sent if message["type"] == "http.response.start"]
+    assert response_starts[0]["status"] == 415
+    response_body = next(message["body"] for message in sent if message["type"] == "http.response.body")
+    assert b"unsupported_media_type" in response_body
 
 
 def test_mcp_http_live_allowlist_excludes_testserver(monkeypatch: pytest.MonkeyPatch) -> None:
