@@ -181,7 +181,7 @@
     "@types/vscode": "^1.134.0",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
-    "@vscode/vsce": "^3.2.2"
+    "@vscode/vsce": "^4.0.0"
   },
   "overrides": {
     "hono": ">=4.12.25"
