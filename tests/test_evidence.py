@@ -117,6 +117,41 @@ def test_merge_handles_empty_inputs() -> None:
     assert merge_evidence_records([], []) == []
 
 
+def test_merge_sorts_deterministically_when_observed_at_ties() -> None:
+    # All three share observed_at, so the tie must break on turn_index
+    # (descending, since reverse=True) rather than falling back to
+    # insertion order or an unstable comparison.
+    high_turn = _record(turn_index=2, observed_at=_at(0))
+    mid_turn = _record(turn_index=1, observed_at=_at(0))
+    low_turn = _record(turn_index=0, observed_at=_at(0))
+
+    merged = merge_evidence_records([low_turn, high_turn, mid_turn], [])
+
+    assert [r.evidence_id for r in merged] == [
+        high_turn.evidence_id,
+        mid_turn.evidence_id,
+        low_turn.evidence_id,
+    ]
+
+
+def test_merge_sorts_deterministically_on_full_tie() -> None:
+    # Two records tie on every sort key (observed_at, turn_index, source_role,
+    # source_text) but differ in session_id (outside the sort key) and
+    # evidence_id, so neither is deduped away. Python's sort is stable, so
+    # equal-key records must retain their relative input order on every run
+    # -- that's what keeps exports byte-for-byte reproducible.
+    first = _record(session_id="s1", observed_at=_at(0))
+    second = _record(session_id="s2", observed_at=_at(0))
+
+    merged = merge_evidence_records([first, second], [])
+    assert [r.evidence_id for r in merged] == [first.evidence_id, second.evidence_id]
+
+    # Order tracks input order, not some fixed tiebreak -- feed it in
+    # reverse and the output reverses too.
+    merged_reversed = merge_evidence_records([second, first], [])
+    assert [r.evidence_id for r in merged_reversed] == [second.evidence_id, first.evidence_id]
+
+
 # ---------------------------------------------------------------------------
 # merge_validity_windows
 # ---------------------------------------------------------------------------

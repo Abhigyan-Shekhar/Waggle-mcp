@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import sqlite3
 import sys
 import tempfile
 import threading
@@ -1393,6 +1394,92 @@ def _run_doctor_command(config: AppConfig, args: argparse.Namespace) -> int:
     )
 
 
+def _collect_memory_stats(config: AppConfig) -> dict[str, Any]:
+    db_path = Path(config.db_path).expanduser()
+    try:
+        db_exists = db_path.exists()
+        db_size_bytes = db_path.stat().st_size if db_exists else 0
+    except OSError as exc:
+        return {
+            "status": "warn",
+            "backend": config.backend,
+            "embedding_model": config.model_name,
+            "db_path": str(db_path),
+            "db_size_bytes": 0,
+            "nodes": 0,
+            "edges": 0,
+            "transcript_records": 0,
+            "conversation_sessions": 0,
+            "context_windows": 0,
+            "reason": f"Could not read memory database file statistics: {exc}",
+        }
+    stats: dict[str, Any] = {
+        "status": "ok",
+        "backend": config.backend,
+        "embedding_model": config.model_name,
+        "db_path": str(db_path),
+        "db_size_bytes": db_size_bytes,
+        "nodes": 0,
+        "edges": 0,
+        "transcript_records": 0,
+        "conversation_sessions": 0,
+        "context_windows": 0,
+    }
+    if config.backend != "sqlite":
+        stats["status"] = "warn"
+        stats["reason"] = "SQLite file statistics are only available for the sqlite backend."
+        return stats
+    if not db_exists:
+        return stats
+
+    table_count_queries = {
+        "nodes": "SELECT COUNT(*) FROM nodes",
+        "edges": "SELECT COUNT(*) FROM edges",
+        "transcript_records": "SELECT COUNT(*) FROM transcript_records",
+        "context_windows": "SELECT COUNT(*) FROM context_windows",
+    }
+
+    def table_count(connection: sqlite3.Connection, table_name: str) -> int:
+        try:
+            return int(connection.execute(table_count_queries[table_name]).fetchone()[0])
+        except sqlite3.OperationalError:
+            return 0
+
+    try:
+        db_uri = f"{db_path.resolve().as_uri()}?mode=ro"
+        with sqlite3.connect(db_uri, uri=True) as connection:
+            stats["nodes"] = table_count(connection, "nodes")
+            stats["edges"] = table_count(connection, "edges")
+            stats["transcript_records"] = table_count(connection, "transcript_records")
+            stats["context_windows"] = table_count(connection, "context_windows")
+            try:
+                stats["conversation_sessions"] = int(
+                    connection.execute(
+                        """
+                        SELECT COUNT(*)
+                        FROM (
+                            SELECT DISTINCT COALESCE(NULLIF(session_id, ''), 'default') AS session_key
+                            FROM transcript_records
+                        )
+                        """
+                    ).fetchone()[0]
+                )
+            except sqlite3.OperationalError:
+                stats["conversation_sessions"] = 0
+    except sqlite3.Error as exc:
+        stats["status"] = "warn"
+        stats["reason"] = f"Could not read SQLite memory statistics: {exc}"
+    return stats
+
+
+def _format_database_size(size_bytes: int) -> str:
+    if size_bytes < 1024:
+        return f"{size_bytes} bytes"
+    if size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KiB"
+    return f"{size_bytes / (1024 * 1024):.1f} MB"
+
+
 def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = False) -> int:
     """waggle-mcp doctor — surface configuration and environment issues."""
     issues: list[str] = []
@@ -1488,8 +1575,25 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
             "reason": f"DB directory does not exist: {db_dir}. Create it with: mkdir -p <dir>",
         }
 
-    # ── 3. Embedding model ───────────────────────────────────────────────────
-    emit(_c(_BOLD, "\n[3] Embedding model"))
+    # ── 3. Memory statistics ────────────────────────────────────────────────
+    emit(_c(_BOLD, "\n[3] Memory statistics"))
+    memory_stats = _collect_memory_stats(config)
+    emit(f"  Backend: {memory_stats['backend']}")
+    emit(f"  Embedding model: {memory_stats['embedding_model']}")
+    emit(f"  Database size: {_format_database_size(int(memory_stats['db_size_bytes']))}")
+    if memory_stats["status"] == "warn":
+        warnings.append(str(memory_stats["reason"]))
+        emit(f"  Memory statistics unavailable: {memory_stats['reason']}")
+    else:
+        emit(f"  Nodes: {memory_stats['nodes']}")
+        emit(f"  Edges: {memory_stats['edges']}")
+        emit(f"  Transcript records: {memory_stats['transcript_records']}")
+        emit(f"  Conversation sessions: {memory_stats['conversation_sessions']}")
+        emit(f"  Context windows: {memory_stats['context_windows']}")
+    checks["memory_stats"] = memory_stats
+
+    # ── 4. Embedding model ───────────────────────────────────────────────────
+    emit(_c(_BOLD, "\n[4] Embedding model"))
     model_name = config.model_name
     is_deterministic = model_name.strip().lower() in {"fake", "fake-model", "deterministic", "offline-demo"}
     is_cached = False
@@ -1532,8 +1636,8 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
             warnings.append(reason)
             checks["embedding_model"] = {"status": "warn", "model_id": model_name, "reason": reason}
 
-    # ── 4. Embedding store ───────────────────────────────────────────────────
-    emit(_c(_BOLD, "\n[4] Embedding store"))
+    # ── 5. Embedding store ───────────────────────────────────────────────────
+    emit(_c(_BOLD, "\n[5] Embedding store"))
     checks["graph_schema"] = {"status": "ok"}
     try:
         graph = _default_graph(config)
@@ -1668,8 +1772,8 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
         fail(message)
         checks["graph_schema"] = {"status": "fail", "reason": message}
 
-    # ── 5. WAGGLE_STARTUP_MODE ───────────────────────────────────────────────
-    emit(_c(_BOLD, "\n[5] Startup mode"))
+    # ── 6. WAGGLE_STARTUP_MODE ───────────────────────────────────────────────
+    emit(_c(_BOLD, "\n[6] Startup mode"))
     emit(f"  WAGGLE_STARTUP_MODE = {config.startup_mode!r}")
     if config.is_fast_mode:
         ok("fast mode: zero ML overhead. Schema/tool listing only. Semantic tools return 'unavailable'.")
@@ -1684,9 +1788,9 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
         ok_items.append("Startup mode: normal")
         checks["startup_mode"] = {"status": "ok", "mode": "normal"}
 
-    # ── 6. Windows stdout encoding ───────────────────────────────────────────
+    # ── 7. Windows stdout encoding ───────────────────────────────────────────
     if sys.platform == "win32":
-        emit(_c(_BOLD, "\n[6] Windows stdout encoding"))
+        emit(_c(_BOLD, "\n[7] Windows stdout encoding"))
         enc = getattr(sys.stdout, "encoding", "unknown")
         is_utf8 = enc.lower().replace("-", "") in ("utf8", "utf8")
         if is_utf8:
@@ -1706,8 +1810,8 @@ def _run_doctor(config: AppConfig, *, fix: bool = False, json_output: bool = Fal
     else:
         checks["stdout_encoding"] = {"status": "ok"}
 
-    # ── 7. Known gotchas ─────────────────────────────────────────────────────
-    emit(_c(_BOLD, "\n[7] Known API gotchas"))
+    # ── 8. Known gotchas ─────────────────────────────────────────────────────
+    emit(_c(_BOLD, "\n[8] Known API gotchas"))
     emit(_DOCTOR_KNOWN_GOTCHAS)
 
     # ── Summary ──────────────────────────────────────────────────────────────
