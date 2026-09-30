@@ -292,6 +292,7 @@ Tests and checks:
 
 Blast radius:
 - Medium. Usually isolated, but packaging and asset paths can leak into the server surface.
+
 ### 9. Packaging and external distributions
 
 What this feature does:
@@ -357,6 +358,21 @@ Use this when you already know you are inside `src/waggle` and need a quick expl
 | `server.py` | CLI entrypoints and MCP tool registration. | High |
 | `token_efficiency_benchmark.py` | Benchmark helpers for context efficiency. | Low |
 
+## Test directory conventions
+
+The `tests/` directory is organized to separate core logic tests from broader system and external integrations. When adding new tests, follow these categorization guidelines:
+
+- **Graph tests** (`tests/test_graph.py`, `tests/test_edges.py`, `tests/test_temporal_validity.py`)
+  These validate the core storage engine. They cover node/edge CRUD operations, temporal validity windows, deduplication, and local state locks.
+- **Protocol tests** (`tests/test_server.py`, `tests/test_stdio_integration.py`, `tests/test_hooks.py`)
+  These focus on the external communication surfaces. They verify the MCP server behavior, standard input/output message parsing, and client-specific payload handling (e.g., Claude Code hooks).
+- **Integration tests** (`tests/test_chat_runtime.py`, `tests/test_orchestrator.py`, `tests/test_demo.py`)
+  These ensure multiple subsystems work together. They test end-to-end memory orchestration, automatic memory rules, transcript ingestion, and handoff workflows.
+- **Retrieval & Context tests** (`tests/test_hybrid_retrieval.py`, `tests/test_recursive_context.py`)
+  These isolate the search and extraction logic, focusing on ranking, embedding fallbacks, token budgeting, and the final context assembly.
+- **Fixtures** (`tests/fixtures/`)
+  This directory holds static test data, mocked graphs, and import/export `.abhi` snapshots used to simulate consistent state across the test suites.
+
 ## Non-source paths contributors often ask about
 
 | Path | What it is | Contributor guidance |
@@ -373,7 +389,7 @@ Use this when you already know you are inside `src/waggle` and need a quick expl
 - If you change `server.py`, also check `tests/test_server.py`, `tests/test_stdio_integration.py`, and `docs/reference.md`.
 - If you change `graph.py`, also check `tests/test_graph.py`, `tests/test_edges.py`, and temporal-validity tests.
 - If you change `orchestrator.py` or `chat_runtime.py`, also check `docs/automatic-memory-rules.md`, `docs/memory-orchestration.md`, and runtime tests.
-- If you change `.abhi` behavior, also check import/export tests and any docs that describe the format.
+- If you change `.abhi behavior`, also check import/export tests and any docs that describe the format.
 - If you change install or hook behavior, also check `docs/install/**`, `docs/hooks.md`, and integration tests.
 - If you change release or packaging files, also check the package-specific README files and workflow YAMLs.
 
