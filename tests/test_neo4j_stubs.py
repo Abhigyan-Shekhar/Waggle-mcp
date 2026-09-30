@@ -378,3 +378,54 @@ def test_neo4j_audit_metadata_is_json_encoded() -> None:
 # `_register_conflicts`, `_find_existing_edge`) that are also trapped in
 # the same dead-code region.  These methods cannot execute without fixing
 # the indentation first.
+
+
+def test_neo4j_save_ui_state_and_clear_all_interleaving() -> None:
+    import threading
+    import time
+
+    graph = make_mock_graph()
+    graph._lock = threading.RLock()
+
+    def fake_run(query: str, **kwargs: object) -> MagicMock:
+        if "MERGE (ui:GraphUIState" in query:
+            time.sleep(0.1)
+        mock_result = MagicMock()
+        if "count" in query:
+            mock_result.single.return_value = {"count": 1}
+            mock_result.__iter__.return_value = [{"node_type": "entity", "count": 1}]
+        return mock_result
+
+    tx = MagicMock()
+    tx.run = MagicMock(side_effect=fake_run)
+    tx.commit = MagicMock()
+    tx.rollback = MagicMock()
+    
+    mock_session = MagicMock()
+    mock_session.run = MagicMock(side_effect=fake_run)
+    mock_session.begin_transaction = MagicMock(return_value=tx)
+    mock_session.__enter__ = MagicMock(return_value=mock_session)
+    mock_session.__exit__ = MagicMock(return_value=None)
+    graph._session = MagicMock(return_value=mock_session)
+    graph.emit_audit_event = MagicMock()
+
+    _UI_STATE_CACHE.clear()
+
+    def thread_a_task():
+        graph.save_ui_state(project="race-proj", positions={"n1": {"x": 0, "y": 0}})
+
+    def thread_b_task():
+        time.sleep(0.05)
+        graph.clear_project(project="race-proj")
+
+    thread_a = threading.Thread(target=thread_a_task)
+    thread_b = threading.Thread(target=thread_b_task)
+
+    thread_a.start()
+    thread_b.start()
+
+    thread_a.join()
+    thread_b.join()
+    
+    key = (graph.tenant_id, "race-proj", "", "")
+    assert key not in _UI_STATE_CACHE
