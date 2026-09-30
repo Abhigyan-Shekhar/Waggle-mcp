@@ -1447,7 +1447,7 @@ class Neo4jMemoryGraph:
                 selected_nodes=json.dumps(merged["selected_nodes"], sort_keys=True),
                 updated_at=utc_now().isoformat(),
             ).consume()
-        _UI_STATE_CACHE[key] = json.loads(json.dumps(merged))
+            _UI_STATE_CACHE[key] = json.loads(json.dumps(merged))
         return merged
 
     def ensure_repo(self, project: str = "") -> str:
