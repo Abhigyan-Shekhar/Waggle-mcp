@@ -16,6 +16,7 @@ from typing import Any
 from waggle.errors import ValidationFailure, WaggleError
 from waggle.models import RelationType
 
+from .projects import repository_context_for_project, resolve_active_project
 from .proposals import ProposalRepository
 
 _MAX_PROJECT_ID_LENGTH = 512
@@ -79,6 +80,8 @@ def authority_status(
         return "future"
     if valid_to is not None and valid_to <= now:
         return "expired"
+    if metadata.get("authority") == "source_observation":
+        return "source_observation"
     return "authoritative"
 
 
@@ -134,7 +137,7 @@ def _memory_payload(node: dict[str, Any]) -> dict[str, Any]:
         "memory_id": str(node.get("id", "")),
         "type": str(node.get("node_type", "note")),
         "content": str(node.get("content", "")),
-        "authority": str(node.get("authority_status") or metadata.get("authority") or "unknown"),
+        "authority": str(metadata.get("authority") or node.get("authority_status") or "unknown"),
         "source": str(metadata.get("source_type") or node.get("agent_id") or "waggle"),
         "created_at": node.get("created_at"),
         "updated_at": node.get("updated_at"),
@@ -177,21 +180,27 @@ def _is_goal(node: dict[str, Any]) -> bool:
 def compile_project_brief(
     graph: Any,
     *,
-    project_id: str,
+    project_id: str = "",
     agent_id: str = "",
     session_id: str = "",
     section_limit: int = _DEFAULT_SECTION_LIMIT,
 ) -> dict[str, Any]:
     """Compile a compact authoritative project brief from scoped Waggle nodes."""
 
-    project = _validate_project_id(project_id)
+    project = _validate_project_id(resolve_active_project(graph, project_id))
     if section_limit < 1 or section_limit > 25:
         raise ValidationFailure("section_limit must be between 1 and 25.")
 
     snapshot = graph.get_graph_snapshot(project=project, agent_id=agent_id, session_id=session_id)
     now = datetime.now(UTC)
     snapshot = project_authority_snapshot(snapshot, now=now)
-    nodes = [node for node in snapshot.get("nodes", []) if node["authority_status"] == "authoritative"]
+    nodes = [
+        node
+        for node in snapshot.get("nodes", [])
+        if node["authority_status"] == "authoritative"
+        and _node_belongs_to_project(node, project)
+        and _node_value(node, "metadata", {}).get("authority") != "source_observation"
+    ]
     nodes.sort(key=_updated_sort_key, reverse=True)
 
     goals = [node for node in nodes if _is_goal(node)]
@@ -214,14 +223,83 @@ def compile_project_brief(
     ]
     supporting_memory_ids = list(dict.fromkeys(str(node.get("id", "")) for node in selected if node.get("id")))
 
+    repository_context = repository_context_for_project(graph, project)
+    registered = repository_context.get("project") or {}
+    project_payload = {
+        "id": project,
+        "name": str(registered.get("project_name") or _project_name(project)),
+    }
+    if registered:
+        project_payload.update(
+            {
+                "root": registered.get("project_root", ""),
+                "repository": registered.get("repository", ""),
+                "git_remote": registered.get("git_remote", ""),
+                "identity_source": registered.get("identity_source", ""),
+            }
+        )
+    observations = repository_context.get("observations", [])
+    repository_recent = [item for item in observations if item.get("category") == "recent_commits"]
+    observations_by_category = {str(item.get("category")): item for item in observations}
+    decision_payloads = [_memory_payload(node) for node in decisions[:section_limit]]
+    purpose = (
+        str(goals[0].get("content", ""))
+        if goals
+        else str(observations_by_category.get("purpose", {}).get("content", ""))
+    )
+    architecture = [
+        observations_by_category[category]
+        for category in ("architecture", "storage", "components", "deployment")
+        if category in observations_by_category
+    ]
+    tech_stack = [
+        item.strip()
+        for item in str(observations_by_category.get("stack", {}).get("content", "")).split(",")
+        if item.strip()
+    ]
+    repository_conflicts: list[dict[str, Any]] = []
+    for item in observations:
+        if isinstance(item.get("repository_change"), dict):
+            repository_conflicts.append(
+                {
+                    "category": item.get("category"),
+                    "memory_id": item.get("memory_id"),
+                    **item["repository_change"],
+                }
+            )
+        repository_conflicts.extend(
+            {
+                "category": item.get("category"),
+                "memory_id": item.get("memory_id"),
+                **conflict,
+            }
+            for conflict in item.get("authority_conflicts", [])
+            if isinstance(conflict, dict)
+        )
+
     return {
-        "project": {"id": project, "name": _project_name(project)},
-        "goal": str(goals[0].get("content", "")) if goals else "",
+        "project": project_payload,
+        "purpose": purpose,
+        "purpose_authority": "authoritative" if goals else "source_observation",
+        "purpose_provenance": (_memory_payload(goals[0]) if goals else observations_by_category.get("purpose")),
+        "goal": purpose,
+        "architecture": architecture,
+        "tech_stack": tech_stack,
         "current_state": [_memory_payload(node) for node in current_state[:section_limit]],
-        "decisions": [_memory_payload(node) for node in decisions[:section_limit]],
+        "authoritative_decisions": decision_payloads,
+        "decisions": decision_payloads,
         "constraints": [_memory_payload(node) for node in constraints[:section_limit]],
         "open_questions": [_memory_payload(node) for node in open_questions[:section_limit]],
-        "recent_changes": [_memory_payload(node) for node in nodes[:section_limit]],
+        "recent_changes": [
+            *[_memory_payload(node) for node in nodes[:section_limit]],
+            *repository_recent[:1],
+        ][:section_limit],
+        "repository_context": observations,
+        "repository_conflicts": repository_conflicts,
+        "authority_model": {
+            "repository_observations": "source_observation",
+            "waggle_memory": "authoritative_memory",
+        },
         "supporting_memory_ids": supporting_memory_ids,
         "generated_at": now.isoformat(),
     }
@@ -249,7 +327,7 @@ def _authoritative_memory_payload(node: Any, *, supersedes: str | None) -> dict[
 def recall_authoritative_memory(
     graph: Any,
     *,
-    project_id: str,
+    project_id: str = "",
     query: str,
     limit: int = 5,
     agent_id: str = "",
@@ -257,7 +335,7 @@ def recall_authoritative_memory(
 ) -> dict[str, Any]:
     """Recall current authoritative memories through Waggle's existing retrieval."""
 
-    project = _validate_project_id(project_id)
+    project = _validate_project_id(resolve_active_project(graph, project_id))
     query_text = str(query or "").strip()
     if not query_text:
         raise ValidationFailure("query is required.")
@@ -298,6 +376,8 @@ def recall_authoritative_memory(
             superseded_by_update=str(node.id) in superseded_ids,
         )
         == "authoritative"
+        and _node_belongs_to_project(node, project)
+        and (getattr(node, "metadata", {}) or {}).get("authority") != "source_observation"
     ]
     memories = [
         _authoritative_memory_payload(
@@ -315,12 +395,11 @@ def recall_authoritative_memory(
 
 def _node_belongs_to_project(node: Any, project_id: str) -> bool:
     normalized = project_id.strip().lower()
-    tags = {str(tag).strip().lower() for tag in getattr(node, "tags", [])}
-    return (
-        str(getattr(node, "project", "")).strip().lower() == normalized
-        or normalized in tags
-        or f"project:{normalized}" in tags
-    )
+    explicit_project = str(_node_value(node, "project", "")).strip().lower()
+    if explicit_project:
+        return explicit_project == normalized
+    tags = {str(tag).strip().lower() for tag in _node_value(node, "tags", [])}
+    return normalized in tags or f"project:{normalized}" in tags
 
 
 def _load_current_authoritative_node(graph: Any, *, project_id: str, memory_id: str) -> Any:
@@ -364,7 +443,7 @@ def propose_memory_change(
     graph: Any,
     repository: ProposalRepository,
     *,
-    project_id: str,
+    project_id: str = "",
     memory_id: str,
     proposed_content: str,
     reason: str = "",
@@ -374,7 +453,7 @@ def propose_memory_change(
 ) -> tuple[dict[str, Any], bool]:
     """Persist a pending proposal without changing authoritative graph state."""
 
-    project = _validate_project_id(project_id)
+    project = _validate_project_id(resolve_active_project(graph, project_id))
     target_id = str(memory_id or "").strip()
     if not target_id or len(target_id) > 512:
         raise ValidationFailure("memory_id must be a non-empty string of at most 512 characters.")
@@ -478,6 +557,7 @@ def review_memory_change(
     approved_content: str | None = None,
     review_note: str = "",
     reviewed_by: str = "local-human",
+    project_id: str = "",
 ) -> dict[str, Any]:
     """Apply an immutable human review decision without mutating graph memory."""
 
@@ -501,6 +581,8 @@ def review_memory_change(
         )
         if proposal is None:
             raise ValidationFailure("proposal_id does not identify an existing proposal.")
+        if project_id and proposal["project_id"] != project_id:
+            raise ValidationFailure("proposal_id does not identify a proposal in this project.")
         if proposal["status"] != "pending":
             raise _proposal_error(
                 "PROPOSAL_NOT_PENDING",
@@ -520,7 +602,11 @@ def review_memory_change(
                 resource_type="memory_change_proposal",
                 resource_id=proposal_key,
                 action="stale",
-                metadata={"target_memory_id": proposal["target"]["memory_id"], "phase": "review"},
+                metadata={
+                    "project_id": proposal["project_id"],
+                    "target_memory_id": proposal["target"]["memory_id"],
+                    "phase": "review",
+                },
                 connection=connection,
             )
             stale = True
@@ -561,7 +647,7 @@ def review_memory_change(
                 resource_type="memory_change_proposal",
                 resource_id=proposal_key,
                 action=normalized_action,
-                metadata={"target_memory_id": proposal["target"]["memory_id"]},
+                metadata={"project_id": proposal["project_id"], "target_memory_id": proposal["target"]["memory_id"]},
                 connection=connection,
             )
 
@@ -591,14 +677,14 @@ def apply_approved_memory_change(
     repository: ProposalRepository,
     *,
     proposal_id: str,
-    project_id: str,
+    project_id: str = "",
     applied_by: str = "webmcp",
     applied_actor_type: str = "agent",
 ) -> dict[str, Any]:
     """Atomically apply the exact human-approved payload through native update lineage."""
 
     proposal_key = str(proposal_id or "").strip()
-    project = _validate_project_id(project_id)
+    project = _validate_project_id(resolve_active_project(graph, project_id))
     if not proposal_key:
         raise ValidationFailure("proposal_id is required.")
 
@@ -638,7 +724,7 @@ def apply_approved_memory_change(
                 resource_type="memory_change_proposal",
                 resource_id=proposal_key,
                 action="stale",
-                metadata={"target_memory_id": proposal["target"]["memory_id"], "phase": "apply"},
+                metadata={"project_id": project, "target_memory_id": proposal["target"]["memory_id"], "phase": "apply"},
                 connection=connection,
             )
             stale = True
@@ -716,7 +802,7 @@ def apply_approved_memory_change(
                 resource_type="memory_change_proposal",
                 resource_id=proposal_key,
                 action="apply",
-                metadata={"target_memory_id": target.id, "result_memory_id": created.id},
+                metadata={"project_id": project, "target_memory_id": target.id, "result_memory_id": created.id},
                 connection=connection,
             )
             graph.emit_audit_event(

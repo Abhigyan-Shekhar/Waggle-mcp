@@ -110,6 +110,7 @@ class AppConfig:
     demo_mode: bool = False
     demo_cookie_secure: bool = True
     demo_frontend_origin: str = ""
+    webmcp_workspace_path: str = ""
 
     @classmethod
     def from_env(cls) -> AppConfig:
@@ -198,6 +199,7 @@ class AppConfig:
             demo_mode=os.environ.get("WAGGLE_DEMO_MODE", "false").strip().lower() == "true",
             demo_cookie_secure=os.environ.get("WAGGLE_DEMO_COOKIE_SECURE", "true").strip().lower() == "true",
             demo_frontend_origin=os.environ.get("WAGGLE_DEMO_FRONTEND_ORIGIN", "").strip().rstrip("/"),
+            webmcp_workspace_path=os.environ.get("WAGGLE_WORKSPACE_PATH", "").strip(),
         )
         config.validate()
         return config
@@ -209,8 +211,20 @@ class AppConfig:
             raise ValidationFailure(f"Unsupported WAGGLE_BACKEND: {self.backend}")
         if self.demo_mode and self.backend != "sqlite":
             raise ValidationFailure("Challenge demo governance requires WAGGLE_BACKEND=sqlite.")
-        if self.transport == "http" and self.backend != "neo4j" and not self.demo_mode:
-            raise ValidationFailure("HTTP transport requires WAGGLE_BACKEND=neo4j.")
+        if self.webmcp_workspace_path:
+            workspace = Path(self.webmcp_workspace_path).expanduser()
+            if not workspace.exists():
+                raise ValidationFailure(f"WAGGLE_WORKSPACE_PATH does not exist: {workspace}")
+            self.webmcp_workspace_path = str(workspace.resolve())
+        if (
+            self.transport == "http"
+            and self.backend == "sqlite"
+            and not self.demo_mode
+            and self.http_host not in {"127.0.0.1", "localhost", "::1"}
+        ):
+            raise ValidationFailure(
+                "SQLite HTTP transport is local-only; bind WAGGLE_HTTP_HOST to a loopback address or use Neo4j."
+            )
         if not self.default_tenant_id:
             raise ValidationFailure("WAGGLE_DEFAULT_TENANT_ID cannot be empty.")
         if self.backend == "sqlite":

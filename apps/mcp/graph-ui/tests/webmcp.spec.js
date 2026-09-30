@@ -33,6 +33,7 @@ test(`governance flow with mocked Site tools and ${applyMode} application`, asyn
     nodes: [
       {
         id: "memory-v3",
+        authority_status: "authoritative",
         project: "waggle-webmcp",
         label: "Storage architecture",
         content: "Use Neo4j for storage.",
@@ -44,6 +45,7 @@ test(`governance flow with mocked Site tools and ${applyMode} application`, asyn
       },
       {
         id: "memory-current",
+        authority_status: "authoritative",
         project: "waggle-webmcp",
         label: "Current memory workflow",
         content: "The workspace shares governed context with ChatGPT.",
@@ -183,6 +185,7 @@ test(`governance flow with mocked Site tools and ${applyMode} application`, asyn
     }
     if (url.pathname.endsWith("/review")) {
       expect(route.request().postDataJSON()).toEqual({
+        project_id: "waggle-webmcp",
         action: "approve",
         approved_content: "Use SQLite by default; Neo4j remains optional and auditable.",
       });
@@ -212,7 +215,7 @@ test(`governance flow with mocked Site tools and ${applyMode} application`, asyn
       };
       persistedProposals = [appliedProposal];
       graph.nodes = [
-        { ...graph.nodes[0], valid_to: "2026-08-26T00:02:00+00:00" },
+        { ...graph.nodes[0], authority_status: "superseded", valid_to: "2026-08-26T00:02:00+00:00" },
         {
           ...graph.nodes[0],
           id: "memory-v4",
@@ -260,7 +263,8 @@ test(`governance flow with mocked Site tools and ${applyMode} application`, asyn
 
   await page.goto("/");
   await expect(page.getByText("Challenge Demo")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Shared project memory, governed by humans." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: brief.project.name, exact: true })).toBeVisible();
+  await expect(page.getByLabel("Project connection details")).toContainText("2 governed memories");
   await expect(page.getByRole("heading", { name: "Current Context" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Key Decisions" })).toBeVisible();
   await expect(page.getByText("Live Memory Map")).toBeVisible();
