@@ -68,6 +68,20 @@ def test_list_tools_uses_v2_snake_case_schema(tmp_path: Path) -> None:
     assert "inputSchema" not in dumped
 
 
+def test_list_tools_preserves_mcp_annotations(tmp_path: Path) -> None:
+    adapter = make_adapter(tmp_path)
+
+    result = anyio.run(adapter.on_list_tools, SimpleNamespace(request_id="r1", request=None), None)
+
+    tools = {tool.name: tool for tool in result.tools}
+    assert tools["get_stats"].annotations.read_only_hint is True
+    assert tools["query_graph"].annotations.read_only_hint is False
+    assert tools["query_graph"].annotations.idempotent_hint is False
+    assert tools["query_graph"].annotations.destructive_hint is False
+    assert tools["store_node"].annotations.read_only_hint is False
+    assert tools["delete_node"].annotations.destructive_hint is True
+
+
 def test_call_tool_validation_failure_returns_is_error(tmp_path: Path) -> None:
     adapter = make_adapter(tmp_path)
 
