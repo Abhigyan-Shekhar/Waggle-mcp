@@ -33,6 +33,37 @@ WAGGLE_MODEL=deterministic waggle-mcp serve --transport http
 
 ---
 
+## Browser Support & Troubleshooting
+
+### Supported Browsers
+
+Graph Studio is intended for use with modern, up-to-date browsers. The latest versions of the following browsers are recommended:
+
+| Browser |
+| --- |
+| Google Chrome |
+| Mozilla Firefox |
+| Microsoft Edge |
+| Apple Safari |
+
+### Blank Canvas Troubleshooting
+
+If Graph Studio loads but the graph canvas stays blank, check the following in order:
+
+1. **Confirm the Waggle server is running** — Graph Studio expects the Waggle MCP server to be running separately. For local development, start it with `WAGGLE_MODEL=deterministic waggle-mcp serve --transport http`.
+
+2. **Check the browser console** — open DevTools (`F12` or `Ctrl+Shift+I` / `Cmd+Option+I`) and look for JavaScript or network errors.
+
+3. **Verify the API URL** — confirm `VITE_WAGGLE_API_URL` (default `http://localhost:8080`) matches the Waggle server configuration.
+
+4. **Hard refresh the page** — reload the page to ensure the latest assets are being used.
+
+5. **Try an up-to-date browser** — if the problem persists, try the latest version of another recommended browser.
+
+6. **Rebuild the Graph Studio assets** — if you are running Graph Studio from source, run `npm run build` and verify that the build completes successfully.
+
+---
+
 ## Build for Production
 
 The built assets are bundled into the Python package under `src/waggle/static/graph/`:
