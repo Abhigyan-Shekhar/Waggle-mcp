@@ -37,3 +37,14 @@
 - `resolve_conflict` now records `winner` in edge metadata when provided.
 - Supersession events are logged at `INFO` level with both node IDs and the
   resolution timestamp.
+
+### Fixed
+
+- Added a regression test covering the `request_ctx` import fallback in
+  `waggle.server.mcp` so a future `mcp` SDK release that drops the symbol
+  again is caught in CI instead of surfacing as an `ImportError` on
+  `waggle --help` for end users (GH-704). The fallback itself already
+  existed; this only guards it going forward. Note: the fix has been on
+  `main` since the SDK v2 migration, but the last package published to
+  PyPI (`0.0.1`) predates it — a new release needs to be cut so
+  `pip install waggle-mcp` picks it up.
