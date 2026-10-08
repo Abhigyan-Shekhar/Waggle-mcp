@@ -26,3 +26,5 @@ class WaggleToolDefinition:
     ``inputSchema``. Waggle's own internal logic never reads these field names
     from the wire.
     """
+    annotations: dict[str, Any] | None = None
+    """Optional MCP tool annotations such as readOnlyHint and destructiveHint."""
