@@ -400,7 +400,7 @@ def test_neo4j_save_ui_state_and_clear_all_interleaving() -> None:
     tx.run = MagicMock(side_effect=fake_run)
     tx.commit = MagicMock()
     tx.rollback = MagicMock()
-    
+
     mock_session = MagicMock()
     mock_session.run = MagicMock(side_effect=fake_run)
     mock_session.begin_transaction = MagicMock(return_value=tx)
@@ -426,7 +426,7 @@ def test_neo4j_save_ui_state_and_clear_all_interleaving() -> None:
 
     thread_a.join()
     thread_b.join()
-    
+
     key = (graph.tenant_id, "race-proj", "", "")
     assert key not in _UI_STATE_CACHE
 
@@ -437,7 +437,7 @@ def test_neo4j_save_ui_state_and_clear_all_interleaving_two_instances() -> None:
 
     graph1 = make_mock_graph()
     graph1._lock = threading.RLock()
-    
+
     graph2 = make_mock_graph()
     graph2._lock = threading.RLock()
 
@@ -455,7 +455,7 @@ def test_neo4j_save_ui_state_and_clear_all_interleaving_two_instances() -> None:
         tx.run = MagicMock(side_effect=fake_run)
         tx.commit = MagicMock()
         tx.rollback = MagicMock()
-        
+
         mock_session = MagicMock()
         mock_session.run = MagicMock(side_effect=fake_run)
         mock_session.begin_transaction = MagicMock(return_value=tx)
@@ -484,6 +484,6 @@ def test_neo4j_save_ui_state_and_clear_all_interleaving_two_instances() -> None:
 
     thread_a.join()
     thread_b.join()
-    
+
     key = (graph1.tenant_id, "race-proj", "", "")
     assert key not in _UI_STATE_CACHE
