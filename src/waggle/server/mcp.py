@@ -13,7 +13,6 @@ from mcp.server.models import InitializationOptions
 try:
     from mcp.server.lowlevel.server import request_ctx
 except ImportError:
-
     class _MissingRequestContext:
         def get(self) -> Any:
             raise LookupError
