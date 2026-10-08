@@ -130,6 +130,7 @@ from waggle.models import (
 SCHEMA_VERSION = 2
 
 _UI_STATE_CACHE: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+_UI_STATE_CACHE_LOCK = threading.RLock()
 
 
 def _default_ui_state() -> dict[str, Any]:
@@ -489,7 +490,7 @@ class Neo4jMemoryGraph:
         normalized_session = session_id.strip()
         if not normalized_session:
             raise ValueError("session_id is required.")
-        with self._lock, self._session() as session:
+        with self._lock, _UI_STATE_CACHE_LOCK, self._session() as session:
             if dry_run:
                 return self._clear_scope_rows(
                     session,
@@ -519,7 +520,7 @@ class Neo4jMemoryGraph:
         normalized_project = project.strip()
         if not normalized_project:
             raise ValueError("project is required.")
-        with self._lock, self._session() as session:
+        with self._lock, _UI_STATE_CACHE_LOCK, self._session() as session:
             if dry_run:
                 return self._clear_scope_rows(
                     session,
@@ -546,7 +547,7 @@ class Neo4jMemoryGraph:
             return result
 
     def clear_all(self, *, dry_run: bool = False) -> ClearScopeResult:
-        with self._lock, self._session() as session:
+        with self._lock, _UI_STATE_CACHE_LOCK, self._session() as session:
             if dry_run:
                 return self._clear_scope_rows(session, scope="all", dry_run=True)
             tx = session.begin_transaction()
@@ -654,19 +655,20 @@ class Neo4jMemoryGraph:
         return result
 
     def _invalidate_ui_state_cache(self, *, scope: str, project: str = "", session_id: str = "") -> None:
-        keys_to_delete: list[tuple[str, str, str, str]] = []
-        for key in _UI_STATE_CACHE:
-            tenant_id, cached_project, _agent_id, cached_session_id = key
-            if tenant_id != self.tenant_id:
-                continue
-            if (
-                scope == "all"
-                or (scope == "project" and cached_project == project)
-                or (scope == "session" and cached_session_id == session_id)
-            ):
-                keys_to_delete.append(key)
-        for key in keys_to_delete:
-            _UI_STATE_CACHE.pop(key, None)
+        with _UI_STATE_CACHE_LOCK:
+            keys_to_delete: list[tuple[str, str, str, str]] = []
+            for key in _UI_STATE_CACHE:
+                tenant_id, cached_project, _agent_id, cached_session_id = key
+                if tenant_id != self.tenant_id:
+                    continue
+                if (
+                    scope == "all"
+                    or (scope == "project" and cached_project == project)
+                    or (scope == "session" and cached_session_id == session_id)
+                ):
+                    keys_to_delete.append(key)
+            for key in keys_to_delete:
+                _UI_STATE_CACHE.pop(key, None)
 
     def emit_audit_event(
         self,
@@ -1360,7 +1362,7 @@ class Neo4jMemoryGraph:
         session_id: str = "",
     ) -> dict[str, Any]:
         key = (self.tenant_id, project.strip(), agent_id.strip(), session_id.strip())
-        with self._lock, self._session() as session:
+        with self._lock, _UI_STATE_CACHE_LOCK, self._session() as session:
             record = session.run(
                 """
                 MATCH (ui:GraphUIState {
@@ -1382,18 +1384,18 @@ class Neo4jMemoryGraph:
                 agent_id=agent_id.strip(),
                 session_id=session_id.strip(),
             ).single()
-        if record is None:
-            return json.loads(json.dumps(_UI_STATE_CACHE.get(key, _default_ui_state())))
-        value = {
-            "positions": _decode_metadata(record["positions"]),
-            "zoom": float(record["zoom"]) if record["zoom"] is not None else 1.0,
-            "viewport": _decode_metadata(record["viewport"]) or {"center_x": 0, "center_y": 0},
-            "groups": _decode_list(record["groups"]),
-            "collapsed_groups": _decode_string_list(record["collapsed_groups"]),
-            "selected_nodes": _decode_string_list(record["selected_nodes"]),
-        }
-        _UI_STATE_CACHE[key] = json.loads(json.dumps(value))
-        return json.loads(json.dumps(value))
+            if record is None:
+                return json.loads(json.dumps(_UI_STATE_CACHE.get(key, _default_ui_state())))
+            value = {
+                "positions": _decode_metadata(record["positions"]),
+                "zoom": float(record["zoom"]) if record["zoom"] is not None else 1.0,
+                "viewport": _decode_metadata(record["viewport"]) or {"center_x": 0, "center_y": 0},
+                "groups": _decode_list(record["groups"]),
+                "collapsed_groups": _decode_string_list(record["collapsed_groups"]),
+                "selected_nodes": _decode_string_list(record["selected_nodes"]),
+            }
+            _UI_STATE_CACHE[key] = json.loads(json.dumps(value))
+            return json.loads(json.dumps(value))
 
     def save_ui_state(
         self,
@@ -1418,7 +1420,7 @@ class Neo4jMemoryGraph:
             "collapsed_groups": (collapsed_groups if collapsed_groups is not None else current["collapsed_groups"]),
             "selected_nodes": (selected_nodes if selected_nodes is not None else current["selected_nodes"]),
         }
-        with self._lock, self._session() as session:
+        with self._lock, _UI_STATE_CACHE_LOCK, self._session() as session:
             session.run(
                 """
                 MERGE (ui:GraphUIState {
