@@ -39,6 +39,7 @@ import {
   registerLoadAbhiSessionTool,
   registerProposeMemoryChangeTool,
   registerRecallMemoryTool,
+  registerRefreshProjectContextTool,
 } from "./lib/webmcp";
 
 const NAV_ITEMS = [
@@ -221,7 +222,7 @@ function BriefSection({ label, value, items }) {
 export function Workspace() {
   const boot = useMemo(() => readBootConfig(), []);
   const readOnly = boot.mode === "view";
-  const project = boot.scope.project || "waggle-webmcp";
+  const project = boot.scope.project || "";
   const scope = useMemo(() => ({ ...boot.scope, project }), [boot.scope.agent_id, boot.scope.session_id, project]);
   const scopeRef = useRef(scope);
   const storage = useMemo(() => getSessionStorage(), []);
@@ -230,6 +231,7 @@ export function Workspace() {
   const [snapshot, setSnapshot] = useState({ nodes: [], edges: [] });
   const [proposals, setProposals] = useState([]);
   const [brief, setBrief] = useState(null);
+  const [registeredProjects, setRegisteredProjects] = useState([]);
   const [activity, setActivity] = useState([]);
   const [selectedMemoryId, setSelectedMemoryId] = useState("");
   const [search, setSearch] = useState("");
@@ -265,14 +267,18 @@ export function Workspace() {
   };
 
   const loadActivity = async () => {
-    if (boot.sampleMode || sessionApi.active()) return;
-    const events = await apiRequest("/api/admin/audit-events?limit=80");
+    if (boot.sampleMode || sessionApi.active() || !project) return;
+    const events = await apiRequest(boot.demoMode ? "/api/admin/audit-events?limit=80" : `/api/webmcp/activity?project_id=${encodeURIComponent(project)}`);
     const visibleTypes = new Set(Object.keys(ACTIVITY_LABELS));
     setActivity(events.filter((event) => visibleTypes.has(event.event_type)).slice(0, 40));
   };
 
   const loadWorkspace = async () => {
     if (boot.sampleMode) return;
+    if (!project) {
+      setLoading(false);
+      return;
+    }
     const sessionState = sessionApi.getState();
     if (sessionState) {
       setSnapshot(sessionState.snapshot);
@@ -286,7 +292,7 @@ export function Workspace() {
       apiRequest(`/api/graph${query}${query ? "&" : "?"}include_source_prompt=true`),
       apiRequest(`/api/webmcp/proposals?project_id=${encodeURIComponent(project)}`),
       apiRequest("/api/webmcp/project-brief", { method: "POST", body: JSON.stringify({ project_id: project }) }),
-      apiRequest("/api/admin/audit-events?limit=80"),
+      apiRequest(boot.demoMode ? "/api/admin/audit-events?limit=80" : `/api/webmcp/activity?project_id=${encodeURIComponent(project)}`),
     ]);
     setSnapshot(graphData);
     setProposals(proposalData.proposals || []);
@@ -299,6 +305,11 @@ export function Workspace() {
   useEffect(() => {
     scopeRef.current = scope;
     loadWorkspace().catch((error) => { setLoading(false); showToast(error.message); });
+    if (!boot.demoMode && !boot.sampleMode) {
+      apiRequest("/api/webmcp/projects")
+        .then((result) => setRegisteredProjects(result.projects || []))
+        .catch((error) => showToast(error.message));
+    }
   }, []);
 
   useEffect(() => {
@@ -360,7 +371,7 @@ export function Workspace() {
             memoryId: proposal.target?.memory_id || "",
           }));
           setView("proposals");
-          window.history.replaceState({}, "", "/workspace/proposals");
+          window.history.replaceState({}, "", `/workspace/proposals${buildScopeQuery(scope)}`);
           showToast("A new proposal is ready for human review.");
         },
       }),
@@ -379,6 +390,19 @@ export function Workspace() {
           showToast(result.already_applied ? "This approved change was already applied." : "Approved change applied to authoritative memory.");
         },
       }),
+      ...(!boot.demoMode ? [registerRefreshProjectContextTool({
+        getScope: () => scopeRef.current,
+        getSessionApi: () => sessionApi,
+        onActivity: ({ result }) => {
+          addLiveActivity({
+            event_type: "repository.context.refreshed",
+            label: "Repository context refreshed",
+            detail: `${result.added_memory_ids?.length || 0} new observations`,
+          });
+          loadWorkspace().catch((error) => showToast(error.message));
+          showToast("Repository observations refreshed without changing authoritative memory.");
+        },
+      })] : []),
       registerLoadAbhiSessionTool({
         getScope: () => scopeRef.current,
         loadAbhi: async ({ projectId, fileName, contentBase64 }) => {
@@ -413,7 +437,7 @@ export function Workspace() {
 
   const navigate = (nextView, memoryId = "") => {
     const nextPath = nextView === "overview" ? "/workspace" : `/workspace/${nextView}`;
-    window.history.pushState({}, "", nextPath);
+    window.history.pushState({}, "", `${nextPath}${buildScopeQuery(scope)}`);
     setView(nextView);
     if (memoryId) setSelectedMemoryId(memoryId);
   };
@@ -424,6 +448,7 @@ export function Workspace() {
       : await apiRequest(`/api/webmcp/proposals/${encodeURIComponent(proposal.proposal_id)}/review`, {
         method: "POST",
         body: JSON.stringify({
+          project_id: project,
           action,
           ...(approvedContent !== undefined ? { approved_content: approvedContent } : {}),
         }),
@@ -606,7 +631,15 @@ export function Workspace() {
         <header className="workspace-topbar">
           <div>
             <div className="eyebrow">Project</div>
-            <strong>{brief?.project?.name || "Waggle WebMCP"}</strong>
+            <strong>{brief?.project?.name || (project ? "Connecting to project…" : "No project open")}</strong>
+            {registeredProjects.length > 1 || (!project && registeredProjects.length) ? (
+              <select aria-label="Connected project" value={project} onChange={(event) => {
+                window.location.assign(`/workspace?project=${encodeURIComponent(event.target.value)}`);
+              }}>
+                {!project ? <option value="">Choose a project</option> : null}
+                {registeredProjects.map((item) => <option key={item.project_id} value={item.project_id}>{item.project_name}</option>)}
+              </select>
+            ) : null}
           </div>
           <div className="topbar-actions">
             <span className="consumer-badge" aria-label="Consumer: ChatGPT WebMCP"><span>Consumer</span><b>ChatGPT WebMCP</b></span>
@@ -637,7 +670,7 @@ export function Workspace() {
                 brief={brief}
                 graphHref={graphHref}
                 onNavigate={navigate}
-                onStartDemo={() => startDemo().catch((error) => showToast(error.message))}
+                onStartDemo={boot.demoMode ? () => startDemo().catch((error) => showToast(error.message)) : undefined}
                 proposals={proposals}
                 snapshot={snapshot}
               />
@@ -707,7 +740,8 @@ export function Workspace() {
                       <div className="inspector-field"><span>Superseded by</span><p>{supersededByEdge ? nodeById[supersededByEdge.source_id]?.content || supersededByEdge.source_id : "—"}</p></div>
                       <div className="inspector-field"><span>Proposal provenance</span><p>{selectedProposal ? `${selectedProposal.proposal_id} · ${selectedProposal.status}` : "No proposal linked"}</p></div>
                       <div className="inspector-field"><span>Evidence</span><p>{(selectedMemory.evidence_records || []).length ? `${selectedMemory.evidence_records.length} supporting record(s)` : "No attached evidence records"}</p></div>
-                      <div className="inspector-field"><span>History</span><p>{supersedesEdge || supersededByEdge ? "Native updates lineage preserved" : "Original authoritative memory"}</p></div>
+                      <div className="inspector-field"><span>Repository source</span><p>{selectedMemory.metadata?.provenance?.path || "—"}</p></div>
+                      <div className="inspector-field"><span>History</span><p>{supersedesEdge || supersededByEdge ? "Native updates lineage preserved" : selectedMemory.metadata?.authority === "source_observation" ? "Repository observation, not an approved decision" : "Original authoritative memory"}</p></div>
                     </>
                   ) : <EmptyState>Select a memory to inspect its provenance and history.</EmptyState>}
                 </aside>
@@ -717,14 +751,14 @@ export function Workspace() {
         </div>
       </main>
 
-      <GuidedDemo
+      {boot.demoMode ? <GuidedDemo
         graphHref={graphHref}
         onCopyPrompt={(prompt) => copyPrompt(prompt).catch((error) => showToast(error.message))}
         onExit={exitDemo}
         onRestart={() => startDemo().catch((error) => showToast(error.message))}
         siteToolsStatus={siteToolsStatus}
         state={demo}
-      />
+      /> : null}
 
       <AnimatePresence>{toast ? <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} className="workspace-toast"><span>✓</span>{toast}</motion.div> : null}</AnimatePresence>
     </div>

@@ -42,6 +42,19 @@ function projectIdSchema(getScope, description) {
   };
 }
 
+function resolveToolProject(input, getScope) {
+  const supplied = input?.project_id;
+  if (supplied !== undefined && (typeof supplied !== "string" || !supplied.trim())) {
+    throw new Error("INVALID_INPUT: project_id must be a non-empty string when provided.");
+  }
+  const projectId = String(supplied || getScope()?.project || "").trim();
+  if (!projectId) {
+    throw new Error("PROJECT_NOT_IN_WORKSPACE: open a registered Waggle project first.");
+  }
+  assertWorkspaceProject(projectId, getScope);
+  return projectId;
+}
+
 export function registerGetProjectBriefTool({
   modelContext = document.modelContext,
   getScope = () => ({}),
@@ -64,28 +77,23 @@ export function registerGetProjectBriefTool({
           "The exact Waggle project identifier to brief.",
         ),
       },
-      required: ["project_id"],
+      required: [],
       additionalProperties: false,
     },
     annotations: { readOnlyHint: true },
     execute: async (input) => {
-      const projectId = input?.project_id;
-      if (typeof projectId !== "string" || projectId.trim() === "") {
-        throw new Error("INVALID_INPUT: project_id is required.");
-      }
-
-      assertWorkspaceProject(projectId.trim(), getScope);
+      const projectId = resolveToolProject(input, getScope);
 
       const sessionApi = getSessionApi();
       const result = sessionApi?.active()
         ? sessionApi.getProjectBrief()
         : await apiRequest("/api/webmcp/project-brief", {
           method: "POST",
-          body: JSON.stringify({ project_id: projectId.trim() }),
+          body: JSON.stringify({ project_id: projectId }),
         });
       onActivity({
         tool: "get_project_brief",
-        project_id: projectId.trim(),
+        project_id: projectId,
         supporting_memory_count: result.supporting_memory_ids?.length || 0,
         result,
       });
@@ -129,17 +137,14 @@ export function registerRecallMemoryTool({
           description: "Maximum number of authoritative memories to return.",
         },
       },
-      required: ["project_id", "query"],
+      required: ["query"],
       additionalProperties: false,
     },
     annotations: { readOnlyHint: true },
     execute: async (input) => {
-      const projectId = input?.project_id;
+      const projectId = resolveToolProject(input, getScope);
       const query = input?.query;
       const limit = input?.limit ?? 5;
-      if (typeof projectId !== "string" || projectId.trim() === "") {
-        throw new Error("INVALID_INPUT: project_id is required.");
-      }
       if (typeof query !== "string" || query.trim() === "") {
         throw new Error("INVALID_INPUT: query is required.");
       }
@@ -147,21 +152,20 @@ export function registerRecallMemoryTool({
         throw new Error("INVALID_INPUT: limit must be an integer between 1 and 10.");
       }
 
-      assertWorkspaceProject(projectId.trim(), getScope);
       const sessionApi = getSessionApi();
       const result = sessionApi?.active()
         ? sessionApi.recallMemory({ query: query.trim(), limit })
         : await apiRequest("/api/webmcp/recall-memory", {
           method: "POST",
           body: JSON.stringify({
-            project_id: projectId.trim(),
+            project_id: projectId,
             query: query.trim(),
             limit,
           }),
         });
       onActivity({
         tool: "recall_memory",
-        project_id: projectId.trim(),
+        project_id: projectId,
         result_count: result.memories?.length || 0,
         result,
       });
@@ -216,7 +220,7 @@ export function registerProposeMemoryChangeTool({
           description: "Optional same-project memories supporting the proposal.",
         },
       },
-      required: ["project_id", "memory_id", "proposed_content"],
+      required: ["memory_id", "proposed_content"],
       additionalProperties: false,
     },
     annotations: {
@@ -225,14 +229,11 @@ export function registerProposeMemoryChangeTool({
       idempotentHint: true,
     },
     execute: async (input) => {
-      const projectId = input?.project_id;
+      const projectId = resolveToolProject(input, getScope);
       const memoryId = input?.memory_id;
       const proposedContent = input?.proposed_content;
       const reason = input?.reason ?? "";
       const evidenceIds = input?.evidence_ids ?? [];
-      if (typeof projectId !== "string" || projectId.trim() === "") {
-        throw new Error("INVALID_INPUT: project_id is required.");
-      }
       if (typeof memoryId !== "string" || memoryId.trim() === "") {
         throw new Error("INVALID_INPUT: memory_id is required.");
       }
@@ -246,7 +247,6 @@ export function registerProposeMemoryChangeTool({
         throw new Error("INVALID_INPUT: evidence_ids must be an array of strings.");
       }
 
-      assertWorkspaceProject(projectId.trim(), getScope);
       const normalizedEvidenceIds = evidenceIds.map((item) => item.trim());
       const sessionApi = getSessionApi();
       const result = sessionApi?.active()
@@ -259,7 +259,7 @@ export function registerProposeMemoryChangeTool({
         : await apiRequest("/api/webmcp/proposals", {
           method: "POST",
           body: JSON.stringify({
-            project_id: projectId.trim(),
+            project_id: projectId,
             memory_id: memoryId.trim(),
             proposed_content: proposedContent.trim(),
             reason: reason.trim(),
@@ -268,7 +268,7 @@ export function registerProposeMemoryChangeTool({
         });
       onActivity({
         tool: "propose_memory_change",
-        project_id: projectId.trim(),
+        project_id: projectId,
         proposal: result,
       });
       return result;
@@ -332,6 +332,52 @@ export function registerApplyApprovedMemoryChangeTool({
         project_id: projectId,
         result,
       });
+      return result;
+    },
+  });
+}
+
+export function registerRefreshProjectContextTool({
+  modelContext = document.modelContext,
+  getScope = () => ({}),
+  getSessionApi = () => null,
+  onActivity = () => {},
+  enabled = true,
+} = {}) {
+  if (!enabled || typeof modelContext?.registerTool !== "function") {
+    return Promise.resolve(false);
+  }
+
+  return registerOnce(modelContext, {
+    name: "refresh_project_context",
+    description:
+      "Rescan lightweight metadata for the repository open in Waggle. New source observations are added with provenance; existing authoritative decisions are never silently rewritten.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project_id: projectIdSchema(
+          getScope,
+          "Optional project override. Omit it to refresh the project open in this workspace.",
+        ),
+      },
+      required: [],
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+    },
+    execute: async (input) => {
+      if (getSessionApi()?.active()) {
+        throw new Error("SESSION_IMPORT_ACTIVE: repository refresh is unavailable for a private browser-only .abhi graph.");
+      }
+      const projectId = resolveToolProject(input, getScope);
+      const result = await apiRequest("/api/webmcp/projects/refresh", {
+        method: "POST",
+        body: JSON.stringify({ project_id: projectId }),
+      });
+      onActivity({ tool: "refresh_project_context", project_id: projectId, result });
       return result;
     },
   });

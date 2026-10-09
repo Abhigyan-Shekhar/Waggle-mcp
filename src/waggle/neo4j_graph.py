@@ -1026,6 +1026,8 @@ class Neo4jMemoryGraph:
         evidence_records: list[EvidenceRecord] | None = None,
         valid_from: datetime | None = None,
         valid_to: datetime | None = None,
+        metadata: dict[str, Any] | None = None,
+        force_new: bool = False,
     ) -> NodeStoreResult:
         node_kwargs: dict[str, Any] = {}
         if node_id is not None and str(node_id).strip():
@@ -1041,6 +1043,7 @@ class Neo4jMemoryGraph:
             node_type=node_type,
             tags=tags or [],
             source_prompt=source_prompt,
+            metadata=metadata or {},
             evidence_records=evidence_records or [],
             valid_from=valid_from,
             valid_to=valid_to,
@@ -1059,7 +1062,15 @@ class Neo4jMemoryGraph:
                     node_type=node.node_type.value,
                 )
             ]
-            duplicate = self._find_duplicate_node(existing_nodes=existing, node=node, embedding=embedding)
+            duplicate = (
+                None
+                if force_new
+                else self._find_duplicate_node(
+                    existing_nodes=existing,
+                    node=node,
+                    embedding=embedding,
+                )
+            )
             if duplicate is not None:
                 existing_node, dedup_reason, similarity = duplicate
                 merged_node = self._merge_duplicate_node(
@@ -1090,6 +1101,7 @@ class Neo4jMemoryGraph:
                     embedding: $embedding,
                     source_prompt: $source_prompt,
                     evidence_records: $evidence_records,
+                    metadata: $metadata,
                     valid_from: $valid_from,
                     valid_to: $valid_to,
                     created_at: $created_at,
@@ -1099,7 +1111,11 @@ class Neo4jMemoryGraph:
                 """,
                 **self._node_create_params(node=node, embedding=embedding),
             ).consume()
-            conflicts = self._register_conflicts(session, node)
+            conflicts = (
+                self._register_conflicts(session, node)
+                if node.metadata.get("authority") != "source_observation"
+                else []
+            )
             self._mark_communities_stale(session)
         return NodeStoreResult(node=node, created=True, conflicts=conflicts)
 
@@ -1950,98 +1966,102 @@ class Neo4jMemoryGraph:
                 total_nodes_in_graph=len(nodes_by_id),
             )
 
+    def update_node(
+        self,
+        *,
+        node_id: str,
+        content: str | None = None,
+        label: str | None = None,
+        tags: list[str] | None = None,
+        agent_id: str | None = None,
+        project: str | None = None,
+        session_id: str | None = None,
+        valid_from: datetime | None = None,
+        valid_to: datetime | None = None,
+        evidence_records: list[EvidenceRecord] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Node:
+        if (
+            content is None
+            and label is None
+            and tags is None
+            and agent_id is None
+            and project is None
+            and session_id is None
+            and valid_from is None
+            and valid_to is None
+            and evidence_records is None
+            and metadata is None
+        ):
+            raise ValueError("At least one field must be provided for update.")
 
-def update_node(
-    self,
-    *,
-    node_id: str,
-    content: str | None = None,
-    label: str | None = None,
-    tags: list[str] | None = None,
-    agent_id: str | None = None,
-    project: str | None = None,
-    session_id: str | None = None,
-    valid_from: datetime | None = None,
-    valid_to: datetime | None = None,
-    evidence_records: list[EvidenceRecord] | None = None,
-) -> Node:
-    if (
-        content is None
-        and label is None
-        and tags is None
-        and agent_id is None
-        and project is None
-        and session_id is None
-        and valid_from is None
-        and valid_to is None
-        and evidence_records is None
-    ):
-        raise ValueError("At least one field must be provided for update.")
+        with self._lock, self._session() as session:
+            node = self._fetch_node(session, node_id)
 
-    with self._lock, self._session() as session:
-        node = self._fetch_node(session, node_id)
+            if node is None:
+                raise ValueError(f"Node not found: {node_id}")
 
-        if node is None:
-            raise ValueError(f"Node not found: {node_id}")
+            updated_node = Node(
+                id=node.id,
+                tenant_id=node.tenant_id,
+                agent_id=agent_id if agent_id is not None else node.agent_id,
+                project=project if project is not None else node.project,
+                session_id=session_id if session_id is not None else node.session_id,
+                label=label if label is not None else node.label,
+                content=content if content is not None else node.content,
+                node_type=node.node_type,
+                tags=tags if tags is not None else node.tags,
+                source_prompt=node.source_prompt,
+                evidence_records=(evidence_records if evidence_records is not None else node.evidence_records),
+                metadata=metadata if metadata is not None else node.metadata,
+                valid_from=valid_from if valid_from is not None else node.valid_from,
+                valid_to=valid_to if valid_to is not None else node.valid_to,
+                created_at=node.created_at,
+                updated_at=utc_now(),
+                access_count=node.access_count,
+            )
 
-        updated_node = Node(
-            id=node.id,
-            tenant_id=node.tenant_id,
-            agent_id=agent_id if agent_id is not None else node.agent_id,
-            project=project if project is not None else node.project,
-            session_id=session_id if session_id is not None else node.session_id,
-            label=label if label is not None else node.label,
-            content=content if content is not None else node.content,
-            node_type=node.node_type,
-            tags=tags if tags is not None else node.tags,
-            source_prompt=node.source_prompt,
-            evidence_records=(evidence_records if evidence_records is not None else node.evidence_records),
-            valid_from=valid_from if valid_from is not None else node.valid_from,
-            valid_to=valid_to if valid_to is not None else node.valid_to,
-            created_at=node.created_at,
-            updated_at=utc_now(),
-            access_count=node.access_count,
-        )
+            embedding = None
+            if content is not None:
+                embedding = self.embedding_model.embed(updated_node.content).astype(np.float32).tolist()
 
-        embedding = None
-        if content is not None:
-            embedding = self.embedding_model.embed(updated_node.content).astype(np.float32).tolist()
+            session.run(
+                """
+                MATCH (n:MemoryNode {tenant_id: $tenant_id, id: $id})
+                SET n.label = $label,
+                    n.content = $content,
+                    n.tags = $tags,
+                    n.agent_id = $agent_id,
+                    n.project = $project,
+                    n.session_id = $session_id,
+                    n.valid_from = $valid_from,
+                    n.valid_to = $valid_to,
+                    n.evidence_records = $evidence_records,
+                    n.metadata = $metadata,
+                    n.updated_at = $updated_at,
+                    n.embedding = CASE
+                        WHEN $embedding IS NULL THEN n.embedding
+                        ELSE $embedding
+                    END
+                """,
+                id=updated_node.id,
+                tenant_id=self.tenant_id,
+                label=updated_node.label,
+                content=updated_node.content,
+                tags=updated_node.tags,
+                agent_id=updated_node.agent_id,
+                project=updated_node.project,
+                session_id=updated_node.session_id,
+                valid_from=(updated_node.valid_from.isoformat() if updated_node.valid_from else None),
+                valid_to=(updated_node.valid_to.isoformat() if updated_node.valid_to else None),
+                evidence_records=_encode_evidence_records(updated_node.evidence_records),
+                metadata=_encode_metadata(updated_node.metadata),
+                updated_at=updated_node.updated_at.isoformat(),
+                embedding=embedding,
+            ).consume()
+            self._mark_communities_stale(session)
 
-        session.run(
-            """
-            MATCH (n:MemoryNode {tenant_id: $tenant_id, id: $id})
-            SET n.label = $label,
-                n.content = $content,
-                n.tags = $tags,
-                n.agent_id = $agent_id,
-                n.project = $project,
-                n.session_id = $session_id,
-                n.valid_from = $valid_from,
-                n.valid_to = $valid_to,
-                n.evidence_records = $evidence_records,
-                n.updated_at = $updated_at,
-                n.embedding = CASE
-                    WHEN $embedding IS NULL THEN n.embedding
-                    ELSE $embedding
-                END
-            """,
-            id=updated_node.id,
-            tenant_id=self.tenant_id,
-            label=updated_node.label,
-            content=updated_node.content,
-            tags=updated_node.tags,
-            agent_id=updated_node.agent_id,
-            project=updated_node.project,
-            session_id=updated_node.session_id,
-            valid_from=(updated_node.valid_from.isoformat() if updated_node.valid_from else None),
-            valid_to=(updated_node.valid_to.isoformat() if updated_node.valid_to else None),
-            evidence_records=_encode_evidence_records(updated_node.evidence_records),
-            updated_at=updated_node.updated_at.isoformat(),
-            embedding=embedding,
-        ).consume()
-        self._mark_communities_stale(session)
-
-        return updated_node
+            return updated_node
 
     def update_edge(
         self,
@@ -3517,6 +3537,7 @@ def update_node(
             "embedding": embedding.astype(np.float32).tolist(),
             "source_prompt": node.source_prompt,
             "evidence_records": _encode_evidence_records(node.evidence_records),
+            "metadata": _encode_metadata(node.metadata),
             "valid_from": (node.valid_from.isoformat() if node.valid_from is not None else None),
             "valid_to": (node.valid_to.isoformat() if node.valid_to is not None else None),
             "created_at": node.created_at.isoformat(),
@@ -3543,92 +3564,6 @@ def update_node(
             created_at=_parse_datetime(props["created_at"]),
             updated_at=_parse_datetime(props["updated_at"]),
             access_count=int(props.get("access_count") or 0),
-        )
-
-    def _transcript_from_props(self, props: Any) -> TranscriptRecord:
-        return TranscriptRecord(
-            id=props["id"],
-            tenant_id=props.get("tenant_id") or self.tenant_id,
-            agent_id=props.get("agent_id") or "",
-            project=props.get("project") or "",
-            session_id=props.get("session_id") or "",
-            observed_at=_parse_datetime(props["observed_at"]),
-            turn_index=int(props.get("turn_index") or 0),
-            role=props.get("role") or "",
-            transcript_text=props["transcript_text"],
-            metadata=_decode_metadata(props.get("metadata")),
-        )
-
-    def _transcript_scope_matches(
-        self,
-        record: TranscriptRecord,
-        *,
-        agent_id: str = "",
-        project: str = "",
-        session_id: str = "",
-    ) -> bool:
-        normalized_agent = agent_id.strip().lower()
-        normalized_project = project.strip().lower()
-        normalized_session = session_id.strip().lower()
-        if normalized_agent and record.agent_id.strip().lower() != normalized_agent:
-            return False
-        if normalized_project and record.project.strip().lower() != normalized_project:
-            return False
-        return not (normalized_session and record.session_id.strip().lower() != normalized_session)
-
-    def list_transcript_records(
-        self,
-        *,
-        agent_id: str = "",
-        project: str = "",
-        session_id: str = "",
-        limit: int = 200,
-    ) -> list[TranscriptRecord]:
-        filters = ["t.tenant_id = $tenant_id"]
-        params: dict[str, Any] = {
-            "tenant_id": self.tenant_id,
-            "limit": max(1, int(limit)),
-        }
-        if project.strip():
-            filters.append("t.project = $project")
-            params["project"] = project.strip()
-        if session_id.strip():
-            filters.append("t.session_id = $session_id")
-            params["session_id"] = session_id.strip()
-        elif agent_id.strip():
-            filters.append("t.agent_id = $agent_id")
-            params["agent_id"] = agent_id.strip()
-        with self._lock, self._session() as session:
-            records = session.run(
-                f"""
-                MATCH (t:MemoryTranscript)
-                WHERE {" AND ".join(filters)}
-                RETURN t
-                ORDER BY t.observed_at ASC, t.turn_index ASC
-                LIMIT $limit
-                """,
-                **params,
-            )
-            return [self._transcript_from_props(record["t"]) for record in records]
-
-    def search_transcript_records(
-        self,
-        *,
-        query: str,
-        agent_id: str = "",
-        project: str = "",
-        session_id: str = "",
-        limit: int = 25,
-    ) -> list[ReplayHit]:
-        query_text = query.strip()
-        if not query_text:
-            return []
-        return self._query_replay_hits(
-            query=self._expand_query_aliases(query_text),
-            max_hits=max(1, int(limit)),
-            agent_id=agent_id,
-            project=project,
-            session_id=session_id,
         )
 
     def _next_transcript_turn_index(self, session: Any, *, session_id: str) -> int:
