@@ -1,24 +1,32 @@
 """Temporal ranking with topic gating for latest/oldest graph queries."""
 
 from __future__ import annotations
-
+# AFTER
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal, TypeVar
+from typing import Generic, Literal, Protocol, TypeVar
 
 from waggle.retrieval.scorers.topic_relevance import TopicScore, score_topic_relevance
 
 TOPIC_THRESHOLD = 0.35
 TemporalDirection = Literal["latest", "oldest"]
-CandidateT = TypeVar("CandidateT")
+
+
+class HasTimestamp(Protocol):
+    """Structural type for anything rank_temporal can sort by time."""
+
+    ts: datetime | str
+
+
+CandidateT = TypeVar("CandidateT", bound=HasTimestamp)
 
 
 @dataclass(frozen=True)
-class RankedTemporalCandidate:
+class RankedTemporalCandidate(Generic[CandidateT]):
     """A temporal candidate paired with its topic score."""
 
-    candidate: object
+    candidate: CandidateT
     topic_score: TopicScore
     timestamp: datetime
 
@@ -57,7 +65,7 @@ def rank_temporal(
         raise ValueError("direction must be 'latest' or 'oldest'.")
 
     ranked = [
-        RankedTemporalCandidate(
+        RankedTemporalCandidate[CandidateT](
             candidate=candidate,
             topic_score=score_topic_relevance(
                 query,
