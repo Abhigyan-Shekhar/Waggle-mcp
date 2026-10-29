@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import threading
 from collections import deque
 from datetime import UTC, datetime, timedelta
@@ -127,6 +128,8 @@ from waggle.models import (
 )
 
 SCHEMA_VERSION = 2
+
+LOGGER = logging.getLogger(__name__)
 
 _UI_STATE_CACHE: dict[tuple[str, str, str, str], dict[str, Any]] = {}
 
@@ -2983,14 +2986,35 @@ def update_node(
             created_nodes.append(context_node)
             created_ids.add(context_node.id)
 
+        atomic_items = split_atomic_items(trimmed_content)
+
+        _batch_embeddings: np.ndarray | None = None
+        if atomic_items:
+            try:
+                _batch_embeddings = self.embedding_model.embed_batch(atomic_items)
+                if _batch_embeddings is not None and len(_batch_embeddings) != len(atomic_items):
+                    LOGGER.warning(
+                        "embed_batch returned %d vectors, expected %d; falling back to per-node embedding",
+                        len(_batch_embeddings),
+                        len(atomic_items),
+                    )
+                    _batch_embeddings = None
+            except (AttributeError, NotImplementedError):
+                _batch_embeddings = None
+            except Exception as e:
+                LOGGER.warning("embed_batch failed: %s; falling back to per-node embedding", e)
+                _batch_embeddings = None
+
         item_nodes: list[Node] = []
-        for item in split_atomic_items(trimmed_content):
+        for _idx, item in enumerate(atomic_items):
+            _precomputed = _batch_embeddings[_idx] if _batch_embeddings is not None else None
             store_result = self.add_node(
                 label=infer_label(item),
                 content=item,
                 node_type=infer_node_type(item),
                 tags=["decomposed"],
                 source_prompt=context.strip() or trimmed_content,
+                embedding=_precomputed,
             )
             node = store_result.node
             item_nodes.append(node)
@@ -3255,8 +3279,16 @@ def update_node(
             try:
                 _batch_embeddings = self.embedding_model.embed_batch(_candidate_texts)
                 if _batch_embeddings is not None and len(_batch_embeddings) != len(_candidate_texts):
+                    LOGGER.warning(
+                        "embed_batch returned %d vectors, expected %d; falling back to per-node embedding",
+                        len(_batch_embeddings),
+                        len(_candidate_texts),
+                    )
                     _batch_embeddings = None
-            except Exception:
+            except (AttributeError, NotImplementedError):
+                _batch_embeddings = None
+            except Exception as e:
+                LOGGER.warning("embed_batch failed: %s; falling back to per-node embedding", e)
                 _batch_embeddings = None
 
         for _idx, candidate in enumerate(candidates):

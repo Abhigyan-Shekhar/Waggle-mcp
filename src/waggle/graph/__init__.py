@@ -3951,8 +3951,16 @@ class MemoryGraph(TranscriptMixin, TraversalMixin, MutationMixin, MemoryGraphBas
             try:
                 _batch_embeddings = self.embedding_model.embed_batch(atomic_items)
                 if _batch_embeddings is not None and len(_batch_embeddings) != len(atomic_items):
+                    LOGGER.warning(
+                        "embed_batch returned %d vectors, expected %d; falling back to per-node embedding",
+                        len(_batch_embeddings),
+                        len(atomic_items),
+                    )
                     _batch_embeddings = None
-            except Exception:
+            except (AttributeError, NotImplementedError):
+                _batch_embeddings = None
+            except Exception as e:
+                LOGGER.warning("embed_batch failed: %s; falling back to per-node embedding", e)
                 _batch_embeddings = None
 
         item_nodes: list[Node] = []

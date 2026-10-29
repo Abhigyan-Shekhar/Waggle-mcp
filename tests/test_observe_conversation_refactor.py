@@ -379,12 +379,25 @@ class TestBatchEmbeddingAdoption:
         assert len(result.stored_nodes) == 5
 
     def test_all_nodes_have_embeddings_after_batch_observe(self, tmp_path: Path) -> None:
-        """Every node stored via a multi-node observation must have a valid non-zero embedding."""
+        """Assert exactly one embed_batch call and each node receives its distinct vector in candidate order."""
         from waggle.models import NodeType
 
         graph = make_graph(tmp_path)
 
-        with patch("waggle.graph.extract_conversation_candidates") as mock_extract:
+        expected_embeddings = np.eye(8, dtype=np.float32)[:3]
+        embed_batch_calls: list[list[str]] = []
+
+        def distinct_batch(texts: list[str]) -> np.ndarray:
+            embed_batch_calls.append(list(texts))
+            assert len(texts) == len(expected_embeddings)
+            return expected_embeddings
+
+        graph.embedding_model.embed_batch = distinct_batch  # type: ignore[method-assign]
+
+        with (
+            patch("waggle.graph.extract_conversation_candidates") as mock_extract,
+            patch.object(graph, "add_node", wraps=graph.add_node) as add_node_spy,
+        ):
             mock_extract.return_value = [
                 {"label": "Node A", "content": "Alpha content.", "node_type": NodeType.FACT, "tags": []},
                 {"label": "Node B", "content": "Beta content.", "node_type": NodeType.FACT, "tags": []},
@@ -396,16 +409,69 @@ class TestBatchEmbeddingAdoption:
                 assistant_response="Stored.",
             )
 
+        # Assert exactly one embed_batch call with all candidate texts
+        assert len(embed_batch_calls) == 1
+        assert embed_batch_calls[0] == ["Alpha content.", "Beta content.", "Gamma content."]
         assert len(result.stored_nodes) == 3
-        for node in result.stored_nodes:
-            # Fetch the raw embedding bytes back from the DB
+
+        # Assert the distinct vector reaches each node in candidate order
+        received_embeddings = [call.kwargs.get("embedding") for call in add_node_spy.call_args_list]
+        assert len(received_embeddings) == 3
+        for actual, expected in zip(received_embeddings, expected_embeddings, strict=True):
+            assert actual is not None
+            np.testing.assert_array_equal(actual, expected)
+
+        # Assert persisted embeddings in the database match expected distinct vectors
+        for i, node in enumerate(result.stored_nodes):
             fetched = graph.get_node(node.id)
-            # The node must exist and have a label (proxy for a complete write)
             assert fetched.label
             assert fetched.content
-            # Verify that embedding data was successfully generated and persisted
             assert fetched.embedding_model_id
-            assert fetched.embedding_dim and fetched.embedding_dim > 0
+            assert fetched.embedding_dim and fetched.embedding_dim == 8
+
+            with graph._lock, graph._connect() as conn:
+                row = conn.execute("SELECT embedding FROM nodes WHERE id = ?", (node.id,)).fetchone()
+                assert row is not None and row[0] is not None
+                stored_vec = graph._decode_embedding(row[0])
+                np.testing.assert_array_equal(stored_vec, expected_embeddings[i])
+
+    def test_decompose_and_store_batches_embeddings_with_distinct_vectors(self, tmp_path: Path) -> None:
+        """decompose_and_store must batch embed atomic items once and assign distinct vectors to nodes."""
+        graph = make_graph(tmp_path)
+
+        expected_embeddings = np.eye(8, dtype=np.float32)[:2]
+        embed_batch_calls: list[list[str]] = []
+
+        def distinct_batch(texts: list[str]) -> np.ndarray:
+            embed_batch_calls.append(list(texts))
+            assert len(texts) == len(expected_embeddings)
+            return expected_embeddings
+
+        graph.embedding_model.embed_batch = distinct_batch  # type: ignore[method-assign]
+
+        with patch.object(graph, "add_node", wraps=graph.add_node) as add_node_spy:
+            result = graph.decompose_and_store(
+                content="- User prefers Python for backend work\n- Project uses FastAPI for the API",
+                context="Backend preferences",
+            )
+
+        assert len(result.nodes) >= 2
+        # Batch embed must be called once for the 2 atomic items
+        assert len(embed_batch_calls) == 1
+        assert len(embed_batch_calls[0]) == 2
+        assert "User prefers Python for backend work" in embed_batch_calls[0][0]
+        assert "Project uses FastAPI for the API" in embed_batch_calls[0][1]
+
+        # Check that atomic item calls received the precomputed distinct embeddings
+        decomposed_calls = [
+            call for call in add_node_spy.call_args_list
+            if "decomposed" in call.kwargs.get("tags", [])
+        ]
+        assert len(decomposed_calls) == 2
+        for call, expected in zip(decomposed_calls, expected_embeddings, strict=True):
+            actual = call.kwargs.get("embedding")
+            assert actual is not None
+            np.testing.assert_array_equal(actual, expected)
 
     def test_dedup_still_works_with_batch_embeddings(self, tmp_path: Path) -> None:
         """Dedup must fire correctly when the embedding comes from the batch path."""
