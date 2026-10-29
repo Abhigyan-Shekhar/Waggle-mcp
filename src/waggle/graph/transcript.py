@@ -40,6 +40,8 @@ from .base import (
     _parse_datetime,
 )
 
+LOGGER = logging.getLogger(__name__)
+
 
 def extract_conversation_candidates(user_message: str, assistant_response: str) -> list[dict[str, Any]]:
     import sys
@@ -88,7 +90,10 @@ class TranscriptMixin(MemoryGraphBase):
         if _candidate_texts:
             try:
                 _batch_embeddings = self.embedding_model.embed_batch(_candidate_texts)
-            except Exception:
+            except (AttributeError, NotImplementedError):
+                _batch_embeddings = None
+            except Exception as e:
+                LOGGER.warning("embed_batch failed: %s; falling back to per-node embedding", e)
                 _batch_embeddings = None
 
             if _batch_embeddings is not None and len(_batch_embeddings) != len(_candidate_texts):
