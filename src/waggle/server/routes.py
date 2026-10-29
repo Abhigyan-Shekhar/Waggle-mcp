@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from starlette.applications import Starlette
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import Headers
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
@@ -50,11 +51,15 @@ from waggle.webmcp import (
     apply_approved_memory_change,
     compile_project_brief,
     ensure_demo_seed,
+    list_registered_projects,
     project_authority_snapshot,
     propose_memory_change,
     publicize_demo_payload,
     recall_authoritative_memory,
+    refresh_project_context,
+    register_project,
     reset_demo,
+    resolve_active_project,
     resolve_demo_scope,
     resolve_public_project,
     review_memory_change,
@@ -196,6 +201,13 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         raise ValidationFailure("Challenge demo governance requires WAGGLE_BACKEND=sqlite.")
     service = MCPHttpAppV2(app_server._root_graph, config, app_server.metrics)
     proposal_repository = ProposalRepository(config.db_path)
+    configured_project_id = ""
+    if config.webmcp_workspace_path and not config.demo_mode:
+        registration = register_project(
+            app_server._root_graph.for_tenant(config.default_tenant_id),
+            config.webmcp_workspace_path,
+        )
+        configured_project_id = str(registration["project"]["project_id"])
 
     async def waggle_error_handler(request: Request, exc: WaggleError) -> Response:
         if isinstance(exc, AuthenticationError):
@@ -221,10 +233,15 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             return None
         return resolve_demo_scope(str(getattr(request.state, "demo_session_id", "")))
 
-    def _resolve_request_project(request: Request, supplied_project: Any) -> str:
+    def _resolve_request_project(request: Request, supplied_project: Any, graph: Any | None = None) -> str:
         demo_scope = _demo_scope_from_request(request)
         if demo_scope is None:
-            return str(supplied_project or "").strip()
+            resolved_graph = graph or app_server._root_graph.for_tenant(config.default_tenant_id)
+            return resolve_active_project(
+                resolved_graph,
+                str(supplied_project or "").strip(),
+                fallback=configured_project_id if str(resolved_graph.tenant_id) == config.default_tenant_id else "",
+            )
         return resolve_public_project(demo_scope, supplied_project)
 
     def _public_response(request: Request, payload: Any) -> Any:
@@ -235,8 +252,15 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         requested_project = request.query_params.get("project", "").strip()
         if config.demo_mode:
             requested_project = requested_project or DEMO_PUBLIC_PROJECT_ID
+            requested_project = _resolve_request_project(request, requested_project)
+        elif not requested_project:
+            graph, _ = _require_http_scope(request, "graph:read")
+            try:
+                requested_project = _resolve_request_project(request, "", graph)
+            except ValidationFailure:
+                requested_project = ""
         return {
-            "project": _resolve_request_project(request, requested_project),
+            "project": requested_project,
             "agent_id": request.query_params.get("agent_id", "").strip(),
             "session_id": request.query_params.get("session_id", "").strip(),
         }
@@ -427,11 +451,11 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def webmcp_project_brief(request: Request) -> Response:
         payload = await request.json()
-        project_id = payload.get("project_id")
+        project_id = payload.get("project_id", "")
         if not isinstance(project_id, str):
             raise ValidationFailure("project_id must be a string.")
-        project_id = _resolve_request_project(request, project_id)
         graph, _ = _require_http_scope(request, "graph:read")
+        project_id = _resolve_request_project(request, project_id, graph)
         brief = compile_project_brief(graph, project_id=project_id)
         _emit_http_audit(
             request,
@@ -451,12 +475,14 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         project_id = payload.get("project_id")
         query = payload.get("query")
         limit = payload.get("limit", 5)
+        if project_id is None:
+            project_id = ""
         if not isinstance(project_id, str):
             raise ValidationFailure("project_id must be a string.")
         if not isinstance(query, str):
             raise ValidationFailure("query must be a string.")
-        project_id = _resolve_request_project(request, project_id)
         graph, _ = _require_http_scope(request, "graph:read")
+        project_id = _resolve_request_project(request, project_id, graph)
         recall = recall_authoritative_memory(
             graph,
             project_id=project_id,
@@ -480,6 +506,8 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         proposed_content = payload.get("proposed_content")
         reason = payload.get("reason", "")
         evidence_ids = payload.get("evidence_ids", [])
+        if project_id is None:
+            project_id = ""
         if not isinstance(project_id, str):
             raise ValidationFailure("project_id must be a string.")
         if not isinstance(memory_id, str):
@@ -488,8 +516,8 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             raise ValidationFailure("proposed_content must be a string.")
         if not isinstance(reason, str):
             raise ValidationFailure("reason must be a string.")
-        project_id = _resolve_request_project(request, project_id)
         graph, principal = _require_http_scope(request, "graph:write")
+        project_id = _resolve_request_project(request, project_id, graph)
         proposal, created = propose_memory_change(
             graph,
             proposal_repository,
@@ -529,6 +557,11 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         if not isinstance(review_note, str):
             raise ValidationFailure("review_note must be a string.")
         graph, principal = _require_http_scope(request, "graph:write")
+        project_id = payload.get("project_id", "")
+        if not isinstance(project_id, str):
+            raise ValidationFailure("project_id must be a string.")
+        if project_id or config.webmcp_workspace_path:
+            project_id = _resolve_request_project(request, project_id, graph)
         reviewed = review_memory_change(
             graph,
             proposal_repository,
@@ -537,6 +570,7 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             approved_content=approved_content,
             review_note=review_note,
             reviewed_by=(principal.name or principal.api_key_id) if principal is not None else "local-human",
+            project_id=project_id,
         )
         return JSONResponse(_public_response(request, reviewed))
 
@@ -547,10 +581,12 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
         if unexpected:
             raise ValidationFailure("Apply accepts only project_id; approved content cannot be supplied or changed.")
         project_id = payload.get("project_id")
+        if project_id is None:
+            project_id = ""
         if not isinstance(project_id, str):
             raise ValidationFailure("project_id must be a string.")
-        project_id = _resolve_request_project(request, project_id)
         graph, principal = _require_http_scope(request, "graph:write")
+        project_id = _resolve_request_project(request, project_id, graph)
         applied = apply_approved_memory_change(
             graph,
             proposal_repository,
@@ -571,10 +607,12 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
                 "Human apply accepts only project_id; approved content cannot be supplied or changed."
             )
         project_id = payload.get("project_id")
+        if project_id is None:
+            project_id = ""
         if not isinstance(project_id, str):
             raise ValidationFailure("project_id must be a string.")
-        project_id = _resolve_request_project(request, project_id)
         graph, principal = _require_http_scope(request, "graph:write")
+        project_id = _resolve_request_project(request, project_id, graph)
         applied = apply_approved_memory_change(
             graph,
             proposal_repository,
@@ -587,10 +625,8 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
 
     async def webmcp_list_proposals(request: Request) -> Response:
         project_id = request.query_params.get("project_id", "")
-        if not project_id.strip():
-            raise ValidationFailure("project_id is required.")
-        project_id = _resolve_request_project(request, project_id)
         graph, _ = _require_http_scope(request, "graph:read")
+        project_id = _resolve_request_project(request, project_id, graph)
         proposals = proposal_repository.list_for_project(
             tenant_id=str(graph.tenant_id),
             project_id=project_id,
@@ -598,6 +634,61 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             limit=50,
         )
         return JSONResponse(_public_response(request, {"project_id": project_id, "proposals": proposals}))
+
+    async def webmcp_register_project(request: Request) -> Response:
+        if config.demo_mode:
+            raise ValidationFailure("Repository registration is unavailable in demo mode.")
+        payload = await request.json()
+        workspace_path = payload.get("workspace_path")
+        if not isinstance(workspace_path, str) or not workspace_path.strip():
+            raise ValidationFailure("workspace_path is required.")
+        graph, _ = _require_http_scope(request, "graph:write")
+        # The page must never turn an arbitrary client path into server-side
+        # filesystem access. The operator explicitly grants one workspace.
+        _require_repository_access(request, graph)
+        if Path(workspace_path).expanduser().resolve() != Path(config.webmcp_workspace_path).resolve():
+            raise ValidationFailure("Only WAGGLE_WORKSPACE_PATH can be registered through this server.")
+        result = await run_in_threadpool(register_project, graph, workspace_path)
+        return JSONResponse(result, status_code=201 if result["created"] else 200)
+
+    async def webmcp_projects(request: Request) -> Response:
+        graph, _ = _require_http_scope(request, "graph:read")
+        return JSONResponse({"projects": [] if config.demo_mode else list_registered_projects(graph)})
+
+    async def webmcp_activity(request: Request) -> Response:
+        graph, _ = _require_http_scope(request, "graph:read")
+        project_id = _resolve_request_project(request, request.query_params.get("project_id", ""), graph)
+        events = graph.list_audit_events(limit=500)
+        scoped = [
+            _serialize_audit_event(event)
+            for event in events
+            if event.resource_id == project_id
+            or event.metadata.get("project_id", event.metadata.get("project")) == project_id
+        ][:80]
+        return JSONResponse(_public_response(request, scoped))
+
+    async def webmcp_refresh_project(request: Request) -> Response:
+        if config.demo_mode:
+            raise ValidationFailure("Repository refresh is unavailable in demo mode.")
+        payload = await request.json()
+        project_id = payload.get("project_id", "")
+        if not isinstance(project_id, str):
+            raise ValidationFailure("project_id must be a string.")
+        graph, _ = _require_http_scope(request, "graph:write")
+        _require_repository_access(request, graph)
+        project_id = _resolve_request_project(request, project_id, graph)
+        if project_id != configured_project_id:
+            raise ValidationFailure("Open this server's configured repository before refreshing context.")
+        return JSONResponse(await run_in_threadpool(refresh_project_context, graph, project_id))
+
+    def _require_repository_access(request: Request, graph: Any) -> None:
+        if not config.webmcp_workspace_path or str(graph.tenant_id) != config.default_tenant_id:
+            raise ValidationFailure("Repository access requires an operator-configured WAGGLE_WORKSPACE_PATH.")
+        if request.headers.get("content-type", "").split(";")[0].strip().lower() != "application/json":
+            raise ValidationFailure("Repository operations require application/json.")
+        origin = request.headers.get("origin")
+        if origin and origin.rstrip("/") != str(request.base_url).rstrip("/"):
+            raise ValidationFailure("Repository operations require a same-origin request.")
 
     async def webmcp_reset_demo(request: Request) -> Response:
         demo_scope = _demo_scope_from_request(request)
@@ -1412,6 +1503,10 @@ def create_http_application(app_server: WaggleServer, config: AppConfig) -> Star
             Route("/api/graph", graph_snapshot, methods=["GET"]),
             Route("/api/webmcp/project-brief", webmcp_project_brief, methods=["POST"]),
             Route("/api/webmcp/recall-memory", webmcp_recall_memory, methods=["POST"]),
+            Route("/api/webmcp/projects/register", webmcp_register_project, methods=["POST"]),
+            Route("/api/webmcp/projects", webmcp_projects, methods=["GET"]),
+            Route("/api/webmcp/activity", webmcp_activity, methods=["GET"]),
+            Route("/api/webmcp/projects/refresh", webmcp_refresh_project, methods=["POST"]),
             Route("/api/webmcp/proposals", webmcp_list_proposals, methods=["GET"]),
             Route("/api/webmcp/proposals", webmcp_propose_memory_change, methods=["POST"]),
             Route("/api/webmcp/demo/reset", webmcp_reset_demo, methods=["POST"]),

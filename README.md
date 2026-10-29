@@ -147,12 +147,13 @@ MCP connector.
 1. Open the workspace in ChatGPT's built-in browser using a model and account
    configuration that supports Site tools.
 2. In the address bar, check **Site tools → Available site tools** and confirm
-   the five Waggle tools are available. Keep this workspace tab open while
+   the Waggle tools are available. Keep this workspace tab open while
    working with its memory.
 3. Explore the sample project or select **Load private .abhi** to work with your
    own graph.
-4. Ask for a project brief or recall a specific decision. On the hosted workspace,
-   use `project_id: waggle-webmcp`, including after importing your own graph.
+4. Ask for a project brief or recall a specific decision. `project_id` is optional:
+   tools default to the repository open in the current Waggle workspace. The
+   hosted sample continues to use `waggle-webmcp`.
 5. To correct a memory, ask the agent to propose a replacement. Review it in
    **Proposals**, edit it if needed, and approve the exact value.
 6. Ask the agent to apply the approved proposal using only its actual proposal
@@ -164,6 +165,37 @@ For example:
 Call Waggle's get_project_brief with project_id "waggle-webmcp".
 Use the returned memories to catch me up on this project.
 ```
+
+For a real local or self-hosted repository, start Waggle with its workspace path:
+
+```bash
+WAGGLE_WORKSPACE_PATH=/absolute/path/to/repository \
+WAGGLE_TRANSPORT=http \
+WAGGLE_HTTP_HOST=127.0.0.1 \
+waggle-mcp serve
+```
+
+Open `http://127.0.0.1:8080/workspace` in your agent-capable browser, then ask
+it to call `get_project_brief` with no arguments. Keep the existing Waggle
+database path (or set `WAGGLE_DB_PATH` explicitly) to reuse memory across
+restarts. A hosted webpage cannot scan files on your computer: repository
+registration runs on the machine hosting this Waggle process.
+
+Waggle resolves the Git root, normalizes the `origin` remote when available,
+and derives a stable project ID. It reads only lightweight repository signals
+such as the README, manifests, deployment files, documentation index, current
+branch, and recent commits. These are stored as provenance-bearing
+`source_observation` memories in the existing graph. They inform the brief but
+do not become human-approved decisions or silently overwrite governed memory.
+
+Existing memories under a manually named project are not silently reassigned
+to the new repository identity. Open that legacy project explicitly, or move
+selected memories into the registered project using the existing graph tools.
+A newly registered repository can have useful source context and zero approved
+decisions; Waggle does not fabricate decisions to fill the brief.
+
+See [the real-project walkthrough](docs/webmcp-project-workspaces.md) for the
+governed correction and reconnect/persistence checks.
 
 If Site tools are unavailable, check the browser's permissions and configuration.
 If the browser blocks an apply call, you can use **Apply approved change** on
@@ -178,7 +210,13 @@ approval and freshness checks; it does not bypass browser safeguards.
 | `recall_memory` | Finds current authoritative memories for a query, with supersession provenance when available. |
 | `propose_memory_change` | Creates a pending correction for human review without changing authoritative memory. |
 | `apply_approved_memory_change` | Applies the exact approved value using only a proposal ID. |
+| `refresh_project_context` | Rescans bounded repository signals, storing only changed observations without rewriting authoritative memory. Available for operator-configured repositories, not the hosted demo. |
 | `load_abhi_for_session` | Loads a portable graph into this browser tab and returns a brief. |
+
+`get_project_brief`, `recall_memory`, and `propose_memory_change` accept an
+optional explicit `project_id`. If omitted, Waggle uses the project open in the
+workspace. Explicit IDs remain scope-checked, and results never include memory
+from another project.
 
 ### Corrections you can review
 
