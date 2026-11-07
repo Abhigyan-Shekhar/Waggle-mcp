@@ -127,7 +127,7 @@ def test_demo_command_exits_zero(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     # Patch EmbeddingModel to use fake model for speed
     import waggle.server as server_mod
 
-    monkeypatch.setattr(server_mod, "EmbeddingModel", lambda name: FakeEmbeddingModel())
+    monkeypatch.setattr(server_mod, "EmbeddingModel", lambda name, **kwargs: FakeEmbeddingModel())
 
     args = SimpleNamespace(with_embeddings=False)
     exit_code = _run_demo(args)
@@ -149,7 +149,7 @@ def test_demo_does_not_touch_home_waggle(tmp_path: Path, monkeypatch: pytest.Mon
 
     import waggle.server as server_mod
 
-    monkeypatch.setattr(server_mod, "EmbeddingModel", lambda name: FakeEmbeddingModel())
+    monkeypatch.setattr(server_mod, "EmbeddingModel", lambda name, **kwargs: FakeEmbeddingModel())
 
     args = SimpleNamespace(with_embeddings=False)
     _run_demo(args)
