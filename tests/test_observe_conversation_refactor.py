@@ -463,10 +463,7 @@ class TestBatchEmbeddingAdoption:
         assert "Project uses FastAPI for the API" in embed_batch_calls[0][1]
 
         # Check that atomic item calls received the precomputed distinct embeddings
-        decomposed_calls = [
-            call for call in add_node_spy.call_args_list
-            if "decomposed" in call.kwargs.get("tags", [])
-        ]
+        decomposed_calls = [call for call in add_node_spy.call_args_list if "decomposed" in call.kwargs.get("tags", [])]
         assert len(decomposed_calls) == 2
         for call, expected in zip(decomposed_calls, expected_embeddings, strict=True):
             actual = call.kwargs.get("embedding")
