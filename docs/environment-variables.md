@@ -64,6 +64,8 @@ $env:WAGGLE_MODEL="deterministic"
 
 With this set, Waggle derives each embedding from a SHA-256 hash of the text (a 256-dim float32 vector) instead of running a neural model. Startup is instant, results are reproducible, and nothing is downloaded — no ~420 MB model, no network access.
 
+> **Use a separate database.** If your current database already holds embeddings from another model, switching models leaves mixed-model embeddings behind: vectors of different dimensions score 0 against each other, so retrieval silently degrades. For SQLite, point `WAGGLE_DB_PATH` at a separate empty database for this quickstart (e.g. `export WAGGLE_DB_PATH=~/.waggle/waggle-deterministic.db`) and restore your previous path when switching back to the previous model.
+
 > **Test-only — do not use in production.** Hash-based vectors do not capture semantic similarity the way a real embedding model does, so retrieval quality is noticeably lower. Use deterministic embeddings for tests, CI, and offline local development only. For production, leave `WAGGLE_MODEL` unset (the default `all-MiniLM-L6-v2`) or set it to another sentence-transformers model as described in the [Core runtime](#core-runtime) table above.
 
 ## SQLite storage
